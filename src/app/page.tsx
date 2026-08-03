@@ -351,16 +351,6 @@ export default function Home() {
               />
             </div>
           </div>
-          <div className="mt-6 text-center">
-            <a
-              href={SITE.facebook}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${btn} bg-white border-[1.5px] border-hair text-ink hover:bg-cream`}
-            >
-              <FbIcon /> ดูเพจ KAN HUB ทั้งหมด
-            </a>
-          </div>
         </Container>
       </section>
 

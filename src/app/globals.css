@@ -75,16 +75,18 @@ body {
 }
 .live-dot { animation: livePulse 1.6s ease-in-out infinite; }
 
-/* ปุ่มทักไลน์กระดุกกระดิกเป็นระยะ เรียกความสนใจ */
+/* ปุ่มทักไลน์กระดุกกระดิกเป็นระยะ เรียกความสนใจ (ทั้งปุ่มขยับ ชัดเจน) */
 @keyframes attnWiggle {
-  0%, 82%, 100% { transform: rotate(0) scale(1); }
-  84% { transform: rotate(-5deg) scale(1.06); }
-  87% { transform: rotate(5deg) scale(1.06); }
-  90% { transform: rotate(-4deg) scale(1.04); }
-  93% { transform: rotate(3deg) scale(1.02); }
-  96% { transform: rotate(0) scale(1); }
+  0%, 65%, 100% { transform: rotate(0) scale(1); }
+  69% { transform: rotate(-9deg) scale(1.09); }
+  73% { transform: rotate(9deg) scale(1.09); }
+  77% { transform: rotate(-7deg) scale(1.06); }
+  81% { transform: rotate(7deg) scale(1.06); }
+  85% { transform: rotate(-4deg) scale(1.03); }
+  89% { transform: rotate(4deg) scale(1.03); }
+  93% { transform: rotate(0) scale(1); }
 }
-.attn-wiggle { animation: attnWiggle 4.5s ease-in-out infinite; }
+.attn-wiggle { animation: attnWiggle 3.2s ease-in-out infinite; transform-origin: bottom right; }
 
 /* วงแหวนเขียวเต้นจางๆ รอบปุ่มไลน์ */
 @keyframes attnGlow {
