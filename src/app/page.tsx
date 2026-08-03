@@ -20,30 +20,31 @@ const TRUST = [
   { icon: "🚚", title: "ส่งทั่วไทย", desc: "มารับเองที่โกดังก็ได้" },
 ];
 
+// สินค้าเรือธง (ราคาเคาะจริงจากไฟล์ KAN — sheet "รวมทุกสินค้า")
 const PRODUCTS = [
   {
-    img: "/img/product-tshirt.jpg",
-    badge: "เกรด A",
-    name: "กระสอบเสื้อยืด",
-    code: "KA-T45 · 45 กก. · ~180–220 ตัว",
-    price: "7,850฿",
+    img: "/img/hero-2.jpg",
+    badge: "ขายดีที่สุด",
+    name: "ก้อนผ้า TOKYO",
+    code: "Tier A · ยกก้อน · ~350 กก.",
+    price: "15,750฿",
     original: null,
   },
   {
-    img: "/img/product-jeans.jpg",
-    badge: "ฮิตสุด",
-    name: "กระสอบกางเกงยีนส์",
-    code: "KA-J45 · 45 กก. · ~90–110 ตัว",
-    price: "5,200฿",
-    original: "6,000฿",
+    img: "/img/hero-3.jpg",
+    badge: "งานพรีเมียม",
+    name: "ก้อนผ้า NAGOYA",
+    code: "Tier A · ยกก้อน · ~350 กก.",
+    price: "14,000฿",
+    original: null,
   },
   {
-    img: "/img/product-dress.jpg",
-    badge: "งานสวย",
-    name: "กระสอบเดรส",
-    code: "KA-D45 · 45 กก. · ~160–200 ตัว",
-    price: "4,300฿",
-    original: "4,900฿",
+    img: "/img/whyus-warehouse.jpg",
+    badge: "คุ้มสุด",
+    name: "ก้อนผ้า OSAKA",
+    code: "Tier A · ยกก้อน · ~300 กก.",
+    price: "11,700฿",
+    original: null,
   },
 ];
 
@@ -249,10 +250,10 @@ export default function Home() {
           <div className="text-center">
             <Eyebrow>เลือกแบบที่ใช่</Eyebrow>
             <h2 className="text-2xl font-bold text-ink sm:text-3xl">
-              กระสอบเสื้อผ้ามือสองญี่ปุ่น คัดเกรด A
+              ก้อนผ้านำเข้าตรงจากญี่ปุ่น คัดเกรด A
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[15px] text-muted">
-              เสื้อยืด · ยีนส์ · เดรส · งานคัดแบรนด์ — ราคาส่งตรงจากโกดัง
+              เลือกก้อนตามเมืองต้นทาง — TOKYO · NAGOYA · OSAKA ราคาส่งเคาะจริงจากโกดัง
             </p>
           </div>
           <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -301,11 +302,11 @@ export default function Home() {
                   ⚡ โปรเดือนนี้เท่านั้น
                 </p>
                 <h2 className="mt-2 text-2xl font-extrabold text-dark sm:text-3xl">
-                  ก้อนเด็ด ยกกระสอบ
+                  ก้อนเด็ด — ก้อนผ้า TOKYO
                 </h2>
-                <div className="mt-2 flex items-baseline justify-center gap-3 md:justify-start">
-                  <span className="text-4xl font-black text-brand sm:text-5xl">15,750฿</span>
-                  <span className="text-lg text-dark/60 line-through">ปกติ 2,900฿</span>
+                <div className="mt-2 flex flex-col items-center gap-1 md:items-start">
+                  <span className="text-4xl font-black text-brand sm:text-5xl">15,750฿ <span className="text-xl font-bold text-dark/70">/ ก้อน</span></span>
+                  <span className="text-sm font-medium text-dark/70">ยกก้อน ~350 กก. · Tier A · เหลือ 105 ก้อนในสต๊อก</span>
                 </div>
               </div>
               <div className="flex flex-col items-center gap-5">
