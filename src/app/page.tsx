@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/Container";
 import { Countdown } from "@/components/home/Countdown";
+import { LineIcon, FbIcon } from "@/components/BrandIcons";
 import { SITE } from "@/lib/site";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
@@ -137,9 +138,66 @@ const btn =
 
 /* ============================================================ */
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": ["Store", "LocalBusiness"],
+      "@id": `${SITE.url}#store`,
+      name: SITE.name,
+      description: SITE.description,
+      url: SITE.url,
+      telephone: SITE.phone,
+      image: `${SITE.url}/img/logo-kanhub.png`,
+      priceRange: "฿฿",
+      areaServed: ["สุราษฎร์ธานี", "นครศรีธรรมราช", "ชุมพร", "ภาคใต้", "ประเทศไทย"],
+      sameAs: [SITE.facebook, SITE.lineUrl],
+      address: { "@type": "PostalAddress", addressRegion: "ภาคใต้", addressCountry: "TH" },
+      openingHours: "Mo-Sa 09:00-18:00",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.url}#website`,
+      url: SITE.url,
+      name: SITE.name,
+      inLanguage: "th-TH",
+      publisher: { "@id": `${SITE.url}#store` },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: FAQ.map((f) => ({
+        "@type": "Question",
+        name: f.q,
+        acceptedAnswer: { "@type": "Answer", text: f.a },
+      })),
+    },
+    ...PRODUCTS.map((p) => ({
+      "@type": "Product",
+      name: p.name,
+      category: "กระสอบเสื้อผ้ามือสองญี่ปุ่น",
+      brand: { "@type": "Brand", name: SITE.name },
+      offers: {
+        "@type": "Offer",
+        price: p.price.replace(/[^\d]/g, ""),
+        priceCurrency: "THB",
+        availability: "https://schema.org/InStock",
+        url: SITE.url,
+      },
+    })),
+  ],
+};
+
+export const metadata = {
+  alternates: { canonical: "/" },
+};
+
 export default function Home() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* ---------- HERO ---------- */}
       <section className="relative isolate overflow-hidden bg-dark">
         <Image
@@ -169,7 +227,7 @@ export default function Home() {
           </div>
           <div className="fade-rise fade-rise-3 mt-6 flex flex-wrap gap-3">
             <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} bg-line text-white shadow-lg shadow-line/30 hover:bg-line-dark`}>
-              💬 ทักไลน์ดูราคา
+              <LineIcon /> ทักไลน์ดูราคา
             </a>
             <Link href="/catalog" className={`${btn} border-[1.5px] border-white/40 text-white hover:bg-white/10`}>
               ดูกระสอบทั้งหมด
@@ -199,47 +257,109 @@ export default function Home() {
         </Container>
       </section>
 
-      {/* ---------- LIVE / VIDEO ---------- */}
+      {/* ---------- VIDEO SHOWCASE (คลิปจากเพจ) + SEO ---------- */}
       <section className="bg-cream py-16">
         <Container>
-          <div className="text-center">
-            <Eyebrow>ไลฟ์สดทุกวัน</Eyebrow>
-            <h2 className="text-2xl font-bold text-ink sm:text-3xl">
-              เปิดกระสอบสด — เห็นของจริงก่อนตัดสินใจ
-            </h2>
-          </div>
-          <div className="mt-8 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-            {/* จอไลฟ์ */}
-            <div className="relative grid aspect-video place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#2a1115] to-[#120b0a]">
-              <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-md bg-brand px-2.5 py-1 text-xs font-bold text-white">
-                <span className="live-dot h-1.5 w-1.5 rounded-full bg-white" />
-                LIVE
-              </span>
-              <span className="grid h-16 w-16 place-items-center rounded-full bg-white/15 text-2xl text-white backdrop-blur-sm">
-                ▶
-              </span>
-            </div>
-            {/* กล่องข้อมูลไลฟ์ */}
-            <div className="flex flex-col rounded-2xl border border-hair bg-white p-6">
-              <h3 className="text-lg font-semibold text-ink">
-                กำลังไลฟ์: เปิดกระสอบเสื้อยืดญี่ปุ่น เกรด A
-              </h3>
-              <p className="mt-1.5 text-sm text-muted">
-                พิมพ์รหัสในไลฟ์เพื่อจอง แอดมินทักกลับทันที
-              </p>
-              <div className="mt-5 text-sm font-semibold text-ink">รอบไลฟ์ถัดไป</div>
-              <div className="mt-2 space-y-2">
-                <div className="rounded-lg bg-cream-100 px-3.5 py-2 text-[13px] text-ink/80">
-                  📅 พรุ่งนี้ 20:00 · ยีนส์
-                </div>
-                <div className="rounded-lg bg-cream-100 px-3.5 py-2 text-[13px] text-ink/80">
-                  📅 เสาร์ 14:00 · งานคัดแบรนด์
-                </div>
+          <div className="grid items-center gap-8 lg:grid-cols-[300px_1fr]">
+            {/* คลิปตัวอย่างสินค้าจากเพจ KAN HUB */}
+            <div className="mx-auto w-full max-w-[300px]">
+              <div className="overflow-hidden rounded-2xl border border-hair bg-dark shadow-sm">
+                <iframe
+                  src="https://www.facebook.com/plugins/video.php?height=476&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1028697343201063%2F&show_text=false&width=300&t=0"
+                  title="คลิปเปิดกระสอบเสื้อผ้ามือสองญี่ปุ่น KAN HUB"
+                  className="block aspect-[300/476] w-full"
+                  style={{ border: "none", overflow: "hidden" }}
+                  scrolling="no"
+                  frameBorder="0"
+                  allowFullScreen
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                  loading="lazy"
+                />
               </div>
-              <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className="mt-5 text-sm font-semibold text-brand hover:text-brand-dark">
-                ดูตารางไลฟ์ทั้งหมด →
-              </a>
             </div>
+
+            {/* copy กระตุ้นซื้อ (SEO) */}
+            <div>
+              <Eyebrow>เห็นของจริงก่อนตัดสินใจ</Eyebrow>
+              <h2 className="text-2xl font-bold text-ink sm:text-3xl">
+                เปิดกระสอบให้ดูทุกก้อน — เห็นของจริงก่อนโอน
+              </h2>
+              <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
+                ที่ KAN HUB เราถ่ายเปิดกระสอบเสื้อผ้ามือสองญี่ปุ่นให้ดูของจริงทุกก้อน
+                ทั้งในไลฟ์และคลิปบนเพจ คุณเห็นสภาพงานเกรด A ก่อนตัดสินใจ — ไม่ต้องเสี่ยงซื้อของที่ไม่เห็นหน้า
+                เลือกก้อนที่ใช่แล้วทักไลน์สั่งได้ทันที ส่งทั่วไทย
+              </p>
+              <ul className="mt-5 space-y-2.5">
+                {[
+                  "ถ่ายเปิดกระสอบทุกก้อนก่อนส่ง — เห็นของตรงปก ไม่มีสลับ",
+                  "คัดเกรด A นำเข้าตรงจากญี่ปุ่น ไม่ผ่านคนกลาง ราคาต้นทาง",
+                  "ขายง่าย กำไรดี พร้อมเปิดร้าน–ขายตลาดนัดได้ทันที",
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-2.5 text-[15px] text-ink/80">
+                    <span className="mt-0.5 text-line">✓</span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href={SITE.lineUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${btn} bg-line text-white hover:bg-line-dark`}
+                >
+                  <LineIcon /> ทักไลน์เลือกก้อน
+                </a>
+                <a
+                  href={SITE.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${btn} border-[1.5px] border-hair bg-white text-ink hover:bg-cream-100`}
+                >
+                  <FbIcon /> ดูคลิปทั้งหมดบนเพจ
+                </a>
+              </div>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- FACEBOOK PAGE FEED ---------- */}
+      <section className="bg-cream-100 py-16">
+        <Container>
+          <div className="text-center">
+            <Eyebrow>อัปเดตทุกวัน</Eyebrow>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">
+              คอนเทนต์ล่าสุดจากเพจ KAN HUB
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-[15px] text-muted">
+              ตามดูกระสอบใหม่ รอบไลฟ์ และโปรโมชั่นล่าสุด — อัปเดตทุกวันบนเฟซบุ๊ก
+            </p>
+          </div>
+          <div className="mt-8 flex justify-center">
+            <div className="w-full max-w-[500px] overflow-hidden rounded-2xl border border-hair bg-white shadow-sm">
+              <iframe
+                src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2FKANHUBB&tabs=timeline&width=500&height=640&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true"
+                title="เพจ Facebook KAN HUB"
+                className="block h-[640px] w-full"
+                style={{ border: "none", overflow: "hidden" }}
+                scrolling="no"
+                frameBorder="0"
+                allowFullScreen
+                allow="clipboard-write; encrypted-media; picture-in-picture; web-share"
+                loading="lazy"
+              />
+            </div>
+          </div>
+          <div className="mt-6 text-center">
+            <a
+              href={SITE.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${btn} bg-white border-[1.5px] border-hair text-ink hover:bg-cream`}
+            >
+              <FbIcon /> ดูเพจ KAN HUB ทั้งหมด
+            </a>
           </div>
         </Container>
       </section>
@@ -312,7 +432,7 @@ export default function Home() {
               <div className="flex flex-col items-center gap-5">
                 <Countdown />
                 <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} w-full bg-brand text-white hover:bg-brand-dark`}>
-                  💬 จองก้อนเด็ดเลย
+                  <LineIcon /> จองก้อนเด็ดเลย
                 </a>
               </div>
             </div>
@@ -403,7 +523,7 @@ export default function Home() {
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} bg-line text-white hover:bg-line-dark`}>
-              💬 แอด LINE
+              <LineIcon /> แอด LINE
             </a>
             <a href={SITE.phoneHref} className={`${btn} bg-gold text-dark hover:bg-gold-dark`}>
               📞 โทรเลย
@@ -487,7 +607,7 @@ export default function Home() {
                 ))}
               </ul>
               <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} mt-4 bg-line text-white hover:bg-line-dark`}>
-                💬 ทักไลน์ขอใบเสนอราคา
+                <LineIcon /> ทักไลน์ขอใบเสนอราคา
               </a>
             </div>
           </div>

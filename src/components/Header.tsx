@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { NAV, SITE } from "@/lib/site";
 import { Container } from "./Container";
 import { Logo } from "./Logo";
+import { LineIcon } from "./BrandIcons";
 import { cn } from "@/lib/cn";
 
 export function Header() {
@@ -15,7 +16,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-hair bg-cream/90 backdrop-blur supports-[backdrop-filter]:bg-cream/75">
       <Container className="flex h-16 items-center justify-between gap-4">
-        <Logo />
+        <Logo priority />
 
         {/* เมนูหลัก (จอใหญ่) */}
         <nav className="hidden items-center gap-1 lg:flex">
@@ -46,9 +47,9 @@ export function Header() {
             href={SITE.lineUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden rounded-xl bg-line px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-line-dark sm:inline-flex"
+            className="hidden items-center gap-1.5 rounded-xl bg-line px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-line-dark sm:inline-flex"
           >
-            💬 แอด LINE
+            <LineIcon /> แอด LINE
           </a>
           {/* ปุ่มเปิดเมนูมือถือ */}
           <button
@@ -87,9 +88,9 @@ export function Header() {
               href={SITE.lineUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 rounded-xl bg-line px-4 py-3 text-center text-[15px] font-semibold text-white"
+              className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-line px-4 py-3 text-center text-[15px] font-semibold text-white"
             >
-              💬 แอด LINE ดูราคา
+              <LineIcon /> แอด LINE ดูราคา
             </a>
           </Container>
         </div>

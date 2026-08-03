@@ -18,6 +18,16 @@ export const metadata: Metadata = {
     template: `%s | ${SITE.name}`,
   },
   description: SITE.description,
+  keywords: [
+    "กระสอบเสื้อผ้ามือสอง",
+    "เสื้อผ้ามือสองญี่ปุ่น",
+    "ขายส่งเสื้อผ้ามือสอง",
+    "ก้อนผ้าญี่ปุ่น",
+    "เสื้อผ้ามือสองยกกระสอบ",
+    "โกดังเสื้อผ้ามือสองภาคใต้",
+    "นำเข้าเสื้อผ้ามือสอง",
+    "KAN HUB",
+  ],
   openGraph: {
     type: "website",
     locale: "th_TH",
