@@ -49,6 +49,61 @@ const PRODUCTS = [
   },
 ];
 
+// สินค้าแนะนำแยกตามหมวดขายส่ง (Tier A–D) — ราคาเคาะจริงจาก kan-prices.json
+// รูปสินค้ายังไม่มี ใช้กรอบ placeholder ไปก่อน (จะเปลี่ยนเป็นรูปจริงทีหลัง)
+const TIERS = [
+  {
+    key: "A",
+    accent: "#c8102e",
+    onGold: false,
+    title: "ก้อนผ้า — ยกก้อน",
+    desc: "ก้อนใหญ่ ~300–350 กก. นำเข้าตรงจากญี่ปุ่น คุ้มสุดต่อกิโล",
+    items: [
+      { name: "ก้อนผ้า TOKYO", unit: "ก้อน", price: "15,750฿" },
+      { name: "ก้อนผ้า NAGOYA", unit: "ก้อน", price: "14,000฿" },
+      { name: "ก้อนผ้า OSAKA", unit: "ก้อน", price: "11,700฿" },
+    ],
+  },
+  {
+    key: "B",
+    accent: "#e0a93b",
+    onGold: true,
+    title: "โค้ท & ไหมพรม",
+    desc: "งานหน้าหนาว ขายดีช่วงปลายปี — คิดเป็นถุง",
+    items: [
+      { name: "ไหมพรม", unit: "ถุง", price: "7,400฿" },
+      { name: "โค้ทรวม", unit: "ถุง", price: "5,800฿" },
+      { name: "โค้ทขนเป็ด", unit: "ถุง", price: "4,800฿" },
+      { name: "โค้ทผ้าบาง", unit: "ถุง", price: "3,100฿" },
+    ],
+  },
+  {
+    key: "C",
+    accent: "#0e7c66",
+    onGold: false,
+    title: "ผ้าเหมา & คัดแยก",
+    desc: "เริ่มต้นถูก ทดลองตลาดได้ — คิดเป็นถุง/ลัง",
+    items: [
+      { name: "ผ้าคัดแยกจากก้อน", unit: "ถุง", price: "7,850฿" },
+      { name: "ผ้าเหมาหาง", unit: "ถุง", price: "890฿" },
+      { name: "เหมาหางนคร", unit: "ลัง", price: "830฿" },
+    ],
+  },
+  {
+    key: "D",
+    accent: "#6b6360",
+    onGold: false,
+    title: "เบ็ดเตล็ด & งานพิเศษ",
+    desc: "กระเป๋า ผ้าพันคอ ของเล่น ฯลฯ — พาเลท/ลัง/แบ็ก",
+    items: [
+      { name: "ผ้าพันคอ", unit: "พาเลท", price: "13,800฿" },
+      { name: "กระเป๋าใบเล็ก", unit: "แบ็ก", price: "6,200฿" },
+      { name: "สินค้าเทศกาล", unit: "ลัง", price: "4,200฿" },
+      { name: "ของเล่น", unit: "ลัง", price: "880฿" },
+    ],
+  },
+];
+
 const WHY = [
   {
     icon: "🚢",
@@ -426,6 +481,95 @@ export default function Home() {
                 </a>
               </div>
             </div>
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- สินค้าแนะนำแยกตามหมวด (Tier A–D) ---------- */}
+      <section className="bg-cream py-16">
+        <Container>
+          <div className="text-center">
+            <Eyebrow>ขายส่งยกกระสอบ</Eyebrow>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">
+              สินค้าแนะนำ — แยกตามหมวด Tier A–D
+            </h2>
+            <p className="mx-auto mt-2 max-w-2xl text-[15px] text-muted">
+              เลือกงานให้เข้ากับหน้าร้าน ตั้งแต่ก้อนใหญ่ยกกระสอบ ไปจนถึงงานเบ็ดเตล็ดเริ่มต้นถูก — ราคาส่งเคาะจริงจากโกดัง
+            </p>
+          </div>
+
+          <div className="mt-10 space-y-12">
+            {TIERS.map((tier) => (
+              <div key={tier.key}>
+                {/* หัวข้อ Tier */}
+                <div className="flex items-center gap-3.5">
+                  <span
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-lg font-extrabold"
+                    style={{ background: tier.accent, color: tier.onGold ? "#1a1413" : "#fff" }}
+                  >
+                    {tier.key}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-ink">
+                      Tier {tier.key} · {tier.title}
+                    </h3>
+                    <p className="text-[13px] text-muted">{tier.desc}</p>
+                  </div>
+                </div>
+
+                {/* การ์ดสินค้า (กรอบรูป placeholder รอรูปจริง) */}
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {tier.items.map((it) => (
+                    <div
+                      key={it.name}
+                      className="overflow-hidden rounded-2xl border border-hair bg-white shadow-sm"
+                    >
+                      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden border-b border-hair bg-cream-100">
+                        <Image
+                          src="/img/logo-kanhub.png"
+                          alt=""
+                          width={885}
+                          height={418}
+                          aria-hidden
+                          className="w-24 opacity-[0.13]"
+                        />
+                        <span className="absolute bottom-2 text-[11px] text-muted/70">
+                          รูปสินค้าเร็วๆ นี้
+                        </span>
+                        <span
+                          className="absolute left-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-md text-xs font-bold"
+                          style={{ background: tier.accent, color: tier.onGold ? "#1a1413" : "#fff" }}
+                        >
+                          {tier.key}
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <h4 className="text-[15px] font-semibold text-ink">{it.name}</h4>
+                        <p className="mt-0.5 text-[12px] text-muted">ยกเป็น{it.unit}</p>
+                        <div className="mt-2 flex items-baseline gap-1">
+                          <span className="text-xl font-extrabold text-brand">{it.price}</span>
+                          <span className="text-[12px] text-muted">/ {it.unit}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-11 flex flex-wrap justify-center gap-3">
+            <a
+              href={SITE.lineUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${btn} bg-line text-white hover:bg-line-dark`}
+            >
+              <LineIcon /> ทักไลน์ขอราคาทุก Tier
+            </a>
+            <Link href="/catalog" className={`${btn} border-[1.5px] border-hair bg-white text-ink hover:bg-cream-100`}>
+              ดูแคตตาล็อกทั้งหมด
+            </Link>
           </div>
         </Container>
       </section>
