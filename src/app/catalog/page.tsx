@@ -1,151 +1,82 @@
+import Link from "next/link";
 import { Container } from "@/components/Container";
 import { PageHero } from "@/components/PageHero";
 import { CtaBand } from "@/components/CtaBand";
+import { TIERS } from "@/lib/tiers";
 import data from "@/lib/kan-prices.json";
 
 export const metadata = {
-  title: "แคตตาล็อก & ราคา",
+  title: "แคตตาล็อกสินค้า — แยกตาม Tier A–D",
   description:
-    "แคตตาล็อกกระสอบเสื้อผ้ามือสองญี่ปุ่น KAN HUB — ราคาส่งยกก้อน/ยกถุง Tier A–D และราคาปลีกต่อตัวแบบขั้นบันได เสื้อผ้า เซรามิก ผ้าอื่นๆ ครบทุกหมวด",
+    "เลือกกระสอบเสื้อผ้ามือสองญี่ปุ่นตามระดับงาน Tier A–D ของ KAN HUB — ก้อนผ้ายกก้อน โค้ท-ไหมพรม ผ้าเหมา-คัดแยก และงานเบ็ดเตล็ด พร้อมช่วงราคาเริ่มต้น",
   alternates: { canonical: "/catalog" },
 };
 
-type Product = {
-  tier: string; name: string; unit: string;
-  weight_kg: number | null; qty: number | null;
-  price_orig: number | null; price_final: number | null;
-};
-type Retail = {
-  sku: string; zone: string; cat: string; item: string; unit: string;
-  tiers: { q1_2: number; q3_5: number; q6_11: number; q12_99: number; q100: number } | null;
-};
+type P = { tier: string; price_final: number | null };
+const products = data.products as P[];
+const baht = (n: number) => `${n.toLocaleString("en-US")}฿`;
 
-const products = (data.products as Product[]).filter((p) => ["A", "B", "C", "D"].includes(p.tier));
-const retail = data.retail as Retail[];
-
-const TIER_META: Record<string, { accent: string; onGold: boolean; label: string }> = {
-  A: { accent: "#c8102e", onGold: false, label: "ก้อนผ้า — ยกก้อน 300–350 กก." },
-  B: { accent: "#e0a93b", onGold: true, label: "โค้ท & ไหมพรม — ยกถุง" },
-  C: { accent: "#0e7c66", onGold: false, label: "ผ้าเหมา & คัดแยก — ถุง/ลัง" },
-  D: { accent: "#6b6360", onGold: false, label: "เบ็ดเตล็ด & งานพิเศษ" },
-};
-
-const baht = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("en-US")}฿`);
-
-// จัดกลุ่ม retail ตามโซน (คงลำดับที่เจอครั้งแรก)
-const zones: string[] = [];
-const byZone: Record<string, Retail[]> = {};
-for (const r of retail) {
-  if (!byZone[r.zone]) { byZone[r.zone] = []; zones.push(r.zone); }
-  byZone[r.zone].push(r);
+function range(key: string) {
+  const prices = products.filter((p) => p.tier === key && p.price_final != null).map((p) => p.price_final as number);
+  if (!prices.length) return null;
+  return { min: Math.min(...prices), max: Math.max(...prices) };
 }
 
 export default function CatalogPage() {
   return (
     <>
       <PageHero
-        eyebrow="แคตตาล็อก & ราคา"
-        title="กระสอบเสื้อผ้ามือสองญี่ปุ่น — ราคาส่งเคาะจริง"
-        subtitle="ขายส่งยกก้อน/ยกถุง Tier A–D และราคาปลีกต่อตัวแบบขั้นบันได ยิ่งรับเยอะยิ่งถูก"
+        eyebrow="แคตตาล็อกสินค้า"
+        title="เลือกงานตามระดับ — Tier A ถึง D"
+        subtitle="เราแบ่งสินค้าเป็น 4 ระดับ เพื่อให้เลือกง่ายตามงบและกลุ่มลูกค้าหน้าร้าน กดเข้าไปดูรายละเอียด + ราคาของแต่ละ Tier ได้เลย"
       />
 
-      {/* ---- ขายส่งยกกระสอบ (Tier A–D) ---- */}
       <section className="bg-cream py-16">
         <Container>
-          <h2 className="text-2xl font-bold text-ink sm:text-3xl">ขายส่งยกกระสอบ (Tier A–D)</h2>
-          <div className="mt-8 space-y-10">
-            {["A", "B", "C", "D"].map((t) => {
-              const items = products.filter((p) => p.tier === t);
-              if (!items.length) return null;
-              const m = TIER_META[t];
+          <div className="grid gap-6 sm:grid-cols-2">
+            {TIERS.map((t) => {
+              const r = range(t.key);
               return (
-                <div key={t}>
+                <Link
+                  key={t.slug}
+                  href={`/catalog/${t.slug}`}
+                  className="group flex flex-col rounded-2xl border border-hair bg-white p-6 transition-shadow hover:shadow-md"
+                >
                   <div className="flex items-center gap-3">
                     <span
-                      className="grid h-10 w-10 place-items-center rounded-xl text-base font-extrabold"
-                      style={{ background: m.accent, color: m.onGold ? "#1a1413" : "#fff" }}
+                      className="grid h-12 w-12 place-items-center rounded-xl text-xl font-extrabold"
+                      style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}
                     >
-                      {t}
+                      {t.key}
                     </span>
-                    <h3 className="text-lg font-bold text-ink">Tier {t} · {m.label}</h3>
+                    <div>
+                      <h2 className="text-lg font-bold text-ink">Tier {t.key} · {t.name}</h2>
+                      <p className="text-[13px] text-muted">{t.unitNote}</p>
+                    </div>
                   </div>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((p) => (
-                      <div key={p.name} className="rounded-2xl border border-hair bg-white p-5">
-                        <h4 className="text-[15px] font-semibold text-ink">{p.name}</h4>
-                        <p className="mt-0.5 text-[12px] text-muted">
-                          ยกเป็น{p.unit}
-                          {p.qty != null ? ` · เหลือ ${p.qty} ${p.unit}` : ""}
-                        </p>
-                        <div className="mt-2 text-xl font-extrabold text-brand">
-                          {baht(p.price_final)} <span className="text-[12px] font-medium text-muted">/ {p.unit}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  <p className="mt-4 text-[15px] leading-relaxed text-muted">{t.tagline}</p>
+                  {r && (
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <span className="text-[13px] text-muted">เริ่มต้น</span>
+                      <span className="text-xl font-extrabold text-brand">{baht(r.min)}</span>
+                      {r.max !== r.min && (
+                        <span className="text-[13px] text-muted">– สูงสุด {baht(r.max)}</span>
+                      )}
+                    </div>
+                  )}
+                  <span className="mt-4 text-sm font-semibold text-brand group-hover:text-brand-dark">
+                    ดู Tier {t.key} →
+                  </span>
+                </Link>
               );
             })}
           </div>
         </Container>
       </section>
 
-      {/* ---- ราคาปลีก ต่อตัว (ขั้นบันได) ---- */}
-      <section className="bg-cream-100 py-16">
-        <Container>
-          <h2 className="text-2xl font-bold text-ink sm:text-3xl">ราคาปลีก — ต่อตัว (ยิ่งรับเยอะยิ่งถูก)</h2>
-          <p className="mt-2 text-[15px] text-muted">ราคาบาท/ตัว ตามจำนวนที่รับ — งานบางหมวดคิดตามกิโล/เปอร์เซ็นต์ (ระบุในช่องราคา)</p>
-
-          <div className="mt-8 space-y-10">
-            {zones.map((zone) => (
-              <div key={zone}>
-                <h3 className="text-lg font-bold text-ink">{zone.replace(/^ขายส่ง:\s*/, "")}</h3>
-                <div className="mt-3 overflow-x-auto rounded-2xl border border-hair bg-white">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-hair bg-cream-100 text-[13px] text-muted">
-                        <th className="px-4 py-3 font-semibold">รายการ</th>
-                        <th className="px-3 py-3 text-right font-semibold">1–2 ตัว</th>
-                        <th className="px-3 py-3 text-right font-semibold">3–5</th>
-                        <th className="px-3 py-3 text-right font-semibold">6–11</th>
-                        <th className="px-3 py-3 text-right font-semibold">12–99</th>
-                        <th className="px-3 py-3 text-right font-semibold">&gt;100</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {byZone[zone].map((r, i) => (
-                        <tr key={`${r.item}-${i}`} className="border-b border-hair/60 last:border-0">
-                          <td className="px-4 py-2.5 text-ink">
-                            {r.item}
-                            <span className="ml-2 text-[11px] text-muted">{r.cat}</span>
-                          </td>
-                          {r.tiers ? (
-                            <>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-ink/80">{r.tiers.q1_2}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-ink/80">{r.tiers.q3_5}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-ink/80">{r.tiers.q6_11}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-ink/80">{r.tiers.q12_99}</td>
-                              <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-brand">{r.tiers.q100}</td>
-                            </>
-                          ) : (
-                            <td colSpan={5} className="px-3 py-2.5 text-right text-[13px] text-muted">
-                              {r.unit || "สอบถามราคา"}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Container>
-      </section>
-
       <CtaBand
-        title="สนใจรายการไหน ทักไลน์ขอราคาส่งได้เลย"
-        subtitle="แจ้งหมวด/จำนวนที่ต้องการ ทีมงานเคาะราคาส่ง + ค่าจัดส่งให้ทันที"
+        title="ไม่แน่ใจว่าเริ่ม Tier ไหนดี?"
+        subtitle="บอกงบและกลุ่มลูกค้าร้านคุณ ทีมงานแนะนำระดับที่เหมาะที่สุดให้"
       />
     </>
   );

@@ -31,7 +31,6 @@ export type NavItem = {
 export const NAV: NavItem[] = [
   { label: "หน้าแรก", href: "/" },
   { label: "สินค้า", href: "/catalog" },
-  { label: "บริการ", href: "/service" },
   { label: "ทำไมต้อง KAN", href: "/why-us" },
   { label: "ขายส่งทั่วไทย", href: "/wholesale" },
   { label: "วิธีสั่งซื้อ", href: "/how-to-order" },
@@ -40,31 +39,30 @@ export const NAV: NavItem[] = [
   { label: "ติดต่อ", href: "/contact" },
 ];
 
-/** คอลัมน์ลิงก์ใน footer (ตาม Figma) */
+/** คอลัมน์ลิงก์ใน footer */
 export const FOOTER_COLUMNS: { title: string; links: NavItem[] }[] = [
   {
     title: "สินค้า",
     links: [
-      { label: "กระสอบเสื้อยืด", href: "/catalog" },
-      { label: "กระสอบกางเกงยีนส์", href: "/catalog" },
-      { label: "กระสอบเดรส", href: "/catalog" },
-      { label: "งานคัดแบรนด์ญี่ปุ่น", href: "/catalog" },
+      { label: "Tier A · ก้อนผ้า", href: "/catalog/tier-a" },
+      { label: "Tier B · โค้ท & ไหมพรม", href: "/catalog/tier-b" },
+      { label: "Tier C · ผ้าเหมา & คัดแยก", href: "/catalog/tier-c" },
+      { label: "Tier D · เบ็ดเตล็ด", href: "/catalog/tier-d" },
     ],
   },
   {
-    title: "บริการ",
+    title: "ข้อมูล",
     links: [
-      { label: "จัดก้อนสด", href: "/service" },
-      { label: "100 ชิ้นพร้อมขาย", href: "/service" },
-      { label: "เปิดร้าน-เปิดโกดัง", href: "/service" },
+      { label: "ทำไมต้อง KAN", href: "/why-us" },
+      { label: "ขายส่งทั่วไทย", href: "/wholesale" },
       { label: "วิธีสั่งซื้อ", href: "/how-to-order" },
+      { label: "คำถามพบบ่อย", href: "/faq" },
     ],
   },
   {
     title: "บริษัท",
     links: [
-      { label: "ทำไมต้อง KAN", href: "/why-us" },
-      { label: "ขายส่งทั่วไทย", href: "/wholesale" },
+      { label: "แคตตาล็อกทั้งหมด", href: "/catalog" },
       { label: "บทความ", href: "/blog" },
       { label: "ติดต่อ", href: "/contact" },
     ],
