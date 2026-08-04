@@ -6,9 +6,10 @@ import { TIERS } from "@/lib/tiers";
 import data from "@/lib/kan-prices.json";
 
 export const metadata = {
-  title: "แคตตาล็อกสินค้า — แยกตาม Tier A–D",
+  title: "ซื้อผ้ากระสอบ & ก้อนผ้ามือสองญี่ปุ่น — แยกตาม Tier A–D",
   description:
-    "เลือกกระสอบเสื้อผ้ามือสองญี่ปุ่นตามระดับงาน Tier A–D ของ KAN HUB — ก้อนผ้ายกก้อน โค้ท-ไหมพรม ผ้าเหมา-คัดแยก และงานเบ็ดเตล็ด พร้อมช่วงราคาเริ่มต้น",
+    "เลือกซื้อกระสอบ/ก้อนผ้าเสื้อผ้ามือสองญี่ปุ่นตามระดับงาน Tier A–D ของ KAN HUB — ก้อนผ้ายกก้อน โค้ท-ไหมพรม ผ้าเหมา-คัดแยก และงานเบ็ดเตล็ด พร้อมราคาส่งเริ่มต้น",
+  keywords: ["ผ้ากระสอบ", "ซื้อผ้ากระสอบ", "กระสอบเสื้อผ้ามือสอง", "ก้อนผ้า", "เสื้อผ้ามือสองยกกระสอบ", "ขายส่งเสื้อผ้ามือสองญี่ปุ่น"],
   alternates: { canonical: "/catalog" },
 };
 
@@ -40,33 +41,44 @@ export default function CatalogPage() {
                 <Link
                   key={t.slug}
                   href={`/catalog/${t.slug}`}
-                  className="group flex flex-col rounded-2xl border border-hair bg-white p-6 transition-shadow hover:shadow-md"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-hair bg-white transition-shadow hover:shadow-md"
                 >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="grid h-12 w-12 place-items-center rounded-xl text-xl font-extrabold"
-                      style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}
-                    >
-                      {t.key}
-                    </span>
-                    <div>
-                      <h2 className="text-lg font-bold text-ink">Tier {t.key} · {t.name}</h2>
-                      <p className="text-[13px] text-muted">{t.unitNote}</p>
-                    </div>
+                  {/* กรอบรูป (placeholder รอรูปจริง) */}
+                  <div
+                    className="relative flex aspect-[16/7] items-end justify-between overflow-hidden p-4 text-white"
+                    style={{ background: `linear-gradient(135deg, ${t.accent}, #1a1413)` }}
+                  >
+                    <span className="text-6xl font-black leading-none opacity-25">{t.key}</span>
+                    <span className="text-[11px] opacity-80">รูปสินค้าเร็วๆ นี้</span>
                   </div>
-                  <p className="mt-4 text-[15px] leading-relaxed text-muted">{t.tagline}</p>
-                  {r && (
-                    <div className="mt-4 flex items-baseline gap-2">
-                      <span className="text-[13px] text-muted">เริ่มต้น</span>
-                      <span className="text-xl font-extrabold text-brand">{baht(r.min)}</span>
-                      {r.max !== r.min && (
-                        <span className="text-[13px] text-muted">– สูงสุด {baht(r.max)}</span>
-                      )}
+
+                  <div className="flex flex-1 flex-col p-6">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="grid h-10 w-10 place-items-center rounded-xl text-base font-extrabold"
+                        style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}
+                      >
+                        {t.key}
+                      </span>
+                      <div>
+                        <h2 className="text-lg font-bold text-ink">Tier {t.key} · {t.name}</h2>
+                        <p className="text-[13px] text-muted">{t.unitNote}</p>
+                      </div>
                     </div>
-                  )}
-                  <span className="mt-4 text-sm font-semibold text-brand group-hover:text-brand-dark">
-                    ดู Tier {t.key} →
-                  </span>
+                    <p className="mt-4 flex-1 text-[15px] leading-relaxed text-muted">{t.tagline}</p>
+                    {r && (
+                      <div className="mt-4 flex items-baseline gap-2">
+                        <span className="text-[13px] text-muted">เริ่มต้น</span>
+                        <span className="text-xl font-extrabold text-brand">{baht(r.min)}</span>
+                        {r.max !== r.min && (
+                          <span className="text-[13px] text-muted">– สูงสุด {baht(r.max)}</span>
+                        )}
+                      </div>
+                    )}
+                    <span className="mt-4 text-sm font-semibold text-brand group-hover:text-brand-dark">
+                      ดู Tier {t.key} →
+                    </span>
+                  </div>
                 </Link>
               );
             })}

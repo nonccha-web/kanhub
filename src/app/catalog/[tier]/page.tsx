@@ -24,9 +24,11 @@ export async function generateMetadata({ params }: { params: Promise<{ tier: str
   const t = tierBySlug(tier);
   if (!t) return {};
   return {
-    title: `Tier ${t.key} · ${t.name}`,
-    description: t.what,
+    title: t.seoTitle,
+    description: t.seoDesc,
+    keywords: t.keywords,
     alternates: { canonical: `/catalog/${t.slug}` },
+    openGraph: { title: t.seoTitle, description: t.seoDesc, url: `/catalog/${t.slug}` },
   };
 }
 
