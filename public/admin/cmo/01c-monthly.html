@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แผนรายเดือน — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="eyebrow">หัวข้อ 2 · แผนปฏิบัติ</div>
+      <h1>แผนรายเดือน — Task ย่อย + ผู้รับผิดชอบ</h1>
+      <div class="sub">ดู KPI ตาม JD</div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="section-title"><h2>แผนรายเดือน — Task ย่อย + ผู้รับผิดชอบ</h2><div class="badge">ผูก KPI ตาม JD</div></div>
+
+  <div class="callout"><div class="callout-title">ตัวย่อผู้รับผิดชอบ (ตามตำแหน่งงานใหม่)</div><div class="callout-body"><strong>CMO</strong> · <strong>MM</strong> Marketing Manager (คุมภาพรวม + ค้าปลีก/หน้าร้าน) · <strong>B2B-M</strong> B2B Manager (ค้าส่ง) · <strong>B2B-E</strong> B2B Executive (ลงมือค้าส่ง+ไลฟ์) · <strong>MO</strong> Marketing Officer (คอนเทนต์/สื่อ/จัดหน้าร้าน) · Dreambox = เอเจนซีภายนอก</div></div>
+
+  <div class="svc-card p1" style="margin-bottom:14px;">
+    <div class="svc-head"><div><div class="svc-title">กรกฎาคม — TEST (เปิดตัว)</div><div class="svc-meta">งบ 95,500 · ระบบพร้อม + ขายจริงเดือนแรก</div></div><span class="tag tag-accent">เดือน 1</span></div>
+    <table class="tbl">
+      <thead><tr><th>Task</th><th>Track</th><th>ผู้รับผิดชอบ</th><th>KPI</th></tr></thead>
+      <tbody>
+        <tr><td>เว็บขายส่ง B2B live สิ้นเดือน</td><td><span class="tag tag-blue">ส่ง</span></td><td>CMO คุม · B2B-M + MO ทำ</td><td>ยอด B2B</td></tr>
+        <tr><td>Live #1 เปิดกระสอบ (ทดสอบระบบจอง)</td><td><span class="tag tag-blue">ส่ง</span></td><td>B2B-E · MO · คนคัดแยก</td><td>ยอด Live</td></tr>
+        <tr><td>เปิด FB Group 4 กลุ่ม + Marketplace</td><td><span class="tag tag-green">ปลีก</span></td><td>MM · MO · B2B-E (กลุ่มค้าส่ง)</td><td>Traffic 30% · Online 20%</td></tr>
+        <tr><td>Promo หน้าร้าน 5 สาขา ก.ค.</td><td><span class="tag tag-green">ปลีก</span></td><td>MM · MO · Dreambox</td><td>Promo Lift 25%</td></tr>
+        <tr><td>โพสต์ KAN HUB 1/วัน + ถ่ายรูป SKU</td><td><span class="tag tag-muted">ทั้ง</span></td><td>MO</td><td>content output</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-grid-2">
+    <div class="svc-card p1">
+      <div class="svc-head"><div><div class="svc-title">สิงหาคม — TEST</div><div class="svc-meta">งบ 75,500 · Live ทุกวัน</div></div><span class="tag tag-accent">เดือน 2</span></div>
+      <ul class="bul">
+        <li><strong>Live ขยับทุกวัน</strong> 10–14 (FB+TikTok) · B2B-E·MO</li>
+        <li><strong>Big Live 8.8</strong> + ก้อนเด็ด · B2B-M·B2B-E·MO</li>
+        <li>A/B test landing + ads · B2B-M·MO</li>
+        <li>FB Group โต + Marketplace หาหมวดขายดี · MM</li>
+        <li>Branch Audit รายเดือน · MM</li>
+      </ul>
+    </div>
+    <div class="svc-card p2">
+      <div class="svc-head"><div><div class="svc-title">กันยายน — REVIEW</div><div class="svc-meta">งบ 31,500 · เดือนตัดสิน</div></div><span class="tag tag-gold">เดือน 3</span></div>
+      <ul class="bul">
+        <li><strong>Live #4</strong> sync สารทเดือนสิบ · B2B-E·MO</li>
+        <li><strong>Big Live 9.9</strong> · Promo 9.9 ปลีก · B2B-E·MM</li>
+        <li>รวบตัวเลขทุก channel · B2B-M+MO+MM→CMO</li>
+        <li><strong>⭐ Q3 Review</strong> — ตัดสิน scale/kill + งบ Q4 · CMO</li>
+      </ul>
+    </div>
+    <div class="svc-card pt">
+      <div class="svc-head"><div><div class="svc-title">ตุลาคม — SCALE</div><div class="svc-meta">งบ 34,500 · เริ่มเร่ง</div></div><span class="tag tag-teal">เดือน 4</span></div>
+      <ul class="bul">
+        <li><strong>Live #5</strong> + เพิ่มงบ channel ที่ชนะ</li>
+        <li><strong>Big Live 10.10</strong> + ชักพระ · Promo 10.10</li>
+        <li>FB Group เริ่ม boost กลุ่มที่โตเร็ว · MM·MO</li>
+        <li>เตรียมสต๊อกกันหนาว + Branch Audit</li>
+      </ul>
+    </div>
+    <div class="svc-card pc">
+      <div class="svc-head"><div><div class="svc-title">พฤศจิกายน — SCALE</div><div class="svc-meta">งบ 37,500 · พีคของปี</div></div><span class="tag tag-coral">เดือน 5</span></div>
+      <ul class="bul">
+        <li><strong>Live ถี่สุด</strong> (รายสัปดาห์ถ้าผ่านเกณฑ์)</li>
+        <li><strong>⭐ Big Live 11.11</strong> + ลอยกระทง + Black Friday</li>
+        <li>Promo ใหญ่สุดหน้าร้าน+Online · MM·MO·Dreambox</li>
+        <li>ป้ายโปรใหญ่หน้าสาขา · MO·อภิชิต</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="svc-card pp">
+    <div class="svc-head"><div><div class="svc-title">ธันวาคม — CLOSE (ปิดปี)</div><div class="svc-meta">งบ 25,500 · clearance + สรุปปี</div></div><span class="tag tag-purple">เดือน 6</span></div>
+    <ul class="bul">
+      <li><strong>Big Live 12.12</strong> + clearance สต๊อกค้าง (1แถม1/hero) · B2B-E</li>
+      <li>Promo 12.12 + ปีใหม่ หน้าร้าน+Online · MM·MO·Dreambox</li>
+      <li><strong>⭐ สรุปปี + แผน 2027</strong> (scale อะไร/ตัดอะไร/hire เพิ่มมั้ย) · CMO</li>
+    </ul>
+  </div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 2 · แผนรายเดือน (Year Task)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

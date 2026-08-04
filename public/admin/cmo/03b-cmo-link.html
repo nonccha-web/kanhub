@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI ทีม → KPI ระยะสั้น CMO — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><div class="eyebrow">หัวข้อ 3 · เชื่อมโยง CMO</div><h1>KPI ทีม → KPI ระยะสั้น CMO</h1><div class="sub">ทีมทำ KPI ให้ CMO โดยตรง</div></div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="glass" style="margin-bottom:14px;">
+    <h3>การเชื่อมโยง — KPI ทีม ส่งต่อขึ้นเป็น KPI ระยะสั้นของ CMO</h3>
+    <div class="flow">
+      <div class="flow-box"><div class="ttl">KPI ทีม (1 ก.ค.)</div><strong>B2B:</strong> ยอดขายส่ง ≥400K/ด.<br><strong>MM:</strong> ออนไลน์ ≥250K/ด. · traffic +15%<br><strong>CP:</strong> reach 300K · engagement 4%</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:var(--accent-faint);"><div class="ttl">KPI ระยะสั้น CMO</div><strong>ยอดรวมทุก channel</strong> (B2B + ออนไลน์ + หน้าร้าน)<br><strong>cost-down</strong> ← sell-through ≥60% + repeat ≥30%<br><strong>Q3 Review</strong> ← ตัวเลขรายช่องทางพร้อม scale/kill</div>
+    </div>
+    <div class="callout"><div class="callout-body">ทุกตัวเลขที่ทีมทำได้บวกขึ้นเป็นยอดรวมของ CMO โดยตรง · sell-through + repeat หนุน cost-down · ข้อมูลรายช่องทาง = วัตถุดิบ Q3 Review (ก.ย.)</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><h2>ทีม &amp; KPI — อ้างอิง JD</h2></div>
+
+    <div class="glass" style="margin-bottom:14px;">
+      <table class="tbl">
+        <thead><tr><th>ตำแหน่ง</th><th>Grade</th><th>เจ้าภาพ</th><th>KPI หลัก</th></tr></thead>
+        <tbody>
+          <tr><td><strong>CMO (นนท์)</strong></td><td>—</td><td>คุม strategy + งบ</td><td>ยอดรวมทุก channel · cost-down · Q3 Review · สรุปปี</td></tr>
+          <tr><td><strong>Marketing Manager</strong></td><td>5</td><td><span class="tag tag-green">Track B ปลีก</span></td><td>Traffic หน้าร้าน 30% · Promo Lift 25% · Online Rev 20% · B2C Sales 15% · Coord 10%</td></tr>
+          <tr><td><strong>B2B Sales &amp; Live Lead</strong></td><td>5</td><td><span class="tag tag-blue">Track A ส่ง</span></td><td>ยอดขายส่ง B2B · ยอด Live Commerce · ปิดดีลยกตู้</td></tr>
+          <tr><td><strong>Content Producer</strong></td><td>4</td><td><span class="tag tag-muted">ป้อนทั้ง 2 track</span></td><td>Content output ทุก format · Boost Ads · Live Operator</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-grid-2">
+      <div class="svc-card pg">
+        <div class="svc-head"><div><div class="svc-title">Marketing Manager</div><div class="svc-meta">เจ้าภาพ Track B (ปลีก) · หยุดพฤหัส</div></div></div>
+        <ul class="bul">
+          <li>เปิด + ดูแล FB Group 4 กลุ่ม</li>
+          <li>Marketplace + Online (Shopee/Lazada/FB Shop)</li>
+          <li>Promo หน้าร้าน 5 สาขา + Branch Audit รายเดือน</li>
+          <li>ประสานงานข้ามทีม (Dreambox/Ops/สาขา)</li>
+        </ul>
+      </div>
+      <div class="svc-card p1">
+        <div class="svc-head"><div><div class="svc-title">B2B Sales &amp; Live Lead</div><div class="svc-meta">เจ้าภาพ Track A (ส่ง) · หยุดอังคาร</div></div></div>
+        <ul class="bul">
+          <li>Host Live ทุกวัน (FB + TikTok)</li>
+          <li>ปิดดีลขายส่ง B2B + ยกตู้ (KC)</li>
+          <li>ช่วยลงโพสต์ FB Group (แยกกลุ่มกับ MM)</li>
+          <li>เก็บลูกค้าซื้อซ้ำเข้า LINE broadcast</li>
+        </ul>
+      </div>
+      <div class="svc-card p2">
+        <div class="svc-head"><div><div class="svc-title">Content Producer</div><div class="svc-meta">ป้อนทั้ง 2 track · หยุดศุกร์</div></div></div>
+        <ul class="bul">
+          <li>โพสต์ KAN HUB 1/วัน (4 เสา) + ถ่ายรูป SKU</li>
+          <li>Live Operator (กล้อง/ตัดต่อ highlight)</li>
+          <li>Boost Ads ทุก channel</li>
+          <li>brief Dreambox</li>
+        </ul>
+      </div>
+      <div class="svc-card pp">
+        <div class="svc-head"><div><div class="svc-title">CMO (นนท์)</div><div class="svc-meta">คุม strategy + งบ</div></div></div>
+        <ul class="bul">
+          <li>คุมงบ 300K + ตัดสิน scale/kill ราย Q</li>
+          <li>Weekly Update จันทร์เย็น (ราย track/คน)</li>
+          <li>Q3 Review (ก.ย.) + สรุปปี (ธ.ค.)</li>
+          <li>คุมยอดรวม + cost-down</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout"><div class="callout-title">หมายเหตุการ hire</div><div class="callout-body">3 ตำแหน่งใหม่ (MM/B2B/CP) ต้อง hire ให้ทันก่อน Live #1 (ก.ค. สัปดาห์ที่ 28) — ถ้าไม่ทันใช้คนปัจจุบัน act ไปก่อน · คนคัดแยกมาช่วย Live เป็นผู้ช่วย (รู้ผ้า/เกรด) ไม่ใช่ตำแหน่งใหม่ ดึงจากทีมโกดัง</div></div>
+  </div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 3 · เชื่อมโยง CMO (Year Task)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

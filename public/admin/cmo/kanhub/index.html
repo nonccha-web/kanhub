@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ขายส่งเสื้อผ้ามือสองญี่ปุ่น ยกกระสอบ นำเข้าตรง | KAN HUB โกดังภาคใต้</title>
+<meta name="description" content="ขายส่งเสื้อผ้ามือสองญี่ปุ่นแท้ ยกกระสอบ นำเข้าตรงไม่ผ่านคนกลาง โกดังภาคใต้ มาดูของก่อนซื้อได้ บริษัทจริง ส่งทั่วไทย">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .hero{position:relative;overflow:hidden;background:#120c0b}
+  .slides{position:relative;height:clamp(440px,72vh,600px)}
+  .slide{position:absolute;inset:0;opacity:0;transition:opacity 1s ease;background-size:cover;background-position:center}
+  .slide.active{opacity:1}
+  .slide::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,12,11,.25),rgba(18,12,11,.55) 45%,rgba(18,12,11,.85))}
+  .s1{background-image:url('https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1400&q=70')}
+  .s2{background-image:url('https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=1400&q=70')}
+  .s3{background-image:url('https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=1400&q=70')}
+  .hero-inner{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end}
+  .hero-inner .wrap{padding-bottom:42px;width:100%}
+  .hero h1{color:#fff;font-size:clamp(1.9rem,6vw,3.1rem);max-width:18ch;text-shadow:0 2px 18px rgba(0,0,0,.4)}
+  .trustpills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 22px}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:11px}
+  .dots{position:absolute;z-index:4;bottom:16px;right:20px;display:flex;gap:7px}
+  .dots b{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);cursor:pointer}
+  .dots b.on{background:#fff;width:24px;border-radius:5px}
+  .trustbar{background:var(--soft);border-bottom:1px solid var(--line)}
+  .trustbar .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:24px 0}
+  .tcell{display:flex;gap:11px;align-items:center}
+  .tcell .ic{font-size:1.6rem;flex:none}
+  .tcell b{display:block;font-size:.95rem}
+  .tcell small{color:var(--muted);font-size:.78rem;line-height:1.3;display:block}
+  .live-card{background:#16100f;border-radius:var(--radius);overflow:hidden;color:#fff;display:grid}
+  .live-player{aspect-ratio:16/9;background:linear-gradient(135deg,#2a1115,#120b0a);position:relative;display:grid;place-items:center}
+  .live-badge{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:7px;background:var(--crimson);padding:6px 12px;border-radius:8px;font-weight:700;font-size:.82rem}
+  .live-badge i{width:8px;height:8px;border-radius:50%;background:#fff;animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .live-player .play{width:66px;height:66px;border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.6);display:grid;place-items:center;font-size:1.5rem}
+  .live-meta{padding:18px 20px}
+  .live-meta .next{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .live-meta .next span{background:rgba(255,255,255,.1);padding:7px 12px;border-radius:8px;font-size:.82rem;font-weight:600}
+  .count{display:inline-flex;gap:8px;margin:16px 0 18px}
+  .count div{background:rgba(58,42,8,.9);color:var(--gold-light);border-radius:9px;padding:8px 12px;min-width:54px;font-weight:800;font-size:1.3rem;line-height:1}
+  .count div small{display:block;font-size:.6rem;font-weight:600;opacity:.7}
+  .why{display:grid;gap:22px}
+  .whyrow{display:grid;grid-template-columns:1fr;gap:16px;align-items:center}
+  .whyrow .img{aspect-ratio:16/10;border-radius:var(--radius);background-size:cover;background-position:center}
+  .w1{background-image:url('https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=900&q=70')}
+  .w2{background-image:url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=70')}
+  .w3{background-image:url('https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=900&q=70')}
+  @media(min-width:860px){.trustbar .grid{grid-template-columns:repeat(4,1fr)}.whyrow{grid-template-columns:1fr 1fr}.whyrow.rev-order .txt{order:2}.live-card{grid-template-columns:1.6fr 1fr}}
+</style>
+</head>
+<body>
+<!-- Header -->
+<header class="site">
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="mark">KH</span><span>KAN HUB<small>โกดังมือสองญี่ปุ่น</small></span></a>
+    <nav class="menu" id="navmenu"></nav>
+    <span class="spacer"></span>
+    <a class="btn btn-line" href="#">💬 แอด LINE</a>
+    <button class="hamb" aria-label="เมนู"><span></span></button>
+  </div>
+  <nav class="mobile-menu" id="navmobile"></nav>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="slides" id="slides">
+    <div class="slide s1 active"></div><div class="slide s2"></div><div class="slide s3"></div>
+  </div>
+  <div class="hero-inner"><div class="wrap">
+    <h1>โกดังขายส่งเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรง — เจ้าแรกภาคใต้</h1>
+    <div class="trustpills">
+      <span class="pill">✓ บริษัทจริง จดทะเบียน</span><span class="pill">✓ ยกกระสอบ นำเข้าตรง</span>
+      <span class="pill">✓ ไม่ผ่านคนกลาง</span><span class="pill">✓ มาดูของก่อนซื้อได้</span>
+    </div>
+    <div class="hero-cta">
+      <a class="btn btn-line btn-lg" href="#">💬 ทักไลน์ดูราคา</a>
+      <a class="btn btn-ghost-light btn-lg" href="catalog.html">ดูกระสอบทั้งหมด</a>
+    </div>
+  </div></div>
+  <div class="dots" id="dots"><b class="on"></b><b></b><b></b></div>
+</section>
+
+<!-- Trust bar -->
+<div class="trustbar"><div class="wrap grid">
+  <div class="tcell"><span class="ic">🏢</span><span><b>บริษัทจริง</b><small>จดทะเบียนถูกต้อง มีโกดัง 4 สาขา</small></span></div>
+  <div class="tcell"><span class="ic">🚢</span><span><b>นำเข้าตรงญี่ปุ่น</b><small>ไม่ผ่านคนกลาง ราคาต้นทาง</small></span></div>
+  <div class="tcell"><span class="ic">📸</span><span><b>เปิดกระสอบถ่ายก่อนส่ง</b><small>เห็นของจริงทุกครั้ง</small></span></div>
+  <div class="tcell"><span class="ic">🚚</span><span><b>ส่งทั่วไทย</b><small>มารับเองที่โกดังก็ได้</small></span></div>
+</div></div>
+
+<!-- Live -->
+<section class="sec">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">ไลฟ์สดทุกวัน</div><h2>เปิดกระสอบสด — เห็นของจริงก่อนตัดสินใจ</h2></div>
+    <div class="live-card">
+      <div class="live-player"><span class="live-badge"><i></i> LIVE</span><div class="play">▶</div></div>
+      <div class="live-meta">
+        <h3 style="font-size:1.15rem">กำลังไลฟ์: เปิดกระสอบเสื้อยืดญี่ปุ่น เกรด A</h3>
+        <p class="lead" style="margin-top:6px;font-size:.9rem">พิมพ์รหัสในไลฟ์เพื่อจอง แอดมินทักกลับทันที</p>
+        <div style="font-weight:700;margin-top:16px;font-size:.85rem">รอบไลฟ์ถัดไป</div>
+        <div class="next"><span>📅 พรุ่งนี้ 20:00 · ยีนส์</span><span>📅 เสาร์ 14:00 · งานคัดแบรนด์</span></div>
+        <div style="margin-top:16px"><a class="btn btn-ghost-light" href="live.html">ดูตารางไลฟ์ทั้งหมด →</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 Tier -->
+<section class="sec soft-bg">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">เลือกแบบที่ใช่</div><h2>กระสอบเสื้อผ้ามือสองญี่ปุ่น คัดเกรด A</h2><p>เสื้อยืด · ยีนส์ · เดรส · งานคัดแบรนด์ — ราคาส่งตรงจากโกดัง</p></div>
+    <div class="tier-grid">
+      <a class="tier" href="catalog.html"><div class="ph p1"><span class="tag">เกรด A</span></div><div class="body"><h3>กระสอบเสื้อยืด</h3><div class="kg">KA-T45 · 45 กก. · ~180–220 ตัว</div><div class="pr"><span class="price">3,900฿</span><span class="strike">4,500฿</span></div></div></a>
+      <a class="tier" href="catalog.html"><div class="ph p2"><span class="tag">ฮิตสุด</span></div><div class="body"><h3>กระสอบกางเกงยีนส์</h3><div class="kg">KA-J45 · 45 กก. · ~90–110 ตัว</div><div class="pr"><span class="price">5,200฿</span><span class="strike">6,000฿</span></div></div></a>
+      <a class="tier" href="catalog.html"><div class="ph p3"><span class="tag">งานสวย</span></div><div class="body"><h3>กระสอบเดรส</h3><div class="kg">KA-D45 · 45 กก. · ~160–200 ตัว</div><div class="pr"><span class="price">4,300฿</span><span class="strike">4,900฿</span></div></div></a>
+      <a class="tier" href="catalog.html"><div class="ph p4"><span class="tag">คัดแบรนด์</span></div><div class="body"><h3>งานคัดแบรนด์ญี่ปุ่น</h3><div class="kg">Uniqlo · GU · MUJI · คัดมือ</div><div class="pr"><span class="price">เริ่ม 6,900฿</span></div></div></a>
+    </div>
+    <div style="text-align:center;margin-top:24px"><a class="btn btn-crimson btn-lg" href="catalog.html">ดูแคตตาล็อกทั้งหมด</a></div>
+  </div>
+</section>
+
+<!-- Promo -->
+<section class="sec"><div class="wrap"><div class="promo">
+  <div class="small">⚡ โปรเดือนนี้เท่านั้น</div>
+  <h2>ก้อนเด็ด ยกกระสอบ</h2>
+  <div class="bignum">1,999฿</div>
+  <div><span class="strike" style="font-size:1.1rem">ปกติ 2,900฿</span></div>
+  <div class="count"><div><span data-d>02</span><small>วัน</small></div><div><span data-h>08</span><small>ชม.</small></div><div><span data-m>45</span><small>นาที</small></div><div><span data-s>30</span><small>วิ.</small></div></div>
+  <div><a class="btn btn-crimson btn-lg" href="#">💬 จองก้อนเด็ดเลย</a></div>
+</div></div></section>
+
+<!-- Why KAN -->
+<section class="sec soft-bg">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">ทำไมต้อง KAN</div><h2>เสื้อผ้ามือสองภาคใต้ ของแท้ญี่ปุ่น ขายง่าย กำไรดี</h2></div>
+    <div class="why">
+      <div class="whyrow"><div class="txt"><div class="ic-lg">🚢</div><h3>นำเข้าตรงจากญี่ปุ่น ไม่ผ่านคนกลาง</h3><p class="lead">ตู้คอนเทนเนอร์เข้าท่าเรือตรงถึงโกดังเรา คุณได้ราคาต้นทาง ของเกรดดีกว่าที่หาได้ทั่วไป</p></div><div class="img w1"></div></div>
+      <div class="whyrow rev-order"><div class="img w2"></div><div class="txt"><div class="ic-lg">🏢</div><h3>บริษัทจริง มีโกดังให้มาดูของ</h3><p class="lead">ไม่ใช่เพจปลอม จดทะเบียนถูกต้อง มีหน้าร้าน 4 สาขาในภาคใต้ นัดมาคัดเองหน้าโกดังได้</p></div></div>
+      <div class="whyrow"><div class="txt"><div class="ic-lg">💰</div><h3>คัดเกรด A ขายต่อง่าย กำไรดี</h3><p class="lead">งานทุกกระสอบผ่านการคัดเกรด พร้อมบริการติดป้าย-พับให้ เปิดร้าน-ขายตลาดนัดได้ทันที</p></div><div class="img w3"></div></div>
+    </div>
+    <div style="text-align:center;margin-top:24px"><a class="btn btn-ghost btn-lg" href="about.html">อ่านเรื่องราว KAN HUB →</a></div>
+  </div>
+</section>
+
+<!-- Reviews -->
+<section class="sec">
+  <div class="wrap sec-head"><div class="eyebrow">รีวิวลูกค้าจริง</div><h2>ลูกค้ามารับของเองที่โกดัง</h2></div>
+  <div class="rev-scroll">
+    <div class="rev"><div class="who"><span class="av">น</span><div><b>คุณน้อง</b><div class="stars">★★★★★</div></div></div><p>"สั่งกระสอบเสื้อยืดมา เปิดมาของดีจริง เกรด A ตามที่บอก ขายตลาดนัดหมดใน 2 วัน รับซ้ำแน่นอน"</p></div>
+    <div class="rev"><div class="who"><span class="av">ก</span><div><b>คุณกอล์ฟ สุราษฎร์</b><div class="stars">★★★★★</div></div></div><p>"ขับรถไปดูของที่โกดังเอง คัดเองได้เลย ประทับใจมาก ไม่ต้องสั่งไกลถึงกรุงเทพ"</p></div>
+    <div class="rev"><div class="who"><span class="av">ม</span><div><b>ร้านมือสองพี่แมว</b><div class="stars">★★★★★</div></div></div><p>"ใช้บริการจัดก้อนสด เลือก % หมวดเองได้ ติดป้ายมาให้พร้อมขายเลย คุ้มมาก"</p></div>
+    <div class="rev"><div class="who"><span class="av">ด</span><div><b>คุณดาว นครศรี</b><div class="stars">★★★★★</div></div></div><p>"กลัวโดนโกงเลยเลือกที่มีบริษัทจริง โอนบัญชีบริษัท สบายใจ ของส่งไวด้วย"</p></div>
+  </div>
+</section>
+
+<!-- CTA close -->
+<section class="sec"><div class="wrap"><div class="cta-close">
+  <h2>พร้อมเริ่มต้นธุรกิจเสื้อผ้ามือสองแล้วใช่ไหม?</h2>
+  <p>ทักมาคุยได้เลย ทีมงานช่วยเลือกกระสอบที่เหมาะกับร้านคุณ</p>
+  <div class="row"><a class="btn btn-line btn-lg" href="#">💬 แอด LINE</a><a class="btn btn-gold btn-lg" href="#">📞 โทรเลย</a><a class="btn btn-ghost-light btn-lg" href="contact.html">📍 นัดดูของที่โกดัง</a></div>
+</div></div></section>
+
+<!-- FAQ -->
+<section class="sec soft-bg" id="faq">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">คำถามพบบ่อย</div><h2>เรื่องที่ลูกค้าถามบ่อย</h2></div>
+    <div class="faq">
+      <div class="qa"><button>กระสอบมือสอง 1 กระสอบกี่ตัว? <span class="chev">+</span></button><div class="ans"><p>ขึ้นกับหมวดและน้ำหนัก เช่น เสื้อยืด 45 กก. ได้ประมาณ 180–220 ตัว / กางเกงยีนส์ 45 กก. ได้ประมาณ 90–110 ตัว ทุกการ์ดสินค้าระบุจำนวนตัวโดยประมาณไว้ให้</p></div></div>
+      <div class="qa"><button>เกรด A กับ B ต่างกันยังไง? <span class="chev">+</span></button><div class="ans"><p>เกรด A คือสภาพดีพร้อมขายทันที ตำหนิน้อยมาก / เกรด B มีตำหนิเล็กน้อยพอซ่อมหรือลดราคาขายได้ KAN คัดเกรดให้ชัดเจนก่อนส่งทุกกระสอบ</p></div></div>
+      <div class="qa"><button>สั่งกระสอบ ขั้นต่ำเท่าไหร่? <span class="chev">+</span></button><div class="ans"><p>เริ่มได้ที่ 1 กระสอบ ไม่มีขั้นต่ำสูง เหมาะทั้งมือใหม่ลองตลาดและร้านที่รับประจำ มีบริการจัดก้อนสดเลือกหมวดเองได้</p></div></div>
+      <div class="qa"><button>มารับเองที่โกดังได้ไหม? <span class="chev">+</span></button><div class="ans"><p>ได้ครับ โกดังใหญ่อยู่สุราษฎร์ธานี และมีหน้าร้านนครศรีธรรมราช-ชุมพร นัดเข้ามาคัดเองหน้าโกดังได้</p></div></div>
+      <div class="qa"><button>KAN ขายปลีกแข่งกับร้านเรามั้ย? <span class="chev">+</span></button><div class="ans"><p>ไม่ครับ KAN เน้นขายส่งให้ร้านค้านำไปขายต่อ เราอยากให้ลูกค้าขายดีและรับของกับเราต่อเนื่อง ไม่ลงไปแข่งขายปลีกตัดราคา</p></div></div>
+    </div>
+    <div style="text-align:center;margin-top:20px"><a class="btn btn-ghost" href="faq.html">ดูคำถามทั้งหมด →</a></div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="sec" id="contact">
+  <div class="wrap">
+    <div class="sec-head"><div class="eyebrow">ติดต่อเรา</div><h2>โกดัง KAN HUB ภาคใต้</h2></div>
+    <div class="scam" style="margin-bottom:20px"><span class="ic">⚠️</span><span>เพื่อความปลอดภัย — <b>โอนเข้าบัญชีบริษัทเท่านั้น</b> ระวังมิจฉาชีพแอบอ้าง</span></div>
+    <div class="contact-grid">
+      <div class="map"><div><div class="pin">📍</div>โกดังใหญ่ · สุราษฎร์ธานี<br><small style="font-weight:500;color:#6a8a73">+ 3 สาขา นครศรี / ชุมพร</small></div></div>
+      <div class="cinfo">
+        <div class="item"><span class="ic">💬</span><span><b>LINE Official</b><small>@kanhub — ตอบไว ทุกวัน 9:00–21:00</small></span></div>
+        <div class="item"><span class="ic">📞</span><span><b>โทร</b><small>08x-xxx-xxxx</small></span></div>
+        <div class="item"><span class="ic">📘</span><span><b>Facebook / TikTok</b><small>KAN HUB ขายส่งมือสองญี่ปุ่น</small></span></div>
+        <div class="item"><span class="ic">🕗</span><span><b>เวลาทำการ</b><small>จันทร์–อาทิตย์ 9:00–18:00 (โกดัง)</small></span></div>
+        <div style="margin-top:16px"><a class="btn btn-line btn-lg btn-block" href="contact.html">💬 ทักไลน์ขอใบเสนอราคา</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="site"><div class="wrap">
+  <div class="fgrid">
+    <div class="col"><div class="logo" style="color:#fff;margin-bottom:12px"><span class="mark">KH</span><span style="color:#fff">KAN HUB</span></div><p style="font-size:.86rem;max-width:34ch">โกดังขายส่งเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรง บริษัทจริง ภาคใต้ — สุราษฎร์ธานี นครศรีธรรมราช ชุมพร</p></div>
+    <div class="col"><h4>สินค้า</h4><a href="catalog.html">กระสอบเสื้อยืด</a><a href="catalog.html">กระสอบกางเกงยีนส์</a><a href="catalog.html">กระสอบเดรส</a><a href="catalog.html">งานคัดแบรนด์ญี่ปุ่น</a></div>
+    <div class="col"><h4>บริการ</h4><a href="service.html">จัดก้อนสด</a><a href="service.html">100 ชิ้นพร้อมขาย</a><a href="consult.html">เปิดร้าน-เปิดโกดัง</a><a href="how-to-order.html">วิธีสั่งซื้อ</a></div>
+    <div class="col"><h4>บริษัท</h4><a href="about.html">ทำไมต้อง KAN</a><a href="south.html">ขายส่งทั่วไทย</a><a href="blog.html">บทความ</a><a href="contact.html">ติดต่อ</a></div>
+  </div>
+  <div class="fbar">© 2026 KAN HUB · บริษัทจดทะเบียนถูกต้อง · โอนบัญชีบริษัทเท่านั้น</div>
+</div></footer>
+
+<div class="sticky-line"><a class="btn btn-line" href="#">💬 แอด LINE</a><a class="btn btn-crimson" href="#">📞 โทรเลย</a></div>
+<script src="shared.js"></script>
+</body>
+</html>

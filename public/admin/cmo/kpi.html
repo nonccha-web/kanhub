@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI ฝ่ายการตลาด 2026 — KAN ERP</title>
+<link rel="stylesheet" href="styles.css?v=8">
+<style>
+  .kpi-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
+    flex-wrap:wrap; margin-bottom:20px; }
+  .kpi-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--accent-text); }
+  .kpi-top-r{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .kpi-msel{ font-family:inherit; font-size:13.5px; font-weight:600; padding:9px 12px; border-radius:10px;
+    border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-primary); cursor:pointer; }
+  .kpi-btn{ font-family:inherit; font-size:13px; font-weight:700; padding:9px 16px; border-radius:10px;
+    border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-primary);
+    cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+  .kpi-btn.primary{ background:#F2565A; color:#fff; border-color:transparent; }
+  .kpi-btn.primary:hover{ filter:brightness(1.07); }
+  .kpi-btn.ghost:hover{ background:var(--accent-faint); color:var(--accent-text-dark); }
+
+  .kpi-editwrap{ padding:18px; }
+  .kpi-editbar{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+    flex-wrap:wrap; margin-bottom:14px; }
+  .kpi-hint{ font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+  .kpi-livepct{ font-size:13px; color:var(--text-tertiary); }
+  .kpi-livepct b{ font-size:20px; color:var(--accent-text-dark); display:block; }
+
+  .kpi-tablewrap{ overflow-x:auto; }
+  .kpi-table{ width:100%; border-collapse:collapse; font-size:13px; min-width:720px; }
+  .kpi-table th{ text-align:left; font-size:11px; font-weight:700; color:var(--text-muted);
+    text-transform:uppercase; letter-spacing:.4px; padding:9px 10px; border-bottom:1px solid var(--bg-row-divider);
+    white-space:nowrap; position:sticky; top:0; background:var(--bg-glass); }
+  .kpi-table td{ padding:10px; border-bottom:1px solid var(--bg-row-divider); vertical-align:middle; }
+  .kpi-table tr:hover td{ background:var(--bg-card-subtle); }
+  .kpi-catrow td{ background:var(--bg-card-subtle); font-weight:700; font-size:12px; color:var(--text-secondary);
+    letter-spacing:.3px; }
+  .kpi-dot{ display:inline-block; width:9px; height:9px; border-radius:99px; margin-right:8px; vertical-align:middle; }
+  .kpi-code{ font-family:ui-monospace,monospace; font-size:11.5px; color:var(--text-tertiary); white-space:nowrap; }
+  .kpi-name{ font-weight:600; font-size:13px; line-height:1.4; }
+  .kpi-note{ font-size:11px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+  .kpi-num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .kpi-off{ opacity:.5; }
+  .kpi-tag.off{ font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px;
+    background:var(--bg-card-subtle); color:var(--text-muted); }
+
+  .kpi-inwrap{ display:inline-flex; align-items:center; gap:5px; }
+  .kpi-in{ width:92px; font-family:inherit; font-size:13px; padding:7px 9px; border-radius:8px;
+    border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-primary);
+    text-align:right; font-variant-numeric:tabular-nums; }
+  .kpi-in:focus{ outline:2px solid #F2565A; border-color:transparent; }
+  .kpi-unit{ font-size:12px; color:var(--text-muted); }
+  .kpi-score{ font-weight:700; font-variant-numeric:tabular-nums; }
+  .kpi-score.good{ color:#16A34A; } .kpi-score.mid{ color:#D97706; }
+  .kpi-score.bad{ color:#DC2626; } .kpi-score.na{ color:var(--text-muted); }
+
+  .kpi-actions{ display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+
+  /* dashboard */
+  .kpi-dashgrid{ display:grid; grid-template-columns:300px 1fr; gap:16px; margin-bottom:8px; }
+  .kpi-gauge-card{ display:flex; flex-direction:column; align-items:center; text-align:center; padding:22px; }
+  .kpi-gauge{ width:172px; height:172px; border-radius:99px; display:flex; align-items:center;
+    justify-content:center; }
+  .kpi-gauge-in{ width:132px; height:132px; border-radius:99px; background:var(--bg-glass);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .kpi-gauge-pct{ font-size:38px; font-weight:800; letter-spacing:-1px; color:var(--text-primary); }
+  .kpi-gauge-grade{ font-size:12px; font-weight:700; color:var(--text-tertiary); }
+  .kpi-gauge-meta{ font-size:13px; font-weight:600; margin-top:16px; }
+  .kpi-gauge-sub{ font-size:12px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+
+  .kpi-kpirow{ display:grid; grid-template-columns:1fr 1fr; gap:14px; align-content:start; }
+  .kpi-mini{ background:var(--bg-glass); border:.5px solid var(--bg-glass-border); border-radius:16px;
+    padding:18px 20px; box-shadow:var(--shadow-card); }
+  .kpi-mini-l{ font-size:11px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; color:var(--text-muted); }
+  .kpi-mini-v{ font-size:26px; font-weight:700; letter-spacing:-.5px; margin-top:6px; }
+  .kpi-mini-s{ font-size:11.5px; color:var(--text-tertiary); margin-top:6px; }
+
+  .kpi-catgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .kpi-catcard{ background:var(--bg-glass); border:.5px solid var(--bg-glass-border); border-radius:16px;
+    padding:16px 18px; box-shadow:var(--shadow-card); }
+  .kpi-catcard-h{ display:flex; align-items:center; font-size:13px; font-weight:600; }
+  .kpi-catpct{ margin-left:auto; font-weight:800; font-size:15px; }
+  .kpi-catfull{ font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.45; }
+  .kpi-catmeta{ font-size:11px; color:var(--text-muted); margin-top:8px; }
+  .kpi-catrow-pct{ float:right; font-weight:800; color:var(--text-secondary); }
+
+  .kpi-bar{ height:9px; border-radius:99px; background:var(--bg-row-divider); overflow:hidden; margin-top:10px; }
+  .kpi-bar.sm{ height:7px; margin-top:0; }
+  .kpi-bar i{ display:block; height:100%; border-radius:99px; }
+
+  /* ร่าง / ยืนยัน */
+  .kpi-draft td{ background:rgba(217,119,6,.055); }
+  .kpi-draft .kpi-name{ opacity:.72; }
+  .kpi-confirm-cell{ white-space:nowrap; }
+  .kpi-st-ok{ color:#16A34A; font-weight:700; font-size:12.5px; }
+  .kpi-st-draft{ color:#D97706; font-weight:700; font-size:12.5px; }
+  .kpi-st-empty{ color:var(--text-muted); font-size:12px; }
+  .kpi-cfm{ font-family:inherit; font-size:11.5px; font-weight:700; margin-left:8px; padding:4px 11px;
+    border-radius:7px; border:1px solid transparent; background:#F2565A; color:#fff; cursor:pointer; }
+  .kpi-cfm:hover{ filter:brightness(1.08); }
+  .kpi-cfm.undo{ background:transparent; color:var(--text-tertiary); border-color:var(--bg-row-divider); }
+  .kpi-cfm.undo:hover{ background:var(--bg-card-subtle); }
+  .kpi-cfm.na{ background:transparent; color:var(--text-muted); border-color:var(--bg-row-divider); font-weight:600; }
+  .kpi-cfm.na:hover{ background:var(--bg-card-subtle); color:var(--text-secondary); }
+
+  /* นอกการดำเนินงาน — ไม่นับคะแนน */
+  .kpi-st-na{ color:var(--text-muted); font-weight:700; font-size:12.5px; }
+  .kpi-na td{ background:repeating-linear-gradient(45deg,var(--bg-card-subtle),var(--bg-card-subtle) 7px,transparent 7px,transparent 14px); }
+  .kpi-na .kpi-name{ opacity:.55; text-decoration:line-through; text-decoration-thickness:1px; }
+  .kpi-na .kpi-in{ opacity:.5; cursor:not-allowed; }
+
+  /* การ์ดคลิกได้ → เลื่อนไปหน้ากรอก */
+  .kpi-clickable{ cursor:pointer; transition:transform .12s, box-shadow .12s, border-color .12s; }
+  .kpi-clickable:hover{ transform:translateY(-2px); box-shadow:var(--shadow-card-hover); border-color:var(--accent-faint-2); }
+  .kpi-goto{ display:block; margin-top:8px; font-size:11px; font-weight:700; color:var(--accent-text); opacity:0; transition:opacity .12s; }
+  .kpi-mini.kpi-clickable:hover .kpi-goto{ opacity:1; }
+
+  /* ไฮไลต์แถวที่เพิ่งเลื่อนมาถึง */
+  @keyframes kpiFlash{ 0%{ background:var(--accent-faint-2); } 100%{ background:transparent; } }
+  .kpi-flash td{ animation:kpiFlash 1.6s ease-out; }
+  .kpi-badge-draft{ display:inline-block; font-size:10.5px; font-weight:700; color:#D97706;
+    background:rgba(217,119,6,.12); border-radius:99px; padding:1px 8px; }
+  .kpi-pendnote{ font-size:11.5px; color:#D97706; font-weight:600; margin-top:4px; }
+  .kpi-pendbar{ background:rgba(217,119,6,.1); border:1px solid rgba(217,119,6,.25); border-radius:14px;
+    padding:13px 18px; font-size:13px; color:#8a5a08; margin-bottom:16px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  [data-theme="dark"] .kpi-pendbar{ color:#E0BC6E; }
+
+  @media(max-width:900px){ .kpi-dashgrid{ grid-template-columns:1fr; } .kpi-kpirow{ grid-template-columns:1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="kpiApp"></div>
+  <div class="pager" style="margin-top:28px;"></div>
+  <footer class="doc-foot" style="margin-top:20px;font-size:12px;color:var(--text-muted);">
+    KAN ERP · KPI ฝ่ายการตลาด 2026 · ข้อมูลที่กรอกเก็บในเครื่องนี้ (เบราว์เซอร์)
+  </footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+<script src="kpi.js?v=8"></script>
+</body>
+</html>

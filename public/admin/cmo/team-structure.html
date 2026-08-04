@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>โครงสร้างทีม — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+<style>
+  .org{display:flex;flex-direction:column;align-items:center;gap:0;margin:8px 0 4px;}
+  .org .node{border:1.5px solid var(--accent);border-radius:10px;padding:11px 20px;text-align:center;
+    background:var(--bg-card);min-width:200px;box-shadow:var(--shadow-card);}
+  .org .node .role{font-weight:800;font-size:15px;color:var(--text-primary);}
+  .org .node .desc{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+  .org .node.head{background:var(--accent);border-color:var(--accent);}
+  .org .node.head .role{color:#fff;}
+  .org .node.head .desc{color:rgba(255,255,255,.82);}
+  .org .node.mgr{background:var(--bg-card-subtle);}
+  .org .connector{width:1.5px;height:22px;background:var(--bg-row-divider);}
+  .org .row{display:flex;gap:34px;justify-content:center;flex-wrap:wrap;align-items:flex-start;}
+  .org .col{display:flex;flex-direction:column;align-items:center;}
+  @media(max-width:600px){.org .row{gap:14px;}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><div class="eyebrow">หัวข้อ 1 · ทีมการตลาด 2026</div><h1>โครงสร้างทีม</h1><div class="sub">ผังสายบังคับบัญชา · OKR เป้าใหญ่ 1 ข้อต่อตำแหน่ง · ถ่วงน้ำหนัก outcome 70 / output 30</div></div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="callout danger">
+    <div class="callout-title">⚠️ หมายเหตุ</div>
+    <div class="callout-body">โครงสร้างปรับใหม่: รวมงาน <strong>B2C Manager เข้ากับ Marketing Manager</strong> (MM คุมภาพรวม + ค้าปลีก/หน้าร้านเอง) · เพิ่มสาย B2B เป็น <strong>B2B Manager + B2B Executive</strong> · ตัวเลขเป้าบางส่วนยังรอค่าฐานจริงจากหลังบ้าน/POS · JD เป็นฉบับร่าง ควรปรับให้ตรงงานจริง</div>
+  </div>
+
+  <section class="section">
+    <div class="section-title"><h2>ผังทีมการตลาด</h2><div class="badge">CMO → Marketing Manager → B2B Manager → B2B Executive · Marketing Officer</div></div>
+    <div class="glass">
+      <div class="org">
+        <div class="node head"><div class="role">CMO</div><div class="desc">คุณ (หัวทีม) · คุม strategy + งบ</div></div>
+        <div class="connector"></div>
+        <div class="node mgr"><div class="role">Marketing Manager</div><div class="desc">คุมภาพรวมทั้ง B2B และ B2C + ดูแลค้าปลีก/หน้าร้านเอง</div></div>
+        <div class="connector"></div>
+        <div class="row">
+          <div class="col">
+            <div class="node"><div class="role">B2B Manager</div><div class="desc">คุมสายค้าส่ง + ไลฟ์</div></div>
+            <div class="connector"></div>
+            <div class="node"><div class="role">B2B Executive</div><div class="desc">ลงมือขายค้าส่ง + ไลฟ์</div></div>
+          </div>
+          <div class="col">
+            <div class="node"><div class="role">Marketing Officer</div><div class="desc">คอนเทนต์ · สื่อ · จัดหน้าร้าน · ดูแลลูกค้า</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub" style="text-align:center;margin-top:10px;font-style:italic;">B2B Manager และ Marketing Officer ขึ้นตรง Marketing Manager · B2B Executive ขึ้นตรง B2B Manager · ฝ่าย Sale ที่ถือยอดค้าปลีกไม่รวมในผังนี้</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-title"><h2>สรุป 4 ตำแหน่งในทีม</h2><div class="badge">รายละเอียดหน้าที่ดูที่ JD · ตัวชี้วัดดูที่ KPI</div></div>
+    <div class="card-grid-2">
+      <div class="svc-card pg">
+        <div class="svc-head"><div><div class="svc-title">Marketing Manager</div><div class="svc-meta">คุมภาพรวม + ค้าปลีก/หน้าร้าน · ขึ้นตรง CMO</div></div></div>
+        <div class="sub">ทำให้ค้าส่งและค้าปลีกโตไปด้วยกัน · ดึงคนเข้าร้านและเพิ่ม conversion หน้าร้าน · คุมทีม B2B Manager + Marketing Officer (รวมงาน B2C Manager เดิมเข้ามา)</div>
+      </div>
+      <div class="svc-card p1">
+        <div class="svc-head"><div><div class="svc-title">B2B Manager</div><div class="svc-meta">คุมสายค้าส่ง · ขึ้นตรง Marketing Manager</div></div></div>
+        <div class="sub">วางแผน/คุมยอดค้าส่งทุกช่องทาง · ดีลรายใหญ่/ยกตู้ · ดูแลลูกค้าซื้อซ้ำ · คุมและพัฒนา B2B Executive</div>
+      </div>
+      <div class="svc-card p2">
+        <div class="svc-head"><div><div class="svc-title">B2B Executive</div><div class="svc-meta">ลงมือค้าส่ง + ไลฟ์ · ขึ้นตรง B2B Manager</div></div></div>
+        <div class="sub">รับลูกค้าค้าส่ง→ปิดการขาย · ดำเนินการไลฟ์ตามรอบ · ตามลูกค้าซื้อซ้ำ · บันทึกข้อมูลลูกค้าเข้าระบบ</div>
+      </div>
+      <div class="svc-card pt">
+        <div class="svc-head"><div><div class="svc-title">Marketing Officer</div><div class="svc-meta">คอนเทนต์ สื่อ ดูแลลูกค้า · ขึ้นตรง Marketing Manager</div></div></div>
+        <div class="sub">ผลิตสื่อทุกช่องทาง · คุมโทนแบรนด์ · งานจัดแสดงหน้าร้าน · ตอบลูกค้าทุกช่องทาง</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 1 · โครงสร้างทีม</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

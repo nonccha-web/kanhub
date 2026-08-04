@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>งบโฆษณา — Media Budget — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><div class="eyebrow">หัวข้อ 3 · ขายส่ง + ออนไลน์</div><h1>งบโฆษณา — Media Budget</h1><div class="sub">50–70%+ ของงบลง Boost Ads</div></div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="section-title"><h2>แผนงบการตลาด — Media Budget</h2><div class="badge">หลักการ: 50–70%+ ของงบลง Boost Ads</div></div>
+
+  <div class="callout"><div class="callout-title">นโยบายหลัก</div><div class="callout-body">งบ B2B Web + Live ก้อนใหญ่ <strong>50–70% ขึ้นไปต้องลงที่ media (Boost Ads)</strong> ไม่ใช่ค่า production — เพราะ content เราผลิตเองได้จากไลฟ์รายวัน สิ่งที่ซื้อคือ <strong>reach (การเข้าถึง)</strong> ให้คนเห็นไลฟ์/โพสต์มากที่สุด</div></div>
+
+  <div class="glass" style="margin-bottom:14px;">
+    <h3>โครงงบ 220K — แยกตาม Platform</h3>
+    <table class="tbl">
+      <thead><tr><th>Platform</th><th>รูปแบบ</th><th>หลักการยิง</th><th>งบ (7 เดือน)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Google Ads</strong></td><td>Search — เว็บ B2B</td><td><strong>อิง Volume Search</strong> — bid ตามคำที่คนหาจริง (keyword map ใน tab B2B Web) · Manual CPC · งบไหลตามเดือนที่ search สูง</td><td class="num">~70K</td></tr>
+        <tr><td><strong>Facebook Ads</strong></td><td>Promote Post = <strong>Boost Live</strong></td><td>Boost ตัวไลฟ์ขณะออนแอร์ทุกวัน + boost โพสต์ preview ก่อน Big Live · retargeting ผู้ชมไลฟ์ &gt;25%</td><td class="num">~55K</td></tr>
+        <tr><td><strong>TikTok Ads</strong></td><td><strong>Boost Live</strong></td><td>ยิงคู่กับ FB ทุกวัน live · TikTok ค่า reach ถูกกว่า — ใช้หาคนดูใหม่ แล้วดึงเข้า LINE</td><td class="num">~35K</td></tr>
+        <tr><td>Setup + เครื่องมือ</td><td>อุปกรณ์ไลฟ์ + dev เว็บ</td><td>จ่ายครั้งเดียว</td><td class="num">~35K</td></tr>
+        <tr><td>Reserve</td><td>เติม platform ที่ชนะ</td><td>หลัง Q3 Review เทใส่ตัวที่ตัวเลขดีสุด</td><td class="num">~25K</td></tr>
+        <tr style="background:var(--accent-faint);"><td colspan="3"><strong>รวม · media จริง = 160K (73%)</strong></td><td class="num"><strong>220K</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-grid-3">
+    <div class="svc-card p1">
+      <div class="svc-head"><div><div class="svc-title">Google Ads</div><div class="svc-meta">งบ ~70K · เว็บ B2B</div></div><span class="tag tag-accent">Volume-based</span></div>
+      <ul class="bul">
+        <li>Bid ตาม <strong>volume search จริง</strong> จาก Keyword Planner — เดือนไหนคำไหนพุ่ง เทงบตาม</li>
+        <li>Manual CPC เก็บ baseline 2 เดือนแรก ก่อนเปิด Smart Bidding</li>
+        <li>Geo ภาคใต้ bid +25% — สนามที่ไม่มีคู่แข่งเล่น</li>
+        <li>~10K/เดือน เฉลี่ย · เพิ่มช่วง ต.ค.–ธ.ค. ที่ผู้ค้าตุนของ</li>
+      </ul>
+    </div>
+    <div class="svc-card p2">
+      <div class="svc-head"><div><div class="svc-title">Facebook Ads</div><div class="svc-meta">งบ ~55K · Boost Live</div></div><span class="tag tag-gold">Promote Post</span></div>
+      <ul class="bul">
+        <li><strong>Boost ตัวไลฟ์ขณะออนแอร์</strong> วันละ ~250–300฿ — ดันไลฟ์เข้า feed ผู้ค้า</li>
+        <li>Boost โพสต์ preview ก่อน Big Live Event (hype cycle D-3)</li>
+        <li>Retargeting: ผู้ชมไลฟ์ &gt;25% + คน engage โพสต์ราคา >> ดึงเข้า LINE</li>
+        <li>Interest: ขายของออนไลน์ / ตลาดนัด / เสื้อผ้ามือสอง + lookalike LINE OA</li>
+      </ul>
+    </div>
+    <div class="svc-card pt">
+      <div class="svc-head"><div><div class="svc-title">TikTok Ads</div><div class="svc-meta">งบ ~35K · Boost Live</div></div><span class="tag tag-teal">Reach ถูก</span></div>
+      <ul class="bul">
+        <li><strong>Boost Live</strong> วันละ ~150–200฿ ยิงคู่กับ FB</li>
+        <li>หน้าที่: หาคนดูหน้าใหม่ (FB = ฐานเดิม, TikTok = ขยาย)</li>
+        <li>สนามขายส่ง B2B บน TikTok ยังว่าง — เจ้าใหญ่ FB ไม่ได้ย้ายมา</li>
+        <li>CTA เดียวกัน: รหัส + จอง >> inbox >> LINE</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="glass">
+    <h3>งบรายเดือน (media เท่านั้น — ไม่รวม setup)</h3>
+    <table class="tbl">
+      <thead><tr><th>เดือน</th><th>Google</th><th>Facebook</th><th>TikTok</th><th>รวม/เดือน</th><th>โน้ต</th></tr></thead>
+      <tbody>
+        <tr><td>ก.ค.</td><td class="num">8K</td><td class="num">7K</td><td class="num">4K</td><td class="num">19K</td><td>เริ่มยิง — เก็บ baseline</td></tr>
+        <tr><td>ส.ค.</td><td class="num">9K</td><td class="num">8K</td><td class="num">5K</td><td class="num">22K</td><td>Live ทุกวันเต็มเดือนแรก</td></tr>
+        <tr><td>ก.ย.</td><td class="num">10K</td><td class="num">8K</td><td class="num">5K</td><td class="num">23K</td><td>สารทเดือนสิบ + Q3 Review</td></tr>
+        <tr><td>ต.ค.</td><td class="num">11K</td><td class="num">9K</td><td class="num">6K</td><td class="num">26K</td><td>เริ่ม scale ตัวที่ชนะ</td></tr>
+        <tr><td>พ.ย.</td><td class="num">12K</td><td class="num">12K</td><td class="num">8K</td><td class="num">32K</td><td>พีคปี — 11.11 + ลอยกระทง + BF</td></tr>
+        <tr><td>ธ.ค.</td><td class="num">12K</td><td class="num">11K</td><td class="num">7K</td><td class="num">30K</td><td>12.12 + ปีใหม่</td></tr>
+        <tr style="background:var(--accent-faint);"><td><strong>รวม</strong></td><td class="num"><strong>62K</strong></td><td class="num"><strong>55K</strong></td><td class="num"><strong>35K</strong></td><td class="num"><strong>152K</strong></td><td>+ reserve 8K = 160K media</td></tr>
+      </tbody>
+    </table>
+    <div class="sub" style="margin-top:8px;">มิ.ย. ไม่มี media spend (ช่วง setup) · สัดส่วนระหว่าง platform ปรับได้หลัง Q3 Review — เทใส่ตัวที่ cost ต่อ lead/ยอดขายดีสุด</div>
+  </div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 3 · งบโฆษณา (Marketing Plan)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

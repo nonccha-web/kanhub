@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI รายตำแหน่ง (เต็ม 100/คน) — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><div class="eyebrow">หัวข้อ 3 · เริ่มใช้ 1 ก.ค. 2026</div><h1>KPI รายตำแหน่ง (เต็ม 100/คน)</h1><div class="sub">KPI ใหม่ผูกรายตำแหน่ง · วิธีวัดครบ</div></div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="callout danger">
+    <div class="callout-title">⚠️ หมายเหตุสำคัญ</div>
+    <div class="callout-body">ตัวเลขเป้าทุกตัวในเอกสารนี้เป็นค่าสมมติเพื่อดูโครงเท่านั้น ต้องแทนด้วยค่าฐานจริงจากหลังบ้านและระบบ POS ก่อนนำไปใช้ประเมินจริง ส่วน Job Description เป็นฉบับร่างจากบริบทธุรกิจ ควรปรับให้ตรงกับงานจริงของแต่ละสาขา</div>
+  </div>
+
+  <!-- ROLE 1 -->
+  <div class="section">
+    <div class="svc-title" style="font-size:18px; margin-bottom:6px;">1 · Content Producer</div>
+    <div class="sub" style="margin-bottom:12px;">ตำแหน่งทำงาน · รายงานต่อ Marketing Manager · KPI · คะแนนเต็ม 100</div>
+    <table class="tbl">
+      <thead>
+        <tr><th>#</th><th>KPI ย่อย</th><th>เป้า (ค่าสมมติ)</th><th>วิธีวัด</th><th class="num">น้ำหนัก</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>reach แบบไม่ยิงโฆษณา ต่อเดือน</td><td>≥ 300,000</td><td>หลังบ้านทุกช่องทางรวมกัน</td><td class="num">30</td></tr>
+        <tr><td>2</td><td>อัตรา engagement (บันทึก + แชร์ + คอมเมนต์ ต่อ reach)</td><td>≥ 4%</td><td>ไม่นับยอดกดถูกใจ เพราะไม่สะท้อนความตั้งใจซื้อ</td><td class="num">25</td></tr>
+        <tr><td>3</td><td>จำนวนคนมาใช้โปรโมชั่นหรือร่วมกิจกรรมที่คอนเทนต์โปรโมท ที่หน้าร้าน</td><td><span class="tag tag-danger">รอตัวเลข</span> ≥ [รอค่าฐาน] คน/แคมเปญ</td><td>นับจากระบบที่ Marketing Manager ออกแบบ</td><td class="num">45</td></tr>
+      </tbody>
+    </table>
+    <div class="sub" style="margin-top:10px;">หมายเหตุ งานจัดแสดงหน้าร้านที่เพิ่มเข้ามา อยู่ในความรับผิดชอบแต่ยังไม่มี KPI แยกในรอบนี้ ถือเป็นส่วนหนึ่งของงานคอนเทนต์รวม</div>
+  </div>
+
+  <!-- ROLE 2 -->
+  <div class="section">
+    <div class="svc-title" style="font-size:18px; margin-bottom:6px;">2 · B2B Sales และ Live Commerce Lead</div>
+    <div class="sub" style="margin-bottom:12px;">ตำแหน่งทำงาน · รายงานต่อ Marketing Manager · KPI · คะแนนเต็ม 100</div>
+    <table class="tbl">
+      <thead>
+        <tr><th>#</th><th>KPI ย่อย</th><th>เป้า (ค่าสมมติ)</th><th>วิธีวัด</th><th class="num">น้ำหนัก</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>ยอดขาย B2B รวมยอดจากการไลฟ์และช่องทางอื่น</td><td>≥ 400,000 บาท/เดือน</td><td>แยกยอดช่องค้าส่งจากระบบ POS</td><td class="num">50</td></tr>
+        <tr><td>2</td><td>อัตราการปิดการขาย (คนทักถึงสั่งซื้อจริง)</td><td>≥ 25%</td><td>นับจำนวนคนทัก เทียบจำนวนคนสั่งจริง</td><td class="num">25</td></tr>
+        <tr><td>3</td><td>อัตราการกลับมาซื้อซ้ำของลูกค้าค้าส่ง</td><td>≥ 30%</td><td>สำคัญกว่ายอดครั้งเดียว เพราะคนซื้อซ้ำทำให้ต้นทุนต่อกิโลถูกลง</td><td class="num">25</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ROLE 3 -->
+  <div class="section">
+    <div class="svc-title" style="font-size:18px; margin-bottom:6px;">3 · Marketing Manager</div>
+    <div class="sub" style="margin-bottom:12px;">ตำแหน่งบริหาร · คุมทีมการตลาด · KPI · คะแนนเต็ม 100</div>
+    <table class="tbl">
+      <thead>
+        <tr><th>#</th><th>KPI ย่อย</th><th>เป้า (ค่าสมมติ)</th><th>วิธีวัด</th><th class="num">น้ำหนัก</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>จำนวนคนเข้าร้านหน้าร้าน เทียบช่วงเดียวกันปีก่อน</td><td>≥ +15%</td><td>เทียบเดือนเดียวกันปีก่อน เพื่อตัดผลฤดูกาล ต้องมีเครื่องนับคนก่อน</td><td class="num">30</td></tr>
+        <tr><td>2</td><td>ยอดขายช่องออนไลน์</td><td>≥ 250,000 บาท/เดือน</td><td>แยกยอดช่องออนไลน์จากระบบ</td><td class="num">40</td></tr>
+        <tr><td>3</td><td>sell-through ช่องออนไลน์ (ของที่ขึ้นขาย ขายออกได้กี่เปอร์เซ็นต์)</td><td>≥ 60% ภายใน 90 วัน</td><td>กันการดันยอดด้วยการเทของค้าง ต้องบันทึกวันของขึ้นขายและวันขายออก</td><td class="num">30</td></tr>
+      </tbody>
+    </table>
+    <div class="sub" style="margin-top:10px;">หลักการ ตำแหน่งนี้วัดที่ผลปลายทางและการวางระบบ ให้โจทย์ ไม่ให้วิธี ถ้าออกแบบระบบเก็บข้อมูลลูกค้าได้เองโดยไม่ต้องรอคนบอก คือสมกับการเป็น Manager</div>
+  </div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 3 · KPI รายตำแหน่ง (Job Description)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

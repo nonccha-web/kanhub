@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KAN MKT — Sales &amp; Stock Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div class="layout">
+
+  <aside>
+    <div id="sideHost"></div>
+    <div class="side-foot" id="lastUpdated"></div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <div class="crumb" id="crumb"></div>
+        <h1 id="pageTitle"></h1>
+        <div class="lead" id="pageLead"></div>
+      </div>
+      <button class="btn guide" id="guideBtn">📖 คู่มือใช้งาน</button>
+    </div>
+
+    <div class="filters" id="filterHost"></div>
+
+    <div id="view"></div>
+  </main>
+
+</div>
+<div id="guideHost"></div>
+
+<script src="vendor/chart.umd.min.js"></script>
+<script src="data/kan-data.js"></script>
+<script src="../cmo/erp-menu.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/daterange.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/suggest.js"></script>
+<script src="assets/views.js"></script>
+<script src="assets/views-extra.js"></script>
+<script src="assets/guide.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

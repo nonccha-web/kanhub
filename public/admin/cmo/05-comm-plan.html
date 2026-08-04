@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAN — Marketing Communication Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --crimson:#F2565A;--crimson-dark:#9e0b22;--gold:#E0A93B;--gold-soft:#F6E4BE;
+  --ink:#1a1413;--muted:#6b6360;--paper:#fff;--soft:#faf6f3;--line:#ece5e1;
+  --blue:#378ADD;--teal:#1D9E75;--coral:#D85A30;--amber:#EF9F27;
+  --radius:14px;--shadow:0 4px 20px rgba(26,20,19,.07);--shadow-lg:0 14px 44px rgba(26,20,19,.14);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Kanit',system-ui,sans-serif;color:var(--ink);background:var(--soft);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px}
+h1,h2,h3,h4{line-height:1.22;font-weight:700}
+.eyebrow{font-weight:700;color:var(--crimson);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase}
+.muted{color:var(--muted)}
+
+/* hero */
+.hero{background:linear-gradient(140deg,#1a0e0d 0%,#3a1418 55%,#5a1a20 100%);color:#fff;padding:62px 0 56px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-80px;top:-80px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(224,169,59,.22),transparent 70%)}
+.hero .wrap{position:relative;z-index:2}
+.hero .eyebrow{color:var(--gold)}
+.hero h1{font-size:clamp(2rem,6vw,3.3rem);font-weight:800;margin:14px 0 16px;max-width:18ch}
+.hero p{color:#e7d6d0;max-width:56ch;font-weight:400;font-size:1.05rem}
+.hero .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);padding:7px 15px;border-radius:999px;font-size:.84rem;font-weight:500}
+
+/* TOC */
+.toc{background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;box-shadow:0 1px 10px rgba(0,0,0,.03)}
+.toc .wrap{display:flex;gap:6px;overflow-x:auto;padding:11px 22px}
+.toc a{flex:none;font-size:.82rem;font-weight:600;color:var(--muted);padding:7px 13px;border-radius:8px;text-decoration:none;white-space:nowrap;transition:.15s;cursor:pointer}
+.toc a:hover{background:var(--soft);color:var(--crimson)}
+
+/* section */
+section{padding:52px 0;border-bottom:1px solid var(--line)}
+.sec-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;background:var(--crimson);color:#fff;border-radius:9px;font-weight:800;font-size:.95rem;margin-bottom:14px}
+section h2{font-size:clamp(1.5rem,4vw,2rem);margin-bottom:10px}
+.lead-p{color:var(--muted);max-width:64ch;margin-bottom:26px;font-size:1.02rem}
+
+/* cards */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:760px){.grid2{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:repeat(3,1fr)}}
+
+/* policy pills */
+.policy{display:grid;grid-template-columns:1fr;gap:14px;margin-top:8px}
+@media(min-width:760px){.policy{grid-template-columns:repeat(3,1fr)}}
+.policy .p{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:0 12px 12px 0;padding:18px 20px}
+.policy .p b{display:block;font-size:1.05rem;margin-bottom:5px}
+.policy .p span{font-size:.9rem;color:var(--muted)}
+
+/* tier cards 3-step */
+.tiers{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:760px){.tiers{grid-template-columns:repeat(3,1fr)}}
+.tier{border-radius:var(--radius);padding:22px;color:#fff;position:relative;box-shadow:var(--shadow)}
+.tier.k1{background:linear-gradient(150deg,#caa23a,#a07d1f)}
+.tier.k2{background:linear-gradient(150deg,#1fa37a,#0f6e56)}
+.tier.k3{background:linear-gradient(150deg,#dc6038,#a8401f)}
+.tier .tname{font-size:1.25rem;font-weight:800;margin-bottom:3px}
+.tier .trole{font-size:.84rem;opacity:.92;margin-bottom:14px;font-weight:500}
+.tier .tsay{background:rgba(255,255,255,.16);border-radius:10px;padding:11px 13px;font-size:.9rem;font-style:italic;margin-bottom:10px}
+.tier ul{list-style:none;font-size:.86rem}
+.tier li{padding:3px 0 3px 18px;position:relative;opacity:.95}
+.tier li::before{content:"›";position:absolute;left:0;font-weight:800}
+
+/* messaging table-ish */
+.msg{display:grid;gap:12px}
+.msg .row{display:grid;grid-template-columns:1fr;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+@media(min-width:680px){.msg .row{grid-template-columns:130px 1fr}}
+.msg .row .k{font-size:.82rem;color:var(--muted);font-weight:600}
+.say-yes{color:var(--teal);font-weight:500}
+.say-no{color:var(--crimson);font-weight:500}
+
+/* budget */
+.budget-bars{display:grid;gap:12px;margin-top:6px}
+.bbar{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:16px}
+.bbar .bname{flex:0 0 120px;font-weight:600;font-size:.95rem}
+.bbar .btrack{flex:1;height:14px;background:var(--soft);border-radius:7px;overflow:hidden}
+.bbar .bfill{height:100%;border-radius:7px}
+.bbar .bval{flex:0 0 74px;text-align:right;font-weight:700;color:var(--crimson)}
+
+/* freq ladder */
+.ladder{display:grid;gap:10px;counter-reset:rung}
+.rung{display:flex;gap:16px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:15px 18px;border-left:4px solid var(--blue)}
+.rung.r2{border-left-color:var(--teal)}.rung.r3{border-left-color:var(--amber)}.rung.r4{border-left-color:var(--coral)}
+.rung .rn{flex:0 0 auto;font-weight:800;color:var(--muted);font-size:.85rem;background:var(--soft);padding:5px 11px;border-radius:8px;white-space:nowrap}
+.rung .rt b{display:block;font-size:1rem}
+.rung .rt span{font-size:.88rem;color:var(--muted)}
+
+/* content mix bars per branch */
+.mixbar{display:flex;height:30px;border-radius:9px;overflow:hidden;margin:12px 0 10px}
+.mixbar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.78rem;font-weight:600}
+.mixlegend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted);margin-bottom:6px}
+.mixlegend span{display:flex;align-items:center;gap:6px}
+.dot{width:11px;height:11px;border-radius:3px}
+
+/* calendar */
+.calgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+@media(max-width:560px){.calgrid{grid-template-columns:repeat(3,1fr)}}
+.cell{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:8px;min-height:58px}
+.cell .d{font-size:.7rem;color:#aaa}
+.cell .t{font-size:.76rem;line-height:1.3;margin-top:3px}
+.cell.promo{border-color:var(--gold);background:var(--gold-soft)}
+.cell.promo-day{border-color:var(--gold);background:#f3c969}
+
+/* page vs group */
+.vs{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:680px){.vs{grid-template-columns:1fr 1fr}}
+.vs .col{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.vs .col.pagec{border-top:4px solid var(--blue)}
+.vs .col.groupc{border-top:4px solid var(--teal)}
+.vs .col h4{font-size:1.15rem;margin-bottom:4px}
+.vs .col .role{font-size:.85rem;color:var(--muted);margin-bottom:14px}
+.vs .col ul{list-style:none;font-size:.9rem}
+.vs .col li{padding:6px 0 6px 20px;position:relative;border-bottom:1px solid var(--soft)}
+.vs .col li::before{content:"●";position:absolute;left:0;font-size:.6rem;top:11px;color:var(--crimson)}
+
+/* callout */
+.callout{background:#fff8f8;border:1px solid #f3cccc;border-radius:12px;padding:16px 20px;display:flex;gap:13px;align-items:flex-start;margin-top:20px}
+.callout .ic{font-size:1.3rem;flex:none}
+.callout b{color:var(--crimson-dark)}
+.callout p{font-size:.92rem;color:#7a4a48}
+
+/* footer */
+footer{background:#120c0b;color:#cdbfba;padding:40px 0;text-align:center}
+footer .wrap{font-size:.85rem}
+footer b{color:#fff}
+
+.note{font-size:.85rem;color:var(--muted);margin-top:14px;font-style:italic}
+.kpi-flag{background:var(--ink);color:#fff;border-radius:12px;padding:18px 22px;margin-top:18px;font-size:.95rem}
+.kpi-flag b{color:var(--gold)}
+
+/* business units */
+.units{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:760px){.units{grid-template-columns:repeat(2,1fr)}}
+.unit{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);border-top:4px solid var(--crimson)}
+.unit.hub{border-top-color:var(--ink)}
+.unit.fashion{border-top-color:var(--gold)}
+.unit .uname{font-size:1.15rem;font-weight:800;display:flex;align-items:center;gap:10px;margin-bottom:3px}
+.unit .urole{font-size:.85rem;color:var(--muted);font-weight:600;margin-bottom:12px}
+.unit .utag{display:inline-block;font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--soft);color:var(--muted)}
+.unit p{font-size:.9rem;color:var(--muted)}
+.unit .uchan{font-size:.82rem;margin-top:10px;padding-top:10px;border-top:1px solid var(--soft)}
+.unit .uchan b{color:var(--ink)}
+.flywheel{background:linear-gradient(135deg,var(--soft),#fff);border:1px solid var(--line);border-radius:var(--radius);padding:20px 24px;margin-top:18px}
+.flywheel h4{margin-bottom:8px}
+.flywheel p{font-size:.92rem;color:var(--muted)}
+</style>
+<link rel="stylesheet" href="styles.css?v=8"></head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Marketing Communication Plan · 2569</div>
+    <h1>สื่อสารให้คนเห็น แล้วเดินเข้าร้าน</h1>
+    <p>แผนสื่อสารการตลาดหน้าร้าน KAN — เปลี่ยนจาก "ลดราคาเยอะ" เป็น "รวมพลังการสื่อสารให้ทะลุการเห็น 7 ครั้ง" เพื่อดัน traffic เข้าร้านตาม KPI</p>
+    <div class="meta">
+      <span class="chip">งบ Always-on 39,000 / เดือน</span>
+      <span class="chip">Gold Promo ไม่เกิน 3 ตัว / เดือน</span>
+      <span class="chip">Education + Add Value นำ</span>
+      <span class="chip">ภาพถ่ายจริง ไม่ตกแต่งเยอะ</span>
+    </div>
+  </div>
+</div>
+
+<nav class="toc">
+  <div class="wrap">
+    <a onclick="goTo('s0')">0 · ภาพรวม</a>
+    <a onclick="goTo('s1')">1 · กลยุทธ์หลัก</a>
+    <a onclick="goTo('s2')">2 · Content Mix</a>
+    <a onclick="goTo('s3')">3 · ระบบ 3 ขั้น</a>
+    <a onclick="goTo('s4')">4 · Messaging</a>
+    <a onclick="goTo('s5')">5 · งบ 39K</a>
+    <a onclick="goTo('s6')">6 · ปฏิทิน</a>
+    <a onclick="goTo('s7')">7 · รายสาขา + Group</a>
+  </div>
+</nav>
+
+<!-- S0 -->
+<section id="s0">
+  <div class="wrap">
+    <span class="sec-num">0</span>
+    <h2>ภาพรวม 5 หน่วยธุรกิจ — ต่างบทบาท แต่ไปด้วยกัน</h2>
+    <p class="lead-p">แต่ละหน่วยมีจุดยืน กลุ่มลูกค้า และช่องทางต่างกัน เอกสารนี้เน้น "การสื่อสารการตลาดหน้าร้าน" (retail + fashion) ส่วน KAN Hub เดินแผนขายส่งของตัวเองที่ใช้ Google Ads / SEO / Meta Ads + โปรโมท Live ซึ่ง retail ไม่มี</p>
+
+    <div class="units">
+      <div class="unit hub">
+        <div class="uname">KAN Hub <span class="utag">B2B · ขายส่ง</span></div>
+        <div class="urole">เน้นแม่ค้า · นำเข้าตรงขายส่งยกกระสอบ</div>
+        <p>เจ้าแรกภาคใต้ ขายส่งแม่ค้ามือสอง — เป็น cash cow ของกลุ่ม</p>
+        <div class="uchan"><b>ช่องทาง:</b> Facebook Live + LINE OA + เว็บ B2B + Google Ads / SEO / Meta Ads · <b>งบ 220K / 7 เดือน (แยก)</b></div>
+      </div>
+      <div class="unit">
+        <div class="uname">KAN Store <span class="utag">B2C · retail</span></div>
+        <div class="urole">ของญี่ปุ่นดีๆ หลายหมวด</div>
+        <p>แฟชั่น + HH (ของใช้/ของเล่นในบ้าน) + เฟอร์นิเจอร์ · brand builder ของกลุ่ม — 3 สาขา (สุราษฎร์ / ชุมพร / นคร)</p>
+        <div class="uchan"><b>ช่องทาง:</b> FB Page + Group + LINE OA + หน้าร้าน · <b>งบในก้อน 39K</b></div>
+      </div>
+      <div class="unit fashion">
+        <div class="uname">KAN Fashion <span class="utag">B2C · retail</span></div>
+        <div class="urole">เสื้อผ้าแฟชั่น ของดีคัดมาแล้ว</div>
+        <p>แบรนด์ใหม่ (เปิดมิถุนา 2569) โฟกัสเสื้อผ้าหมวดเดียวลึก ขายด้วยภาพลุคจริง</p>
+        <div class="uchan"><b>ช่องทาง:</b> FB Page + Group + LINE OA + หน้าร้าน · <b>งบในก้อน 39K</b></div>
+      </div>
+      <div class="unit">
+        <div class="uname">งบรวมหน้าร้าน <span class="utag">39K / เดือน</span></div>
+        <div class="urole">retail 3 สาขา + Fashion</div>
+        <p>เอกสารนี้โฟกัสที่ก้อนนี้ — เน้นการสื่อสาร (สื่อ + คอนเทนต์) ไม่ใช่ยิงแอด funnel แบบ Hub</p>
+        <div class="uchan"><b>หลัก:</b> owned channel + organic นำ · paid เร่ง · เน้น Education + Add Value</div>
+      </div>
+    </div>
+
+    <div class="flywheel">
+      <h4>ทำไมต้องไปด้วยกัน</h4>
+      <p>KAN Hub = cash cow (ขายส่งยกกระสอบ ทำเงินหลัก) · KAN Store / Fashion = brand builder (สร้างแบรนด์ + ฐานลูกค้าปลายทาง) · กระสอบที่ Hub ขายไม่หมดป้อนเข้า Store เป็นสต๊อก → ลด dead stock ทั้งกลุ่ม การสื่อสารจึงต้องเป็นภาพเดียวกันแม้คนละช่องทาง</p>
+    </div>
+  </div>
+</section>
+
+<!-- S1 -->
+<section id="s1">
+  <div class="wrap">
+    <span class="sec-num">1</span>
+    <h2>กลยุทธ์หลัก — ทำไมต้องลดจำนวนโปร</h2>
+    <p class="lead-p">โปรเดิม 10–20 ตัวต่อเดือน แต่ลูกค้าใช้จริงแค่ 20% ที่เหลือคือเสียงรบกวนที่กินพื้นที่สื่อสารฟรีๆ แผนนี้รวมพลังไปที่โปรน้อยตัวแต่สื่อสารหนัก</p>
+
+    <div class="policy">
+      <div class="p"><b>Gold Promo ไม่เกิน 3 ตัว/เดือน</b><span>เวียนทุกเดือน ทุ่มพลังสื่อสารไปที่โปรน้อยตัว แทนการกระจาย 20 โปร</span></div>
+      <div class="p"><b>เทงบไปทำสื่อ</b><span>งบที่ประหยัดจากการลดโปร เปลี่ยนเป็น reach + ป้าย ไม่ใช่ส่วนลด</span></div>
+      <div class="p"><b>เห็นเกิน 7 ครั้ง</b><span>กฎทอง — คนต้องเห็นข้อความเดียวกันเกิน 7 ครั้งข้ามทุกช่องทาง ก่อนตัดสินใจ</span></div>
+    </div>
+
+    <div class="kpi-flag">
+      <b>เป้าหมายปลายทาง:</b> frequency 7+ ไม่ใช่เป้าในตัวเอง — มันคือเครื่องมือเพื่อ <b>ดัน traffic เข้าร้านเพิ่มขึ้นตาม KPI</b> วัดผลด้วย PeopleFlow (นับคนหน้าร้าน) เชื่อมกลับ bottleneck เดิม revenue per sqm
+    </div>
+
+    <div class="callout">
+      <span class="ic">📸</span>
+      <p><b>ธีมภาพหลักทุกสาขา:</b> ภาพถ่ายจริง ไม่ตกแต่งเยอะ — ตรงกับจุดยืน "ของจริง บริษัทจริง" และถ่ายเองได้ ไม่ต้องพึ่ง production แพง สอดคล้องนโยบายเทงบไป reach</p>
+    </div>
+  </div>
+</section>
+
+<!-- S2 -->
+<section id="s2">
+  <div class="wrap">
+    <span class="sec-num">2</span>
+    <h2>Content Mix — จัดสัดส่วนตามอายุคอนเทนต์</h2>
+    <p class="lead-p">ปัญหาเดิมคือเอาพื้นที่สื่อสารไปลงกับของที่มีวันหมดอายุ (โปร) มากเกินไป แผนใหม่ให้คอนเทนต์ที่ไม่มีวันหมดอายุเป็นแกนหลัก</p>
+
+    <div class="card">
+      <div class="mixlegend">
+        <span><span class="dot" style="background:var(--blue)"></span>Education 35%</span>
+        <span><span class="dot" style="background:var(--teal)"></span>Add Value 30%</span>
+        <span><span class="dot" style="background:#888780"></span>Brand & Trust 20%</span>
+        <span><span class="dot" style="background:var(--amber)"></span>Gold Promo 15%</span>
+      </div>
+      <div class="mixbar">
+        <div style="background:var(--blue);width:35%">35</div>
+        <div style="background:var(--teal);width:30%">30</div>
+        <div style="background:#888780;width:20%">20</div>
+        <div style="background:var(--amber);width:15%">15</div>
+      </div>
+      <p class="note">Education + Add Value รวม 65% = ตอบนโยบาย "เน้น education/add value" · Promo ดูน้อยแต่ความถี่การเห็นสูง เพราะทุ่มไปที่โปรน้อยตัว</p>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3 style="margin-bottom:8px">กลไก Frequency 7+</h3>
+      <p class="muted" style="font-size:.95rem;margin-bottom:14px">1 Gold Promo ถูกกระจายซ้ำผ่านหลาย touchpoint จนทะลุ 7 — ไม่ใช่พูดเรื่องใหม่ทุกวัน</p>
+      <div class="grid3">
+        <div style="background:var(--soft);border-radius:10px;padding:14px"><b>FB Page + Group</b><br><span class="muted" style="font-size:.85rem">โพสต์ + ลงของ ~3 ครั้ง</span></div>
+        <div style="background:var(--soft);border-radius:10px;padding:14px"><b>Boost + LINE OA</b><br><span class="muted" style="font-size:.85rem">paid reach + broadcast ~3 ครั้ง</span></div>
+        <div style="background:var(--soft);border-radius:10px;padding:14px"><b>ป้าย + พนักงาน</b><br><span class="muted" style="font-size:.85rem">touchpoint หน้าร้าน ~2–3 ครั้ง</span></div>
+      </div>
+      <p class="note">โปรเดิม 20 ตัว → คนเห็นตัวละ 1–2 ครั้ง (ต่ำกว่า 7 = เงินรั่ว) · Gold Promo รวมพลัง → 8–9 ครั้ง (ทะลุเกณฑ์)</p>
+    </div>
+  </div>
+</section>
+
+<!-- S3 -->
+<section id="s3">
+  <div class="wrap">
+    <span class="sec-num">3</span>
+    <h2>ระบบ 3 ขั้น — แยกเหตุผลของราคาออกจากคุณภาพ</h2>
+    <p class="lead-p">ลูกค้าไม่ได้กลัวของลดราคา เขากลัว "ไม่รู้ว่าทำไมมันลด" ติดป้ายเหตุผลให้ทุกระดับ ความหมายจะเปลี่ยนทันที — ลดก็ไม่ใช่ของห่วย ของดีก็ไม่ใช่แพง</p>
+
+    <div class="tiers">
+      <div class="tier k1">
+        <div class="tname">งานคัด</div>
+        <div class="trole">ของดี หายาก ไม่ลด</div>
+        <div class="tsay">"คัดมือ มีจำกัด หมดแล้วรอรอบหน้า"</div>
+        <ul>
+          <li>สื่อความ "หายาก" ไม่ใช่ "แพง"</li>
+          <li>น้ำเสียง: ภูมิใจ + เร่งให้รีบ</li>
+          <li>ห้ามพูด: ไฮเอนด์ / หรู</li>
+        </ul>
+      </div>
+      <div class="tier k2">
+        <div class="tname">งานคุ้ม</div>
+        <div class="trole">ราคาดี ตลอด</div>
+        <div class="tsay">"นำเข้าตรง ตัดคนกลาง เลยถูกได้"</div>
+        <ul>
+          <li>ถูกได้เพราะนำเข้าตรง ไม่ใช่ของตกเกรด</li>
+          <li>น้ำเสียง: ฉลาดเลือก คุ้มค่า</li>
+          <li>ห้ามพูด: ถูกสุดๆ / ล้างสต๊อก</li>
+        </ul>
+      </div>
+      <div class="tier k3">
+        <div class="tname">งานเคลียร์</div>
+        <div class="trole">หมุนสต๊อก ลดจริง มีเวลา</div>
+        <div class="tsay">"หมุนเปิดทางของใหม่ ของยังดี แค่ถึงรอบ"</div>
+        <ul>
+          <li>ลดเพราะต้องหมุน ไม่ใช่เพราะห่วย</li>
+          <li>น้ำเสียง: เร่งด่วน + ตรงไปตรงมา</li>
+          <li>ที่มัดรวม 4–5 ตัว เป็นก้อนเดียว</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="ic">🎯</span>
+      <p><b>ภาพเดียวที่ทำให้คนจำ:</b> ทุกโพสต์/ป้าย โชว์ทั้ง 3 ขั้นคู่กันเสมอ → คนเห็นว่าร้านมีครบทุกระดับ ไม่มีทางจำว่า "ลดตลอด" และเกิดความรู้สึก "ของดีๆ มันมีนะ แต่มันหมด"</p>
+    </div>
+    <p class="note">หมายเหตุ: ใช้ชื่อ concept ไปก่อน — ชื่อกิจกรรมจริงค่อยเกลาทีหลัง</p>
+  </div>
+</section>
+
+<!-- S4 -->
+<section id="s4">
+  <div class="wrap">
+    <span class="sec-num">4</span>
+    <h2>Messaging Template — ทุกสาขาพูดเหมือนกัน</h2>
+    <p class="lead-p">พนักงานทุกสาขาพูดเหมือนกัน + คอนเทนต์ใช้คำเดียวกัน = ลูกค้าได้ยินเหตุผลเดียวกันทุกที่ → frequency 7+ ทำงานข้ามคนข้ามสาขา</p>
+
+    <div class="msg">
+      <div class="row"><div class="k">งานคัด · พูด</div><div class="say-yes">"งานคัดมือ ทีมเราเลือกเอง มีไม่กี่ชิ้น หมดแล้วรอรอบหน้า"</div></div>
+      <div class="row"><div class="k">งานคัด · ห้าม</div><div class="say-no">"แพงเพราะดี" · "ของไฮเอนด์ / หรู"</div></div>
+      <div class="row"><div class="k">งานคุ้ม · พูด</div><div class="say-yes">"นำเข้าเองตรงญี่ปุ่น ตัดคนกลาง ราคาเลยจับต้องได้ — ของดีในราคาเข้าถึงได้"</div></div>
+      <div class="row"><div class="k">งานคุ้ม · ห้าม</div><div class="say-no">"ถูกสุดๆ" · "ล้างสต๊อก" (ตีกับงานเคลียร์)</div></div>
+      <div class="row"><div class="k">งานเคลียร์ · พูด</div><div class="say-yes">"เปิดทางให้ของใหม่เข้า ลดจริงมีกำหนด — ของยังดี แค่เราต้องหมุน"</div></div>
+      <div class="row"><div class="k">งานเคลียร์ · กลไก</div><div>4–5 ตัว มัดรวมเป็นก้อนเดียว สื่อสารครั้งเดียว ไม่นับเป็นโปรแยก</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- S5 -->
+<section id="s5">
+  <div class="wrap">
+    <span class="sec-num">5</span>
+    <h2>การจัดสรรงบ 39,000 / เดือน</h2>
+    <p class="lead-p">แบ่งตามบทบาทของสาขา + ต้นทุน reach ในพื้นที่ ไม่ใช่หารเท่า · งบ KAN Hub เดินแผน 220K แยกต่างหาก</p>
+
+    <div class="card">
+      <h3 style="margin-bottom:14px">Media รายสาขา · 24,000</h3>
+      <div class="budget-bars">
+        <div class="bbar"><span class="bname">สุราษฎร์</span><div class="btrack"><div class="bfill" style="width:100%;background:var(--crimson)"></div></div><span class="bval">8,000</span></div>
+        <div class="bbar"><span class="bname">นคร</span><div class="btrack"><div class="bfill" style="width:75%;background:var(--crimson)"></div></div><span class="bval">6,000</span></div>
+        <div class="bbar"><span class="bname">ชุมพร</span><div class="btrack"><div class="bfill" style="width:62%;background:var(--crimson)"></div></div><span class="bval">5,000</span></div>
+        <div class="bbar"><span class="bname">Fashion</span><div class="btrack"><div class="bfill" style="width:62%;background:var(--gold)"></div></div><span class="bval">5,000</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3 style="margin-bottom:14px">ส่วนกลาง · 15,000</h3>
+      <div class="budget-bars">
+        <div class="bbar"><span class="bname">ป้ายหน้าร้าน</span><div class="btrack"><div class="bfill" style="width:100%;background:var(--teal)"></div></div><span class="bval">~8,000</span></div>
+        <div class="bbar"><span class="bname">กิจกรรม</span><div class="btrack"><div class="bfill" style="width:75%;background:var(--amber)"></div></div><span class="bval">~7,000</span></div>
+      </div>
+      <p class="note">ป้าย = ลงทุนครั้งเดียว เห็นซ้ำฟรีทุกวัน → ตัวช่วย frequency 7+ ที่ถูกที่สุด ถ้าป้ายสื่อระบบ 3 ขั้น คนเข้าร้าน 3–4 ครั้ง/เดือนก็สะสมการเห็นได้โดยไม่เสียค่า media · สัดส่วนป้าย/กิจกรรมปรับได้ตามต้นทุนจริง</p>
+    </div>
+  </div>
+</section>
+
+<!-- S6 -->
+<section id="s6">
+  <div class="wrap">
+    <span class="sec-num">6</span>
+    <h2>ปฏิทินคอนเทนต์ + บันได Traffic</h2>
+    <p class="lead-p">การเห็น 7 ครั้งต้องไล่ระดับ — ไม่ใช่โฆษณาเดิมซ้ำ 7 รอบ แต่ค่อยๆ ผลักจาก "รู้จัก" ไปสู่ "ต้องไปวันนี้"</p>
+
+    <div class="ladder">
+      <div class="rung"><span class="rn">ครั้ง 1–3</span><div class="rt"><b>รู้จัก</b><span>Education + Add Value — "ร้านนี้รู้จริงเรื่องมือสองญี่ปุ่น"</span></div></div>
+      <div class="rung r2"><span class="rn">ครั้ง 4–5</span><div class="rt"><b>เชื่อ + อยากได้</b><span>งานคัด / งานคุ้ม — "ของดีมีจริง ราคาเข้าถึงได้"</span></div></div>
+      <div class="rung r3"><span class="rn">ครั้ง 6–7</span><div class="rt"><b>ต้องไปวันนี้</b><span>Gold Promo + งานเคลียร์ — "มีเวลา หมดแล้วอด" = เหตุผลเดินเข้าร้าน</span></div></div>
+      <div class="rung r4"><span class="rn">ปิดท้าย</span><div class="rt"><b>Traffic เข้าร้าน (KPI)</b><span>ป้ายหน้าร้านเปลี่ยน "เดินผ่าน" เป็น "เดินเข้า" · วัดด้วย PeopleFlow</span></div></div>
+    </div>
+
+    <h3 style="margin:30px 0 6px">หลักการปฏิทิน · Gold Promo ไม่เกิน 3 ตัว/เดือน</h3>
+    <p class="muted" style="font-size:.95rem;margin-bottom:14px">เดือนหนึ่งปล่อย Gold Promo ได้ไม่เกิน 3 ตัว เวียนหมุน — ไม่กำหนดวันปล่อยตายตัว เลือกจังหวะตามสต๊อก/เทศกาล/พฤติกรรมลูกค้าแต่ละเดือน แต่ละตัวมีโครงเดียวกัน</p>
+    <div class="grid2">
+      <div class="card" style="border-left:4px solid var(--teal)">
+        <h4 style="margin-bottom:6px">ระหว่างรอบ — สะสมความรู้จัก</h4>
+        <p class="muted" style="font-size:.92rem">Education + Add Value + Brand เดินสม่ำเสมอตลอดเดือน สร้างการเห็นแบบ "รู้จัก + เชื่อ" (บันไดครั้ง 1–5)</p>
+      </div>
+      <div class="card" style="border-left:4px solid var(--amber)">
+        <h4 style="margin-bottom:6px">ช่วงปล่อย Gold Promo — เร่งให้เข้าร้าน</h4>
+        <p class="muted" style="font-size:.92rem">แต่ละ Gold Promo มี hype cycle ของตัวเอง (teaser → เตือน → วันปล่อย → ตามต่อ) + งานเคลียร์ ดันให้ "ต้องไปวันนี้" (บันไดครั้ง 6–7)</p>
+      </div>
+    </div>
+    <p class="note">งานเคลียร์วางให้ตรงจังหวะหมุนสต๊อก · Gold Promo ทั้ง 3 ตัวไม่ปล่อยติดกัน เว้นช่วงให้ Always-on content สะสม frequency · ปฏิทินนี้เป็น template กลาง ทุกสาขาใช้จังหวะ+น้ำเสียงเดียวกัน แต่ "ของจริงในโพสต์" ปรับตามสต๊อกแต่ละสาขา</p>
+  </div>
+</section>
+
+<!-- S7 -->
+<section id="s7" style="border-bottom:none">
+  <div class="wrap">
+    <span class="sec-num">7</span>
+    <h2>สัดส่วนรายสาขา + เพจ vs Group</h2>
+    <p class="lead-p">จุดยืนแต่ละสาขาไม่เหมือนกัน สัดส่วนคอนเทนต์จึงต่างกัน · และเพจกับ Facebook Group มีคนละหน้าที่</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4 style="margin-bottom:4px">KAN Store</h4>
+        <p class="muted" style="font-size:.85rem">ของญี่ปุ่นดีๆ หลายหมวด · แฟชั่น + HH + เฟอร์นิเจอร์</p>
+        <div class="mixbar" style="margin-top:14px">
+          <div style="background:var(--blue);width:30%">30</div>
+          <div style="background:var(--teal);width:30%">30</div>
+          <div style="background:#888780;width:25%">25</div>
+          <div style="background:var(--amber);width:15%">15</div>
+        </div>
+        <p class="note" style="margin-top:6px">กระจาย Edu/Add เท่ากัน เพราะมีหลายหมวด ต้องหมุนเล่าให้ครบ</p>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom:4px">KAN Fashion</h4>
+        <p class="muted" style="font-size:.85rem">เสื้อผ้าแฟชั่น ของดีคัดมาแล้ว · โฟกัสหมวดเดียวลึก</p>
+        <div class="mixbar" style="margin-top:14px">
+          <div style="background:var(--blue);width:25%">25</div>
+          <div style="background:var(--teal);width:40%">40</div>
+          <div style="background:#888780;width:20%">20</div>
+          <div style="background:var(--amber);width:15%">15</div>
+        </div>
+        <p class="note" style="margin-top:6px">Add Value หนักสุด เพราะแฟชั่นขายด้วยภาพลุคจริง ตรงธีมภาพถ่ายจริง</p>
+      </div>
+    </div>
+    <div class="mixlegend" style="margin-top:14px">
+      <span><span class="dot" style="background:var(--blue)"></span>Education</span>
+      <span><span class="dot" style="background:var(--teal)"></span>Add Value</span>
+      <span><span class="dot" style="background:#888780"></span>Brand & Trust</span>
+      <span><span class="dot" style="background:var(--amber)"></span>Gold Promo</span>
+    </div>
+
+    <h3 style="margin:30px 0 6px">ต่อสัปดาห์ (อิง 1 โพสต์/วัน = 7/สัปดาห์)</h3>
+    <div class="card">
+      <ul style="list-style:none;font-size:.95rem">
+        <li style="padding:6px 0;border-bottom:1px solid var(--soft)">Education = 2 โพสต์/สัปดาห์</li>
+        <li style="padding:6px 0;border-bottom:1px solid var(--soft)">Add Value = 2–3 โพสต์/สัปดาห์ (Fashion เอียงไป 3)</li>
+        <li style="padding:6px 0;border-bottom:1px solid var(--soft)">Brand & Trust = 1–2 โพสต์/สัปดาห์</li>
+        <li style="padding:6px 0">Gold Promo = กระจุกเฉพาะสัปดาห์ที่ปล่อย ไม่ใช่ทุกสัปดาห์</li>
+      </ul>
+    </div>
+
+    <h3 style="margin:30px 0 12px">เพจ vs Facebook Group — คนละ logic</h3>
+    <div class="vs">
+      <div class="col pagec">
+        <h4>เพจ</h4>
+        <div class="role">สร้างรู้จัก + เชื่อ → ดัน traffic</div>
+        <ul>
+          <li>คอนเทนต์ครบ 4 tier ตามสัดส่วน</li>
+          <li>ภาพถ่ายจริงเล่าเรื่อง</li>
+          <li>คนแปลกหน้าเลื่อนเจอ → ต้องสะกดด้วย value</li>
+        </ul>
+      </div>
+      <div class="col groupc">
+        <h4>Facebook Group</h4>
+        <div class="role">ลงของล้วน → ปิดการขาย</div>
+        <ul>
+          <li>ภาพจริง + ราคา + รหัส ครบในโพสต์เดียว</li>
+          <li>ลงเป็นรอบเช้า/เย็น สร้าง habit</li>
+          <li>tag 3 ขั้นในโพสต์ เร่งตัดสินใจ</li>
+          <li>คอมเมนต์รหัส → ทัก LINE ปิดดีล</li>
+          <li>ทุกดีลมี "มารับที่ร้านได้" → traffic หน้าร้าน</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="ic">⚠️</span>
+      <p><b>ข้อควรระวัง workload:</b> เพจ + Group ใช้ทีมคอนเทนต์ทีมเดียวกัน การลงของรอบเช้า/เย็นทุกวันหลายสาขาเป็นภาระหนัก — แนะนำใช้ KAN Scout (ถ่ายรูป → ได้ caption/ราคาอัตโนมัติ) ช่วยลดเวลาตรงนี้</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>KAN — Marketing Communication Plan · 2569</b><br>
+    งบ Always-on 39,000/เดือน · แยกจากแผน KAN Hub 220K · เป้าหมาย: traffic เข้าร้านตาม KPI
+  </div>
+</footer>
+
+<script>
+function goTo(id){
+  var el=document.getElementById(id);
+  if(!el)return;
+  var toc=document.querySelector('.toc');
+  var offset=toc?toc.offsetHeight:0;
+  var y=el.getBoundingClientRect().top+window.pageYOffset-offset-8;
+  window.scrollTo({top:y,behavior:'smooth'});
+}
+</script>
+<script src="erp-menu.js?v=1"></script><script src="nav.js?v=6"></script></body>
+</html>

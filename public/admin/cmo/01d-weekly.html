@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>จังหวะรายสัปดาห์ — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="eyebrow">หัวข้อ 2 · จังหวะงาน</div>
+      <h1>จังหวะรายสัปดาห์ — วัด Output + Outcome</h1>
+      <div class="sub">Review ทุกจันทร์</div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <div class="section-title"><h2>จังหวะรายสัปดาห์ — วัด Output + Outcome</h2><div class="badge">Review จันทร์เย็น</div></div>
+
+  <div class="card-grid-2">
+    <div class="glass">
+      <h3>จังหวะสัปดาห์</h3>
+      <table class="tbl">
+        <thead><tr><th>วัน</th><th>ทำอะไร</th></tr></thead>
+        <tbody>
+          <tr><td><strong>จันทร์เย็น</strong></td><td>Review สัปดาห์ก่อน (กรอก Outcome จริง) + วางสัปดาห์ใหม่ — CMO นำ</td></tr>
+          <tr><td>อังคาร–ศุกร์</td><td>ทำตามแผน (โพสต์/Live/ยิงแอด/FB Group)</td></tr>
+          <tr><td>เสาร์–อาทิตย์</td><td>Live + เก็บลูกค้า (ช่วงพีคของผู้ค้า)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="glass">
+      <h3>วาระจันทร์เย็น (15–30 นาที)</h3>
+      <ul class="bul">
+        <li>1. เปิด 3 ไฟล์ — กรอก Outcome จริงสัปดาห์ที่ผ่าน</li>
+        <li>2. อะไรถึง/ไม่ถึงเป้า — เพราะอะไร (1 บรรทัด)</li>
+        <li>3. ดูยอด+สต๊อก → ของอะไรต้องเร่งระบาย → ใส่แผนกิจกรรม</li>
+        <li>4. แตกเป็นโพสต์ + งาน → ลงไฟล์ Marketing Comm + MKT Task</li>
+        <li>5. ปิดด้วย owner ชัดทุกงาน</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="glass" style="margin-bottom:14px;">
+    <h3>คอลัมน์ที่ต้องเพิ่มใน 3 ไฟล์ (เพื่อวัดผล)</h3>
+    <table class="tbl">
+      <thead><tr><th>ไฟล์</th><th>คอลัมน์สำคัญ</th><th>Output</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td><span class="code-inline">กิจกรรม Promotion</span></td><td>สัปดาห์ · กิจกรรม · สินค้าเป้า(สต๊อกเหลือ) · channel · ผู้รับผิดชอบ</td><td>จะทำกี่ชิ้น</td><td>ยอด/lead/redeem</td></tr>
+        <tr><td><span class="code-inline">Marketing Comm</span></td><td>วันโพสต์ · สัปดาห์ · channel · เสา content · มาจากกิจกรรม</td><td>โพสต์แล้ว ✓</td><td>reach/inbox/lead</td></tr>
+        <tr><td><span class="code-inline">MKT Task</span></td><td>Task · ประเภท · สัปดาห์เป้า · ผู้รับผิดชอบ · สถานะ</td><td>Definition of Done</td><td>ผลหลังเสร็จ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="glass">
+    <h3>ความสำเร็จรายสัปดาห์ (Milestone) ทั้งปี</h3>
+    <table class="tbl">
+      <thead><tr><th>สัปดาห์</th><th style="white-space:nowrap;">ช่วงวันที่ (2026)</th><th>ความสำเร็จที่ต้องเกิด</th></tr></thead>
+      <tbody>
+        <tr><td>W27</td><td style="white-space:nowrap;">29 มิ.ย. – 5 ก.ค.</td><td>ระบบพร้อมยิง — เว็บ live · FB Group 2 กลุ่มแรก · แผนกิจกรรม ก.ค.</td></tr>
+        <tr><td>W28</td><td style="white-space:nowrap;">6 – 12 ก.ค.</td><td><strong>Live #1 ออกอากาศ + ขายได้จริง</strong> · FB Group ครบ 4 กลุ่ม</td></tr>
+        <tr><td>W29</td><td style="white-space:nowrap;">13 – 19 ก.ค.</td><td>Live ขยับถี่ (3–4 วัน) · FB Group มีคนซื้อ</td></tr>
+        <tr><td>W30</td><td style="white-space:nowrap;">20 – 26 ก.ค.</td><td>สรุปเดือนแรก เห็น channel ที่มีแวว</td></tr>
+        <tr><td>W31</td><td style="white-space:nowrap;">27 ก.ค. – 2 ส.ค.</td><td>Live ขยับ <strong>ทุกวัน</strong></td></tr>
+        <tr><td>W32</td><td style="white-space:nowrap;">3 – 9 ส.ค.</td><td>Big Live 8.8 สำเร็จ</td></tr>
+        <tr><td>W35–36</td><td style="white-space:nowrap;">24 ส.ค. – 6 ก.ย.</td><td>Live #4 สารทเดือนสิบ · Big Live 9.9</td></tr>
+        <tr><td><strong>W38</strong></td><td style="white-space:nowrap;">14 – 20 ก.ย.</td><td><strong>⭐ Q3 Review</strong> — ตัดสิน scale/kill</td></tr>
+        <tr><td>W41</td><td style="white-space:nowrap;">5 – 11 ต.ค.</td><td>Big Live 10.10 + ชักพระ</td></tr>
+        <tr><td><strong>W45</strong></td><td style="white-space:nowrap;">2 – 8 พ.ย.</td><td><strong>⭐ Big Live 11.11 + ลอยกระทง + Black Friday</strong> (ใหญ่สุดปี)</td></tr>
+        <tr><td>W48</td><td style="white-space:nowrap;">23 – 29 พ.ย.</td><td>Big Live 12.12</td></tr>
+        <tr><td>W51–52</td><td style="white-space:nowrap;">14 – 27 ธ.ค.</td><td><strong>⭐ สรุปปี + แผน 2027</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 2 · รายสัปดาห์ (Year Task)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

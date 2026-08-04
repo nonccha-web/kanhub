@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ตัวอย่างเว็บไซต์ B2B (Kan Hub) — KAN</title>
+<link rel="stylesheet" href="styles.css?v=8">
+<style>
+  .demo-frame{width:100%;height:70vh;min-height:520px;border:1px solid var(--bg-row-divider);
+    border-radius:14px;background:#fff;box-shadow:var(--shadow-card);}
+  .demo-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .demo-bar .dot{width:11px;height:11px;border-radius:50%;}
+  .demo-bar .addr{flex:1;min-width:180px;font-size:12.5px;color:var(--text-muted);background:var(--bg-card-subtle);
+    border:1px solid var(--bg-row-divider);border-radius:8px;padding:6px 12px;}
+  .pagelist{display:flex;flex-wrap:wrap;gap:8px;}
+  .pagelist a{font-size:12.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--bg-row-divider);
+    background:var(--bg-card-subtle);color:var(--text-secondary);text-decoration:none;font-weight:600;}
+  .pagelist a:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><div class="eyebrow">หัวข้อ 3 · B2B (ขายส่ง + Online)</div><h1>ตัวอย่างงานเว็บไซต์ — Kan Hub</h1><div class="sub">ตัวอย่างเว็บไซต์ขายส่ง B2B + Online · นำเข้าเสื้อผ้ามือสองญี่ปุ่นยกกระสอบ โกดังภาคใต้</div></div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+  <nav class="nav"></nav>
+  <div class="subnav"></div>
+
+  <section class="section">
+    <div class="section-title"><h2>พรีวิวเว็บไซต์ (Mockup)</h2><div class="badge">เลื่อนดูในกรอบได้ · กดเปิดเต็มจอด้านล่าง</div></div>
+    <div class="demo-bar">
+      <span class="dot" style="background:#ff5f57;"></span><span class="dot" style="background:#febc2e;"></span><span class="dot" style="background:#28c840;"></span>
+      <span class="addr">kanhub/index.html — KAN HUB · โกดังมือสองญี่ปุ่น</span>
+      <a class="link-card" href="kanhub/index.html" target="_blank" rel="noopener" style="font-size:13px;font-weight:700;color:var(--accent-text);text-decoration:none;">เปิดเต็มจอ ↗</a>
+    </div>
+    <iframe class="demo-frame" src="kanhub/index.html" title="Kan Hub website mockup" loading="lazy"></iframe>
+  </section>
+
+  <section class="section">
+    <div class="section-title"><h2>หน้าในเว็บไซต์</h2><div class="badge">12 หน้า</div></div>
+    <div class="pagelist">
+      <a href="kanhub/index.html" target="_blank" rel="noopener">หน้าแรก</a>
+      <a href="kanhub/catalog.html" target="_blank" rel="noopener">แค็ตตาล็อก</a>
+      <a href="kanhub/how-to-order.html" target="_blank" rel="noopener">วิธีสั่งซื้อ</a>
+      <a href="kanhub/service.html" target="_blank" rel="noopener">บริการ</a>
+      <a href="kanhub/consult.html" target="_blank" rel="noopener">ปรึกษา</a>
+      <a href="kanhub/live.html" target="_blank" rel="noopener">ไลฟ์</a>
+      <a href="kanhub/south.html" target="_blank" rel="noopener">ภาคใต้</a>
+      <a href="kanhub/about.html" target="_blank" rel="noopener">เกี่ยวกับเรา</a>
+      <a href="kanhub/blog.html" target="_blank" rel="noopener">บทความ</a>
+      <a href="kanhub/faq.html" target="_blank" rel="noopener">FAQ</a>
+      <a href="kanhub/contact.html" target="_blank" rel="noopener">ติดต่อ</a>
+    </div>
+  </section>
+
+  <div class="callout"><div class="callout-title">หมายเหตุ</div><div class="callout-body">นี่คือตัวอย่าง (mockup) เว็บไซต์สำหรับช่องทาง B2B + Online · ใช้ประกอบแผนขายส่งในหัวข้อ 3 · ไฟล์ทั้งหมดอยู่ในโฟลเดอร์ <span class="code-inline">kanhub/</span></div></div>
+
+  <div class="pager"></div>
+  <footer class="doc-foot">KAN · CMO Presentation 2026 · หัวข้อ 3 · ตัวอย่างเว็บไซต์ B2B (Kan Hub)</footer>
+</div>
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+</body>
+</html>

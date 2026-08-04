@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Master CMO — Monthly Presentation</title>
+<link rel="stylesheet" href="styles.css?v=8">
+<style>
+  .ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;}
+  .ctrl-btn{font-size:12.5px;padding:7px 13px;border-radius:999px;border:.5px solid var(--bg-glass-border);background:var(--bg-card-subtle);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+  .ctrl-btn:hover{background:var(--accent-faint);color:var(--accent-text-dark);}
+  .ctrl-btn.on{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;}
+  [data-theme="dark"] .ctrl-btn.on{color:#120B0C;}
+  .ctrl-sep{flex:1;}
+  table.tbl select{font-family:inherit;font-size:12px;font-weight:700;padding:4px 6px;border-radius:7px;border:1px solid var(--bg-row-divider);background:var(--bg-input);color:var(--text-primary);cursor:pointer;}
+  table.tbl select.s-pass{color:var(--success);border-color:var(--success);}
+  table.tbl select.s-fail{color:var(--danger);border-color:var(--danger);}
+  table.tbl select.s-other{color:var(--text-muted);}
+  table.tbl td .grp{font-size:10px;font-weight:700;color:var(--text-muted);white-space:nowrap;}
+  .save-note{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div>
+      <div class="eyebrow">Master Deck · รอบเดือน มิ.ย. 2026 · Internal</div>
+      <h1>Master CMO — Monthly Presentation</h1>
+      <div class="sub">KPI เดิม (ผ่าน/ไม่ผ่าน) → KPI ใหม่ถ่วงน้ำหนัก → เอกสาร 4 กลุ่ม · ทุกตารางแก้/เรียง/กรองได้</div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span> <span id="theme-label">Dark</span></button>
+  </div>
+
+  <nav class="nav"></nav>
+
+  <div class="hero">
+    <div style="font-size:11px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; opacity:.7;">สารจาก CMO · รอบ มิ.ย.</div>
+    <h2 style="margin:6px 0 12px; color:#fff;">เดือน มิ.ย. ดีขึ้นชัด — ผ่าน 14 / 30 ข้อ · ไม่ผ่าน 7 · แล้วเปลี่ยนสู่ KPI ใหม่ outcome 70 / output 30</h2>
+    <div style="font-size:14px; line-height:1.7;">
+      KPI เดิม (OKR ภาคใต้) คะแนนเดือน มิ.ย. จาก MKT — กดเลือกผ่าน/ไม่ผ่าน + เรียง + กรองได้ · KPI ใหม่ (1 ก.ค.) ใช้ตารางแบบเดียวกัน พร้อมช่องประเมินรายเดือน
+    </div>
+  </div>
+
+  <!-- ===== ① KPI เดิม ===== -->
+  <div class="section">
+    <div class="section-title"><h2>① KPI เดิม ปี 2026 (OKR ภาคใต้) — คะแนนเดือน มิ.ย.</h2><div class="badge">จาก CSV MKT · แก้/เรียง/กรองได้</div></div>
+    <div class="kpi-grid" id="sumOld"></div>
+    <div class="glass">
+      <div class="ctrls" id="ctrlOld">
+        <span style="font-size:12px;color:var(--text-tertiary);font-weight:600;">กรอง:</span>
+        <button class="ctrl-btn on" data-filter="all">ทั้งหมด</button>
+        <button class="ctrl-btn" data-filter="pass">✅ ผ่าน</button>
+        <button class="ctrl-btn" data-filter="fail">❌ ไม่ผ่าน</button>
+        <button class="ctrl-btn" data-filter="other">⏳ อื่นๆ</button>
+        <span class="ctrl-sep"></span>
+        <button class="ctrl-btn" data-sort>⬆︎ เรียงผ่านขึ้นก่อน</button>
+        <button class="ctrl-btn" data-reset>รีเซ็ตค่า</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>ผู้รับผิดชอบ</th><th>KPI / KR</th><th>เป้า</th><th class="num">น้ำหนัก</th><th>ผล มิ.ย.</th><th>สถานะ (กรอกได้)</th></tr></thead>
+          <tbody id="bodyOld"></tbody>
+        </table>
+      </div>
+      <div class="save-note">* ค่าตั้งต้น = คะแนนเดือน มิ.ย. จาก CSV · แก้ได้ตามจริง ระบบบันทึกอัตโนมัติ (เครื่องนี้)</div>
+    </div>
+  </div>
+
+  <!-- ===== ② KPI ใหม่ ===== -->
+  <div class="section">
+    <div class="section-title"><h2>② KPI ใหม่ + ถ่วงน้ำหนัก (เริ่ม 1 ก.ค.)</h2><div class="badge">outcome 70 / output 30 · ประเมินรายเดือนได้</div></div>
+    <div class="kpi-grid" id="sumNew"></div>
+    <div class="glass">
+      <div class="ctrls" id="ctrlNew">
+        <span style="font-size:12px;color:var(--text-tertiary);font-weight:600;">กรอง:</span>
+        <button class="ctrl-btn on" data-filter="all">ทั้งหมด</button>
+        <button class="ctrl-btn" data-filter="pass">✅ ผ่าน</button>
+        <button class="ctrl-btn" data-filter="fail">❌ ไม่ผ่าน</button>
+        <button class="ctrl-btn" data-filter="other">⏳ ยังไม่ประเมิน</button>
+        <span class="ctrl-sep"></span>
+        <button class="ctrl-btn" data-sort>⬆︎ เรียงผ่านขึ้นก่อน</button>
+        <button class="ctrl-btn" data-reset>รีเซ็ตค่า</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>ตำแหน่ง</th><th>KPI ย่อย</th><th>เป้า</th><th>ประเภท</th><th class="num">น้ำหนัก</th><th>สถานะเดือนนี้</th></tr></thead>
+          <tbody id="bodyNew"></tbody>
+        </table>
+      </div>
+      <div class="save-note">* แถบประเภท: <span style="color:var(--coral);font-weight:700;">outcome</span> (ผลลัพธ์ · รวม 70) / <span style="color:var(--text-muted);font-weight:700;">output</span> (งานที่ทำ · รวม 30) ต่อตำแหน่ง · ตารางเต็มที่ <a href="team-kpi.html">KPI รายตำแหน่ง</a></div>
+    </div>
+  </div>
+
+  <!-- ===== ③ เอกสาร 4 กลุ่ม ===== -->
+  <div class="section">
+    <div class="section-title"><h2>③ เอกสารเต็ม 5 กลุ่ม</h2></div>
+    <div class="card-grid-2">
+      <a class="svc-card pg" href="team-structure.html" style="text-decoration:none; color:inherit;">
+        <div class="svc-head"><div><div class="svc-title">1 · โครงสร้างทีม + JD + KPI</div></div><span class="tag tag-green">3 หน้า</span></div>
+        <div class="sub">CMO → Marketing Manager → B2B Manager → B2B Executive · Marketing Officer</div></a>
+      <a class="svc-card pt" href="01b-phase.html" style="text-decoration:none; color:inherit;">
+        <div class="svc-head"><div><div class="svc-title">2 · แผนปี + Dashboard</div></div><span class="tag tag-teal">5 หน้า</span></div>
+        <div class="sub">Phase · Dashboard ผลจริง · รายเดือน · รายสัปดาห์ · ลิงก์ Report</div></a>
+      <a class="svc-card p2" href="04a-overview.html" style="text-decoration:none; color:inherit;">
+        <div class="svc-head"><div><div class="svc-title">3 · B2B (ขายส่ง + Online)</div></div><span class="tag tag-gold">13 หน้า</span></div>
+        <div class="sub">Overview→Actions&Risk + ตัวอย่างเว็บ Kan Hub</div></a>
+      <a class="svc-card pc" href="05-promo.html" style="text-decoration:none; color:inherit;">
+        <div class="svc-head"><div><div class="svc-title">4 · MarCom</div></div><span class="tag tag-coral">2 หน้า</span></div>
+        <div class="sub">ภาพรวม + KPI · แผนสื่อสารฉบับเต็ม</div></a>
+      <a class="svc-card p1" href="tele-dashboard.html" style="text-decoration:none; color:inherit;">
+        <div class="svc-head"><div><div class="svc-title">5 · รายงานการรับสาย</div></div><span class="tag tag-accent">Dashboard</span></div>
+        <div class="sub">Tele Dashboard · รายงานการรับสายลูกค้า (Call/SLA/ASA)</div></a>
+    </div>
+  </div>
+
+  <footer class="doc-foot">Master CMO — Monthly Presentation · KAN · รอบ มิ.ย. 2026 · KPI เดิม (มิ.ย.) → KPI ใหม่ 1 ก.ค.</footer>
+</div>
+
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+<script>
+const STATUS = {
+  pass:{t:"ผ่าน",c:"s-pass"}, fail:{t:"ไม่ผ่าน",c:"s-fail"},
+  progress:{t:"ระหว่างดำเนินงาน",c:"s-other"}, wait:{t:"รอวัด",c:"s-other"},
+  collect:{t:"เก็บข้อมูล",c:"s-other"}, cancel:{t:"ยกเลิก",c:"s-other"}, na:{t:"ยังไม่ประเมิน",c:"s-other"}
+};
+
+// ===== ① KPI เดิม — คะแนนเดือน มิ.ย. (จาก CSV MKT) =====
+const OLD = [
+  {g:"A·Support", k:"KR2 ความผิดพลาดตั้งค่าสื่อหน้าร้าน (จอ/เสียง)", goal:"0 ครั้ง", w:15, r:"15/15", s:"pass"},
+  {g:"A·Support", k:"KR3 คุมงบส่วนลด/คูปอง (Budget Variance)", goal:"<13%", w:15, r:"15/15", s:"pass"},
+  {g:"A·Support", k:"KR4 สรุปยอดคูปอง/ส่วนลดส่งผู้บริหารทุกสัปดาห์", goal:"ทุกวันจันทร์", w:15, r:"0", s:"fail"},
+  {g:"A·Support", k:"KR5 ตรวจโพสต์ขายทุกสาขาครบตรงเวลา", goal:"100%", w:10, r:"10/10", s:"pass"},
+  {g:"A·Support", k:"KR6 โพสต์ CSR/แคมเปญตามปฏิทิน", goal:"100%", w:10, r:"10/10", s:"pass"},
+  {g:"A·Support", k:"KR8 มาตรฐานจัดบูท + คืนอุปกรณ์ตรงเวลา", goal:">95%", w:5, r:"เต็ม", s:"pass"},
+  {g:"A·Support", k:"KR9 รับสายโทรศัพท์ (กด 0) + SLA", goal:">95%", w:2, r:"0", s:"fail"},
+  {g:"A·Support", k:"KR10 ความเร็วรับสาย (ASA)", goal:"<20 วิ", w:2, r:"ผ่าน", s:"pass"},
+  {g:"A·Support", k:"KR11 Survey ผลตอบรับโปร/บริการ", goal:"100%", w:2, r:"เต็ม", s:"pass"},
+  {g:"A·Support", k:"KR12 สรุป Insight จาก Survey เดือนละ 1", goal:"Monthly", w:2, r:"—", s:"cancel"},
+  {g:"A·Support", k:"ความพึงพอใจสาขาต่อการสนับสนุนข้อมูล (NPS)", goal:">80%", w:2, r:"—", s:"cancel"},
+  {g:"B·การเงิน", k:"KR13 คุมงบการตลาด/รายได้ (Cost to Revenue)", goal:"<3%", w:10, r:"10/10", s:"pass"},
+  {g:"B·การเงิน", k:"คุมงบรายไตรมาส (Budget Accuracy)", goal:"100%", w:5, r:"เต็ม", s:"pass"},
+  {g:"B·การเงิน", k:"KR14 YoY Sales Growth จากแคมเปญ", goal:"+15%", w:"—", r:"—", s:"collect"},
+  {g:"B·การเงิน", k:"KR15 รายได้ขายสื่อโฆษณา (จอ/LED)", goal:"฿400,000", w:10, r:"—", s:"cancel"},
+  {g:"B·การเงิน", k:"KR16 รายได้ใหม่จากขายสื่อให้ภายนอก", goal:"—", w:"—", r:"—", s:"cancel"},
+  {g:"B·การตลาด", k:"ฐานสมาชิก (จำนวนสมาชิก/เดือน)", goal:"เก็บข้อมูล", w:"—", r:"—", s:"collect"},
+  {g:"B·การตลาด", k:"KR17 ขยายฐานลูกค้าใหม่ภาคใต้ (Acquisition)", goal:"+3%/ด.", w:10, r:"10/10", s:"pass"},
+  {g:"B·การตลาด", k:"KR18 จัดกิจกรรม/โปรตาม Marketing Calendar", goal:"100%", w:5, r:"เต็ม", s:"pass"},
+  {g:"B·การตลาด", k:"KR19 ปรับช่องทางโฆษณา (CPA ลด / ROI)", goal:"ROI ดีขึ้นทุก Q", w:5, r:"—", s:"progress"},
+  {g:"B·การตลาด", k:"KR20 Engagement — Facebook", goal:"3%", w:4, r:"4/4", s:"pass"},
+  {g:"B·การตลาด", k:"KR20 Engagement — TikTok", goal:"3%", w:4, r:"4/4", s:"pass"},
+  {g:"B·การตลาด", k:"KR20 Engagement — IG", goal:"3%", w:3, r:"—", s:"cancel"},
+  {g:"B·การตลาด", k:"KR20 Engagement — Line", goal:"1%", w:4, r:"4/4", s:"pass"},
+  {g:"B·การตลาด", k:"KR21 Website Traffic & Conversion (SEO)", goal:"1%", w:"—", r:"—", s:"cancel"},
+  {g:"B·บริการ", k:"KR22 ลดสายหลุด (Abandoned Calls)", goal:"<3%", w:10, r:"0", s:"fail"},
+  {g:"B·ภาพลักษณ์", k:"KR23 คุมวิกฤต ไม่ลุกลามถึงระดับสีแดง", goal:"≤ 3", w:10, r:"10/10", s:"pass"},
+  {g:"B·ภาพลักษณ์", k:"KR24 คุมสื่อ/โพสต์สาขาตาม Brand Guideline (Brand CI)", goal:"100%", w:10, r:"เต็ม", s:"pass"},
+  {g:"B·ทีมงาน", k:"KR25 อบรมพัฒนาทักษะทีม (Training)", goal:"100%", w:5, r:"—", s:"wait"},
+  {g:"B·ทีมงาน", k:"KR26 เวลาค้นหา/ดึงข้อมูลในระบบใหม่", goal:"<30 วิ", w:5, r:"5/5", s:"pass"},
+];
+
+// ===== ② KPI ใหม่ (1 ก.ค.) — outcome 70 / output 30 =====
+const NEW = [
+  {g:"Marketing Manager", k:"ยอดรวมสองสาย (B2B+B2C) เทียบปีก่อน", goal:"รวมสองสาย", t:"oc", w:25, s:"na"},
+  {g:"Marketing Manager", k:"Conversion หน้าร้าน", goal:"≥ 61%", t:"oc", w:20, s:"na"},
+  {g:"Marketing Manager", k:"Traffic หน้าร้าน (YoY)", goal:"≥ +10%", t:"oc", w:15, s:"na"},
+  {g:"Marketing Manager", k:"สมาชิกโต", goal:"≥ +3%/เดือน", t:"oc", w:10, s:"na"},
+  {g:"Marketing Manager", k:"ส่งแผน+ปฏิทินแคมเปญ + คุมทีม", goal:"ครบตามรอบ", t:"op", w:15, s:"na"},
+  {g:"Marketing Manager", k:"คุมสื่อสารแบรนด์/หน้าร้านตามมาตรฐาน", goal:"ตามมาตรฐาน", t:"op", w:15, s:"na"},
+  {g:"B2B Manager", k:"ยอด B2B (ไลฟ์+ค้าส่งตรง)", goal:"≥ 400,000/ด.", t:"oc", w:30, s:"na"},
+  {g:"B2B Manager", k:"อัตราซื้อซ้ำลูกค้าค้าส่ง", goal:"ภายใน 6 ด.", t:"oc", w:20, s:"na"},
+  {g:"B2B Manager", k:"ลูกค้าใหม่ active / ดีลยกตู้", goal:"รอค่าฐาน", t:"oc", w:20, s:"na"},
+  {g:"B2B Manager", k:"คุม + พัฒนา B2B Executive", goal:"ตามแผน", t:"op", w:15, s:"na"},
+  {g:"B2B Manager", k:"รายงาน+อินไซต์ส่ง MM", goal:"ครบตามรอบ", t:"op", w:15, s:"na"},
+  {g:"B2B Executive", k:"ยอดปิดเอง (ทัก→ปิด + ไลฟ์)", goal:"ตามเป้า BM", t:"oc", w:35, s:"na"},
+  {g:"B2B Executive", k:"อัตราปิดการขาย (ทัก→สั่ง)", goal:"≥ 20%", t:"oc", w:20, s:"na"},
+  {g:"B2B Executive", k:"ลูกค้าที่ดูแลซื้อซ้ำ", goal:"ภายใน 6 ด.", t:"oc", w:15, s:"na"},
+  {g:"B2B Executive", k:"รอบไลฟ์ครบตามแผน", goal:"ครบตามแผน", t:"op", w:15, s:"na"},
+  {g:"B2B Executive", k:"ข้อมูลลูกค้าครบ + ตอบตามเวลา", goal:"ครบ/ตามเวลา", t:"op", w:15, s:"na"},
+  {g:"Marketing Officer", k:"Engagement (บันทึก+แชร์+คอมเมนต์/reach)", goal:"≥ 8%", t:"oc", w:40, s:"na"},
+  {g:"Marketing Officer", k:"Reach ไม่ยิงโฆษณา/เดือน", goal:"≥ 10,000", t:"oc", w:30, s:"na"},
+  {g:"Marketing Officer", k:"ผลิตคอนเทนต์ครบตามรอบ", goal:"ครบตามรอบ", t:"op", w:20, s:"na"},
+  {g:"Marketing Officer", k:"จัดหน้าร้าน + ตอบลูกค้าตามเวลา", goal:"รอค่าฐาน", t:"op", w:10, s:"na"},
+];
+
+function makeTable(cfg){
+  const arr = cfg.arr, KEY = cfg.key;
+  let saved = {}; try{ saved = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){}
+  arr.forEach((it,i)=>{ if(saved[i]) it.s = saved[i]; });
+  let filter = "all", sortPass = false;
+  const body = document.getElementById(cfg.body), sum = document.getElementById(cfg.sum), ctrl = document.getElementById(cfg.ctrl);
+
+  function persist(){ const m={}; arr.forEach((it,i)=>m[i]=it.s); try{localStorage.setItem(KEY,JSON.stringify(m));}catch(e){} }
+  function summary(){
+    const c={pass:0,fail:0,other:0};
+    arr.forEach(it=> c[it.s==="pass"?"pass":it.s==="fail"?"fail":"other"]++);
+    const graded = c.pass + c.fail;                       // นับเฉพาะ ผ่าน+ไม่ผ่าน
+    const score = graded ? Math.round(c.pass / graded * 100) : 0;
+    const scColor = score>=80?"var(--success)":score>=50?"var(--gold)":"var(--danger)";
+    sum.innerHTML =
+      `<div class="kpi-card" style="border:1px solid ${scColor};"><div class="kpi-label">คะแนนรวม (เต็ม 100)</div><div class="kpi-value" style="color:${scColor};">${score}</div><div class="kpi-sub">${c.pass}/${graded} ข้อที่ประเมิน · รอบ ${cfg.round}</div></div>`+
+      `<div class="kpi-card"><div class="kpi-label">ผ่าน</div><div class="kpi-value" style="color:var(--success);">${c.pass}</div><div class="kpi-sub">/ ${arr.length} ข้อทั้งหมด</div></div>`+
+      `<div class="kpi-card"><div class="kpi-label">ไม่ผ่าน</div><div class="kpi-value" style="color:var(--danger);">${c.fail}</div><div class="kpi-sub">นับเข้าตัวหาร</div></div>`+
+      `<div class="kpi-card"><div class="kpi-label">${cfg.isNew?"ยังไม่ประเมิน":"ไม่นับ (เก็บ/ยกเลิก/รอ)"}</div><div class="kpi-value" style="color:var(--gold);">${c.other}</div><div class="kpi-sub">ตัดออกจากการคิดคะแนน</div></div>`;
+  }
+  function render(){
+    let rows = arr.map((it,i)=>({...it,i}));
+    if(sortPass){ const rank={pass:0,fail:1}; rows.sort((a,b)=>((rank[a.s]??2)-(rank[b.s]??2))||(a.i-b.i)); }
+    body.innerHTML = rows.map((it,n)=>{
+      const show = filter==="all" || (filter==="pass"&&it.s==="pass") || (filter==="fail"&&it.s==="fail")
+        || (filter==="other"&& it.s!=="pass"&&it.s!=="fail");
+      const opts = cfg.opts.map(k=>`<option value="${k}"${k===it.s?" selected":""}>${STATUS[k].t}</option>`).join("");
+      const sel = `<select class="${STATUS[it.s].c}" data-i="${it.i}">${opts}</select>`;
+      const mid = cfg.isNew
+        ? `<td>${it.t==="oc"?'<span class="tag tag-coral">outcome</span>':'<span class="tag tag-muted">output</span>'}</td><td class="num">${it.w}</td>`
+        : `<td class="num">${it.w}</td><td>${it.r}</td>`;
+      return `<tr${show?"":' style="display:none"'}><td>${n+1}</td><td><span class="grp">${it.g}</span></td><td>${it.k}</td><td>${it.goal}</td>${mid}<td>${sel}</td></tr>`;
+    }).join("");
+    body.querySelectorAll("select").forEach(s=>s.addEventListener("change",e=>{
+      arr[+e.target.dataset.i].s=e.target.value; persist(); summary(); render();
+    }));
+  }
+  ctrl.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{
+    ctrl.querySelectorAll("[data-filter]").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); filter=b.dataset.filter; render();
+  }));
+  ctrl.querySelector("[data-sort]").addEventListener("click",function(){
+    sortPass=!sortPass; this.classList.toggle("on",sortPass);
+    this.textContent = sortPass?"↩︎ ตามลำดับเดิม":"⬆︎ เรียงผ่านขึ้นก่อน"; render();
+  });
+  ctrl.querySelector("[data-reset]").addEventListener("click",()=>{ try{localStorage.removeItem(KEY);}catch(e){} location.reload(); });
+  summary(); render();
+}
+
+makeTable({arr:OLD, key:"kan-kpi-old-jun2026-v2", body:"bodyOld", sum:"sumOld", ctrl:"ctrlOld", opts:["pass","fail","progress","wait","collect","cancel"], isNew:false, round:"มิ.ย."});
+makeTable({arr:NEW, key:"kan-kpi-new-2026", body:"bodyNew", sum:"sumNew", ctrl:"ctrlNew", opts:["na","pass","fail","progress"], isNew:true, round:"ก.ค."});
+</script>
+</body>
+</html>

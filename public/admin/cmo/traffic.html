@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ทราฟฟิกหน้าร้าน — KAN MKT</title>
+<link rel="stylesheet" href="styles.css?v=8">
+<style>
+  .tf-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
+    flex-wrap:wrap; margin-bottom:18px; }
+  .tf-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--accent-text); }
+  .tf-top-r{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .tf-sel{ font-family:inherit; font-size:13.5px; font-weight:600; padding:9px 12px; border-radius:10px;
+    border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-primary); cursor:pointer; }
+
+  .tf-filters{ display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px; }
+  .tf-fld{ display:flex; flex-direction:column; gap:7px; }
+  .tf-flabel{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+  .tf-chips{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tf-chip{ font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 13px; border-radius:99px;
+    border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:.12s; }
+  .tf-chip:hover{ border-color:#F2565A; color:#C43D42; }
+  .tf-chip.on{ background:#F2565A; border-color:#F2565A; color:#fff; }
+
+  .tf-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:18px; }
+  .tf-kpi{ background:var(--bg-glass); border:.5px solid var(--bg-glass-border); border-radius:16px;
+    padding:18px 20px; box-shadow:var(--shadow-card); }
+  .tf-kpi-l{ font-size:11px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; color:var(--text-muted); }
+  .tf-kpi-v{ font-size:26px; font-weight:700; letter-spacing:-.5px; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .tf-kpi-s{ font-size:11.5px; color:var(--text-tertiary); margin-top:6px; }
+  .tf-kpi.hl .tf-kpi-v{ color:var(--accent-text-dark); }
+
+  .tf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  @media(max-width:900px){ .tf-grid{ grid-template-columns:1fr; } }
+  .tf-panel h3{ font-size:15px; font-weight:600; margin-bottom:3px; }
+  .tf-phint{ font-size:12px; color:var(--text-muted); margin-bottom:14px; line-height:1.5; }
+
+  /* heatmap */
+  .tf-hmwrap{ overflow-x:auto; }
+  .tf-hm{ border-collapse:separate; border-spacing:3px; font-size:11.5px; }
+  .tf-hm th{ font-weight:600; color:var(--text-muted); font-size:11px; padding:2px 4px; text-align:center; }
+  .tf-hm th.rowh{ text-align:right; padding-right:8px; white-space:nowrap; color:var(--text-secondary); font-weight:600; }
+  .tf-cell{ width:46px; height:34px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+    font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-secondary); }
+  .tf-cell.dark{ color:#fff; }
+  .tf-cell.nodata{ color:var(--text-muted); font-weight:400; opacity:.6; }
+
+  /* horizontal bars */
+  .tf-bars{ display:flex; flex-direction:column; gap:9px; }
+  .tf-bar-row{ display:grid; grid-template-columns:52px 1fr 46px; align-items:center; gap:10px; }
+  .tf-bar-lab{ font-size:12px; color:var(--text-secondary); font-weight:600; text-align:right; }
+  .tf-bar-track{ height:14px; border-radius:99px; background:var(--bg-row-divider); overflow:hidden; }
+  .tf-bar-fill{ height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent-light),var(--accent)); }
+  .tf-bar-val{ font-size:12px; font-variant-numeric:tabular-nums; color:var(--text-tertiary); }
+  .tf-bar-row.peak .tf-bar-lab{ color:var(--accent-text-dark); }
+
+  /* daily trend svg */
+  .tf-trend{ width:100%; height:190px; }
+  .tf-legend{ font-size:11.5px; color:var(--text-muted); margin-top:6px; display:flex; gap:16px; flex-wrap:wrap; }
+
+  .tf-note{ background:var(--accent-faint); border:1px solid var(--accent-faint-2); border-radius:14px;
+    padding:13px 18px; font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin-bottom:18px; }
+  .tf-note b{ color:var(--accent-text-dark); }
+
+  /* date range picker (component เดียวกับหน้ายอดขาย) — self-contained, สี CI ตรง ๆ */
+  .dr-wrap{position:relative;display:inline-block}
+  .dr-btn{display:inline-flex;align-items:center;gap:10px;font-family:inherit;cursor:pointer;background:var(--bg-input);
+    border:1px solid var(--bg-row-divider);border-radius:10px;padding:8px 12px;text-align:left;color:var(--text-primary);min-width:250px}
+  .dr-btn:hover{border-color:#C9CCDA}
+  .dr-btn.open{border-color:#F2565A;box-shadow:0 0 0 3px rgba(242,86,90,.15)}
+  .dr-cal{font-size:15px}
+  .dr-txt{display:flex;flex-direction:column;line-height:1.25;flex:1;min-width:0}
+  .dr-txt b{font-size:13px}
+  .dr-txt small{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dr-caret{margin-left:auto;color:var(--text-muted);font-size:11px}
+  .dr-pop{position:absolute;z-index:80;top:calc(100% + 8px);left:0;display:flex;background:#fff;
+    border:1px solid #E8EAF1;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.18);overflow:hidden;width:640px;max-width:92vw}
+  .dr-presets{display:flex;flex-direction:column;padding:8px;border-right:1px solid #E8EAF1;background:#FAFBFF;width:150px;flex-shrink:0}
+  .dr-preset{font-family:inherit;font-size:12.5px;text-align:left;padding:8px 11px;border:none;background:none;border-radius:8px;cursor:pointer;color:#2A2F45}
+  .dr-preset:hover{background:#FDECEC}
+  .dr-preset.on{background:#FDECEC;color:#C43D42;font-weight:700}
+  .dr-right{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}
+  .dr-fields{display:flex;align-items:flex-end;gap:8px}
+  .dr-field{display:flex;flex-direction:column;gap:4px}
+  .dr-field label{font-size:11px;color:var(--text-muted);font-weight:600}
+  .dr-field input{font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid #E8EAF1;border-radius:8px;color:#2A2F45;background:#fff;width:130px;max-width:100%}
+  .dr-dash{color:var(--text-muted);padding-bottom:8px}
+  .dr-cals{display:flex;gap:18px}
+  .dr-cal-m{flex:1;min-width:0}
+  .dr-cal-h{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+  .dr-cal-title{flex:1;text-align:center;font-size:13px;font-weight:700;color:#2A2F45}
+  .dr-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+  .dr-dow{text-align:center;font-size:10.5px;color:var(--text-muted);font-weight:600;padding:2px 0}
+  .dr-day{text-align:center;font-size:12.5px;line-height:28px;height:28px;border-radius:8px;cursor:pointer;color:#2A2F45;user-select:none;min-width:0}
+  .dr-day:hover:not(.empty):not(.disabled){background:#FDECEC}
+  .dr-day.empty{cursor:default;background:none;border:none}
+  .dr-day.disabled{color:#D4D7E2;cursor:not-allowed}
+  .dr-day.inrange{background:#FCDDDD;border-radius:0}
+  .dr-day.start{background:#C43D42;color:#fff;border-radius:8px 0 0 8px}
+  .dr-day.end{background:#C43D42;color:#fff;border-radius:0 8px 8px 0}
+  .dr-day.single{border-radius:8px}
+  .dr-day.today:not(.start):not(.end){outline:1px solid #F2565A;outline-offset:-2px}
+  .dr-nav{background:#fff;border:1px solid #E8EAF1;width:26px;height:26px;flex-shrink:0;border-radius:7px;cursor:pointer;font-size:14px;color:var(--text-muted);line-height:1}
+  .dr-nav-sp{width:26px;flex-shrink:0}
+  .dr-nav:disabled{opacity:.35;cursor:default}
+  .dr-foot{display:flex;align-items:center;gap:10px;border-top:1px solid #E8EAF1;padding-top:12px}
+  .dr-cancel,.dr-apply{font-family:inherit;font-size:13px;font-weight:700;padding:8px 16px;border-radius:9px;cursor:pointer}
+  .dr-cancel{background:#fff;border:1px solid #E8EAF1;color:var(--text-muted)}
+  .dr-apply{background:#F2565A;border:1px solid transparent;color:#fff}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="tf-top">
+    <div>
+      <span class="tf-eyebrow">KAN MKT · Retail Traffic</span>
+      <h1 style="font-size:30px;font-weight:600;letter-spacing:-.5px;margin:4px 0;">ทราฟฟิกหน้าร้าน</h1>
+      <div class="sub">จำนวนผู้เข้าใช้บริการรายชั่วโมง (บันทึกมือ) — ดูช่วงเวลาที่คนเข้าร้านหนาแน่นเทียบกับยอดขาย</div>
+    </div>
+    <div class="tf-top-r">
+      <select id="tfBranch" class="tf-sel"></select>
+    </div>
+  </div>
+
+  <div class="tf-note" id="tfNote"></div>
+
+  <div class="tf-filters">
+    <div class="tf-fld">
+      <span class="tf-flabel">เลือกเดือนเร็ว</span>
+      <div class="tf-chips" id="tfMonths"></div>
+    </div>
+    <div class="tf-fld">
+      <span class="tf-flabel">หรือกำหนดช่วงเอง</span>
+      <div id="tfRange"></div>
+    </div>
+  </div>
+
+  <div class="tf-kpis" id="tfKpis"></div>
+
+  <div class="tf-grid">
+    <div class="glass tf-panel">
+      <h3>ช่วงเวลาที่คนเข้าหนาแน่น</h3>
+      <div class="tf-phint">ค่าเฉลี่ยผู้เข้าใช้บริการต่อชั่วโมง แยกตามวันในสัปดาห์ × ช่วงเวลา — สีเข้ม = คนเยอะ</div>
+      <div class="tf-hmwrap"><table class="tf-hm" id="tfHeat"></table></div>
+      <div class="tf-legend" id="tfHeatLegend"></div>
+    </div>
+    <div class="glass tf-panel">
+      <h3>เฉลี่ยตามช่วงเวลา (ทั้งสัปดาห์)</h3>
+      <div class="tf-phint">ชั่วโมงไหนคนเข้าเยอะสุด — ใช้จัดกำลังคน/โปรฯ ให้ตรงพีค</div>
+      <div class="tf-bars" id="tfHourBars"></div>
+    </div>
+  </div>
+
+  <div class="tf-grid">
+    <div class="glass tf-panel">
+      <h3>เฉลี่ยตามวันในสัปดาห์</h3>
+      <div class="tf-phint">วันไหนคนเข้าร้านมากสุด (รวมทั้งวัน)</div>
+      <div class="tf-bars" id="tfDowBars"></div>
+    </div>
+    <div class="glass tf-panel">
+      <h3>แนวโน้มรายวัน</h3>
+      <div class="tf-phint">ผู้เข้าใช้บริการรวมต่อวันตลอดช่วงที่เลือก</div>
+      <svg class="tf-trend" id="tfTrend" preserveAspectRatio="none"></svg>
+      <div class="tf-legend" id="tfTrendLegend"></div>
+    </div>
+  </div>
+
+  <div class="pager" style="margin-top:28px;"></div>
+  <footer class="doc-foot" style="margin-top:20px;font-size:12px;color:var(--text-muted);">
+    KAN MKT · ทราฟฟิกหน้าร้าน · ข้อมูลบันทึกมือรายชั่วโมง — ปัจจุบันมีเฉพาะสาขาสุราษฎร์ธานี (รองรับเพิ่มสาขาอื่นในไฟล์ traffic-data.js)
+  </footer>
+</div>
+
+<script src="erp-menu.js?v=1"></script>
+<script src="nav.js?v=6"></script>
+<script src="traffic-data.js?v=1"></script>
+<script src="../../Kan%20MKT%20Dashboard/assets/daterange.js"></script>
+<script>
+(function(){
+  "use strict";
+  var DATA = window.TRAFFIC_DATA;
+  if(!DATA){ return; }
+  var HOURS = DATA.hours;
+  var DOW_TH = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+  var DOW_SHORT = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+  var DOW_ORDER = [1,2,3,4,5,6,0]; // จันทร์ → อาทิตย์
+
+  var branchKeys = Object.keys(DATA.branches);
+  var state = { branch: branchKeys[0], from:null, to:null };
+  var picker = null;
+  var MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+  // ── helpers ──
+  function rowsOf(b){ return DATA.branches[b].rows; }
+  function dmin(b){ return rowsOf(b)[0].d; }
+  function dmax(b){ var r=rowsOf(b); return r[r.length-1].d; }
+  function parseISO(s){ var p=s.split("-"); return new Date(+p[0],+p[1]-1,+p[2]); }
+  function dowOf(iso){ return parseISO(iso).getDay(); }
+  function thDate(iso){ var d=parseISO(iso); return d.getDate()+" "+["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][d.getMonth()]; }
+  function dayTotal(v){ var s=0,any=false; v.forEach(function(x){ if(x!=null){ s+=x; any=true; } }); return any?s:null; }
+  function fmtInt(n){ return Math.round(n).toLocaleString("en-US"); }
+
+  function inRange(iso){ return iso>=state.from && iso<=state.to; }
+  function selRows(){ return rowsOf(state.branch).filter(function(r){ return inRange(r.d); }); }
+
+  // ── สร้าง select สาขา ──
+  var bsel = document.getElementById("tfBranch");
+  bsel.innerHTML = branchKeys.map(function(k){
+    return '<option value="'+k+'">สาขา'+DATA.branches[k].name+'</option>';
+  }).join("");
+  bsel.value = state.branch;
+  bsel.addEventListener("change", function(){
+    state.branch = this.value;
+    setDefaultRange();
+    mountPicker();       // rebuild ให้ min/max ตรงสาขา
+    buildMonthChips();   // rebuild ปุ่มเดือนตามสาขา
+    render();
+  });
+
+  function toISO(d){ var p=function(n){return n<10?"0"+n:""+n;}; return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+  function setDefaultRange(){
+    // เริ่มต้นโชว์ "ทั้งหมด" (ทุกเดือนที่มีข้อมูล) เพื่อเห็นภาพรวมทั้งปี แล้วค่อยซูมเป็นเดือนเองได้
+    state.from = dmin(state.branch);
+    state.to = dmax(state.branch);
+  }
+
+  // ── ปุ่มเลือกเดือนเร็ว (แก้ปัญหาปฏิทินจิ้มยาก · คลิกทีเดียวเปลี่ยนได้เลย) ──
+  function monthsInData(b){
+    var seen={}, out=[];
+    rowsOf(b).forEach(function(r){ var ym=r.d.slice(0,7); if(!seen[ym]){ seen[ym]=1; out.push(ym); } });
+    return out;
+  }
+  function monthBounds(ym){
+    var y=+ym.slice(0,4), m=+ym.slice(5,7);
+    return { from: ym+"-01", to: toISO(new Date(y, m, 0)) }; // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้
+  }
+  function clampFrom(iso){ var mn=dmin(state.branch); return iso<mn?mn:iso; }
+  function clampTo(iso){ var mx=dmax(state.branch); return iso>mx?mx:iso; }
+  function buildMonthChips(){
+    var host=document.getElementById("tfMonths");
+    var html='<button class="tf-chip" data-ym="all">ทั้งหมด</button>';
+    monthsInData(state.branch).forEach(function(ym){
+      html+='<button class="tf-chip" data-ym="'+ym+'">'+MONTHS_TH[+ym.slice(5,7)-1]+'</button>';
+    });
+    host.innerHTML=html;
+    host.querySelectorAll(".tf-chip").forEach(function(c){
+      c.addEventListener("click", function(){
+        var ym=this.getAttribute("data-ym");
+        if(ym==="all"){ state.from=dmin(state.branch); state.to=dmax(state.branch); }
+        else { var b=monthBounds(ym); state.from=clampFrom(b.from); state.to=clampTo(b.to); }
+        if(picker && picker.set) picker.set({from:state.from,to:state.to,compare:false});
+        markMonthChips();
+        render();
+      });
+    });
+    markMonthChips();
+  }
+  function markMonthChips(){
+    var mn=dmin(state.branch), mx=dmax(state.branch);
+    var host=document.getElementById("tfMonths"); if(!host) return;
+    host.querySelectorAll(".tf-chip").forEach(function(c){
+      var ym=c.getAttribute("data-ym"), on;
+      if(ym==="all") on=(state.from===mn && state.to===mx);
+      else { var b=monthBounds(ym); on=(state.from===clampFrom(b.from) && state.to===clampTo(b.to)); }
+      c.classList.toggle("on", on);
+    });
+  }
+
+  // ── date picker ──
+  function mountPicker(){
+    var host = document.getElementById("tfRange");
+    host.innerHTML = "";
+    if(!window.KANDateRange){ picker=null; return; }
+    picker = window.KANDateRange.mount(host, {
+      from: state.from, to: state.to, min: dmin(state.branch), max: dmax(state.branch),
+      hideCompare: true,
+      onApply: function(from,to){ state.from=from; state.to=to; markMonthChips(); render(); }
+    });
+  }
+
+  // ── color scale (coral) จาก quantile ──
+  var HEAT_COLORS = ["#F4F5FA","#FBE0DF","#F6B9B7","#F08D8A","#E8615E","#C43D42"];
+  function makeScale(vals){
+    var f = vals.filter(function(x){ return x>0; }).sort(function(a,b){ return a-b; });
+    function q(p){ return f.length? f[Math.min(f.length-1, Math.floor(f.length*p))] : 0; }
+    var stops = [q(0.2),q(0.4),q(0.6),q(0.8),q(0.93)];
+    return function(v){
+      if(v==null) return {c:null};
+      for(var i=0;i<stops.length;i++){ if(v<stops[i]) return {c:HEAT_COLORS[i], dark:i>=4}; }
+      return {c:HEAT_COLORS[5], dark:true};
+    };
+  }
+
+  // ── render ──
+  function render(){
+    var rows = selRows();
+    var hostNote = document.getElementById("tfNote");
+    hostNote.innerHTML = "ข้อมูล<b>บันทึกมือ</b> ช่วง 11:00–20:00 · ช่องที่ขึ้น <b>—</b> คือวันที่ปิด/ไม่ได้บันทึก (ไม่นำมาเฉลี่ย) · "
+      + "สังเกตว่า <b>เสาร์–อาทิตย์ ช่วง 11:00</b> คนเข้าเยอะเป็นพิเศษ (ช่วงเปิดร้าน) — เอาไปเทียบกับพีคยอดขายสาขาสุราษฯ ได้";
+
+    // KPIs
+    var total=0, daysRec=rows.length;
+    var hourSum=new Array(HOURS.length).fill(0), hourCnt=new Array(HOURS.length).fill(0);
+    var dowTotSum={}, dowTotCnt={};
+    var heatSum={}, heatCnt={};
+    rows.forEach(function(r){
+      var wd=dowOf(r.d);
+      r.v.forEach(function(x,hi){
+        if(x==null) return;
+        total+=x; hourSum[hi]+=x; hourCnt[hi]++;
+        var key=wd+"_"+hi; heatSum[key]=(heatSum[key]||0)+x; heatCnt[key]=(heatCnt[key]||0)+1;
+      });
+      var dt=dayTotal(r.v);
+      if(dt!=null){ dowTotSum[wd]=(dowTotSum[wd]||0)+dt; dowTotCnt[wd]=(dowTotCnt[wd]||0)+1; }
+    });
+    var avgDay = daysRec? total/daysRec : 0;
+    // busiest hour
+    var bestH=0, bestHv=-1;
+    for(var i=0;i<HOURS.length;i++){ var a=hourCnt[i]?hourSum[i]/hourCnt[i]:0; if(a>bestHv){ bestHv=a; bestH=i; } }
+    // busiest weekday
+    var bestD=-1, bestDv=-1;
+    DOW_ORDER.forEach(function(wd){ var a=dowTotCnt[wd]?dowTotSum[wd]/dowTotCnt[wd]:0; if(a>bestDv){ bestDv=a; bestD=wd; } });
+
+    document.getElementById("tfKpis").innerHTML =
+      kpi("ผู้เข้าใช้บริการรวม", fmtInt(total), daysRec+" วันที่บันทึก", true) +
+      kpi("เฉลี่ยต่อวัน", fmtInt(avgDay), "คนต่อวัน") +
+      kpi("ชั่วโมงพีค", HOURS[bestH], "เฉลี่ย "+fmtInt(bestHv)+" คน/ชม.") +
+      kpi("วันพีค", DOW_TH[bestD]||"—", "เฉลี่ย "+fmtInt(bestDv)+" คน/วัน");
+
+    // Heatmap: DOW_ORDER rows × HOURS cols, cell = avg
+    var cellVals=[];
+    DOW_ORDER.forEach(function(wd){ HOURS.forEach(function(_,hi){ var k=wd+"_"+hi; if(heatCnt[k]) cellVals.push(heatSum[k]/heatCnt[k]); }); });
+    var scale = makeScale(cellVals);
+    var th = '<tr><th class="rowh"></th>' + HOURS.map(function(h){ return '<th>'+h.slice(0,5)+'</th>'; }).join("") + '</tr>';
+    var body = DOW_ORDER.map(function(wd){
+      var tds = HOURS.map(function(_,hi){
+        var k=wd+"_"+hi, v=heatCnt[k]? heatSum[k]/heatCnt[k] : null;
+        if(v==null) return '<td><div class="tf-cell nodata">·</div></td>';
+        var sc=scale(v);
+        return '<td><div class="tf-cell'+(sc.dark?" dark":"")+'" style="background:'+sc.c+'">'+Math.round(v)+'</div></td>';
+      }).join("");
+      return '<tr><th class="rowh">'+DOW_TH[wd]+'</th>'+tds+'</tr>';
+    }).join("");
+    document.getElementById("tfHeat").innerHTML = th+body;
+    document.getElementById("tfHeatLegend").innerHTML = 'ตัวเลขในช่อง = เฉลี่ยคน/ชั่วโมง · <span style="color:var(--text-tertiary)">น้อย</span> '
+      + HEAT_COLORS.map(function(c){ return '<span style="display:inline-block;width:16px;height:12px;border-radius:3px;background:'+c+';vertical-align:middle"></span>'; }).join("")
+      + ' <span style="color:var(--text-tertiary)">มาก</span>';
+
+    // Hour bars
+    var hourAvg = HOURS.map(function(_,i){ return hourCnt[i]?hourSum[i]/hourCnt[i]:0; });
+    var hMax = Math.max.apply(null, hourAvg)||1;
+    document.getElementById("tfHourBars").innerHTML = HOURS.map(function(h,i){
+      return barRow(h.slice(0,5), hourAvg[i], hMax, i===bestH);
+    }).join("");
+
+    // DOW bars (total per day avg)
+    var dowAvg = DOW_ORDER.map(function(wd){ return dowTotCnt[wd]?dowTotSum[wd]/dowTotCnt[wd]:0; });
+    var dMax = Math.max.apply(null, dowAvg)||1;
+    document.getElementById("tfDowBars").innerHTML = DOW_ORDER.map(function(wd,i){
+      return barRow(DOW_TH[wd], dowAvg[i], dMax, wd===bestD);
+    }).join("");
+
+    // Daily trend
+    drawTrend(rows);
+  }
+
+  function kpi(l,v,s,hl){ return '<div class="tf-kpi'+(hl?' hl':'')+'"><div class="tf-kpi-l">'+l+'</div><div class="tf-kpi-v">'+v+'</div><div class="tf-kpi-s">'+s+'</div></div>'; }
+  function barRow(lab,val,max,peak){
+    var w=max? (val/max*100):0;
+    return '<div class="tf-bar-row'+(peak?' peak':'')+'"><div class="tf-bar-lab">'+lab+'</div>'
+      +'<div class="tf-bar-track"><div class="tf-bar-fill" style="width:'+w.toFixed(1)+'%"></div></div>'
+      +'<div class="tf-bar-val">'+fmtInt(val)+'</div></div>';
+  }
+
+  function drawTrend(rows){
+    var svg=document.getElementById("tfTrend");
+    var W=760, H=190, pad=6;
+    svg.setAttribute("viewBox","0 0 "+W+" "+H);
+    var pts=rows.map(function(r){ return {d:r.d, t:dayTotal(r.v)}; }).filter(function(p){ return p.t!=null; });
+    if(!pts.length){ svg.innerHTML=""; document.getElementById("tfTrendLegend").textContent=""; return; }
+    var max=Math.max.apply(null, pts.map(function(p){return p.t;}));
+    var min=Math.min.apply(null, pts.map(function(p){return p.t;}));
+    var n=pts.length;
+    function X(i){ return pad + (n<=1?0:i/(n-1))*(W-2*pad); }
+    function Y(v){ return H-pad - (max===min?0.5:(v-min)/(max-min))*(H-2*pad); }
+    var line=pts.map(function(p,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(p.t).toFixed(1); }).join(" ");
+    var area=line+" L"+X(n-1).toFixed(1)+" "+(H-pad)+" L"+X(0).toFixed(1)+" "+(H-pad)+" Z";
+    // moving avg (7d) for readability
+    var ma=pts.map(function(_,i){ var a=Math.max(0,i-3),b=Math.min(n-1,i+3),s=0,c=0; for(var j=a;j<=b;j++){s+=pts[j].t;c++;} return s/c; });
+    var maLine=ma.map(function(v,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1); }).join(" ");
+    svg.innerHTML =
+      '<defs><linearGradient id="tfg" x1="0" y1="0" x2="0" y2="1">'
+      +'<stop offset="0%" stop-color="rgba(242,86,90,.28)"/><stop offset="100%" stop-color="rgba(242,86,90,0)"/></linearGradient></defs>'
+      +'<path d="'+area+'" fill="url(#tfg)"/>'
+      +'<path d="'+line+'" fill="none" stroke="rgba(242,86,90,.45)" stroke-width="1.2"/>'
+      +'<path d="'+maLine+'" fill="none" stroke="#C43D42" stroke-width="2.2" stroke-linejoin="round"/>';
+    document.getElementById("tfTrendLegend").innerHTML =
+      'สูงสุด <b>'+fmtInt(max)+'</b> ('+thDate(pts[pts.map(function(p){return p.t;}).indexOf(max)].d)+') · '
+      +'ต่ำสุด <b>'+fmtInt(min)+'</b> · เส้นเข้ม = เฉลี่ยเคลื่อนที่ 7 วัน';
+  }
+
+  // init
+  setDefaultRange();
+  mountPicker();
+  buildMonthChips();
+  render();
+})();
+</script>
+</body>
+</html>
