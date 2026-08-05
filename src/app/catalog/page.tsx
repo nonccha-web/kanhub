@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/Container";
 import { LineIcon } from "@/components/BrandIcons";
@@ -141,8 +142,18 @@ export default function CatalogPage() {
               return (
                 <Link key={t.slug} href={`/catalog/${t.slug}`} className="group flex flex-col overflow-hidden rounded-2xl border border-hair bg-white transition-shadow hover:shadow-md">
                   <div className="relative flex aspect-[16/7] items-end justify-between overflow-hidden p-4 text-white" style={{ background: `linear-gradient(135deg, ${t.accent}, #1a1413)` }}>
-                    <span className="text-6xl font-black leading-none opacity-25">{t.key}</span>
-                    <span className="text-[11px] opacity-80">รูปสินค้าเร็วๆ นี้</span>
+                    {t.cover ? (
+                      <>
+                        <Image src={t.cover} alt={t.name} fill sizes="(max-width:640px) 100vw, 540px" className="object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+                        <span className="relative rounded-md px-2 py-0.5 text-xs font-bold" style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}>Tier {t.key}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-6xl font-black leading-none opacity-25">{t.key}</span>
+                        <span className="text-[11px] opacity-80">รูปสินค้าเร็วๆ นี้</span>
+                      </>
+                    )}
                   </div>
                   <div className="flex flex-1 flex-col p-6">
                     <h3 className="text-lg font-bold text-ink">Tier {t.key} · {t.name}</h3>

@@ -1,9 +1,11 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/Container";
 import { PageHero } from "@/components/PageHero";
 import { CtaBand } from "@/components/CtaBand";
 import { TIERS, tierBySlug } from "@/lib/tiers";
+import { imagesFor } from "@/lib/product-images";
 import data from "@/lib/kan-prices.json";
 
 type P = {
@@ -99,16 +101,29 @@ export default async function TierPage({ params }: { params: Promise<{ tier: str
             <div className="mt-12">
               <h2 className="text-xl font-bold text-ink">รายการใน Tier {t.key}</h2>
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((p) => (
+                {items.map((p) => {
+                  const imgs = imagesFor(p.name);
+                  return (
                   <div key={p.name} className="overflow-hidden rounded-2xl border border-hair bg-white shadow-sm">
-                    <div className="relative grid aspect-[4/3] place-items-center border-b border-hair bg-cream-100">
-                      <span className="text-[11px] text-muted/70">รูปสินค้าเร็วๆ นี้</span>
+                    <div className="relative aspect-[4/3] overflow-hidden border-b border-hair bg-cream-100">
+                      {imgs.length ? (
+                        <Image src={imgs[0]} alt={p.name} fill sizes="(max-width:640px) 100vw, 360px" className="object-cover" />
+                      ) : (
+                        <div className="grid h-full place-items-center">
+                          <span className="text-[11px] text-muted/70">รูปสินค้าเร็วๆ นี้</span>
+                        </div>
+                      )}
                       <span
                         className="absolute left-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-md text-xs font-bold"
                         style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}
                       >
                         {t.key}
                       </span>
+                      {imgs.length > 1 && (
+                        <span className="absolute bottom-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                          📷 {imgs.length} รูป
+                        </span>
+                      )}
                     </div>
                     <div className="p-4">
                       <h3 className="text-[15px] font-semibold text-ink">{p.name}</h3>
@@ -117,9 +132,19 @@ export default async function TierPage({ params }: { params: Promise<{ tier: str
                         {baht(p.price_final as number)}{" "}
                         <span className="text-[12px] font-medium text-muted">/ {p.unit}</span>
                       </div>
+                      {imgs.length > 1 && (
+                        <div className="mt-3 grid grid-cols-4 gap-1.5">
+                          {imgs.slice(1, 5).map((src, i) => (
+                            <div key={i} className="relative aspect-square overflow-hidden rounded-md border border-hair">
+                              <Image src={src} alt={`${p.name} ${i + 2}`} fill sizes="80px" className="object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

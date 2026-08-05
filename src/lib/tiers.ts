@@ -13,6 +13,7 @@ export type TierInfo = {
   seoTitle: string;
   seoDesc: string;
   keywords: string[];
+  cover?: string;
 };
 
 export const TIERS: TierInfo[] = [
@@ -55,6 +56,7 @@ export const TIERS: TierInfo[] = [
     seoDesc:
       "โค้ท-เสื้อกันหนาว-ไหมพรมมือสองญี่ปุ่น ยกกระสอบ/ยกถุง ราคาส่งเริ่มต้น 3,100฿ งานหน้าหนาวกำไรดี ขายดีปลายปี — KAN HUB นำเข้าตรง ส่งทั่วไทย",
     keywords: ["โค้ทมือสองยกกระสอบ", "เสื้อกันหนาวมือสอง", "ไหมพรมมือสอง", "โค้ทมือสองญี่ปุ่น", "เสื้อกันหนาวมือสองยกกระสอบ", "เสื้อผ้ามือสองหน้าหนาว"],
+    cover: "/img/products/tier-b/maiphrom/1.jpg",
   },
   {
     key: "C",
