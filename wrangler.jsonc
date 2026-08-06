@@ -1,9 +1,13 @@
 {
-  // Cloudflare Workers — Static Assets (เสิร์ฟไฟล์ static จาก out/ ของ Next export)
+  // Cloudflare Worker — เว็บการตลาด (โดเมนหลัก) + หลังบ้าน ERP (admin subdomain)
+  // worker.js route ตาม hostname, static assets จาก out/
   "name": "kanhub",
   "compatibility_date": "2025-06-01",
+  "main": "./worker.js",
   "assets": {
     "directory": "./out",
+    "binding": "ASSETS",
+    "run_worker_first": true,
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
   }
