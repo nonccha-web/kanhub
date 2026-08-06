@@ -7,7 +7,7 @@ export const SITE = {
   tagline: "โกดังขายส่งเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรง — เจ้าแรกภาคใต้",
   description:
     "KAN HUB โกดังขายส่งกระสอบเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรงไม่ผ่านคนกลาง คัดเกรด A ราคาส่งต้นทาง มีบริษัทจริง จดทะเบียนถูกต้อง มีโกดังให้มาดูของ 4 สาขาในภาคใต้ ส่งทั่วไทย",
-  url: "https://kanhub.co.th",
+  url: "https://kan-hub.com",
   lineId: "@kanhub",
   lineUrl: "https://line.me/R/ti/p/@kanhub",
   phone: "02-114-3390",
