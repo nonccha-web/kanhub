@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Container } from "@/components/Container";
 import { Countdown } from "@/components/home/Countdown";
 import { LineIcon, FbIcon } from "@/components/BrandIcons";
+import { FbEmbed } from "@/components/FbEmbed";
 import { SITE } from "@/lib/site";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
@@ -326,17 +327,17 @@ export default function Home() {
           <div className="grid items-center gap-8 lg:grid-cols-[300px_1fr]">
             {/* คลิปตัวอย่างสินค้าจากเพจ KAN HUB */}
             <div className="mx-auto w-full max-w-[300px]">
-              <div className="overflow-hidden rounded-2xl border border-hair bg-dark shadow-sm">
-                <iframe
+              <div className="relative aspect-[300/476] overflow-hidden rounded-2xl border border-hair bg-dark shadow-sm">
+                <FbEmbed
                   src="https://www.facebook.com/plugins/video.php?height=476&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1028697343201063%2F&show_text=false&width=300&t=0"
                   title="คลิปเปิดกระสอบเสื้อผ้ามือสองญี่ปุ่น KAN HUB"
-                  className="block aspect-[300/476] w-full"
-                  style={{ border: "none", overflow: "hidden" }}
-                  scrolling="no"
-                  frameBorder="0"
-                  allowFullScreen
-                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                  loading="lazy"
+                  poster={
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#2a1115] to-[#120b0a] text-white">
+                      <span className="grid h-16 w-16 place-items-center rounded-full bg-white/15 text-2xl backdrop-blur-sm transition-transform group-hover:scale-110">▶</span>
+                      <span className="text-sm font-semibold">ดูคลิปเปิดกระสอบ</span>
+                      <span className="text-[11px] text-white/55">กดเพื่อเล่นจาก Facebook</span>
+                    </div>
+                  }
                 />
               </div>
             </div>
@@ -400,17 +401,17 @@ export default function Home() {
             </p>
           </div>
           <div className="mt-8 flex justify-center">
-            <div className="w-full max-w-[500px] overflow-hidden rounded-2xl border border-hair bg-white shadow-sm">
-              <iframe
+            <div className="relative h-[640px] w-full max-w-[500px] overflow-hidden rounded-2xl border border-hair bg-white shadow-sm">
+              <FbEmbed
                 src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2FKANHUBB&tabs=timeline&width=500&height=640&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true"
                 title="เพจ Facebook KAN HUB"
-                className="block h-[640px] w-full"
-                style={{ border: "none", overflow: "hidden" }}
-                scrolling="no"
-                frameBorder="0"
-                allowFullScreen
-                allow="clipboard-write; encrypted-media; picture-in-picture; web-share"
-                loading="lazy"
+                poster={
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-cream-100 text-center">
+                    <FbIcon className="h-12 w-12" />
+                    <span className="text-[15px] font-semibold text-ink">ดูโพสต์ล่าสุดจากเพจ KAN HUB</span>
+                    <span className="text-[13px] text-muted">กดเพื่อโหลดฟีดเฟซบุ๊ก</span>
+                  </div>
+                }
               />
             </div>
           </div>
