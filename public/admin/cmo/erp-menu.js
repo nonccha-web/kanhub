@@ -58,6 +58,10 @@
     ]},
     { icon: 'phone', label: 'รายงานการรับสาย', items: [
       { icon: 'phone', label: 'รายงานการรับสาย',     cmo: 'tele-dashboard.html' }
+    ]},
+    { icon: 'shield', label: 'ระบบ', items: [
+      { icon: 'folder', label: 'แหล่งข้อมูล + log',   sales: '#/data' },
+      { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',     sales: '#/rules' }
     ]}
   ];
 

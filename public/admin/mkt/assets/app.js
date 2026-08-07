@@ -78,7 +78,10 @@
     if (v.after) { v.after(range); }
 
     renderNav();
-    renderFilters();
+    /* หน้าในกลุ่ม "ระบบ" ไม่ได้อ่านตัวกรองสาขา/ช่วงเวลา — ซ่อนไปเลยกันเข้าใจผิด */
+    var fh = document.getElementById('filterHost');
+    if (v.noFilter) { fh.innerHTML = ''; fh.style.display = 'none'; }
+    else { fh.style.display = ''; renderFilters(); }
     document.getElementById('lastUpdated').innerHTML =
       '<span class="dot"></span>ข้อมูลพร้อมใช้<br>ถึง ' + fmt.thDate(D.meta.dataEnd);
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -98,7 +101,7 @@
 
   window.addEventListener('hashchange', routeFromHash);
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function boot() {
     KAN.applyPreset('30');
     routeFromHash();
     var gb = document.getElementById('guideBtn');
@@ -106,6 +109,14 @@
     /* Deliberately no auto-open: the page is served over file://, where
      * localStorage does not persist reliably, so "show once" would end up
      * showing every single time. The button carries the discovery instead. */
-  });
+  }
+
+  /* สคริปต์ถูกฉีดเข้ามาหลัง ingest.boot() ซึ่งอาจเลย DOMContentLoaded ไปแล้ว —
+   * ถ้ารอ event เดียวหน้าจะว่างเปล่า */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 
 }(window));

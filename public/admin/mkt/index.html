@@ -35,16 +35,22 @@
 </div>
 <div id="guideHost"></div>
 
-<script src="vendor/chart.umd.min.js?v=9"></script>
-<script src="data/kan-data.js?v=9"></script>
-<script src="../cmo/erp-menu.js?v=9"></script>
-<script src="assets/core.js?v=9"></script>
-<script src="assets/daterange.js?v=9"></script>
-<script src="assets/ui.js?v=9"></script>
-<script src="assets/suggest.js?v=9"></script>
-<script src="assets/views.js?v=9"></script>
-<script src="assets/views-extra.js?v=9"></script>
-<script src="assets/guide.js?v=9"></script>
-<script src="assets/app.js?v=9"></script>
+<script src="vendor/chart.umd.min.js?v=10"></script>
+<script src="../cmo/erp-menu.js?v=10"></script>
+<script src="assets/ingest.js?v=10"></script>
+<script>
+/* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
+   ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
+window.KAN_INGEST.boot({
+  v: '?v=10',
+  data: 'data/kan-data.js',
+  scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
+            'assets/rules.js', 'assets/views.js', 'assets/views-extra.js',
+            'assets/views-data.js', 'assets/guide.js', 'assets/app.js']
+}).catch(function (e) {
+  document.body.innerHTML = '<div style="font:15px Kanit,sans-serif;padding:40px;color:#C43D42">' +
+    'โหลดระบบไม่สำเร็จ: ' + (e && e.message ? e.message : e) + '</div>';
+});
+</script>
 </body>
 </html>
