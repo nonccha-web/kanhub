@@ -180,10 +180,11 @@
       <div class="tf-bars" id="tfDowBars"></div>
     </div>
     <div class="glass tf-panel">
-      <h3>แนวโน้มรายวัน</h3>
-      <div class="tf-phint">ผู้เข้าใช้บริการรวมต่อวันตลอดช่วงที่เลือก</div>
-      <svg class="tf-trend" id="tfTrend" preserveAspectRatio="none"></svg>
-      <div class="tf-legend" id="tfTrendLegend"></div>
+      <h3>ยอดรวมผู้เข้าใช้บริการรายเดือน</h3>
+      <div class="tf-phint">เทียบยอดรวมทั้งเดือน เดือนต่อเดือน (ทุกเดือนที่มีข้อมูล)</div>
+      <div style="position:relative;height:300px"><canvas id="tfMonthChart"></canvas></div>
+      <svg class="tf-trend" id="tfTrend" preserveAspectRatio="none" style="display:none"></svg>
+      <div class="tf-legend" id="tfTrendLegend" style="display:none"></div>
     </div>
   </div>
 

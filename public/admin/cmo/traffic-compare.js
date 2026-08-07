@@ -16,6 +16,7 @@
   var MAX = 3;
 
   var chart = null;
+  var monthChart = null;
   var sel = [];
 
   function branchKey() {
@@ -88,6 +89,33 @@
     });
   }
 
+  /* ---- กราฟยอดรวมรายเดือน (แท่ง) แทน "แนวโน้มรายวัน" เดิม ---- */
+  function monthTotals() {
+    return months().map(function (ym) {
+      var t = 0;
+      rows().forEach(function (r) { if (r.d.slice(0, 7) === ym) { var d = daySum(r.v); if (d != null) t += d; } });
+      return t;
+    });
+  }
+  function buildMonth() {
+    var el = document.getElementById("tfMonthChart");
+    if (!el) return;
+    var labels = months().map(mLabel), vals = monthTotals();
+    if (monthChart) { monthChart.data.labels = labels; monthChart.data.datasets[0].data = vals; monthChart.update(); return; }
+    monthChart = new window.Chart(el, {
+      type: "bar",
+      data: { labels: labels, datasets: [{ label: "ผู้เข้าใช้บริการรวม", data: vals, backgroundColor: "#0000ff", borderRadius: 6, maxBarThickness: 54 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return c.parsed.y.toLocaleString() + " คน"; } } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: "#ececec" }, ticks: { font: { family: "Inter" } } },
+          x: { grid: { display: false }, ticks: { font: { family: "Inter, Kanit" } } }
+        }
+      }
+    });
+  }
+
   function renderChips() {
     var host = document.getElementById("tfCmpMonths");
     if (!host) return;
@@ -124,10 +152,10 @@
 
   function boot() {
     sel = months().slice(-MAX); // เริ่มด้วย 3 เดือนล่าสุด
-    renderChips(); build();
+    renderChips(); build(); buildMonth();
     var ex = document.getElementById("tfExport"); if (ex) ex.onclick = exportCSV;
     var bs = document.getElementById("tfBranch");
-    if (bs) bs.addEventListener("change", function () { sel = months().slice(-MAX); renderChips(); build(); });
+    if (bs) bs.addEventListener("change", function () { sel = months().slice(-MAX); renderChips(); build(); buildMonth(); });
   }
   if (document.readyState !== "loading") boot();
   else document.addEventListener("DOMContentLoaded", boot);
