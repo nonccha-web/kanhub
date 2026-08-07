@@ -24,7 +24,7 @@ const TRUST = [
 // สินค้าเรือธง (ราคาเคาะจริงจากไฟล์ KAN — sheet "รวมทุกสินค้า")
 const PRODUCTS = [
   {
-    img: "/img/hero-2.jpg",
+    img: "/img/products/tier-a/tokyo/1.jpg",
     badge: "ขายดีที่สุด",
     name: "ก้อนผ้า TOKYO",
     code: "Tier A · ยกก้อน · ~350 กก.",
@@ -32,7 +32,7 @@ const PRODUCTS = [
     original: null,
   },
   {
-    img: "/img/hero-3.jpg",
+    img: "/img/products/tier-a/nagoya/1.jpg",
     badge: "งานพรีเมียม",
     name: "ก้อนผ้า NAGOYA",
     code: "Tier A · ยกก้อน · ~350 กก.",

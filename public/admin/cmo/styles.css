@@ -323,3 +323,7 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
   .erp-sidebar{ position:static; width:100%; height:auto; }
   .has-erp-side body{ padding-left:14px; }
 }
+
+/* ไอคอน SVG ในเมนู */
+.erp-svg{width:17px;height:17px;display:block}
+.erp-gico .erp-svg,.erp-gico svg{width:18px;height:18px}
