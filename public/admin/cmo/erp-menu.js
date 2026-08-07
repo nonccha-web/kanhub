@@ -14,13 +14,15 @@
     { icon: '📊', label: 'ยอดขาย + สต็อก', items: [
       { icon: '▦',  label: 'ภาพรวมยอดขาย',    sales: '#/overview' },
       { icon: '🏬', label: 'สาขาและแผนก',      sales: '#/branch' },
-      { icon: '🚶', label: 'ทราฟฟิกหน้าร้าน',   cmo: 'traffic.html' },
       { icon: '📦', label: 'สินค้าเข้า–ออก',    sales: '#/velocity' },
       { icon: '🏷', label: 'สินค้ารายตัว',      sales: '#/sku' },
       { icon: '🎯', label: 'ข้อเสนอโปรโมชัน',   sales: '#/promo' },
       { icon: '🗓', label: 'แผนลงมือ',          sales: '#/plan' },
       { icon: '👥', label: 'กลุ่มลูกค้า',        sales: '#/customers' },
       { icon: '✓',  label: 'คุณภาพข้อมูล',      sales: '#/quality', badge: 'quality' }
+    ]},
+    { icon: '🚶', label: 'ทราฟฟิกหน้าร้าน', items: [
+      { icon: '📈', label: 'ภาพรวมทราฟฟิก',      cmo: 'traffic.html' }
     ]},
     { icon: '🎯', label: 'ทีม + KPI', items: [
       { icon: '🏆', label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
