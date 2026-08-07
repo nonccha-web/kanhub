@@ -5,6 +5,7 @@ import { Countdown } from "@/components/home/Countdown";
 import { LineIcon, FbIcon } from "@/components/BrandIcons";
 import { FbEmbed } from "@/components/FbEmbed";
 import { SITE } from "@/lib/site";
+import { imagesFor, SAMPLE_GROUPS } from "@/lib/product-images";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
 
@@ -50,8 +51,14 @@ const PRODUCTS = [
   },
 ];
 
+// ตัวอย่างของในก้อน — โชว์บนหน้าแรก 8 รูป (คละหมวด) ที่เหลือดูได้ที่ /catalog#samples
+const HOME_SAMPLES = SAMPLE_GROUPS.flatMap((grp) =>
+  grp.images.slice(0, grp.key === "jeans" ? 2 : 1).map((src) => ({ src, label: grp.label }))
+);
+const SAMPLE_TOTAL = SAMPLE_GROUPS.reduce((n, grp) => n + grp.images.length, 0);
+
 // สินค้าแนะนำแยกตามหมวดขายส่ง (Tier A–D) — ราคาเคาะจริงจาก kan-prices.json
-// รูปสินค้ายังไม่มี ใช้กรอบ placeholder ไปก่อน (จะเปลี่ยนเป็นรูปจริงทีหลัง)
+// รูปสินค้า: ดึงจาก PRODUCT_IMAGES (imagesFor) — ตัวไหนยังไม่มีรูปจะขึ้น placeholder
 const TIERS = [
   {
     key: "A",
@@ -526,31 +533,50 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* การ์ดสินค้า (กรอบรูป placeholder รอรูปจริง) */}
+                {/* การ์ดสินค้า — ใช้รูปจริงถ้ามี ไม่มีค่อยขึ้น placeholder */}
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {tier.items.map((it) => (
+                  {tier.items.map((it) => {
+                    const imgs = imagesFor(it.name);
+                    return (
                     <div
                       key={it.name}
                       className="overflow-hidden rounded-2xl border border-hair bg-white shadow-sm"
                     >
                       <div className="relative grid aspect-[4/3] place-items-center overflow-hidden border-b border-hair bg-cream-100">
-                        <Image
-                          src="/img/logo-kanhub.png"
-                          alt=""
-                          width={885}
-                          height={418}
-                          aria-hidden
-                          className="w-24 opacity-[0.13]"
-                        />
-                        <span className="absolute bottom-2 text-[11px] text-muted/70">
-                          รูปสินค้าเร็วๆ นี้
-                        </span>
+                        {imgs.length ? (
+                          <Image
+                            src={imgs[0]}
+                            alt={it.name}
+                            fill
+                            sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 300px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <>
+                            <Image
+                              src="/img/logo-kanhub.png"
+                              alt=""
+                              width={885}
+                              height={418}
+                              aria-hidden
+                              className="w-24 opacity-[0.13]"
+                            />
+                            <span className="absolute bottom-2 text-[11px] text-muted/70">
+                              รูปสินค้าเร็วๆ นี้
+                            </span>
+                          </>
+                        )}
                         <span
                           className="absolute left-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-md text-xs font-bold"
                           style={{ background: tier.accent, color: tier.onGold ? "#1a1413" : "#fff" }}
                         >
                           {tier.key}
                         </span>
+                        {imgs.length > 1 && (
+                          <span className="absolute bottom-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                            📷 {imgs.length} รูป
+                          </span>
+                        )}
                       </div>
                       <div className="p-4">
                         <h4 className="text-[15px] font-semibold text-ink">{it.name}</h4>
@@ -561,7 +587,8 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -578,6 +605,49 @@ export default function Home() {
             </a>
             <Link href="/catalog" className={`${btn} border-[1.5px] border-hair bg-white text-ink hover:bg-cream-100`}>
               ดูแคตตาล็อกทั้งหมด
+            </Link>
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- ตัวอย่างของในก้อน (แกลเลอรีรูปจริงจากโกดัง) ---------- */}
+      <section className="bg-white py-16">
+        <Container>
+          <div className="text-center">
+            <Eyebrow>รูปจริงจากโกดัง</Eyebrow>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">ตัวอย่างของที่ได้จากก้อน</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-[15px] text-muted">
+              ยีนส์ เสื้อยืด เสื้อหนาว ผ้าเด็ก งานติดป้ายแบรนด์ — ถ่ายจากของจริงหน้าโกดัง ไม่ใช่รูปสต๊อก
+            </p>
+          </div>
+
+          <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {HOME_SAMPLES.map((s) => (
+              <div
+                key={s.src}
+                className="group relative aspect-square overflow-hidden rounded-2xl border border-hair bg-cream-100"
+              >
+                <Image
+                  src={s.src}
+                  alt={`ตัวอย่าง${s.label} เสื้อผ้ามือสองญี่ปุ่น KAN HUB`}
+                  fill
+                  loading="lazy"
+                  sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 260px"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <span className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                  {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              href="/catalog#samples"
+              className={`${btn} border-[1.5px] border-hair bg-white text-ink hover:bg-cream-100`}
+            >
+              ดูตัวอย่างทั้งหมด {SAMPLE_TOTAL} รูป
             </Link>
           </div>
         </Container>

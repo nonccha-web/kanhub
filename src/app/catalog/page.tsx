@@ -4,6 +4,7 @@ import { Container } from "@/components/Container";
 import { LineIcon } from "@/components/BrandIcons";
 import { TIERS } from "@/lib/tiers";
 import { SITE } from "@/lib/site";
+import { SAMPLE_GROUPS } from "@/lib/product-images";
 import data from "@/lib/kan-prices.json";
 
 export const metadata = {
@@ -171,6 +172,47 @@ export default function CatalogPage() {
                 </Link>
               );
             })}
+          </div>
+        </Container>
+      </section>
+
+      {/* 4.5 SAMPLES — ตัวอย่างของในก้อน (รูปจริงจากโกดัง) */}
+      <section id="samples" className="scroll-mt-20 bg-white py-16">
+        <Container>
+          <div className="text-center">
+            <p className="text-sm font-bold uppercase tracking-wide text-brand">รูปจริงจากโกดัง</p>
+            <h2 className="mt-2 text-2xl font-bold text-ink sm:text-3xl">ตัวอย่างของที่ได้จากก้อน</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-[15px] text-muted">
+              รูปถ่ายของจริงหน้าโกดัง KAN HUB — แยกตามหมวดที่เจอบ่อยในก้อนผ้ามือสองญี่ปุ่น
+            </p>
+          </div>
+
+          <div className="mt-10 space-y-10">
+            {SAMPLE_GROUPS.map((grp) => (
+              <div key={grp.key}>
+                <h3 className="text-[15px] font-bold text-ink">
+                  {grp.label}{" "}
+                  <span className="font-medium text-muted">· {grp.images.length} รูป</span>
+                </h3>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {grp.images.map((src, i) => (
+                    <div
+                      key={src}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-hair bg-cream-100"
+                    >
+                      <Image
+                        src={src}
+                        alt={`ตัวอย่าง${grp.label} มือสองญี่ปุ่น ${i + 1} — KAN HUB`}
+                        fill
+                        loading="lazy"
+                        sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 220px"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </Container>
       </section>
