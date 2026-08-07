@@ -19,8 +19,8 @@
   .tf-chips{ display:flex; gap:6px; flex-wrap:wrap; }
   .tf-chip{ font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 13px; border-radius:99px;
     border:1px solid var(--bg-row-divider); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:.12s; }
-  .tf-chip:hover{ border-color:#F2565A; color:#C43D42; }
-  .tf-chip.on{ background:#F2565A; border-color:#F2565A; color:#fff; }
+  .tf-chip:hover{ border-color:#0000ff; color:#0000ff; }
+  .tf-chip.on{ background:#0000ff; border-color:#0000ff; color:#fff; }
 
   .tf-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:18px; }
   .tf-kpi{ background:var(--bg-glass); border:.5px solid var(--bg-glass-border); border-radius:16px;
@@ -67,7 +67,7 @@
   .dr-btn{display:inline-flex;align-items:center;gap:10px;font-family:inherit;cursor:pointer;background:var(--bg-input);
     border:1px solid var(--bg-row-divider);border-radius:10px;padding:8px 12px;text-align:left;color:var(--text-primary);min-width:250px}
   .dr-btn:hover{border-color:#C9CCDA}
-  .dr-btn.open{border-color:#F2565A;box-shadow:0 0 0 3px rgba(242,86,90,.15)}
+  .dr-btn.open{border-color:#0000ff;box-shadow:0 0 0 3px rgba(0,0,255,.15)}
   .dr-cal{font-size:15px}
   .dr-txt{display:flex;flex-direction:column;line-height:1.25;flex:1;min-width:0}
   .dr-txt b{font-size:13px}
@@ -77,8 +77,8 @@
     border:1px solid #E8EAF1;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.18);overflow:hidden;width:640px;max-width:92vw}
   .dr-presets{display:flex;flex-direction:column;padding:8px;border-right:1px solid #E8EAF1;background:#FAFBFF;width:150px;flex-shrink:0}
   .dr-preset{font-family:inherit;font-size:12.5px;text-align:left;padding:8px 11px;border:none;background:none;border-radius:8px;cursor:pointer;color:#2A2F45}
-  .dr-preset:hover{background:#FDECEC}
-  .dr-preset.on{background:#FDECEC;color:#C43D42;font-weight:700}
+  .dr-preset:hover{background:#E6E8FF}
+  .dr-preset.on{background:#E6E8FF;color:#0000ff;font-weight:700}
   .dr-right{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}
   .dr-fields{display:flex;align-items:flex-end;gap:8px}
   .dr-field{display:flex;flex-direction:column;gap:4px}
@@ -92,21 +92,50 @@
   .dr-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
   .dr-dow{text-align:center;font-size:10.5px;color:var(--text-muted);font-weight:600;padding:2px 0}
   .dr-day{text-align:center;font-size:12.5px;line-height:28px;height:28px;border-radius:8px;cursor:pointer;color:#2A2F45;user-select:none;min-width:0}
-  .dr-day:hover:not(.empty):not(.disabled){background:#FDECEC}
+  .dr-day:hover:not(.empty):not(.disabled){background:#E6E8FF}
   .dr-day.empty{cursor:default;background:none;border:none}
   .dr-day.disabled{color:#D4D7E2;cursor:not-allowed}
   .dr-day.inrange{background:#FCDDDD;border-radius:0}
-  .dr-day.start{background:#C43D42;color:#fff;border-radius:8px 0 0 8px}
-  .dr-day.end{background:#C43D42;color:#fff;border-radius:0 8px 8px 0}
+  .dr-day.start{background:#0000ff;color:#fff;border-radius:8px 0 0 8px}
+  .dr-day.end{background:#0000ff;color:#fff;border-radius:0 8px 8px 0}
   .dr-day.single{border-radius:8px}
-  .dr-day.today:not(.start):not(.end){outline:1px solid #F2565A;outline-offset:-2px}
+  .dr-day.today:not(.start):not(.end){outline:1px solid #0000ff;outline-offset:-2px}
   .dr-nav{background:#fff;border:1px solid #E8EAF1;width:26px;height:26px;flex-shrink:0;border-radius:7px;cursor:pointer;font-size:14px;color:var(--text-muted);line-height:1}
   .dr-nav-sp{width:26px;flex-shrink:0}
   .dr-nav:disabled{opacity:.35;cursor:default}
   .dr-foot{display:flex;align-items:center;gap:10px;border-top:1px solid #E8EAF1;padding-top:12px}
   .dr-cancel,.dr-apply{font-family:inherit;font-size:13px;font-weight:700;padding:8px 16px;border-radius:9px;cursor:pointer}
   .dr-cancel{background:#fff;border:1px solid #E8EAF1;color:var(--text-muted)}
-  .dr-apply{background:#F2565A;border:1px solid transparent;color:#fff}
+  .dr-apply{background:#0000ff;border:1px solid transparent;color:#fff}
+</style>
+<!-- shadcn skin + blue accent (หน้า traffic) -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style id="shadcn-skin">
+:root,:root[data-theme="dark"],[data-theme]{
+  --bg-page:#f5f5f5;--text-primary:#0a0a0a;--text-secondary:#404040;--text-muted:#737373;--text-tertiary:#8a8a8a;
+  --bg-glass:#ffffff;--bg-glass-border:#e5e5e5;--bg-input:#f5f5f5;--bg-card-subtle:#fafafa;--bg-row-divider:#ececec;
+  --accent:#0000ff;--accent-text:#0000ff;--accent-text-dark:#0000ff;--accent-light:#8a93ff;
+  --accent-faint:rgba(0,0,255,.06);--accent-faint-2:rgba(0,0,255,.16);--blue:#0000ff;
+  --shadow-card:0 0 0 1px rgba(23,23,23,.05),0 1px 3px rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);
+  --shadow-card-hover:0 0 0 1px rgba(23,23,23,.08),0 4px 12px rgba(0,0,0,.08);
+  --danger:#e7000b;--coral:#e7000b;
+}
+body{font-family:'Inter','Kanit',ui-sans-serif,system-ui,-apple-system,sans-serif !important;background:#f5f5f5 !important;color:#0a0a0a;-webkit-font-smoothing:antialiased;}
+h1,h2,h3{letter-spacing:-.02em;}
+/* cards → 24px hairline + เงาบาง (เลิก glass blur) */
+.glass,.tf-panel,.card{background:#fff !important;border:1px solid #e5e5e5 !important;border-radius:24px !important;box-shadow:var(--shadow-card) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+.tf-kpi,.kpi-card{background:#fff !important;border:1px solid #e5e5e5 !important;border-radius:16px !important;box-shadow:var(--shadow-card) !important;backdrop-filter:none !important;}
+.tf-kpi:hover,.kpi-card:hover{box-shadow:var(--shadow-card-hover) !important;transform:none !important;}
+/* pills/inputs → 18px */
+.tf-chip,.tf-sel,.theme-toggle,.dr-btn,.dr-field input{border-radius:18px !important;}
+.tf-chip{background:#f5f5f5 !important;border:1px solid #e5e5e5 !important;color:#404040 !important;}
+.tf-chip.on{background:#0000ff !important;border-color:#0000ff !important;color:#fff !important;}
+.tf-note{border-radius:18px !important;}
+.tf-cell{border-radius:8px !important;}
+/* sidebar → light shadcn */
+.erp-sidebar{background:#fafafa !important;border-right:1px solid #e5e5e5 !important;}
+.erp-nav .on,.erp-sub a.on{color:#0000ff !important;}
+.tf-eyebrow{color:#0000ff !important;}
 </style>
 </head>
 <body>
@@ -279,7 +308,7 @@
   }
 
   // ── color scale (coral) จาก quantile ──
-  var HEAT_COLORS = ["#F4F5FA","#FBE0DF","#F6B9B7","#F08D8A","#E8615E","#C43D42"];
+  var HEAT_COLORS = ["#F4F5FA","#E4E6FF","#BAC0FF","#8A93FF","#3B47F0","#0000EE"];
   function makeScale(vals){
     var f = vals.filter(function(x){ return x>0; }).sort(function(a,b){ return a-b; });
     function q(p){ return f.length? f[Math.min(f.length-1, Math.floor(f.length*p))] : 0; }
@@ -390,10 +419,10 @@
     var maLine=ma.map(function(v,i){ return (i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1); }).join(" ");
     svg.innerHTML =
       '<defs><linearGradient id="tfg" x1="0" y1="0" x2="0" y2="1">'
-      +'<stop offset="0%" stop-color="rgba(242,86,90,.28)"/><stop offset="100%" stop-color="rgba(242,86,90,0)"/></linearGradient></defs>'
+      +'<stop offset="0%" stop-color="rgba(0,0,255,.28)"/><stop offset="100%" stop-color="rgba(0,0,255,0)"/></linearGradient></defs>'
       +'<path d="'+area+'" fill="url(#tfg)"/>'
-      +'<path d="'+line+'" fill="none" stroke="rgba(242,86,90,.45)" stroke-width="1.2"/>'
-      +'<path d="'+maLine+'" fill="none" stroke="#C43D42" stroke-width="2.2" stroke-linejoin="round"/>';
+      +'<path d="'+line+'" fill="none" stroke="rgba(0,0,255,.45)" stroke-width="1.2"/>'
+      +'<path d="'+maLine+'" fill="none" stroke="#0000ff" stroke-width="2.2" stroke-linejoin="round"/>';
     document.getElementById("tfTrendLegend").innerHTML =
       'สูงสุด <b>'+fmtInt(max)+'</b> ('+thDate(pts[pts.map(function(p){return p.t;}).indexOf(max)].d)+') · '
       +'ต่ำสุด <b>'+fmtInt(min)+'</b> · เส้นเข้ม = เฉลี่ยเคลื่อนที่ 7 วัน';

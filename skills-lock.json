@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "business-intelligence": {
+      "source": "borghei/claude-skills",
+      "sourceType": "github",
+      "skillPath": "data-analytics/business-intelligence/SKILL.md",
+      "computedHash": "a54978f2d494d2ffade72523e1ffd0938ae65491aa32cf34bed8fa013ba7b823"
+    },
+    "kpi-dashboard-design": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/kpi-dashboard-design/SKILL.md",
+      "computedHash": "e67133d4726af6399b99c1e57d46b26b78d591f4a7df3bfbc4e6a427192bea05"
+    }
+  }
+}
