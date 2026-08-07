@@ -611,6 +611,7 @@ export default function Home() {
                     src={w.img}
                     alt={w.title}
                     fill
+                    loading="eager"
                     sizes="(max-width:768px) 100vw, 520px"
                     className="object-cover"
                   />
@@ -721,6 +722,7 @@ export default function Home() {
                 src="/img/location-map.png"
                 alt="แผนที่โกดัง KAN HUB ภาคใต้"
                 fill
+                loading="eager"
                 sizes="(max-width:1024px) 100vw, 540px"
                 className="object-cover"
               />
