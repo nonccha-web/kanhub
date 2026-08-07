@@ -9,6 +9,7 @@ export const PRODUCT_IMAGES: Record<string, string[]> = {
   // Tier A — ก้อนผ้า
   "ก้อนผ้า TOKYO": imgs("tier-a", "tokyo", 1),
   "ก้อนผ้า NAGOYA": imgs("tier-a", "nagoya", 2),
+  "ก้อนผ้า OSAKA": imgs("tier-a", "osaka", 1),
   // Tier B — โค้ท & ไหมพรม
   "โค้ทรวม": imgs("tier-b", "coat-ruam", 2),
   "โค้ทผ้าบาง": imgs("tier-b", "coat-bang", 3),

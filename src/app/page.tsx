@@ -40,7 +40,7 @@ const PRODUCTS = [
     original: null,
   },
   {
-    img: "/img/whyus-warehouse.jpg",
+    img: "/img/products/tier-a/osaka/1.jpg",
     badge: "คุ้มสุด",
     name: "ก้อนผ้า OSAKA",
     code: "Tier A · ยกก้อน · ~300 กก.",
