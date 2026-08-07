@@ -268,6 +268,9 @@ th{border-bottom:1px solid var(--line)}
 .btn-s{padding:6px 11px;font-size:11.5px;border-radius:8px}
 .btn-danger{color:var(--bad);border-color:#f3c9c9}
 .btn-danger:hover{background:var(--bad-bg);border-color:var(--bad)}
+.up-name{font-family:inherit;font-size:12.5px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 13px;min-width:190px;outline:none}
+.up-name:focus{border-color:var(--red)}
+.up-name::placeholder{color:var(--dim)}
 .up-msg{font-size:12px;margin-top:10px;padding:9px 12px;border-radius:9px;display:none}
 .up-msg.show{display:block}
 .up-msg.ok{background:var(--good-bg);color:var(--good)}
@@ -317,6 +320,7 @@ th{border-bottom:1px solid var(--line)}
           <input type="file" id="upFile" accept=".csv,text/csv" hidden>
           <b>เลือกไฟล์ CSV</b> หรือลากไฟล์มาวางตรงนี้ &middot; ไฟล์รายงานสายจากตู้สาขา (CDR export)
         </div>
+        <input type="text" class="up-name" id="upName" placeholder="ตั้งชื่อชุดข้อมูล (เช่น มิ.ย. 2026)" maxlength="60">
         <button class="btn btn-p" id="upBtn" disabled>อัปโหลด</button>
       </div>
       <div class="up-msg" id="upMsg"></div>
@@ -702,6 +706,7 @@ function renderHistory(){
       <td><span class="${on?'badge-on':'badge-off'}">${on?'ใช้อยู่':'ไม่ได้ใช้'}</span></td>
       <td><div class="fops">
         <button class="btn btn-s" data-act="toggle" data-id="${f.id}">${on?'เลิกใช้':'ใช้ไฟล์นี้'}</button>
+        <button class="btn btn-s" data-act="rename" data-id="${f.id}">เปลี่ยนชื่อ</button>
         <button class="btn btn-s" data-act="dl" data-id="${f.id}">ดาวน์โหลด</button>
         <button class="btn btn-s btn-danger" data-act="del" data-id="${f.id}">ลบ</button>
       </div></td></tr>`);
@@ -741,7 +746,18 @@ function setPending(f){
     ? '<b>'+esc(pending.name)+'</b> · '+fmtSize(pending.size)+' — กด "อัปโหลด" เพื่อใช้ไฟล์นี้'
     : '<b>เลือกไฟล์ CSV</b> หรือลากไฟล์มาวางตรงนี้ &middot; ไฟล์รายงานสายจากตู้สาขา (CDR export)';
   drop.appendChild(fileInput);
+  const nm=$('upName');
+  // เติมชื่อเริ่มต้นจากชื่อไฟล์ให้ก่อน (แก้ทับได้) — ถ้าไม่มีไฟล์ก็ล้างช่อง
+  if(pending){ if(!nm.value.trim())nm.value=defaultName(pending.name); }
+  else nm.value='';
   $('upBtn').disabled=!pending;
+}
+// ชื่อเริ่มต้น: ตัดนามสกุล .csv + แทน _ ด้วยช่องว่าง
+function defaultName(fn){return fn.replace(/\.csv$/i,'').replace(/[_]+/g,' ').trim()||fn;}
+function uniqName(name,skipId){
+  let n=name,i=2;
+  while(DS.files.some(f=>f.id!==skipId&&f.name.toLowerCase()===n.toLowerCase())){n=name+' ('+(i++)+')';}
+  return n;
 }
 drop.addEventListener('click',()=>fileInput.click());
 fileInput.addEventListener('change',e=>{setPending(e.target.files[0]);});
@@ -761,7 +777,7 @@ $('upBtn').addEventListener('click',()=>{
     const dates=res.rows.map(r=>r.date).sort();
     const rec={
       id:'f'+Date.now()+Math.random().toString(36).slice(2,7),
-      name:file.name.replace(/\.csv$/i,''),
+      name:uniqName(($('upName').value||'').trim()||defaultName(file.name)),
       filename:file.name, size:file.size,
       uploadedAt:new Date().toISOString(),
       from:dates[0], to:dates[dates.length-1],
@@ -770,7 +786,7 @@ $('upBtn').addEventListener('click',()=>{
     DS.files.push(rec);
     if(DS.active.indexOf(rec.id)<0)DS.active.push(rec.id);
     if(!dsSave(DS)){DS.files.pop();DS.active=DS.active.filter(i=>i!==rec.id);return;}
-    setPending(null); fileInput.value='';
+    $('upName').value=''; setPending(null); fileInput.value='';
     applyDataset();
     upMsg('อัปโหลดสำเร็จ · ใช้ข้อมูล '+res.rows.length+' สายเข้า ('+rec.from+' → '+rec.to+')'+
       (res.skipped?' · ข้ามสายออก/สายภายใน '+res.skipped+' รายการ':''),'ok');
@@ -788,6 +804,14 @@ $('fhistBody').addEventListener('click',e=>{
     dsSave(DS); applyDataset(); return;
   }
   const f=DS.files.find(x=>x.id===id); if(!f)return;
+  if(act==='rename'){
+    const t=prompt('ตั้งชื่อชุดข้อมูลนี้',f.name);
+    if(t===null)return;
+    const nn=t.trim();
+    if(!nn){upMsg('ชื่อว่างไม่ได้','err');return;}
+    f.name=uniqName(nn,f.id);
+    dsSave(DS); renderHistory(); upMsg('เปลี่ยนชื่อเป็น "'+f.name+'" แล้ว','ok'); return;
+  }
   if(act==='dl'){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([f.csv],{type:'text/csv;charset=utf-8'}));
