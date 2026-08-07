@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+/* KAN Traffic — shadcn skin + blue accent (โมดูลแยก) */
+:root,:root[data-theme="dark"],[data-theme]{
+  --bg-page:#f5f5f5;--text-primary:#0a0a0a;--text-secondary:#404040;--text-muted:#737373;--text-tertiary:#8a8a8a;
+  --bg-glass:#ffffff;--bg-glass-border:#e5e5e5;--bg-input:#f5f5f5;--bg-card-subtle:#fafafa;--bg-row-divider:#ececec;
+  --accent:#0000ff;--accent-text:#0000ff;--accent-text-dark:#0000ff;--accent-light:#8a93ff;
+  --accent-faint:rgba(0,0,255,.06);--accent-faint-2:rgba(0,0,255,.16);--blue:#0000ff;
+  --shadow-card:0 0 0 1px rgba(23,23,23,.05),0 1px 3px rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);
+  --shadow-card-hover:0 0 0 1px rgba(23,23,23,.08),0 4px 12px rgba(0,0,0,.08);
+  --danger:#e7000b;--coral:#e7000b;
+}
+body{font-family:'Inter','Kanit',ui-sans-serif,system-ui,-apple-system,sans-serif !important;background:#f5f5f5 !important;color:#0a0a0a;-webkit-font-smoothing:antialiased;}
+h1,h2,h3{letter-spacing:-.02em;}
+/* cards → 24px hairline + เงาบาง (เลิก glass blur) */
+.glass,.tf-panel,.card{background:#fff !important;border:1px solid #e5e5e5 !important;border-radius:24px !important;box-shadow:var(--shadow-card) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+.tf-kpi,.kpi-card{background:#fff !important;border:1px solid #e5e5e5 !important;border-radius:16px !important;box-shadow:var(--shadow-card) !important;backdrop-filter:none !important;}
+.tf-kpi:hover,.kpi-card:hover{box-shadow:var(--shadow-card-hover) !important;transform:none !important;}
+/* pills/inputs → 18px */
+.tf-chip,.tf-sel,.theme-toggle,.dr-btn,.dr-field input{border-radius:18px !important;}
+.tf-chip{background:#f5f5f5 !important;border:1px solid #e5e5e5 !important;color:#404040 !important;}
+.tf-chip.on{background:#0000ff !important;border-color:#0000ff !important;color:#fff !important;}
+.tf-note{border-radius:18px !important;}
+.tf-cell{border-radius:8px !important;}
+/* sidebar → light shadcn */
+.erp-sidebar{background:#fafafa !important;border-right:1px solid #e5e5e5 !important;}
+.erp-nav .on,.erp-sub a.on{color:#0000ff !important;}
+.tf-eyebrow{color:#0000ff !important;}
