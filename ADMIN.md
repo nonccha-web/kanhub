@@ -14,8 +14,11 @@ public/admin/
 │  │  ├─ app.css         · ธีม/สไตล์ฝั่ง SPA (ตัวแปรสี + ฟอนต์)
 │  │  ├─ views.js        · ★ แต่ละ "หน้า/มุมมอง" อยู่ที่นี่ (overview/branch/velocity…)
 │  │  ├─ views-extra.js  · มุมมองเสริม (sku/promo/plan/customers/quality)
+│  │  ├─ views-ads.js    · หน้ารายงานโฆษณา Meta (#/ads)
 │  │  └─ core/ui/… .js   · เอนจินคำนวณ + UI helper
-│  └─ data/kan-data.js   · ★ ข้อมูลยอดขาย (snapshot ที่ build จาก ETL)
+│  └─ data/
+│     ├─ kan-data.js     · ★ ข้อมูลยอดขาย (snapshot ที่ build จาก ETL)
+│     └─ ads-data.js     · ★ ข้อมูลโฆษณา Meta (snapshot — สร้างจาก etl-ads/)
 └─ cmo/                   → หน้าฝ่ายการตลาด/ทีม (หนึ่ง module = หนึ่งไฟล์ .html)
    ├─ erp-menu.js         · ★★ เมนู sidebar กลาง — แก้เมนู/ลำดับ/ไอคอน "ที่ไฟล์นี้ที่เดียว" มีผลทุกหน้า
    ├─ nav.js              · ตัวฉีด sidebar เข้าหน้า CMO (ใช้ erp-menu.js)
@@ -33,6 +36,13 @@ public/admin/
 | หน้าใน dashboard ยอดขาย | `mkt/assets/views.js` / `views-extra.js` |
 | หน้า CMO (KPI, ทีม, B2B, MarCom …) | ไฟล์ `.html` ของหน้านั้นใน `cmo/` |
 | ข้อมูลยอดขาย | `mkt/data/kan-data.js` (สร้างจาก `etl/` ในโฟลเดอร์ต้นฉบับ) |
+| หน้ารายงานโฆษณา | `mkt/assets/views-ads.js` |
+| ข้อมูลโฆษณา | `mkt/data/ads-data.js` (รัน `etl-ads/build_ads.py` — ดู `etl-ads/README.md`) |
+
+## กฎที่ห้ามพัง
+- **แก้ไฟล์ใน `mkt/` หรือ `cmo/` แล้วต้อง bump `?v=` ทุกครั้ง** (ตอนนี้ v14) ไม่งั้นเบราว์เซอร์กินไฟล์เก่า
+- **ชื่อแคมเปญฝั่งแอดต้องมี `#01`–`#05` นำหน้า** — เป็นรหัสสาขาชุดเดียวกับ `KST#n`
+  ที่หน้ารายงานโฆษณาใช้จับคู่ค่าแอดกับยอดขาย ถ้าทีมแอดเลิกใส่ การจับคู่พังเงียบ ๆ
 
 ## หลักการที่ทำให้ "เป็นระบบเดียวกัน"
 - **เมนูเดียว**: ทุกหน้าดึง sidebar จาก `erp-menu.js` → เมนูตรงกันเป๊ะ
@@ -42,3 +52,5 @@ public/admin/
 - [ ] ครอบ **Cloudflare Access** ที่ path `/admin/*` (ล็อกอินอีเมล/Google) — ตอนนี้เข้าได้สาธารณะ + มีข้อมูลจริง
 - [ ] (ทางเลือก) รวมตัวแปรธีมของ `app.css` กับ `styles.css` ให้ชุดเดียว เพื่อให้ SPA กับ CMO หน้าตา 100% เหมือนกัน
 - [ ] วางระบบ sync ข้อมูล (ETL → kan-data.js) ให้อัปเดตอัตโนมัติ
+- [ ] ฝั่งโฆษณา: ต่อ **Page Access Token** เพื่อดึงยอดออร์แกนิกของ 5 เพจ
+      (ผู้ติดตาม · คนเห็นโพสต์ที่ไม่ได้บูสต์ · คนทักแชทเอง) — ตอนนี้ `#/ads` มีแต่ฝั่งที่จ่ายเงิน

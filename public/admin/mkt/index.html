@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=13">
+<link rel="stylesheet" href="assets/app.css?v=15">
 </head>
 <body>
 <div class="layout">
@@ -24,7 +24,10 @@
         <h1 id="pageTitle"></h1>
         <div class="lead" id="pageLead"></div>
       </div>
-      <button class="btn guide" id="guideBtn">📖 คู่มือใช้งาน</button>
+      <div class="topacts">
+        <button class="btn pro" id="proBtn" type="button" aria-pressed="false"></button>
+        <button class="btn guide" id="guideBtn">📖 คู่มือใช้งาน</button>
+      </div>
     </div>
 
     <div class="filters" id="filterHost"></div>
@@ -35,17 +38,18 @@
 </div>
 <div id="guideHost"></div>
 
-<script src="vendor/chart.umd.min.js?v=13"></script>
-<script src="../cmo/erp-menu.js?v=13"></script>
-<script src="assets/ingest.js?v=13"></script>
+<script src="vendor/chart.umd.min.js?v=15"></script>
+<script src="../cmo/erp-menu.js?v=15"></script>
+<script src="assets/ingest.js?v=15"></script>
 <script>
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=13',
+  v: '?v=15',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
             'assets/rules.js', 'assets/views.js', 'assets/views-extra.js',
+            'data/ads-data.js', 'assets/views-ads.js',
             'assets/views-data.js', 'assets/guide.js', 'assets/app.js']
 }).catch(function (e) {
   document.body.innerHTML = '<div style="font:15px Kanit,sans-serif;padding:40px;color:#C43D42">' +

@@ -120,6 +120,16 @@
   KAN.DATA_END = DATA_END;
   KAN.DATA_START = DATA_START;
 
+  /* โหมดวิเคราะห์ — เปิดเฉพาะตอนดูเอง จะโชว์คำวินิจฉัยตรง ๆ (เช่นป้าย "เผาเงิน")
+   * ที่ไม่เหมาะจะค้างอยู่บนจอตอนเปิดให้คนอื่นดู · ปิดไว้เป็นค่าเริ่มต้นเสมอ */
+  KAN.pro = (function () {
+    try { return localStorage.getItem('kan.pro') === '1'; } catch (e) { return false; }
+  }());
+  KAN.setPro = function (on) {
+    KAN.pro = !!on;
+    try { localStorage.setItem('kan.pro', KAN.pro ? '1' : '0'); } catch (e) { /* โหมดส่วนตัว */ }
+  };
+
   KAN.state = {
     branch: 'all',       // 'all' | branch index
     preset: '30',        // 7 | 14 | 21 | 30 | 90 | mtd | lastmonth | ytd | custom

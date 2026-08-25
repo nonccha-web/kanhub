@@ -10,61 +10,97 @@
 (function (global) {
   'use strict';
 
-  var GROUPS = [
-    { icon: 'chart', label: 'ยอดขาย + สต็อก', items: [
-      { icon: 'dashboard',  label: 'ภาพรวมยอดขาย',    sales: '#/overview' },
-      { icon: 'store', label: 'สาขาและแผนก',      sales: '#/branch' },
-      { icon: 'package', label: 'สินค้าเข้า–ออก',    sales: '#/velocity' },
-      { icon: 'zap', label: 'สินค้าขายดี',       sales: '#/bestsellers' },
-      { icon: 'tag', label: 'สินค้ารายตัว',      sales: '#/sku' },
-      { icon: 'target', label: 'ข้อเสนอโปรโมชัน',   sales: '#/promo' },
-      { icon: 'calendar', label: 'แผนลงมือ',          sales: '#/plan' },
-      { icon: 'users', label: 'กลุ่มลูกค้า',        sales: '#/customers' },
-      { icon: 'shieldcheck',  label: 'คุณภาพข้อมูล',      sales: '#/quality', badge: 'quality' }
+  /* ── โครง 3 ชั้น: หมวดสถานะ → กลุ่ม → หน้า ──────────────────────────────
+     หมวดสถานะบอกว่า "ของชิ้นนี้เอาไปใช้ตัดสินใจได้จริงหรือยัง" จะได้ไม่ต้อง
+     เปิดเข้าไปเจอกล่องเตือนเองทีละหน้า
+       ready   = ข้อมูลเดินถึงปัจจุบัน เปิดให้ใครดูก็ได้
+       pending = ข้อมูลค้าง/ไม่ครบ ยังเชื่อไม่ได้ — เข้าไปดูได้ แต่รู้ตัวก่อน
+       ref     = เอกสารแผนงานกับหน้าดูแลระบบ ไม่ใช่ตัวเลขที่เดินตามวัน
+     ย้ายกลุ่มข้ามหมวดได้ด้วยการย้ายบล็อกไปมา ไม่ต้องแก้ที่อื่น */
+  var SECTIONS = [
+    { id: 'ready', label: 'เปิดใช้ได้แล้ว', groups: [
+
+      { icon: 'chart', label: 'ยอดขาย', items: [
+        { icon: 'dashboard', label: 'ภาพรวมยอดขาย',    sales: '#/overview' },
+        { icon: 'zap',       label: 'สินค้าขายดี',       sales: '#/bestsellers' },
+        { icon: 'users',     label: 'กลุ่มลูกค้า',        sales: '#/customers' },
+        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน',   sales: '#/promo' },
+        { icon: 'calendar',  label: 'แผนลงมือ',          sales: '#/plan' }
+      ]},
+      { icon: 'megaphone', label: 'โฆษณา', items: [
+        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
+      ]},
+      { icon: 'target', label: 'ทีม + KPI', items: [
+        { icon: 'trophy',    label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
+        { icon: 'network',   label: 'ผังทีม',             cmo: 'team-structure.html' },
+        { icon: 'clipboard', label: 'JD รายตำแหน่ง',       cmo: 'team-jd.html' },
+        { icon: 'chart',     label: 'KPI รายตำแหน่ง (เดิม)', cmo: 'team-kpi.html' }
+      ]},
+      { icon: 'phone', label: 'รายงานการรับสาย', items: [
+        { icon: 'phone', label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
+      ]},
+      { icon: 'activity', label: 'ทราฟฟิกหน้าร้าน', items: [
+        { icon: 'linechart', label: 'ภาพรวมทราฟฟิก', cmo: 'traffic.html' }
+      ]}
+
     ]},
-    { icon: 'activity', label: 'ทราฟฟิกหน้าร้าน', items: [
-      { icon: 'linechart', label: 'ภาพรวมทราฟฟิก',      cmo: 'traffic.html' }
+
+    { id: 'pending', label: 'ยังไม่สมบูรณ์', groups: [
+
+      /* สต็อกย้ายไปทำที่ Odoo แล้ว ตัวเลขที่นี่หยุดที่ 22 ก.ค. 2569 */
+      { icon: 'package', label: 'สต็อก', note: 'ข้อมูลหยุดอัปเดต', items: [
+        { icon: 'package', label: 'สินค้าเข้า–ออก', sales: '#/velocity' },
+        { icon: 'tag',     label: 'สินค้ารายตัว',   sales: '#/sku' }
+      ]},
+      /* ชีตสรุปลงยอดผิดสาขาตั้งแต่ มิ.ย. 2569 — ยอดรวมยังถูก แต่แยกโซนเชื่อไม่ได้ */
+      { icon: 'store', label: 'สาขาและแผนก', note: 'ชีตโซนลงผิดสาขา', items: [
+        { icon: 'store', label: 'สาขาและแผนก', sales: '#/branch' }
+      ]}
+
     ]},
-    { icon: 'target', label: 'ทีม + KPI', items: [
-      { icon: 'trophy', label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
-      { icon: 'network', label: 'ผังทีม',             cmo: 'team-structure.html' },
-      { icon: 'clipboard', label: 'JD รายตำแหน่ง',       cmo: 'team-jd.html' },
-      { icon: 'chart', label: 'KPI รายตำแหน่ง (เดิม)', cmo: 'team-kpi.html' }
-    ]},
-    { icon: 'calendar', label: 'แผนปี + Dashboard', items: [
-      { icon: 'compass', label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
-      { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
-      { icon: 'calendar', label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
-      { icon: 'calendar', label: 'จังหวะรายสัปดาห์',    cmo: '01d-weekly.html' },
-      { icon: 'link', label: 'ลิงก์ Report & Dashboard', cmo: 'report-links.html' }
-    ]},
-    { icon: 'briefcase', label: 'B2B (ขายส่ง + Online)', items: [
-      { icon: 'folder', label: 'Overview',           cmo: '04a-overview.html' },
-      { icon: 'globe', label: 'Market',             cmo: '04b-market.html' },
-      { icon: 'target', label: 'STP',                cmo: '04c-stp.html' },
-      { icon: 'tag', label: 'Product & Pricing',  cmo: '04d-product.html' },
-      { icon: 'zap', label: 'Promotion',          cmo: '04e-promo.html' },
-      { icon: 'shield', label: 'Moat',               cmo: '04f-moat.html' },
-      { icon: 'monitor', label: 'B2B Web',            cmo: '04g-b2b-web.html' },
-      { icon: 'smartphone', label: 'Social Post',        cmo: '04h-social.html' },
-      { icon: 'radio', label: 'Live Commerce',      cmo: '04i-live.html' },
-      { icon: 'megaphone', label: 'งบโฆษณา',            cmo: '04j-media.html' },
-      { icon: 'calendar', label: 'Calendar & Budget',  cmo: '04k-calendar.html' },
-      { icon: 'alert', label: 'Actions & Risk',      cmo: '04l-actions-risk.html' },
-      { icon: 'globe', label: 'ตัวอย่างเว็บ (Kan Hub)', cmo: 'b2b-web-demo.html' }
-    ]},
-    { icon: 'megaphone', label: 'MarCom', items: [
-      { icon: 'bookmark', label: 'ภาพรวม + KPI',        cmo: '05-promo.html' },
-      { icon: 'filetext', label: 'แผนสื่อสารฉบับเต็ม',  cmo: '05-comm-plan.html' }
-    ]},
-    { icon: 'phone', label: 'รายงานการรับสาย', items: [
-      { icon: 'phone', label: 'รายงานการรับสาย',     cmo: 'tele-dashboard.html' }
-    ]},
-    { icon: 'shield', label: 'ระบบ', items: [
-      { icon: 'folder', label: 'แหล่งข้อมูล + log',   sales: '#/data' },
-      { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',     sales: '#/rules' }
+
+    { id: 'ref', label: 'เอกสาร + ระบบ', groups: [
+
+      { icon: 'calendar', label: 'แผนปี + Dashboard', items: [
+        { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
+        { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
+        { icon: 'calendar',  label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
+        { icon: 'calendar',  label: 'จังหวะรายสัปดาห์',    cmo: '01d-weekly.html' },
+        { icon: 'link',      label: 'ลิงก์ Report & Dashboard', cmo: 'report-links.html' }
+      ]},
+      { icon: 'briefcase', label: 'B2B (ขายส่ง + Online)', items: [
+        { icon: 'folder',     label: 'Overview',           cmo: '04a-overview.html' },
+        { icon: 'globe',      label: 'Market',             cmo: '04b-market.html' },
+        { icon: 'target',     label: 'STP',                cmo: '04c-stp.html' },
+        { icon: 'tag',        label: 'Product & Pricing',  cmo: '04d-product.html' },
+        { icon: 'zap',        label: 'Promotion',          cmo: '04e-promo.html' },
+        { icon: 'shield',     label: 'Moat',               cmo: '04f-moat.html' },
+        { icon: 'monitor',    label: 'B2B Web',            cmo: '04g-b2b-web.html' },
+        { icon: 'smartphone', label: 'Social Post',        cmo: '04h-social.html' },
+        { icon: 'radio',      label: 'Live Commerce',      cmo: '04i-live.html' },
+        { icon: 'megaphone',  label: 'งบโฆษณา',            cmo: '04j-media.html' },
+        { icon: 'calendar',   label: 'Calendar & Budget',  cmo: '04k-calendar.html' },
+        { icon: 'alert',      label: 'Actions & Risk',     cmo: '04l-actions-risk.html' },
+        { icon: 'globe',      label: 'ตัวอย่างเว็บ (Kan Hub)', cmo: 'b2b-web-demo.html' }
+      ]},
+      { icon: 'megaphone', label: 'MarCom', items: [
+        { icon: 'bookmark', label: 'ภาพรวม + KPI',       cmo: '05-promo.html' },
+        { icon: 'filetext', label: 'แผนสื่อสารฉบับเต็ม', cmo: '05-comm-plan.html' }
+      ]},
+      { icon: 'shield', label: 'ระบบ', items: [
+        { icon: 'shieldcheck', label: 'คุณภาพข้อมูล',    sales: '#/quality', badge: 'quality' },
+        { icon: 'folder',      label: 'แหล่งข้อมูล + log', sales: '#/data' },
+        { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',      sales: '#/rules' }
+      ]}
+
     ]}
   ];
+
+  /* กลุ่มทั้งหมดเรียงต่อกัน — ของเดิมที่อื่นยังเรียก GROUPS อยู่ */
+  var GROUPS = [];
+  SECTIONS.forEach(function (sec) {
+    sec.groups.forEach(function (g) { g.section = sec.id; GROUPS.push(g); });
+  });
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -118,6 +154,7 @@
 
   var ERP_MENU = global.ERP_MENU = {
     GROUPS: GROUPS,
+    SECTIONS: SECTIONS,
     brandTitle: 'KAN MKT',
     brandSub: 'ยอดขาย · การตลาด · ทีม',
 
@@ -149,22 +186,29 @@
         '<span class="erp-k">K</span><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
         '<small>' + esc(this.brandSub) + '</small></span></a><div class="erp-nav">';
 
-      GROUPS.forEach(function (g, gi) {
-        var isOpen = gi === openIdx;
-        h += '<div class="erp-acc' + (isOpen ? ' open' : '') + '">' +
-          '<button type="button" class="erp-gh">' +
-            '<span class="erp-gico">' + svgIco(g.icon) + '</span>' +
-            '<span class="erp-glabel">' + esc(g.label) + '</span>' +
-            '<span class="erp-chev">▾</span></button>' +
-          '<div class="erp-sub">';
-        g.items.forEach(function (it) {
-          var on = keyOf(it) === opts.active ? ' on' : '';
-          var badge = (it.badge && badges[it.badge])
-            ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';
-          h += '<a class="erp-link' + on + '" href="' + href(it, opts) + '">' +
-               '<span class="erp-ico">' + svgIco(it.icon) + '</span>' + esc(it.label) + badge + '</a>';
+      var gi = -1;
+      SECTIONS.forEach(function (sec) {
+        h += '<div class="erp-sec ' + sec.id + '">' + esc(sec.label) + '</div>';
+        sec.groups.forEach(function (g) {
+          gi++;
+          var isOpen = gi === openIdx;
+          h += '<div class="erp-acc' + (isOpen ? ' open' : '') +
+            (sec.id === 'pending' ? ' pend' : '') + '">' +
+            '<button type="button" class="erp-gh">' +
+              '<span class="erp-gico">' + svgIco(g.icon) + '</span>' +
+              '<span class="erp-glabel">' + esc(g.label) +
+                (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</span>' +
+              '<span class="erp-chev">▾</span></button>' +
+            '<div class="erp-sub">';
+          g.items.forEach(function (it) {
+            var on = keyOf(it) === opts.active ? ' on' : '';
+            var badge = (it.badge && badges[it.badge])
+              ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';
+            h += '<a class="erp-link' + on + '" href="' + href(it, opts) + '">' +
+                 '<span class="erp-ico">' + svgIco(it.icon) + '</span>' + esc(it.label) + badge + '</a>';
+          });
+          h += '</div></div>';
         });
-        h += '</div></div>';
       });
       h += '</div>';
       return h;

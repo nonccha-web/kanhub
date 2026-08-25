@@ -45,6 +45,17 @@ aside{width:238px;background:var(--side);color:var(--sub);padding:20px 14px;flex
 .erp-link .erp-ico{width:16px;text-align:center;flex-shrink:0;font-size:12.5px}
 .erp-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10.5px;font-weight:700;
               border-radius:99px;padding:1px 7px}
+/* หัวข้อหมวดสถานะใน sidebar (เปิดใช้ได้แล้ว / ยังไม่สมบูรณ์ / เอกสาร + ระบบ) */
+.erp-sec{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+         color:var(--muted);padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
+.erp-sec:first-child{padding-top:2px}
+.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#22A06B;flex-shrink:0}
+.erp-sec.pending::before{background:#E8A33D}
+.erp-sec.ref::before{background:#C9CCDA}
+.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);
+                  letter-spacing:0;margin-top:1px}
+.erp-acc.pend .erp-gh{color:var(--sub)}
+.erp-acc.pend .erp-gico{opacity:.6}
 .side-foot{flex-shrink:0;margin-top:8px;font-size:11.5px;color:var(--muted);padding:12px 8px;
            border-top:1px solid var(--line);background:var(--side)}
 .side-foot .dot{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--green);margin-right:6px}
@@ -362,6 +373,13 @@ td .todo{font-size:12px;color:var(--sub);max-width:320px}
 .gd-tbl td:first-child{width:120px;white-space:nowrap}
 .gd-foot{margin-top:10px;font-size:12px}
 .gd-foot a{color:var(--indigo-deep);font-weight:700;text-decoration:none}
+.topacts{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn.pro{background:#fff;color:var(--muted);border:1px solid var(--line);
+         display:inline-flex;align-items:center;gap:7px;font-weight:600}
+.btn.pro:hover{background:#F3F4FA;filter:none}
+.btn.pro .pro-dot{width:7px;height:7px;border-radius:99px;background:#C9CCDA;flex-shrink:0}
+.btn.pro.on{color:var(--indigo-deep);border-color:var(--indigo);background:var(--indigo-soft);font-weight:700}
+.btn.pro.on .pro-dot{background:#22A06B;box-shadow:0 0 0 3px rgba(34,160,107,.18)}
 .btn.guide{background:#fff;color:var(--indigo-deep);border:1px solid var(--indigo);
            display:inline-flex;align-items:center;gap:7px}
 .btn.guide:hover{background:var(--indigo-soft)}

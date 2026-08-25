@@ -327,3 +327,15 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
 /* ไอคอน SVG ในเมนู */
 .erp-svg{width:17px;height:17px;display:block}
 .erp-gico .erp-svg,.erp-gico svg{width:18px;height:18px}
+
+/* หัวข้อหมวดสถานะใน sidebar (เปิดใช้ได้แล้ว / ยังไม่สมบูรณ์ / เอกสาร + ระบบ) */
+.erp-sec{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+         color:var(--muted);padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
+.erp-sec:first-child{padding-top:2px}
+.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#22A06B;flex-shrink:0}
+.erp-sec.pending::before{background:#E8A33D}
+.erp-sec.ref::before{background:#C9CCDA}
+.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);
+                  letter-spacing:0;margin-top:1px}
+.erp-acc.pend .erp-gh{color:var(--sub)}
+.erp-acc.pend .erp-gico{opacity:.6}

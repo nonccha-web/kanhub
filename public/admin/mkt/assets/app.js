@@ -90,6 +90,17 @@
   /* Views call this when their own controls change state. */
   KAN.rerender = render;
 
+  function paintPro() {
+    var btn = document.getElementById('proBtn');
+    if (!btn) { return; }
+    btn.className = 'btn pro' + (KAN.pro ? ' on' : '');
+    btn.setAttribute('aria-pressed', KAN.pro ? 'true' : 'false');
+    btn.innerHTML = '<span class="pro-dot"></span>โหมดวิเคราะห์';
+    btn.title = KAN.pro
+      ? 'เปิดอยู่ — หน้าจอจะแสดงคำวินิจฉัยตรง ๆ เช่นแคมเปญที่ควรปิด กดเพื่อปิดโหมดก่อนเปิดให้คนอื่นดู'
+      : 'ปิดอยู่ — แสดงเฉพาะตัวเลข ไม่มีคำวินิจฉัย กดเพื่อเปิดตอนดูเอง';
+  }
+
   function routeFromHash() {
     var id = (location.hash || '').replace(/^#\/?/, '');
     if (KAN.views[id]) { current = id; }
@@ -106,6 +117,11 @@
     routeFromHash();
     var gb = document.getElementById('guideBtn');
     if (gb) { gb.addEventListener('click', KAN.openGuide); }
+    var pb = document.getElementById('proBtn');
+    if (pb) {
+      pb.addEventListener('click', function () { KAN.setPro(!KAN.pro); paintPro(); render(); });
+    }
+    paintPro();
     /* Deliberately no auto-open: the page is served over file://, where
      * localStorage does not persist reliably, so "show once" would end up
      * showing every single time. The button carries the discovery instead. */
