@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /scratchpad/
+
+# AppleDouble (เกิดจากการแก้ไฟล์บน SSD ที่เป็น ExFAT)
+._*
+.DS_Store

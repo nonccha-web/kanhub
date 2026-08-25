@@ -227,6 +227,20 @@
 
     if (!kept) { throw new Error('ไม่พบใบเสร็จที่นับเป็นยอดขายในไฟล์นี้'); }
 
+    /* สาขาที่เลิกรายงานแล้ว (เช่น นคร KST#2) จะไม่มีอยู่ในชุดข้อมูลตั้งต้น ตอนรวมข้อมูล
+     * แถวพวกนี้จะถูกทิ้ง — บอกตั้งแต่ตอนอ่านไฟล์ ดีกว่าปล่อยให้ยอดหายไปเงียบ ๆ */
+    var known = {};
+    ((global.KAN && global.KAN.D && global.KAN.D.branches) || []).forEach(function (b) { known[b.code] = 1; });
+    if (Object.keys(known).length) {
+      Object.keys(branches).forEach(function (code) {
+        if (!known[code]) {
+          flag('branch_not_tracked', 'warn', 'สาขาที่ระบบไม่ได้ติดตามแล้ว',
+               'ไฟล์นี้มีบิลของ ' + code + ' ซึ่งไม่อยู่ในรายชื่อสาขาของระบบ — ' +
+               'ยอดของสาขานี้จะไม่ถูกนำไปรวม', code + ' (' + branches[code] + ' บิล)');
+        }
+      });
+    }
+
     return {
       branches: Object.keys(branches).sort(),
       billsPerBranch: branches,
