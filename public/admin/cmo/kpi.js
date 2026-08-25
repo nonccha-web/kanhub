@@ -105,6 +105,15 @@
   };
   function fullDesc(code) { return FULLDESC[code] || ""; }
 
+  /* ปุ่ม "ที่มา" ข้างช่องกรอก — เปิด popup ดูหน้าต้นทางก่อนยืนยันตัวเลข
+     (provenance.js ถือทะเบียนว่า KPI ตัวไหนดึงมาจากหน้าไหน) */
+  function provChip(code) {
+    if (!window.PROV) return "";
+    var ok = window.PROV.has(code);
+    return '<button type="button" class="prov-chip' + (ok ? "" : " none") + '" data-prov="' + esc(code) + '" ' +
+      'title="' + (ok ? "ดูว่าตัวเลขนี้มาจากไหน" : "ยังไม่มีต้นทางในระบบ — ต้องกรอกมือ") + '">ที่มา</button>';
+  }
+
   // ── โมเดลคะแนน ───────────────────────────────────────────────────────────
   // คืน achievement 0..1 (หรือ null ถ้ากรอกไม่ได้/ยังไม่กรอก)
   function achievement(k, raw) {
@@ -289,7 +298,8 @@
           ? '<span class="kpi-tag off">' + esc(k.status) + "</span>"
           : '<div class="kpi-inwrap"><input class="kpi-in" data-code="' + k.code + '" value="' +
             esc(e.v) + '" placeholder="' + esc(ph) + '" inputmode="decimal"' + (na ? " disabled" : "") + ">" +
-            '<span class="kpi-unit">' + esc(manual || k.unit === "%" ? "%" : k.unit) + "</span></div>") + "</td>" +
+            '<span class="kpi-unit">' + esc(manual || k.unit === "%" ? "%" : k.unit) + "</span>" +
+            provChip(k.code) + "</div>") + "</td>" +
         '<td class="kpi-num"><span class="kpi-score ' + achClass(inactive ? undefined : ach) + '" data-code="' + k.code + '">' +
           (inactive ? "—" : (ach == null ? "—" : fmtPct(ach))) + "</span></td>" +
         '<td class="kpi-confirm-cell" data-code="' + k.code + '">' + (off ? "" : confirmCellHTML(e)) + "</td>" +
@@ -380,8 +390,21 @@
       delete state.data[monthKey()]; save(); render();
     });
     document.getElementById("kpiSync").addEventListener("click", syncFromSheet);
+    wireProv();
     wireMonth();
     doScroll();   // ถ้ามาจากการคลิกการ์ด ให้เลื่อนไปหมวด/แถวที่ต้องการ
+  }
+
+  var provWired = false;
+  function wireProv() {
+    if (provWired || !host) return;
+    provWired = true;
+    host.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest("[data-prov]");
+      if (!b || !window.PROV) return;
+      var code = b.getAttribute("data-prov"), k = byCode(code);
+      window.PROV.open(code, k ? k.name : code);
+    });
   }
 
   /* เลื่อนไป section/แถวที่ตั้งไว้ (จากการคลิกการ์ดในหน้า Dashboard) + ไฮไลต์ชั่วครู่ */
