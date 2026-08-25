@@ -13,6 +13,23 @@
     Chart.defaults.plugins.legend.display = false;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.animation.duration = 320;
+
+    /* ค่าเริ่มต้นของ Chart.js คือ mode 'nearest' + intersect true = ต้องเอาเมาส์
+       จ่อ "ตรงจุด" พอดี แต่กราฟเส้นที่นี่ตั้ง pointRadius:0 ไว้ จุดเลยไม่มีพื้นที่
+       ให้ชน → เลื่อนเมาส์ทั้งกราฟก็ไม่มี tooltip ขึ้นสักที
+       เปลี่ยนเป็น 'index' + ไม่ต้องชน = ชี้ตรงไหนก็ได้ในแนวตั้งของวันนั้น
+       และได้ค่าของทุกเส้นในวันเดียวกันมาเทียบพร้อมกัน */
+    Chart.defaults.interaction.mode = 'index';
+    Chart.defaults.interaction.intersect = false;
+    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(42,47,69,.96)';
+    Chart.defaults.plugins.tooltip.padding = 11;
+    Chart.defaults.plugins.tooltip.cornerRadius = 9;
+    Chart.defaults.plugins.tooltip.titleFont = { family: 'Kanit, sans-serif', size: 12.5, weight: '700' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: 'Kanit, sans-serif', size: 12.5 };
+    Chart.defaults.plugins.tooltip.footerFont = { family: 'Kanit, sans-serif', size: 11.5, weight: '400' };
+    Chart.defaults.plugins.tooltip.footerColor = '#C9CCDA';
+    Chart.defaults.plugins.tooltip.boxPadding = 5;
+    Chart.defaults.plugins.tooltip.usePointStyle = true;
   }
 
   /* Charts are torn down and rebuilt per render — views are re-entrant. */
@@ -41,9 +58,30 @@
     border: { color: '#E8EAF1' },
     ticks: { maxRotation: 0, autoSkipPadding: 14 },
   };
+  function tipVal(c) { return c.parsed.y != null ? c.parsed.y : c.parsed; }
+
   UI.tooltipBaht = {
     callbacks: {
-      label: function (c) { return '  ' + fmt.baht(c.parsed.y != null ? c.parsed.y : c.parsed); },
+      label: function (c) {
+        var n = c.dataset.label;
+        return '  ' + (n ? n + ': ' : '') + fmt.baht(tipVal(c));
+      },
+    },
+  };
+
+  /* กราฟที่มีเส้น "ช่วงก่อนหน้า" ซ้อนอยู่ — สรุปส่วนต่างให้ที่ท้าย tooltip
+     จะได้ไม่ต้องคิดในหัวว่าวันนั้นดีขึ้นหรือแย่ลงกี่ % */
+  UI.tooltipCompare = {
+    callbacks: {
+      label: UI.tooltipBaht.callbacks.label,
+      footer: function (items) {
+        if (!items || items.length < 2) { return ''; }
+        var cur = tipVal(items[0]), prev = tipVal(items[1]);
+        if (cur == null || prev == null || !prev) { return ''; }
+        var d = (cur - prev) / prev;
+        return 'ต่างจากช่วงก่อน ' + fmt.delta(d) + '  (' +
+               (cur - prev >= 0 ? '+' : '−') + fmt.baht(Math.abs(cur - prev)).slice(1) + ')';
+      },
     },
   };
 

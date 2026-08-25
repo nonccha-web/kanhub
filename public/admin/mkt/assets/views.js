@@ -181,7 +181,10 @@
         data: { labels: s.labels, datasets: ds },
         options: {
           scales: { y: UI.bahtAxis, x: UI.catAxis },
-          plugins: { tooltip: UI.tooltipBaht, legend: { display: range.prev.valid, position: 'bottom' } },
+          plugins: {
+            tooltip: range.prev.valid ? UI.tooltipCompare : UI.tooltipBaht,
+            legend: { display: range.prev.valid, position: 'bottom' },
+          },
         },
       });
 
