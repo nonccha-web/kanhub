@@ -16,7 +16,12 @@ body{font-family:'Kanit',-apple-system,sans-serif;background:var(--bg);color:var
 aside{width:238px;background:var(--side);color:var(--sub);padding:20px 14px;flex-shrink:0;
       display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;overflow-y:auto;
       border-right:1px solid var(--line)}
-#sideHost{display:flex;flex-direction:column;flex:1;min-height:0}
+/* เมนูยาวเกินจอเมื่อไร ให้เลื่อนอยู่ในกล่องตัวเอง — ไม่มี overflow ที่นี่
+   เนื้อหาจะล้นออกไปทับ .side-foot ข้างล่างจนคลิกเมนูท้าย ๆ ไม่ได้ */
+#sideHost{display:flex;flex-direction:column;flex:1;min-height:0;
+          overflow-y:auto;overscroll-behavior:contain}
+#sideHost::-webkit-scrollbar{width:7px}
+#sideHost::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
 .erp-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:0 8px;text-decoration:none}
 .erp-brand .erp-k{width:38px;height:38px;border-radius:10px;background:var(--indigo);color:#fff;
           font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center}
@@ -40,7 +45,8 @@ aside{width:238px;background:var(--side);color:var(--sub);padding:20px 14px;flex
 .erp-link .erp-ico{width:16px;text-align:center;flex-shrink:0;font-size:12.5px}
 .erp-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10.5px;font-weight:700;
               border-radius:99px;padding:1px 7px}
-.side-foot{margin-top:8px;font-size:11.5px;color:var(--muted);padding:12px 8px;border-top:1px solid var(--line)}
+.side-foot{flex-shrink:0;margin-top:8px;font-size:11.5px;color:var(--muted);padding:12px 8px;
+           border-top:1px solid var(--line);background:var(--side)}
 .side-foot .dot{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--green);margin-right:6px}
 
 /* ── main ────────────────────────────────────────────────────────────────── */
