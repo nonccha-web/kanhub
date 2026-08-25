@@ -17,6 +17,13 @@
   function zoneTrustBanner(range) {
     var w = KAN.zoneTrustWarning(range);
     if (!w) { return ''; }
+    if (!KAN.pro) {
+      /* ปกติบอกแค่ว่าใช้ตัวเลขนี้ไม่ได้ — สาเหตุว่าชีตลงผิดสาขาเป็นเรื่องภายใน
+       * ที่ต้องมีคนอธิบายประกอบ เก็บไว้ในโหมดวิเคราะห์ */
+      return UI.banner('info', 'ยังไม่เปิดตัวเลขระดับโซนในช่วงนี้',
+        'ยอดรวมและยอดรายสาขาด้านบนใช้ได้ตามปกติ ส่วนการแยก “โซน × สาขา” ' +
+        'อยู่ระหว่างตรวจสอบแหล่งข้อมูล จึงยังไม่แสดง');
+    }
     return UI.banner('warn', 'ตัวเลขระดับโซนในช่วงนี้เชื่อได้บางส่วน', w.text +
       ' <a href="#/quality" style="color:inherit;font-weight:700">ดูรายละเอียด →</a>');
   }
@@ -90,8 +97,8 @@
         eyebrow: 'แนวโน้มรายวัน', title: 'ยอดขายสุทธิต่อวัน',
         titleSub: range.prev.valid ? '(เส้นจาง = ช่วงก่อนหน้า)' : '',
         body: '<div class="chartbox"><canvas id="ovTrend"></canvas></div>',
-        foot: 'เส้นทึบคือช่วงที่เลือก เส้นประคือช่วงเปรียบเทียบที่ยาวเท่ากัน — ' +
-              'จุดที่สองเส้นห่างกันมากคือวันที่ควรหาสาเหตุ',
+        foot: 'เส้นทึบคือช่วงที่เลือก เส้นประคือช่วงเปรียบเทียบที่ยาวเท่ากัน' +
+              (KAN.pro ? ' — จุดที่สองเส้นห่างกันมากคือวันที่ควรหาสาเหตุ' : ''),
       });
       h += UI.panel({
         eyebrow: 'ขนาดบิล', title: 'บิลกระจุกอยู่ตรงไหน',
@@ -102,26 +109,32 @@
 
       if (KAN.branchFilter() == null) {
         h += UI.sect({
-          id: 'branches', eyebrow: 'เทียบสาขา', title: 'สาขาไหนพาไปข้างหน้า สาขาไหนถ่วงอยู่',
+          id: 'branches', eyebrow: 'เทียบสาขา',
+          title: KAN.pro ? 'สาขาไหนพาไปข้างหน้า สาขาไหนถ่วงอยู่' : 'ยอดขายแยกตามสาขา',
           lead: 'เรียงตามยอดขายในช่วงที่เลือก ตัวเลข % คือการเปลี่ยนแปลงเทียบช่วงก่อนหน้า',
           body: this.branchCards(range),
         });
       }
 
+      /* ไม่มีข้อมูลโซนเลย → ปล่อยการ์ดเปล่าสองใบสูงเต็มจอไว้ อ่านเหมือนหน้าพัง
+       * เหลือแค่กล่องอธิบายก็พอ */
+      var hasZone = KAN.zoneTotals(range.i0, range.i1, KAN.branchFilter())
+        .some(function (z) { return z.net > 0; });
       h += UI.sect({
         id: 'zones', eyebrow: 'แผนกสินค้า', title: 'ยอดขายแยกตามโซน',
         lead: 'มาจากชีตสรุปรายวัน ซึ่งเป็นแหล่งเดียวที่แยกโซนได้',
-        body: zoneTrustBanner(range) +
-          '<div class="g2">' +
-          UI.panel({
-            eyebrow: 'สัดส่วน', title: 'โซนที่ทำเงินสูงสุด',
-            body: '<div class="chartbox"><canvas id="ovZones"></canvas></div>',
-          }) +
-          UI.panel({
-            eyebrow: 'รายละเอียด', title: 'อันดับโซน',
-            body: '<div id="ovZoneLegend" class="legend"></div>',
-          }) +
-          '</div>',
+        body: zoneTrustBanner(range) + (hasZone
+          ? '<div class="g2">' +
+            UI.panel({
+              eyebrow: 'สัดส่วน', title: 'โซนที่ทำเงินสูงสุด',
+              body: '<div class="chartbox"><canvas id="ovZones"></canvas></div>',
+            }) +
+            UI.panel({
+              eyebrow: 'รายละเอียด', title: 'อันดับโซน',
+              body: '<div id="ovZoneLegend" class="legend"></div>',
+            }) +
+            '</div>'
+          : ''),
       });
 
       return h;
@@ -333,7 +346,8 @@
 
       if (falling.length) {
         h += UI.sect({
-          id: 'attention', eyebrow: 'ต้องดูก่อน', title: 'โซนที่เสียยอดมากที่สุด',
+          id: 'attention', eyebrow: 'ต้องดูก่อน',
+          title: KAN.pro ? 'โซนที่เสียยอดมากที่สุด' : 'โซนที่ยอดเปลี่ยนแปลงมากที่สุด',
           lead: 'เรียงตามจำนวนเงินที่หายไปจริง ไม่ใช่แค่ % ที่ตก — ' +
                 'โซนเล็กที่ตก 50% เสียเงินน้อยกว่าโซนใหญ่ที่ตก 15%',
           body: '<div class="actions">' + falling.slice(0, 3).map(function (r, i) {
@@ -743,9 +757,12 @@
         sub: fmt.pct(totals.discRate) + ' ของยอดเต็ม' });
       h += UI.kpi({ label: 'ลูกค้าที่มีเบอร์', tone: 'b', value: fmt.int(ctx.segments.total),
         sub: 'ติดตามซ้ำได้ · ยอดรวม ' + fmt.bahtK(ctx.segments.totalSpend) });
-      h += UI.kpi({ label: 'โซนที่ค้างสต็อก', tone: 'r',
-        value: fmt.int(ctx.velocity.filter(function (v) { return v.grade.key === 'dead'; }).length),
-        sub: 'ต้องระบายก่อนจะเสียมูลค่าไปมากกว่านี้' });
+      var nDead = ctx.velocity.filter(function (v) { return v.grade.key === 'dead'; }).length;
+      h += UI.kpi({ label: 'โซนที่ค้างสต็อก', tone: nDead ? 'r' : '',
+        value: fmt.int(nDead),
+        sub: nDead
+          ? (KAN.pro ? 'ต้องระบายก่อนจะเสียมูลค่าไปมากกว่านี้' : 'นับจากข้อมูลสต็อกชุดล่าสุด')
+          : 'ข้อมูลสต็อกหยุดอัปเดตแล้ว ตัวเลขนี้จึงยังไม่สะท้อนของจริง' });
       h += '</div>';
 
       h += UI.sect({

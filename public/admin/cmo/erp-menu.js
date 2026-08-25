@@ -38,9 +38,6 @@
       ]},
       { icon: 'phone', label: 'รายงานการรับสาย', items: [
         { icon: 'phone', label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
-      ]},
-      { icon: 'activity', label: 'ทราฟฟิกหน้าร้าน', items: [
-        { icon: 'linechart', label: 'ภาพรวมทราฟฟิก', cmo: 'traffic.html' }
       ]}
 
     ]},
@@ -55,6 +52,9 @@
       /* ชีตสรุปลงยอดผิดสาขาตั้งแต่ มิ.ย. 2569 — ยอดรวมยังถูก แต่แยกโซนเชื่อไม่ได้ */
       { icon: 'store', label: 'สาขาและแผนก', note: 'ชีตโซนลงผิดสาขา', items: [
         { icon: 'store', label: 'สาขาและแผนก', sales: '#/branch' }
+      ]},
+      { icon: 'activity', label: 'ทราฟฟิกหน้าร้าน', note: 'บันทึกมือ ยังไม่ครบ', items: [
+        { icon: 'linechart', label: 'ภาพรวมทราฟฟิก', cmo: 'traffic.html' }
       ]}
 
     ]},
