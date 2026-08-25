@@ -15,6 +15,7 @@
       { icon: 'dashboard',  label: 'ภาพรวมยอดขาย',    sales: '#/overview' },
       { icon: 'store', label: 'สาขาและแผนก',      sales: '#/branch' },
       { icon: 'package', label: 'สินค้าเข้า–ออก',    sales: '#/velocity' },
+      { icon: 'zap', label: 'สินค้าขายดี',       sales: '#/bestsellers' },
       { icon: 'tag', label: 'สินค้ารายตัว',      sales: '#/sku' },
       { icon: 'target', label: 'ข้อเสนอโปรโมชัน',   sales: '#/promo' },
       { icon: 'calendar', label: 'แผนลงมือ',          sales: '#/plan' },

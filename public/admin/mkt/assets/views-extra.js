@@ -11,6 +11,179 @@
 
   /* ══════════════════════════════════════════════ สินค้ารายตัว (SKU) ══ */
 
+  /* ═══════════════════════════════════════════════════ สินค้าขายดี ══ */
+
+  def({
+    id: 'bestsellers',
+    group: 'สินค้าและสต็อก',
+    icon: '⚡',
+    title: 'สินค้าขายดี',
+    lead: 'ช่วงที่เลือก สินค้าตัวไหนทำเงินให้มากที่สุด เรียงเป็นอันดับ',
+
+    render: function (range) {
+      if (!KAN.hasSkuData) {
+        return UI.empty('ยังไม่มีข้อมูลระดับสินค้าในไฟล์ต้นทาง');
+      }
+      var b = KAN.branchFilter();
+      var covered = KAN.skuBranches;
+      var names = covered.map(function (i) { return D.branches[i].short || D.branches[i].name; });
+
+      if (b != null && covered.indexOf(b) < 0) {
+        return UI.empty('สาขา <b>' + esc(D.branches[b].name) + '</b> ยังไม่มีไฟล์ใบเสร็จรายสินค้า' +
+          '<br>ตอนนี้มีข้อมูลระดับสินค้าเฉพาะ ' + esc(names.join(' และ ')) +
+          '<br><br>เลือก “ทุกสาขา” หรือสาขาที่มีข้อมูล เพื่อดูอันดับสินค้า');
+      }
+
+      var rows = KAN.skuRank(range.i0, range.i1, b);
+      var total = rows.total || 0;
+      var days = range.days;
+
+      var h = '';
+      h += '<div class="scope"><div>ขอบเขต: <b>' + esc(KAN.scopeLabel()) + '</b> · ' +
+           esc(range.label) + '</div><div class="days">' + days + ' วัน · ' +
+           fmt.int(rows.length) + ' รายการที่ขายได้</div></div>';
+
+      h += UI.banner('info', 'ตัวเลขนี้นับจากอะไร',
+        'นับจาก<b style="display:inline">ใบเสร็จจริงรายบรรทัดสินค้า</b> ของ ' + esc(names.join(' และ ')) +
+        ' — บิลคืนเงินและบิลยอด 0 ถูกตัดออกแล้วเหมือนหน้าอื่น ' +
+        'ส่วนถุงรักษ์โลก คูปอง และรายการบริการไม่นับเป็นสินค้า · ' +
+        'สาขาที่ยังไม่มีไฟล์รายสินค้า (' +
+        esc(D.branches.filter(function (x, i) { return x.kind === 'store' && covered.indexOf(i) < 0; })
+             .map(function (x) { return x.short || x.name; }).join(', ') || '—') +
+        ') จะไม่อยู่ในอันดับนี้');
+
+      if (!rows.length) {
+        h += UI.empty('ไม่มีสินค้าที่ขายได้ในช่วง ' + esc(range.label));
+        this._rows = [];
+        return h;
+      }
+
+      /* กระจุกแค่ไหน — กี่รายการรวมกันได้ 80% ของยอด */
+      var run = 0, need = total * 0.8, n80 = 0;
+      for (var i = 0; i < rows.length; i++) {
+        run += rows[i].net; n80++;
+        if (run >= need) { break; }
+      }
+      var top = rows[0];
+
+      h += '<div class="kpis">';
+      h += UI.kpi({ label: 'อันดับ 1', tone: 'g',
+        value: '<span class="kpi-name">' + esc(top.name) + '</span>',
+        sub: fmt.baht(top.net) + ' · ' + fmt.int(top.qty) + ' ชิ้น · ' +
+             fmt.pct(top.share, 1) + ' ของยอดทั้งหมด' });
+      h += UI.kpi({ label: 'ยอดขายรวมของสินค้าที่นับได้', value: fmt.baht(total),
+        sub: fmt.int(rows.reduce(function (a, r) { return a + r.qty; }, 0)) + ' ชิ้น ใน ' + days + ' วัน' });
+      h += UI.kpi({ label: 'กระจุกอยู่ที่กี่ตัว', tone: 'a', value: fmt.int(n80) + ' รายการ',
+        sub: 'รวมกันได้ 80% ของยอด (' + fmt.pct(n80 / rows.length, 0) + ' ของรายการที่ขายได้)' });
+      h += UI.kpi({ label: 'สินค้าที่ขายได้', tone: 'b', value: fmt.int(rows.length),
+        sub: 'จากทั้งหมด ' + fmt.int((D.posSkus || []).length) + ' รายการที่เคยขายได้ทั้งปี' });
+      h += '</div>';
+
+      h += UI.panel({ eyebrow: 'อันดับ', title: 'สินค้าที่ทำเงินสูงสุด 15 อันดับแรก',
+        hint: 'ตัวบนสุดคือตัวที่ห้ามให้ขาดสต็อก และควรคิดให้หนักก่อนเอาไปลดราคา',
+        body: '<div class="chartbox lg"><canvas id="bsTop"></canvas></div>' });
+
+      h += UI.sect({
+        eyebrow: 'ตารางเต็ม',
+        title: 'ทุกรายการที่ขายได้ในช่วงนี้',
+        lead: '“ขายกี่วัน” คือจำนวนวันที่ขายได้อย่างน้อย 1 ชิ้น — ตัวที่ขายเกือบทุกวันคือสินค้าหลักที่ห้ามขาด ' +
+              'ส่วนตัวที่ยอดสูงแต่ขายไม่กี่วัน มักเป็นของชิ้นใหญ่หรือลูกค้าเหมา · คลิกหัวตารางเพื่อเรียงใหม่',
+        body: UI.panel({
+          body: '<div class="bs-tools">' +
+                  '<input type="search" id="bsQ" class="bs-search" placeholder="ค้นชื่อสินค้า หรือรหัส SKU">' +
+                  '<span class="bs-count" id="bsCount"></span>' +
+                '</div>' + UI.tableShell('bsTable'),
+        }),
+      });
+
+      this._rows = rows;
+      this._days = days;
+      return h;
+    },
+
+    after: function () {
+      var rows = this._rows || [];
+      if (!rows.length) { return; }
+      var days = this._days;
+      var maxNet = rows[0].net || 1;
+
+      var top = rows.slice(0, 15);
+      UI.chart('bsTop', {
+        type: 'bar',
+        data: {
+          labels: top.map(function (r) {
+            return r.name.length > 28 ? r.name.slice(0, 27) + '…' : r.name;
+          }),
+          datasets: [{
+            data: top.map(function (r) { return r.net; }),
+            backgroundColor: top.map(function (r, i) { return i < 3 ? '#F2565A' : '#F8ABAB'; }),
+            borderRadius: 5, borderSkipped: false,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          scales: { x: UI.bahtAxis, y: { grid: { display: false }, ticks: { autoSkip: false } } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              title: function (c) { return top[c[0].dataIndex].name; },
+              label: function (c) {
+                var r = top[c.dataIndex];
+                return ['  ' + fmt.baht(r.net) + ' · ' + fmt.int(r.qty) + ' ชิ้น',
+                        '  ' + fmt.pct(r.share, 1) + ' ของยอดทั้งหมด · ขายได้ ' + r.days + '/' + days + ' วัน',
+                        '  ' + esc(r.zone || '—')];
+              },
+            } },
+          },
+        },
+      });
+
+      var cols = [
+        { key: 'rank', label: '#', num: true, render: function (r) { return r.rank; } },
+        { key: 'name', label: 'สินค้า',
+          render: function (r) {
+            return '<div class="dept"><b>' + esc(r.name) + '</b><small>' +
+              esc(r.zone || '(ไม่ระบุโซน)') + ' · SKU ' + esc(r.code) + '</small></div>';
+          } },
+        { key: 'net', label: 'ยอดขาย', num: true,
+          render: function (r) { return UI.miniBar(r.net / maxNet) + fmt.baht(r.net); } },
+        { key: 'share', label: 'สัดส่วน', num: true,
+          render: function (r) { return fmt.pct(r.share, 1); } },
+        { key: 'qty', label: 'ชิ้น', num: true, render: function (r) { return fmt.int(r.qty); } },
+        { key: 'price', label: '฿/ชิ้น', num: true,
+          sort: function (r) { return r.qty ? r.net / r.qty : 0; },
+          render: function (r) { return fmt.baht(r.qty ? r.net / r.qty : 0); } },
+        { key: 'days', label: 'ขายกี่วัน', num: true,
+          render: function (r) {
+            var cov = days ? r.days / days : 0;
+            var tone = cov > 0.7 ? '#16A34A' : cov > 0.3 ? '#B45309' : '#DC2626';
+            return UI.miniBar(cov, tone) + r.days + '/' + days;
+          } },
+      ];
+
+      var q = document.getElementById('bsQ');
+      var countEl = document.getElementById('bsCount');
+
+      /* กรองแล้วสร้างตารางใหม่เฉพาะในกล่องตาราง — ช่องค้นหาอยู่นอกกล่อง
+         focus จึงไม่หลุดระหว่างพิมพ์ */
+      function paint() {
+        var term = (q && q.value || '').trim().toLowerCase();
+        var list = !term ? rows : rows.filter(function (r) {
+          return r.name.toLowerCase().indexOf(term) >= 0 ||
+                 String(r.code).toLowerCase().indexOf(term) >= 0;
+        });
+        UI.table('bsTable', cols, list, { sortKey: 'net', sortDir: -1 }).mount();
+        if (countEl) {
+          countEl.textContent = term
+            ? 'พบ ' + fmt.int(list.length) + ' จาก ' + fmt.int(rows.length) + ' รายการ'
+            : fmt.int(rows.length) + ' รายการ';
+        }
+      }
+      paint();
+      if (q) { q.addEventListener('input', paint); }
+    },
+  });
+
   def({
     id: 'sku',
     group: 'สินค้าและสต็อก',

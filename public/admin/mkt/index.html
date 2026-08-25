@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=12">
+<link rel="stylesheet" href="assets/app.css?v=13">
 </head>
 <body>
 <div class="layout">
@@ -35,14 +35,14 @@
 </div>
 <div id="guideHost"></div>
 
-<script src="vendor/chart.umd.min.js?v=12"></script>
-<script src="../cmo/erp-menu.js?v=12"></script>
-<script src="assets/ingest.js?v=12"></script>
+<script src="vendor/chart.umd.min.js?v=13"></script>
+<script src="../cmo/erp-menu.js?v=13"></script>
+<script src="assets/ingest.js?v=13"></script>
 <script>
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=12',
+  v: '?v=13',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
             'assets/rules.js', 'assets/views.js', 'assets/views-extra.js',

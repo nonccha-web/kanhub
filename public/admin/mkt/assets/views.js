@@ -176,13 +176,30 @@
           borderDash: [5, 4], pointRadius: 0, tension: 0.28, fill: false,
         });
       }
+      /* ชี้วันไหน บอกด้วยว่าวันนั้นสินค้าตัวไหนทำยอดสูงสุด — ตัวเลขรวมอย่างเดียว
+         บอกแค่ว่า "วันนี้ดี" แต่ไม่บอกว่าดีเพราะอะไร */
+      var baseTip = range.prev.valid ? UI.tooltipCompare : UI.tooltipBaht;
+      var trendTip = {
+        callbacks: {
+          label: baseTip.callbacks.label,
+          footer: baseTip.callbacks.footer,
+          afterBody: function (items) {
+            if (!KAN.hasSkuData || !items || !items.length) { return ''; }
+            var t = KAN.topSkuOfDay(range.i0 + items[0].dataIndex, b);
+            if (!t) { return ''; }
+            var share = t.dayNet ? ' · ' + fmt.pct(t.net / t.dayNet, 0) + ' ของวันนั้น' : '';
+            return ['', 'ขายดีสุด: ' + t.name,
+                    '        ' + fmt.baht(t.net) + ' · ' + fmt.int(t.qty) + ' ชิ้น' + share];
+          },
+        },
+      };
       UI.chart('ovTrend', {
         type: 'line',
         data: { labels: s.labels, datasets: ds },
         options: {
           scales: { y: UI.bahtAxis, x: UI.catAxis },
           plugins: {
-            tooltip: range.prev.valid ? UI.tooltipCompare : UI.tooltipBaht,
+            tooltip: trendTip,
             legend: { display: range.prev.valid, position: 'bottom' },
           },
         },

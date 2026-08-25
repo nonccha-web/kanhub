@@ -310,6 +310,104 @@
     }
     return out;
   }
+  /* ── สินค้าขายดี ────────────────────────────────────────────────────────
+   * D.skuDaily = [dateIx, branchIx, skuIx, qty, net] เรียงตามวันอยู่แล้ว
+   * ทุกฟังก์ชันในบล็อกนี้ทำงานบนช่วงวันที่ผู้ใช้เลือก ไม่ใช่ยอดทั้งปีสำเร็จรูป
+   */
+
+  var SKU = D.skuDaily || [];
+  var POS_SKUS = D.posSkus || [];
+
+  KAN.hasSkuData = SKU.length > 0;
+
+  /* สาขาที่มีข้อมูลระดับสินค้าจริง — ไม่ใช่ทุกสาขาที่ส่งไฟล์ใบเสร็จรายสินค้ามา */
+  KAN.skuBranches = (function () {
+    var seen = {}, out = [];
+    for (var i = 0; i < SKU.length; i++) {
+      if (!seen[SKU[i][1]]) { seen[SKU[i][1]] = 1; out.push(SKU[i][1]); }
+    }
+    return out.sort(function (a, b) { return a - b; });
+  }());
+
+  function skuInfo(si) {
+    var m = POS_SKUS[si];
+    return m || { code: '?', name: '(ไม่ทราบชื่อ)', zone: '' };
+  }
+  KAN.skuInfo = skuInfo;
+
+  /* จัดอันดับสินค้าในช่วงที่เลือก · จำผลไว้เพราะหน้าเดียวเรียกซ้ำหลายรอบ */
+  var rankCache = {};
+  KAN.skuRank = function (i0, i1, branch) {
+    var key = i0 + '|' + i1 + '|' + (branch == null ? 'a' : branch);
+    if (rankCache[key]) { return rankCache[key]; }
+
+    var agg = {}, grand = 0;
+    for (var i = 0; i < SKU.length; i++) {
+      var r = SKU[i];
+      if (r[0] < i0) { continue; }
+      if (r[0] > i1) { break; }                 /* เรียงตามวัน — เลยช่วงแล้วหยุดได้ */
+      if (branch != null && r[1] !== branch) { continue; }
+      var a = agg[r[2]] || (agg[r[2]] = { si: r[2], qty: 0, net: 0, days: 0, _d: -1 });
+      a.qty += r[3];
+      a.net += r[4];
+      if (a._d !== r[0]) { a.days++; a._d = r[0]; }
+      grand += r[4];
+    }
+
+    var out = [];
+    Object.keys(agg).forEach(function (k) {
+      var a = agg[k], info = skuInfo(a.si);
+      a.code = info.code; a.name = info.name || info.code; a.zone = info.zone;
+      a.share = grand ? a.net / grand : 0;
+      a.perDay = a.days ? a.net / a.days : 0;
+      delete a._d;
+      out.push(a);
+    });
+    out.sort(function (x, y) { return y.net - x.net || y.qty - x.qty; });
+    out.forEach(function (a, i) { a.rank = i + 1; });
+    out.total = grand;
+    rankCache[key] = out;
+    return out;
+  };
+
+  /* สินค้าที่ทำยอดสูงสุดของแต่ละวัน — ใช้ตอนเอาเมาส์ชี้กราฟรายวัน
+   * คิดครั้งเดียวต่อ 1 ตัวเลือกสาขา แล้วเก็บไว้ (ไล่ทีละวัน ไม่กินหน่วยความจำ) */
+  var topDayCache = {};
+  function buildTopDay(branch) {
+    var key = branch == null ? 'a' : branch;
+    if (topDayCache[key]) { return topDayCache[key]; }
+    var out = {}, curDate = -1, bucket = null;
+
+    function flush() {
+      if (curDate < 0 || !bucket) { return; }
+      var bestSi = -1, best = null, sum = 0;
+      Object.keys(bucket).forEach(function (k) {
+        var v = bucket[k];
+        sum += v[1];
+        if (!best || v[1] > best[1]) { best = v; bestSi = +k; }
+      });
+      if (best && bestSi >= 0) {
+        var info = skuInfo(bestSi);
+        out[curDate] = { name: info.name || info.code, zone: info.zone,
+                         qty: best[0], net: best[1], dayNet: sum };
+      }
+    }
+
+    for (var i = 0; i < SKU.length; i++) {
+      var r = SKU[i];
+      if (branch != null && r[1] !== branch) { continue; }
+      if (r[0] !== curDate) { flush(); curDate = r[0]; bucket = {}; }
+      var b = bucket[r[2]] || (bucket[r[2]] = [0, 0]);
+      b[0] += r[3]; b[1] += r[4];
+    }
+    flush();
+    topDayCache[key] = out;
+    return out;
+  }
+  KAN.topSkuOfDay = function (dateIx, branch) {
+    return buildTopDay(branch)[dateIx] || null;
+  };
+
   KAN.billBins = function (i0, i1, branch) {
     return binAgg(D.posBill, i0, i1, branch, D.billBins.length);
   };
