@@ -82,6 +82,31 @@
       function label() {
         return thDate(cur.from) + ' – ' + thDate(cur.to);
       }
+      /* กรอกวันที่นอกช่วงข้อมูลได้จาก keyboard แม้ input จะมี min/max — ดึงกลับเข้าขอบ */
+      function clamp(iso) { return iso < min ? min : (iso > max ? max : iso); }
+
+      /* ช่วงที่ควรระบายบนปฏิทิน · ระหว่างรอคลิกวันจบ ให้ระบายถึงวันที่เมาส์ชี้ */
+      function shownRange() {
+        var a = draft.from, b = draft.to;
+        if (draft.sel === 'to' && draft.hover) {
+          a = draft.hover < draft.from ? draft.hover : draft.from;
+          b = draft.hover < draft.from ? draft.from : draft.hover;
+        }
+        return [a, b];
+      }
+
+      /* ทาสีช่องวันที่ใหม่โดยไม่สร้าง DOM ใหม่ — ใช้ตอนเลื่อนเมาส์
+         (ถ้าวาด innerHTML ใหม่ทุกครั้งที่ hover event listener จะซ้อนกันเรื่อย ๆ) */
+      function paintDays() {
+        var r = shownRange(), a = r[0], b = r[1];
+        pop.querySelectorAll('.dr-day[data-iso]').forEach(function (d) {
+          var iso = d.getAttribute('data-iso');
+          d.classList.toggle('start', iso === a);
+          d.classList.toggle('end', iso === b);
+          d.classList.toggle('inrange', !!(a && b && iso > a && iso < b));
+          d.classList.toggle('single', iso === a && iso === b);
+        });
+      }
       function renderButton() {
         var pid = detectPreset(cur.from, cur.to, min, max);
         var pname = pid === 'custom' ? 'กำหนดเอง'
@@ -101,7 +126,7 @@
       function openPop() {
         open = true;
         draft = { from: cur.from, to: cur.to, compare: cur.compare, sel: 'from',
-                  view: shiftMonth(monthOf(cur.to), -1) };
+                  hover: null, view: shiftMonth(monthOf(cur.to), -1) };
         /* กันปฏิทินขวาหลุดเกินขอบข้อมูล */
         if (firstOfMonth(draft.view.y, draft.view.m) < firstOfMonth(monthOf(min).y, monthOf(min).m)) {
           draft.view = monthOf(min);
@@ -168,6 +193,44 @@
         wirePop();
       }
 
+      /* วาดใหม่เฉพาะปฏิทิน + ไฮไลต์ preset — ห้ามแตะ <input type=date>
+         เพราะการสร้าง input ใหม่ระหว่างพิมพ์ทำให้เลขหลักที่สองหาย
+         (พิมพ์ 22 ได้แค่ 2) และ focus หลุด · skipEl = ช่องที่กำลังพิมพ์อยู่ */
+      function refresh(skipEl) {
+        var cals = pop && pop.querySelector('.dr-cals');
+        if (!cals) { drawPop(); return; }
+        var m0 = draft.view, m1 = shiftMonth(m0, 1);
+        cals.innerHTML = calendarHTML(m0, 'prev', canPrev(m0)) +
+                         calendarHTML(m1, 'next', canNext(m1));
+        wireCals();
+
+        var activePid = detectPreset(draft.from, draft.to, min, max);
+        pop.querySelectorAll('.dr-preset').forEach(function (b) {
+          b.classList.toggle('on', b.getAttribute('data-id') === activePid);
+        });
+
+        var f = document.getElementById('drFrom'), t = document.getElementById('drTo');
+        if (f && f !== skipEl && f.value !== draft.from) { f.value = draft.from; }
+        if (t && t !== skipEl && t.value !== draft.to) { t.value = draft.to; }
+      }
+
+      /* ผูก event ของกริดปฏิทินอย่างเดียว (เรียกซ้ำได้ทุกครั้งที่วาดปฏิทินใหม่) */
+      function wireCals() {
+        pop.querySelectorAll('.dr-day[data-iso]').forEach(function (d) {
+          d.addEventListener('click', function () { pickDay(this.getAttribute('data-iso')); });
+          d.addEventListener('mouseenter', function () {
+            if (draft.sel !== 'to') { return; }
+            var iso = this.getAttribute('data-iso');
+            if (draft.hover === iso) { return; }
+            draft.hover = iso;
+            paintDays();
+          });
+        });
+        var prev = document.getElementById('drPrev'), next = document.getElementById('drNext');
+        if (prev) prev.addEventListener('click', function () { draft.view = shiftMonth(draft.view, -1); refresh(); });
+        if (next) next.addEventListener('click', function () { draft.view = shiftMonth(draft.view, 1); refresh(); });
+      }
+
       function canPrev(m0) { return firstOfMonth(m0.y, m0.m) > firstOfMonth(monthOf(min).y, monthOf(min).m); }
       function canNext(m1) { return firstOfMonth(m1.y, m1.m) < firstOfMonth(monthOf(max).y, monthOf(max).m); }
 
@@ -192,10 +255,11 @@
           var disabled = iso < min || iso > max;
           if (disabled) { cls += ' disabled'; }
           else {
-            if (iso === draft.from) { cls += ' start'; }
-            if (iso === draft.to) { cls += ' end'; }
-            if (draft.from && draft.to && iso > draft.from && iso < draft.to) { cls += ' inrange'; }
-            if (iso === draft.from && iso === draft.to) { cls += ' single'; }
+            var r = shownRange(), a = r[0], b = r[1];
+            if (iso === a) { cls += ' start'; }
+            if (iso === b) { cls += ' end'; }
+            if (a && b && iso > a && iso < b) { cls += ' inrange'; }
+            if (iso === a && iso === b) { cls += ' single'; }
             if (iso === max) { cls += ' today'; }
           }
           h += '<div class="' + cls + '"' + (disabled ? '' : ' data-iso="' + iso + '"') + '>' + day + '</div>';
@@ -204,15 +268,20 @@
         return h;
       }
 
+      /* คลิกแรกตั้งวันเริ่ม คลิกที่สองตั้งวันจบ คลิกถัดไปเริ่มช่วงใหม่
+         เดิมมีเงื่อนไข `|| (draft.from && draft.to)` ซึ่งเป็นจริงตลอด (from/to
+         ถูกเซ็ตมาจากช่วงปัจจุบันอยู่แล้ว) ทำให้ทุกคลิกกลายเป็น "เริ่มใหม่"
+         เลือกเป็นช่วงไม่ได้เลย — ตัดออก ใช้ draft.sel ตัดสินอย่างเดียว */
       function pickDay(iso) {
-        if (draft.sel === 'from' || (draft.from && draft.to)) {
+        if (draft.sel !== 'to') {
           draft.from = iso; draft.to = iso; draft.sel = 'to';
         } else {
           if (iso >= draft.from) { draft.to = iso; }
           else { draft.to = draft.from; draft.from = iso; }
           draft.sel = 'from';
         }
-        drawPop();
+        draft.hover = null;
+        refresh();
       }
 
       function wirePop() {
@@ -227,27 +296,46 @@
             if (firstOfMonth(draft.view.y, draft.view.m) < firstOfMonth(monthOf(min).y, monthOf(min).m)) {
               draft.view = monthOf(min);
             }
-            drawPop();
+            draft.sel = 'from'; draft.hover = null;
+            refresh();
           });
         });
-        pop.querySelectorAll('.dr-day[data-iso]').forEach(function (d) {
-          d.addEventListener('click', function () { pickDay(this.getAttribute('data-iso')); });
-        });
-        var prev = document.getElementById('drPrev'), next = document.getElementById('drNext');
-        if (prev) prev.addEventListener('click', function () { draft.view = shiftMonth(draft.view, -1); drawPop(); });
-        if (next) next.addEventListener('click', function () { draft.view = shiftMonth(draft.view, 1); drawPop(); });
+        wireCals();
+        var calsBox = pop.querySelector('.dr-cals');
+        if (calsBox) {
+          calsBox.addEventListener('mouseleave', function () {
+            if (draft.sel === 'to' && draft.hover) { draft.hover = null; paintDays(); }
+          });
+        }
         document.getElementById('drFrom').addEventListener('change', function () {
-          if (!this.value) return;
-          draft.from = this.value;
+          if (!this.value) { return; }
+          draft.from = clamp(this.value);
           if (draft.to < draft.from) { draft.to = draft.from; }
-          draft.view = shiftMonth(monthOf(draft.from), 0); drawPop();
+          draft.sel = 'from'; draft.hover = null;
+          draft.view = monthOf(draft.from);
+          if (firstOfMonth(draft.view.y, draft.view.m) < firstOfMonth(monthOf(min).y, monthOf(min).m)) {
+            draft.view = monthOf(min);
+          }
+          refresh(this);
         });
         document.getElementById('drTo').addEventListener('change', function () {
-          if (!this.value) return;
-          draft.to = this.value;
+          if (!this.value) { return; }
+          draft.to = clamp(this.value);
           if (draft.to < draft.from) { draft.from = draft.to; }
-          drawPop();
+          draft.sel = 'from'; draft.hover = null;
+          refresh(this);
         });
+        /* ดึงค่าที่กรอกเกินช่วงข้อมูลกลับเข้าขอบ "ตอนคลิกออกจากช่อง" ไม่ใช่ตอนพิมพ์
+           ถ้าดึงตอนพิมพ์ จะเขียนทับตั้งแต่พิมพ์ปีหลักแรก (0002 → 2026) จนพิมพ์ไม่ได้ */
+        ['drFrom', 'drTo'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) { return; }
+          el.addEventListener('blur', function () {
+            var want = (id === 'drFrom') ? draft.from : draft.to;
+            if (this.value !== want) { this.value = want; }
+          });
+        });
+
         var cmpEl = document.getElementById('drCmp');
         if (cmpEl) { cmpEl.addEventListener('change', function () { draft.compare = this.checked; }); }
         document.getElementById('drCancel').addEventListener('click', close);
