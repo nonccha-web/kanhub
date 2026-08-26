@@ -13,7 +13,8 @@
   var MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   var DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
   var CHANNELS = ["หน้าร้าน","Facebook","LINE","TikTok","Shopee/Lazada","ขายส่ง"];
-  var BRANCHES = ["KAN HUB","ชุมพร","นคร","สุราษฎร์","Kan Fashion"];
+  var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","นคร","สุราษฎร์","Central","สหไทย"];
+  // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
   var MAX_IMAGE_PX = 1400;
   var MAX_IMAGE_BYTES = 1400000;
@@ -91,6 +92,11 @@
     }
     return txt;
   }
+  /* ชื่อสั้นสำหรับช่องปฏิทินแคบๆ — ตัดคำนำหน้าแบบ "Category Bomb #3 · " ออก */
+  function shortName(name) {
+    return String(name).replace(/^[^·]{0,40}#\d+\s*·\s*/, "");
+  }
+
   function ofYear() {
     var y = String(year);
     return items.filter(function (it) {
@@ -161,7 +167,7 @@
       var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
       var todays = list.filter(function (it) { return covers(it, dISO) && !isMonthPlan(it); });
       var chips = todays.slice(0, 3).map(function (it) {
-        return '<button class="cc-chip ' + it.status + '" data-edit="' + it.id + '" title="' + esc(it.name) + '"><b>' + esc(it.name) + "</b></button>";
+        return '<button class="cc-chip ' + it.status + '" data-edit="' + it.id + '" title="' + esc(it.name) + '"><b>' + esc(shortName(it.name)) + "</b></button>";
       }).join("");
       if (todays.length > 3) chips += '<span class="cc-more">+ อีก ' + (todays.length - 3) + "</span>";
       // เซลล์ต้องไม่เป็น <button> เพราะ chip ข้างในก็เป็นปุ่ม — ปุ่มซ้อนปุ่มทำให้เบราว์เซอร์ตัดโครงทิ้ง
@@ -176,7 +182,7 @@
       ? '<div class="cc-monthplans">' + monthPlans.map(function (it) {
           return '<button class="cc-mplan ' + it.status + '" data-edit="' + it.id + '">' +
                  '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
-                 "<b>" + esc(it.name) + "</b>" +
+                 "<b>" + esc(shortName(it.name)) + "</b>" +
                  (it.branches && it.branches.length ? '<span class="cc-mplan-br">' + it.branches.map(esc).join(" · ") + "</span>" : "") +
                  "</button>";
         }).join("") + "</div>"
@@ -201,7 +207,7 @@
       var body = mine.length
         ? mine.map(function (it) {
             return '<button class="cc-bitem ' + it.status + '" data-edit="' + it.id + '">' +
-                   "<b>" + esc(it.name) + "</b>" +
+                   "<b>" + esc(shortName(it.name)) + "</b>" +
                    '<span class="cc-bmeta">' + fmtRange(it) + (it.budget ? " · ฿ " + baht(it.budget) : "") + "</span>" +
                    "</button>";
           }).join("")
@@ -252,6 +258,96 @@
       '<div class="cc-tablewrap"><table class="cc-table"><thead><tr>' +
       "<th>ช่วงวัน</th><th>แคมเปญ</th><th>สถานะ</th><th>ช่องทาง</th><th>สาขา</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th></th>" +
       "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
+
+  /* ---------- การ์ดลอยตอนเอาเมาส์ค้าง ---------- */
+  var hoverEl = null, hoverTimer = null, touchTimer = null;
+
+  function hoverCard() {
+    if (!hoverEl) {
+      hoverEl = document.createElement("div");
+      hoverEl.className = "cc-hover";
+      document.body.appendChild(hoverEl);
+    }
+    return hoverEl;
+  }
+
+  function showHover(it, anchor) {
+    var el = hoverCard();
+    var atts = it.attachments || [];
+    var pics = atts.length
+      ? '<div class="cc-hover-pics">' + atts.slice(0, 3).map(function (a) {
+          return '<img src="' + API + "/attachments/" + a.id + '" alt="">';
+        }).join("") + "</div>"
+      : "";
+    el.innerHTML = pics +
+      '<div class="cc-hover-body">' +
+        '<div class="cc-hover-top"><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+        (it.budget ? '<span class="cc-hover-budget">฿ ' + baht(it.budget) + "</span>" : "") + "</div>" +
+        "<b>" + esc(it.name) + "</b>" +
+        '<div class="cc-hover-date">' + fullRange(it) + "</div>" +
+        (it.branches && it.branches.length ? '<div class="cc-hover-meta">' + it.branches.map(esc).join(" · ") + "</div>" : "") +
+        (it.channels && it.channels.length ? '<div class="cc-hover-meta">ช่องทาง: ' + it.channels.map(esc).join(" · ") + "</div>" : "") +
+        (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
+        (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
+      "</div>";
+    el.classList.add("show");
+
+    var r = anchor.getBoundingClientRect();
+    el.style.visibility = "hidden";
+    el.style.left = "0px";
+    el.style.top = "0px";
+    var w = el.offsetWidth, h = el.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var top = r.top - h - 10;
+    if (top < 8) top = Math.min(r.bottom + 10, window.innerHeight - h - 8);
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+    el.style.visibility = "";
+  }
+
+  function hideHover() {
+    clearTimeout(hoverTimer);
+    if (hoverEl) hoverEl.classList.remove("show");
+  }
+
+  document.addEventListener("mouseover", function (e) {
+    var t = e.target.closest("[data-edit]");
+    if (!t) return;
+    var it = byId(t.dataset.edit);
+    if (!it) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(function () { showHover(it, t); }, 260);
+  });
+  document.addEventListener("mouseout", function (e) {
+    if (e.target.closest("[data-edit]")) hideHover();
+  });
+  document.addEventListener("scroll", hideHover, true);
+
+  /* มือถือ: แตะค้าง 450ms = ดูรายละเอียด (ไม่เปิดฟอร์ม) */
+  document.addEventListener("touchstart", function (e) {
+    var t = e.target.closest("[data-edit]");
+    if (!t) return;
+    var it = byId(t.dataset.edit);
+    if (!it) return;
+    touchTimer = setTimeout(function () { showHover(it, t); touchTimer = null; }, 450);
+  }, { passive: true });
+  document.addEventListener("touchend", function () {
+    if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    else setTimeout(hideHover, 2600);
+  }, { passive: true });
+
+  function fullRange(it) {
+    var a = parseISO(it.start), b = parseISO(it.end || it.start);
+    if (isMonthPlan(it) && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+      return "ทั้งเดือน" + MONTHS[a.getMonth()] + " " + be(a.getFullYear());
+    }
+    var same = a.getFullYear() === b.getFullYear();
+    var one = a.getTime() === b.getTime();
+    if (one) return a.getDate() + " " + MONTHS[a.getMonth()] + " " + be(a.getFullYear());
+    return a.getDate() + " " + MONTHS[a.getMonth()] + (same ? "" : " " + be(a.getFullYear())) +
+           " – " + b.getDate() + " " + MONTHS[b.getMonth()] + " " + be(b.getFullYear());
   }
 
   /* ---------- drawer ---------- */
