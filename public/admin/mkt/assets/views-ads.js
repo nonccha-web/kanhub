@@ -446,6 +446,43 @@
       var bdNote = 'ก้อนนี้เป็นยอดรวมช่วง ' + esc(fmt.thDate(M.bdRange[0])) + ' – ' +
         esc(fmt.thDate(M.bdRange[1])) + ' ทั้งบัญชี — <b style="display:inline">ไม่ขยับตามตัวกรองด้านบน</b>';
 
+      /* การ์ด breakdown ทั้งหมดข้างล่างเป็นก้อนสรุปช่วงเดียว กรองรายเดือนไม่ได้
+         (ads-data.js เก็บ breakdown แบบไม่มีมิติวันที่) — ถ้าไม่บอกให้ชัด
+         คนอ่านจะนึกว่าเป็นยอดของช่วงที่เลือก แล้วตกใจว่างบบานปลาย */
+      var selSpend = t.spend;   /* t = ยอดของช่วงที่เลือก คำนวณไว้ด้านบนแล้ว */
+      /* ยอดรวมเอาจากตัว breakdown เอง ไม่ใช่ผลรวมรายวัน — จะได้ตรงกับเลขที่โชว์บนการ์ดเป๊ะ
+         (สองทางต่างกันหลักหน่วยจากการปัดเศษฝั่ง Meta) */
+      var bdTotal = 0, mSpend = {};
+      for (var gi2 = 0; gi2 < bd.gender.length; gi2++) { bdTotal += bd.gender[gi2][1]; }
+      for (var bi = 0; bi < A.daily.length; bi++) {
+        var dr = A.daily[bi];
+        var mk = dr[0].slice(0, 7);
+        mSpend[mk] = (mSpend[mk] || 0) + dr[2];
+      }
+      var mKeys = Object.keys(mSpend).sort();
+      var mChips = mKeys.map(function (k) {
+        var label = fmt.thDate(k + '-01', 'my');
+        var partial = (k === M.dateMin.slice(0, 7) || k === M.dateMax.slice(0, 7));
+        var isSel = (from.slice(0, 7) === k && to.slice(0, 7) === k);
+        return '<span class="bdm' + (isSel ? ' on' : '') + '">' + esc(label) +
+               (partial ? '<i>บางส่วน</i>' : '') + '<b>' + fmt.baht(mSpend[k]) + '</b></span>';
+      });
+
+      var selFull = (from <= M.bdRange[0] && to >= M.bdRange[1]);
+      var bdBanner = selFull
+        ? UI.banner('info', 'การ์ดกลุ่มนี้เป็นภาพรวมทั้งบัญชี',
+            'ยอดรวม ' + fmt.baht(bdTotal) + ' ตลอดช่วง ' + esc(fmt.thDate(M.bdRange[0])) + ' – ' +
+            esc(fmt.thDate(M.bdRange[1])) + ' (' + mKeys.length + ' เดือน) ' +
+            'แยกตามอายุ เพศ ตำแหน่ง อุปกรณ์ และจังหวัด' +
+            '<div class="bdmrow">' + mChips.join('') + '</div>')
+        : UI.banner('warn', 'ตัวเลขในการ์ดข้างล่างไม่ใช่ช่วงที่เลือก',
+            'ช่วงที่เลือกอยู่ (' + esc(fmt.thDate(from)) + ' – ' + esc(fmt.thDate(to)) + ') ใช้จริง <b style="display:inline">' +
+            fmt.baht(selSpend) + '</b> — แต่การ์ดข้างล่างโชว์ <b style="display:inline">' + fmt.baht(bdTotal) +
+            '</b> เพราะเป็นยอดรวมทั้งบัญชี ' + mKeys.length + ' เดือน (' +
+            esc(fmt.thDate(M.bdRange[0])) + ' – ' + esc(fmt.thDate(M.bdRange[1])) + ') ' +
+            'ข้อมูลชุดนี้ไม่มีมิติวันที่ติดมา จึงกรองรายเดือนยังไม่ได้' +
+            '<div class="bdmrow">' + mChips.join('') + '</div>');
+
       this._bd = {
         age:    bdRows(bd.age, null).sort(function (a, b) {
                   return a.key < b.key ? -1 : 1;    /* ช่วงอายุต้องเรียงตามอายุ ไม่ใช่ตามเงิน */
@@ -458,6 +495,8 @@
         hour:   bd.hour,
       };
       this._bd.age.forEach(function (r) { r.label = r.key + ' ปี'; });
+
+      h += bdBanner;
 
       h += UI.sect({
         id: 'who', eyebrow: 'คนที่เห็นแอด', title: 'เงินไปถึงใคร',

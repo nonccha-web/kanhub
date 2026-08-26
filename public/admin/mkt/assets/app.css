@@ -477,3 +477,11 @@ table.ftbl{min-width:760px}
   color:var(--sub);line-height:1.65;padding:5px 0;border-top:1px solid #F4F5FA}
 .rulecard .rk{font-weight:700;color:var(--ink);font-size:11.5px;padding-top:1px}
 @media(max-width:720px){.rulecard .rrow{grid-template-columns:1fr;gap:2px}}
+
+/* แถบค่าแอดรายเดือนใน banner ของการ์ด breakdown */
+.bdmrow{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.bdm{display:inline-flex;align-items:baseline;gap:5px;padding:4px 10px;border-radius:8px;
+     background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.07);font-size:11.5px}
+.bdm b{display:inline;font-weight:700;font-variant-numeric:tabular-nums}
+.bdm i{font-style:normal;font-size:10px;opacity:.65}
+.bdm.on{outline:2px solid currentColor;outline-offset:-1px;font-weight:600}
