@@ -18,26 +18,41 @@
        ref     = เอกสารแผนงานกับหน้าดูแลระบบ ไม่ใช่ตัวเลขที่เดินตามวัน
      ย้ายกลุ่มข้ามหมวดได้ด้วยการย้ายบล็อกไปมา ไม่ต้องแก้ที่อื่น */
   var SECTIONS = [
-    { id: 'ready', label: 'เปิดใช้ได้แล้ว', groups: [
+    /* โหมดโชว์ — เรียงตามลำดับที่ใช้เล่าในที่ประชุม ไล่บนลงล่างคือ agenda ได้เลย */
+    { id: 'ready', label: 'รายงาน (ไว้โชว์)', groups: [
 
+      { icon: 'trophy', label: 'KPI ฝ่ายการตลาด', items: [
+        { icon: 'trophy', label: 'KPI Dashboard 2026', cmo: 'kpi.html' }
+      ]},
       { icon: 'chart', label: 'ยอดขาย', items: [
-        { icon: 'dashboard', label: 'ภาพรวมยอดขาย',    sales: '#/overview' },
-        { icon: 'zap',       label: 'สินค้าขายดี',       sales: '#/bestsellers' },
-        { icon: 'users',     label: 'กลุ่มลูกค้า',        sales: '#/customers' },
-        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน',   sales: '#/promo' },
-        { icon: 'calendar',  label: 'แผนลงมือ',          sales: '#/plan' }
+        { icon: 'dashboard', label: 'ภาพรวมยอดขาย', sales: '#/overview' },
+        { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
+        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
       ]},
       { icon: 'megaphone', label: 'โฆษณา', items: [
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
       ]},
-      { icon: 'target', label: 'ทีม + KPI', items: [
-        { icon: 'trophy',    label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
-        { icon: 'network',   label: 'ผังทีม',             cmo: 'team-structure.html' },
-        { icon: 'clipboard', label: 'JD รายตำแหน่ง',       cmo: 'team-jd.html' },
-        { icon: 'chart',     label: 'KPI รายตำแหน่ง (เดิม)', cmo: 'team-kpi.html' }
-      ]},
       { icon: 'phone', label: 'รายงานการรับสาย', items: [
         { icon: 'phone', label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
+      ]},
+      { icon: 'monitor', label: 'พรีเซนต์', items: [
+        { icon: 'monitor', label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' }
+      ]}
+
+    ]},
+
+    /* โหมดทำงาน — เรียงตาม flow จริง: วางแผน → ลงมือ → กรอกผล */
+    { id: 'work', label: 'งานประจำ (ไว้ทำงาน)', groups: [
+
+      { icon: 'calendar', label: 'วางแผนแคมเปญ', items: [
+        { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' }
+      ]},
+      { icon: 'target', label: 'ลงมือ', items: [
+        { icon: 'target',   label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
+        { icon: 'clipboard', label: 'แผนลงมือ',        sales: '#/plan' }
+      ]},
+      { icon: 'filetext', label: 'กรอกผล', items: [
+        { icon: 'filetext', label: 'กรอกผล KPI รายเดือน', cmo: 'kpi.html?mode=edit' }
       ]}
 
     ]},
@@ -61,14 +76,17 @@
 
     { id: 'ref', label: 'เอกสาร + ระบบ', groups: [
 
-      { icon: 'calendar', label: 'แผนปี + Dashboard', items: [
-        { icon: 'calendar',  label: 'Campaign Calendar',  cmo: 'campaign-calendar.html' },
-        { icon: 'monitor',   label: 'สไลด์แผนแคมเปญ',      cmo: 'campaign-deck.html' },
+      { icon: 'calendar', label: 'แผนปี', items: [
         { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
         { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
         { icon: 'calendar',  label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
         { icon: 'calendar',  label: 'จังหวะรายสัปดาห์',    cmo: '01d-weekly.html' },
         { icon: 'link',      label: 'ลิงก์ Report & Dashboard', cmo: 'report-links.html' }
+      ]},
+      { icon: 'network', label: 'ทีม', items: [
+        { icon: 'network',   label: 'ผังทีม',              cmo: 'team-structure.html' },
+        { icon: 'clipboard', label: 'JD รายตำแหน่ง',        cmo: 'team-jd.html' },
+        { icon: 'chart',     label: 'KPI รายตำแหน่ง (เดิม)', cmo: 'team-kpi.html' }
       ]},
       { icon: 'briefcase', label: 'B2B (ขายส่ง + Online)', items: [
         { icon: 'folder',     label: 'Overview',           cmo: '04a-overview.html' },

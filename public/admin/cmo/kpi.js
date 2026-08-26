@@ -766,10 +766,13 @@
       return;
     }
     host.innerHTML = '<div style="padding:40px;color:var(--text-muted);font-size:14px">กำลังโหลดข้อมูล KPI…</div>';
+    /* เข้าจากเมนู "กรอกผล KPI" ให้เปิดโหมดกรอกเลย ไม่ต้องกดปุ่มแก้ไขซ้ำ */
+    var wantEdit = /[?&]mode=edit/.test(location.search);
     boot().then(function () {
       applySeed();   // วางค่าจากไฟล์ (ถ้ามี) เป็นร่าง
       // เริ่มที่เดือนล่าสุดที่มีข้อมูล ถ้ามี
       for (var m = 11; m >= 0; m--) { if (hasData(m)) { state.month = m; state.mode = "dash"; break; } }
+      if (wantEdit) { state.mode = "edit"; }
       render();
       if (online) { save(); }   // เผื่อ applySeed เติมค่าใหม่ ให้ขึ้นเซิร์ฟเวอร์ด้วย
     });
