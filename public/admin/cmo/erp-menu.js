@@ -30,9 +30,6 @@
       { icon: 'megaphone', label: 'โฆษณา', items: [
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
       ]},
-      { icon: 'calendar', label: 'แคมเปญ', items: [
-        { icon: 'calendar', label: 'ปฏิทินแคมเปญ', cmo: 'campaign-calendar.html' }
-      ]},
       { icon: 'target', label: 'ทีม + KPI', items: [
         { icon: 'trophy',    label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
         { icon: 'network',   label: 'ผังทีม',             cmo: 'team-structure.html' },
@@ -65,6 +62,7 @@
     { id: 'ref', label: 'เอกสาร + ระบบ', groups: [
 
       { icon: 'calendar', label: 'แผนปี + Dashboard', items: [
+        { icon: 'calendar',  label: 'Campaign Calendar',  cmo: 'campaign-calendar.html' },
         { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
         { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
         { icon: 'calendar',  label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
