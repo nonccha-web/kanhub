@@ -30,6 +30,9 @@
       { icon: 'megaphone', label: 'โฆษณา', items: [
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
       ]},
+      { icon: 'calendar', label: 'แคมเปญ', items: [
+        { icon: 'calendar', label: 'ปฏิทินแคมเปญ', cmo: 'campaign-calendar.html' }
+      ]},
       { icon: 'target', label: 'ทีม + KPI', items: [
         { icon: 'trophy',    label: 'KPI Dashboard 2026', cmo: 'kpi.html' },
         { icon: 'network',   label: 'ผังทีม',             cmo: 'team-structure.html' },

@@ -23,6 +23,7 @@ public/admin/
    ├─ erp-menu.js         · ★★ เมนู sidebar กลาง — แก้เมนู/ลำดับ/ไอคอน "ที่ไฟล์นี้ที่เดียว" มีผลทุกหน้า
    ├─ nav.js              · ตัวฉีด sidebar เข้าหน้า CMO (ใช้ erp-menu.js)
    ├─ styles.css          · ธีม/สไตล์ฝั่ง CMO (ตัวแปรสี + ฟอนต์ Kanit)
+   ├─ campaign-calendar.html + .js · ปฏิทินแคมเปญรายปี (ธีม Lark) — ข้อมูลอยู่ใน localStorage คีย์ `kan-campaign-calendar` มีปุ่มสำรอง/นำเข้า JSON
    ├─ kpi.html · team-*.html · 01a–01d …   · แต่ละหน้า = 1 module แก้แยกได้เลย
    └─ traffic-data.js · kpi.js · …          · ข้อมูลของแต่ละหน้า
 ```
@@ -35,12 +36,13 @@ public/admin/
 | ฟอนต์/สีทั้งระบบ | `mkt/assets/app.css` + `cmo/styles.css` (ตัวแปร `--…` ด้านบน) |
 | หน้าใน dashboard ยอดขาย | `mkt/assets/views.js` / `views-extra.js` |
 | หน้า CMO (KPI, ทีม, B2B, MarCom …) | ไฟล์ `.html` ของหน้านั้นใน `cmo/` |
+| ช่องทาง/สาขา ในปฏิทินแคมเปญ | `cmo/campaign-calendar.js` (ตัวแปร `CHANNELS` / `BRANCHES` ด้านบนไฟล์) |
 | ข้อมูลยอดขาย | `mkt/data/kan-data.js` (สร้างจาก `etl/` ในโฟลเดอร์ต้นฉบับ) |
 | หน้ารายงานโฆษณา | `mkt/assets/views-ads.js` |
 | ข้อมูลโฆษณา | `mkt/data/ads-data.js` (รัน `etl-ads/build_ads.py` — ดู `etl-ads/README.md`) |
 
 ## กฎที่ห้ามพัง
-- **แก้ไฟล์ใน `mkt/` หรือ `cmo/` แล้วต้อง bump `?v=` ทุกครั้ง** (ตอนนี้ v14) ไม่งั้นเบราว์เซอร์กินไฟล์เก่า
+- **แก้ไฟล์ใน `mkt/` หรือ `cmo/` แล้วต้อง bump `?v=` ทุกครั้ง** (ตอนนี้ v18) ไม่งั้นเบราว์เซอร์กินไฟล์เก่า
 - **ชื่อแคมเปญฝั่งแอดต้องมี `#01`–`#05` นำหน้า** — เป็นรหัสสาขาชุดเดียวกับ `KST#n`
   ที่หน้ารายงานโฆษณาใช้จับคู่ค่าแอดกับยอดขาย ถ้าทีมแอดเลิกใส่ การจับคู่พังเงียบ ๆ
 
