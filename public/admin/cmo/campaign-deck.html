@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="../assets/favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>สไลด์แผนแคมเปญ — KAN ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap">
+<style>
+/* ============================================================
+   สไลด์แผนแคมเปญ — ใช้เปิดคุยกับห้าง/พาร์ตเนอร์
+   เต็มจอ ไม่มี sidebar · เลือกสถานที่แล้วเห็นเฉพาะแผนของที่นั่น
+   ============================================================ */
+:root{
+  --ink:#1F2329; --ink-2:#4E5969; --muted:#8F959E;
+  --bg:#FFFFFF; --bg-2:#F5F6F7; --line:#DEE0E3;
+  --accent:#3370FF; --accent-2:#245BDB;
+  --plan:#646A73; --live:#FF8800; --done:#2EA121;
+  --shadow:0 2px 8px rgba(31,35,41,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{ font-family:'Kanit',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg-2); color:var(--ink);
+  -webkit-font-smoothing:antialiased; overflow:hidden; }
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* ---------- หน้าเลือกสถานที่ ---------- */
+.pick{ height:100%; overflow-y:auto; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; padding:40px 24px; gap:30px; }
+.pick-head{ text-align:center; }
+.pick-head img{ width:64px; height:64px; border-radius:16px; margin-bottom:16px; }
+.pick-head h1{ font-size:34px; font-weight:600; letter-spacing:-.5px; }
+.pick-head p{ color:var(--muted); font-size:15px; margin-top:6px; }
+.pick-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px;
+  width:100%; max-width:940px; }
+.pick-card{ background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:22px 20px;
+  text-align:left; box-shadow:var(--shadow); transition:transform .12s, border-color .12s, box-shadow .12s; }
+.pick-card:hover{ transform:translateY(-3px); border-color:var(--accent); box-shadow:0 8px 22px rgba(51,112,255,.16); }
+.pick-card b{ display:block; font-size:20px; font-weight:600; }
+.pick-card span{ display:block; color:var(--muted); font-size:13.5px; margin-top:5px; }
+.pick-card .n{ display:inline-block; margin-top:12px; font-size:12.5px; font-weight:600; color:var(--accent);
+  background:rgba(51,112,255,.09); padding:4px 11px; border-radius:20px; }
+.pick-card.all{ background:var(--ink); border-color:var(--ink); color:#fff; }
+.pick-card.all span{ color:rgba(255,255,255,.62) }
+.pick-card.all .n{ background:rgba(255,255,255,.14); color:#fff }
+.pick-back{ color:var(--muted); font-size:13.5px; text-decoration:none; border:0; background:none; }
+.pick-back:hover{ color:var(--accent) }
+
+/* ---------- สไลด์ ---------- */
+.deck{ display:none; height:100%; flex-direction:column; background:var(--bg); }
+.deck.on{ display:flex }
+.slide{ flex:1; min-height:0; display:none; }
+.slide.on{ display:flex }
+
+/* ปกและสรุป */
+.cover{ flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; padding:5vh 6vw; }
+.cover .eyebrow{ font-size:clamp(13px,1.5vw,17px); font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--accent) }
+.cover h1{ font-size:clamp(34px,6.4vw,84px); font-weight:600; line-height:1.08; letter-spacing:-1.5px; }
+.cover h2{ font-size:clamp(17px,2.3vw,30px); font-weight:400; color:var(--ink-2); }
+.cover .stats{ display:flex; gap:clamp(18px,4vw,64px); margin-top:clamp(20px,3.5vh,44px); flex-wrap:wrap; justify-content:center }
+.cover .stat b{ display:block; font-size:clamp(26px,4.4vw,54px); font-weight:600; letter-spacing:-1px; line-height:1.1 }
+.cover .stat span{ font-size:clamp(12px,1.4vw,16px); color:var(--muted) }
+.cover .logo{ width:clamp(52px,6vw,84px); height:auto; border-radius:16px; margin-bottom:14px }
+
+/* ไทม์ไลน์ภาพรวม */
+.tl{ flex-direction:column; padding:clamp(24px,4vh,52px) clamp(24px,5vw,72px); gap:clamp(14px,2.4vh,26px); overflow-y:auto }
+.tl h2{ font-size:clamp(22px,3.2vw,40px); font-weight:600; letter-spacing:-.6px }
+.tl-rows{ display:flex; flex-direction:column; gap:10px }
+.tl-row{ display:grid; grid-template-columns:minmax(120px,17%) 1fr; gap:clamp(10px,2vw,22px); align-items:center }
+.tl-when{ font-size:clamp(12px,1.35vw,16px); color:var(--ink-2); font-weight:500; text-align:right }
+.tl-bar{ border-radius:10px; padding:clamp(9px,1.5vh,15px) clamp(12px,1.6vw,20px); color:#fff;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-height:0 }
+.tl-bar b{ font-size:clamp(14px,1.7vw,21px); font-weight:600 }
+.tl-bar span{ font-size:clamp(11px,1.15vw,14px); opacity:.9 }
+
+/* สไลด์แคมเปญ */
+.camp{ }
+.camp-pic{ flex:1.15; min-width:0; background:var(--bg-2); position:relative; overflow:hidden }
+.camp-pic img{ width:100%; height:100%; object-fit:cover; display:block }
+.camp-pic .none{ position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:15px }
+.camp-pic .dots{ position:absolute; left:0; right:0; bottom:16px; display:flex; gap:6px; justify-content:center }
+.camp-pic .dots i{ width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.55); box-shadow:0 0 3px rgba(0,0,0,.35) }
+.camp-pic .dots i.on{ background:#fff; width:20px; border-radius:20px }
+.camp-body{ flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:clamp(9px,1.6vh,16px);
+  padding:clamp(24px,4.5vh,60px) clamp(24px,4vw,60px); overflow-y:auto }
+.camp-tag{ display:inline-flex; align-items:center; gap:9px; font-size:clamp(11px,1.2vw,14px); font-weight:600;
+  letter-spacing:1.2px; text-transform:uppercase; color:var(--accent) }
+.camp-tag i{ width:11px; height:11px; border-radius:3px; display:inline-block }
+.camp-body h2{ font-size:clamp(25px,3.6vw,48px); font-weight:600; line-height:1.16; letter-spacing:-1px }
+.camp-when{ font-size:clamp(16px,2vw,26px); font-weight:500; color:var(--accent-2) }
+.camp-meta{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px }
+.chip{ font-size:clamp(11.5px,1.25vw,15px); padding:6px 13px; border-radius:8px; background:var(--bg-2);
+  border:1px solid var(--line); color:var(--ink-2) }
+.chip.b{ background:rgba(51,112,255,.08); border-color:rgba(51,112,255,.28); color:var(--accent-2); font-weight:500 }
+.camp-note{ font-size:clamp(13px,1.5vw,18px); line-height:1.65; color:var(--ink-2); border-top:1px solid var(--line);
+  padding-top:clamp(10px,1.8vh,18px); margin-top:4px; white-space:pre-wrap }
+.camp-num{ font-size:clamp(11px,1.2vw,14px); color:var(--muted) }
+.status{ font-size:clamp(11.5px,1.2vw,14px); font-weight:600; padding:5px 13px; border-radius:20px }
+.status.plan{ background:#EFF0F1; color:var(--plan) }
+.status.live{ background:#FFF3E5; color:var(--live) }
+.status.done{ background:#E8F7E6; color:var(--done) }
+
+/* แถบควบคุม */
+.bar{ flex:none; display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--line);
+  background:var(--bg); }
+.bar .sp{ flex:1 }
+.bar button{ border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:8px;
+  padding:8px 14px; font-size:13.5px; display:inline-flex; align-items:center; gap:7px }
+.bar button:hover{ border-color:var(--accent); color:var(--accent) }
+.bar button svg{ width:16px; height:16px }
+.bar .where{ font-size:14px; font-weight:600 }
+.bar .where em{ font-style:normal; color:var(--muted); font-weight:400; margin-left:8px; font-size:13px }
+.progress{ position:absolute; left:0; top:0; height:3px; background:var(--accent); transition:width .2s }
+.deck{ position:relative }
+
+@media (max-width:820px){
+  .camp{ flex-direction:column }
+  .camp-pic{ flex:none; height:38vh }
+  .tl-row{ grid-template-columns:1fr; gap:3px }
+  .tl-when{ text-align:left }
+}
+@media print{ .bar{display:none} }
+</style>
+</head>
+<body>
+
+<div class="pick" id="pick">
+  <div class="pick-head">
+    <img src="../assets/kan-logo.png" alt="KAN">
+    <h1>สไลด์แผนแคมเปญ</h1>
+    <p id="pickSub">เลือกว่าจะเปิดให้ใครดู แล้วกดเข้าโหมดสไลด์ได้เลย</p>
+  </div>
+  <div class="pick-grid" id="pickGrid"></div>
+  <a class="pick-back" href="campaign-calendar.html">← กลับไปหน้าปฏิทิน</a>
+</div>
+
+<div class="deck" id="deck">
+  <div class="progress" id="progress"></div>
+  <div id="slides" style="flex:1;min-height:0;display:flex"></div>
+  <div class="bar">
+    <span class="where" id="deckWhere"></span>
+    <span class="sp"></span>
+    <button id="btnPrev" aria-label="สไลด์ก่อนหน้า">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      ก่อนหน้า
+    </button>
+    <span id="deckPos" style="font-size:13.5px;color:var(--muted);min-width:64px;text-align:center"></span>
+    <button id="btnNext" aria-label="สไลด์ถัดไป">
+      ถัดไป
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <button id="btnFull">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      เต็มจอ
+    </button>
+    <button id="btnExit">เปลี่ยนสถานที่</button>
+  </div>
+</div>
+
+<script src="campaign-deck.js?v=1"></script>
+</body>
+</html>

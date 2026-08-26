@@ -63,6 +63,7 @@
 
       { icon: 'calendar', label: 'แผนปี + Dashboard', items: [
         { icon: 'calendar',  label: 'Campaign Calendar',  cmo: 'campaign-calendar.html' },
+        { icon: 'monitor',   label: 'สไลด์แผนแคมเปญ',      cmo: 'campaign-deck.html' },
         { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
         { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
         { icon: 'calendar',  label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
