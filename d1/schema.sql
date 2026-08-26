@@ -38,3 +38,15 @@ CREATE INDEX IF NOT EXISTS idx_attachments_campaign ON attachments(campaign_id);
 -- 26 ส.ค. 2569: สีประจำแคมเปญ (เลือกเองได้ในฟอร์ม)
 -- ใช้ ALTER แยก เพราะตารางมีข้อมูลจริงแล้ว — รันซ้ำจะ error "duplicate column" ซึ่งไม่เป็นไร
 -- ALTER TABLE campaigns ADD COLUMN color TEXT NOT NULL DEFAULT '#3370FF';
+
+-- KPI ฝ่ายการตลาด — เก็บบนเซิร์ฟเวอร์แทน localStorage (26 ส.ค. 2569)
+-- 1 แถว = 1 ตัวชี้วัด ต่อ 1 เดือน ต่อ 1 ปี
+CREATE TABLE IF NOT EXISTS kpi_entries (
+  year       INTEGER NOT NULL,
+  month      INTEGER NOT NULL,        -- 0..11 ตรงกับ state.month เดิม
+  code       TEXT    NOT NULL,        -- MKT-01 ...
+  value      TEXT    NOT NULL DEFAULT '',
+  status     TEXT    NOT NULL DEFAULT 'draft',   -- ok | draft | na
+  updated_at TEXT    NOT NULL,
+  PRIMARY KEY (year, month, code)
+);

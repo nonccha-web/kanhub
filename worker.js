@@ -108,6 +108,53 @@ async function handleApi(request, env, url) {
     return json({ ok: true });
   }
 
+
+  // ---- KPI ฝ่ายการตลาด ----
+  // เก็บบนเซิร์ฟเวอร์แทน localStorage — ทีมเห็นชุดเดียวกัน ล้างเบราว์เซอร์แล้วไม่หาย
+  if (path === "/kpi" && method === "GET") {
+    const year = Number(url.searchParams.get("year")) || new Date().getFullYear();
+    const res = await db.prepare(
+      "SELECT month, code, value, status FROM kpi_entries WHERE year = ? ORDER BY month, code"
+    ).bind(year).all();
+    // คืนรูปเดียวกับที่หน้าเว็บใช้อยู่: { m5: { "MKT-01": {v,s} }, ... }
+    const data = {};
+    for (const r of (res.results || [])) {
+      const key = "m" + r.month;
+      (data[key] = data[key] || {})[r.code] = { v: r.value, s: r.status };
+    }
+    return json({ year: year, data: data });
+  }
+
+  if (path === "/kpi" && method === "PUT") {
+    const body = await request.json().catch(function () { return {}; });
+    const year = Number(body.year) || new Date().getFullYear();
+    const data = body.data && typeof body.data === "object" ? body.data : null;
+    if (!data) return json({ error: "ไม่มีข้อมูลให้บันทึก" }, 400);
+
+    const now = new Date().toISOString();
+    const stmts = [db.prepare("DELETE FROM kpi_entries WHERE year = ?").bind(year)];
+    let n = 0;
+    for (const mk of Object.keys(data)) {
+      const m = Number(String(mk).replace(/^m/, ""));
+      if (!(m >= 0 && m <= 11)) continue;
+      const bucket = data[mk] || {};
+      for (const code of Object.keys(bucket)) {
+        if (!/^[A-Za-z0-9_-]{1,40}$/.test(code)) continue;
+        const raw = bucket[code];
+        const v = typeof raw === "string" ? raw : (raw && raw.v != null ? String(raw.v) : "");
+        const s = typeof raw === "string" ? "ok" : (raw && raw.s ? String(raw.s) : "draft");
+        if (["ok", "draft", "na"].indexOf(s) === -1) continue;
+        stmts.push(db.prepare(
+          "INSERT INTO kpi_entries (year,month,code,value,status,updated_at) VALUES (?,?,?,?,?,?)"
+        ).bind(year, m, code, v.slice(0, 200), s, now));
+        n++;
+        if (stmts.length > 400) return json({ error: "ข้อมูลเยอะเกินไปในครั้งเดียว" }, 413);
+      }
+    }
+    await db.batch(stmts);
+    return json({ ok: true, saved: n });
+  }
+
   // ---- แคมเปญ ----
   if (path === "/campaigns" && method === "GET") {
     const res = await db.prepare(LIST_SQL).all();

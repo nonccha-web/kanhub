@@ -161,12 +161,82 @@
 
   var state = { month: 5, mode: "dash", data: load() };  // month index (0..11) เริ่มที่ มิ.ย.
 
-  function load() {
+  /* เดิมเก็บแต่ localStorage — ข้อมูลหายเวลาเปลี่ยนเครื่อง ล้างเบราว์เซอร์ หรือเปิดคนละโดเมน
+     ตอนนี้เก็บบนเซิร์ฟเวอร์ (D1 ผ่าน /api/kpi) และยังเขียน localStorage ไว้เป็นสำเนากันเหนียว */
+  var API = "/api";
+  var YEAR = 2026;
+  var online = false;          // ต่อ API ได้หรือไม่
+  var saveTimer = null;
+
+  function loadLocal() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
     catch (e) { return {}; }
   }
-  function save() {
+  function load() { return loadLocal(); }
+
+  function saveLocal() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state.data)); } catch (e) {}
+  }
+
+  function pushServer() {
+    if (!online) return Promise.resolve(false);
+    return fetch(API + "/kpi", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ year: YEAR, data: state.data })
+    }).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+
+  /* กดกรอกรัว ๆ ไม่ควรยิง API ทุกครั้ง — รวบให้เหลือครั้งเดียวหลังหยุดพิมพ์ */
+  function save() {
+    saveLocal();
+    if (!online) { setSyncFlag("local"); return; }
+    setSyncFlag("saving");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      pushServer().then(function (ok) { setSyncFlag(ok ? "saved" : "error"); });
+    }, 500);
+  }
+
+  function setSyncFlag(mode) {
+    var el = document.getElementById("kpiSync");
+    if (!el) return;
+    var map = {
+      saving: ["กำลังบันทึก…", "#646A73"],
+      saved:  ["บันทึกบนเซิร์ฟเวอร์แล้ว", "#2EA121"],
+      error:  ["บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ — ข้อมูลอยู่ในเครื่องนี้", "#F54A45"],
+      local:  ["เก็บในเครื่องนี้เท่านั้น (เปิดผ่าน admin.kan-hub.com เพื่อบันทึกให้ทีม)", "#B07D10"]
+    };
+    var m = map[mode] || map.local;
+    el.textContent = m[0];
+    el.style.color = m[1];
+  }
+
+  /* โหลดจากเซิร์ฟเวอร์ตอนเปิดหน้า — ถ้าเซิร์ฟเวอร์ยังว่างแต่เครื่องนี้มีของเก่า
+     ให้ดันของเก่าขึ้นไปแทน (ย้ายข้อมูลที่กรอกไว้ก่อนหน้าโดยไม่ต้องกรอกใหม่) */
+  function boot() {
+    return fetch(API + "/kpi?year=" + YEAR, { headers: { "accept": "application/json" } })
+      .then(function (r) { if (!r.ok) throw new Error("no api"); return r.json(); })
+      .then(function (res) {
+        online = true;
+        var server = res.data || {};
+        var localData = loadLocal();
+        var serverCount = countEntries(server), localCount = countEntries(localData);
+        if (serverCount === 0 && localCount > 0) {
+          state.data = localData;
+          return pushServer().then(function () { setSyncFlag("saved"); });
+        }
+        state.data = server;
+        saveLocal();
+        setSyncFlag("saved");
+      })
+      .catch(function () { online = false; state.data = loadLocal(); setSyncFlag("local"); });
+  }
+
+  function countEntries(d) {
+    var n = 0;
+    for (var k in d) { if (d.hasOwnProperty(k)) { for (var c in d[k]) { if (d[k].hasOwnProperty(c)) n++; } } }
+    return n;
   }
   function monthKey(m) { return "m" + (m == null ? state.month : m); }
   function bucket(m) { var k = monthKey(m); return (state.data[k] = state.data[k] || {}); }
@@ -689,16 +759,24 @@
     if (/[?&]reset/.test(location.search)) {
       try { localStorage.removeItem(STORE_KEY); } catch (e) {}
       state.data = {};
-      location.replace("kpi.html");
+      fetch(API + "/kpi", { method: "PUT", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ year: YEAR, data: {} }) })
+        .catch(function () {})
+        .then(function () { location.replace("kpi.html"); });
       return;
     }
-    applySeed();   // วางค่าจากไฟล์ (ถ้ามี) เป็นร่าง
-    // เริ่มที่เดือนล่าสุดที่มีข้อมูล ถ้ามี
-    for (var m = 11; m >= 0; m--) { if (hasData(m)) { state.month = m; state.mode = "dash"; break; } }
-    render();
+    host.innerHTML = '<div style="padding:40px;color:var(--text-muted);font-size:14px">กำลังโหลดข้อมูล KPI…</div>';
+    boot().then(function () {
+      applySeed();   // วางค่าจากไฟล์ (ถ้ามี) เป็นร่าง
+      // เริ่มที่เดือนล่าสุดที่มีข้อมูล ถ้ามี
+      for (var m = 11; m >= 0; m--) { if (hasData(m)) { state.month = m; state.mode = "dash"; break; } }
+      render();
+      if (online) { save(); }   // เผื่อ applySeed เติมค่าใหม่ ให้ขึ้นเซิร์ฟเวอร์ด้วย
+    });
   });
 
   // เผยแพร่ให้ debug/ทดสอบ
   window.KAN_KPI = { KPI: KPI, achievement: achievement, summarize: summarize, state: state,
-    render: render, entryOf: entryOf, setEntry: setEntry, confirmEntry: confirmEntry };
+    render: render, entryOf: entryOf, setEntry: setEntry, confirmEntry: confirmEntry,
+    save: save, isOnline: function () { return online; } };
 })();
