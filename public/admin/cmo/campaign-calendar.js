@@ -16,6 +16,13 @@
   var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","นคร","สุราษฎร์","Central","สหไทย"];
   // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
+  var COLORS = [
+    { v:"#3370FF", n:"น้ำเงิน" }, { v:"#14C0FF", n:"ฟ้า" },   { v:"#00C7C7", n:"เขียวน้ำทะเล" },
+    { v:"#34C724", n:"เขียว" },   { v:"#8FC31F", n:"เขียวมะนาว" }, { v:"#FFC60A", n:"เหลือง" },
+    { v:"#FF8800", n:"ส้ม" },     { v:"#F54A45", n:"แดง" },   { v:"#F5319D", n:"ชมพู" },
+    { v:"#7F3BF5", n:"ม่วง" }
+  ];
+  var DEFAULT_COLOR = "#3370FF";
   var MAX_IMAGE_PX = 1400;
   var MAX_IMAGE_BYTES = 1400000;
 
@@ -92,6 +99,18 @@
     }
     return txt;
   }
+  function colorOf(it) { return (it && /^#[0-9a-fA-F]{6}$/.test(it.color || "")) ? it.color : DEFAULT_COLOR; }
+  /* พื้นอ่อนของสีแคมเปญ — คำนวณเป็น rgba เอง จะได้ไม่ต้องพึ่ง color-mix */
+  function tint(hex, alpha) {
+    var h = hex.replace("#", "");
+    return "rgba(" + parseInt(h.slice(0,2),16) + "," + parseInt(h.slice(2,4),16) + "," +
+           parseInt(h.slice(4,6),16) + "," + alpha + ")";
+  }
+  function chipStyle(it) {
+    var c = colorOf(it);
+    return ' style="background:' + tint(c, .14) + ';color:' + c + ';border-left-color:' + c + '"';
+  }
+
   /* ชื่อสั้นสำหรับช่องปฏิทินแคบๆ — ตัดคำนำหน้าแบบ "Category Bomb #3 · " ออก */
   function shortName(name) {
     return String(name).replace(/^[^·]{0,40}#\d+\s*·\s*/, "");
@@ -144,10 +163,16 @@
       for (var i = 0; i < lead; i++) cells += '<i class="pad">0</i>';
       for (var d = 1; d <= days; d++) {
         var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
-        var on = list.some(function (it) { return covers(it, dISO); });
-        var cls = on ? "on" : (dow === 0 || dow === 6 ? "we" : "");
+        var hits = list.filter(function (it) { return covers(it, dISO); });
+        var cls = hits.length ? "on" : (dow === 0 || dow === 6 ? "we" : "");
         if (dISO === tISO) cls += " today";
-        cells += '<i class="' + cls + '">' + d + "</i>";
+        var st = "";
+        if (hits.length) {
+          var c = colorOf(hits[0]);
+          st = ' style="background:' + tint(c, .2) + ';color:' + c + '"';
+        }
+        // วันที่มีแคมเปญต้อง hover ได้ในมุมมองปีด้วย ไม่ใช่แค่มุมมองเดือน
+        cells += '<i class="' + cls + '"' + st + (hits.length ? ' data-daypeek="' + dISO + '"' : "") + ">" + d + "</i>";
       }
       out += '<button class="cc-month' + (cur ? " cur" : "") + '" data-month="' + m + '">' +
              "<h3>" + MONTHS[m] + '<span class="cnt' + (list.length ? " has" : "") + '">' +
@@ -167,7 +192,7 @@
       var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
       var todays = list.filter(function (it) { return covers(it, dISO) && !isMonthPlan(it); });
       var chips = todays.slice(0, 3).map(function (it) {
-        return '<button class="cc-chip ' + it.status + '" data-edit="' + it.id + '" title="' + esc(it.name) + '"><b>' + esc(shortName(it.name)) + "</b></button>";
+        return '<button class="cc-chip" data-edit="' + it.id + '"' + chipStyle(it) + ' title="' + esc(it.name) + '"><b>' + esc(shortName(it.name)) + "</b></button>";
       }).join("");
       if (todays.length > 3) chips += '<span class="cc-more">+ อีก ' + (todays.length - 3) + "</span>";
       // เซลล์ต้องไม่เป็น <button> เพราะ chip ข้างในก็เป็นปุ่ม — ปุ่มซ้อนปุ่มทำให้เบราว์เซอร์ตัดโครงทิ้ง
@@ -180,7 +205,7 @@
     var monthPlans = list.filter(isMonthPlan);
     var banner = monthPlans.length
       ? '<div class="cc-monthplans">' + monthPlans.map(function (it) {
-          return '<button class="cc-mplan ' + it.status + '" data-edit="' + it.id + '">' +
+          return '<button class="cc-mplan" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
                  '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
                  "<b>" + esc(shortName(it.name)) + "</b>" +
                  (it.branches && it.branches.length ? '<span class="cc-mplan-br">' + it.branches.map(esc).join(" · ") + "</span>" : "") +
@@ -206,7 +231,7 @@
       var mine = list.filter(function (it) { return (it.branches || []).indexOf(b) !== -1; });
       var body = mine.length
         ? mine.map(function (it) {
-            return '<button class="cc-bitem ' + it.status + '" data-edit="' + it.id + '">' +
+            return '<button class="cc-bitem" data-edit="' + it.id + '"' + chipStyle(it) + ">" +
                    "<b>" + esc(shortName(it.name)) + "</b>" +
                    '<span class="cc-bmeta">' + fmtRange(it) + (it.budget ? " · ฿ " + baht(it.budget) : "") + "</span>" +
                    "</button>";
@@ -218,7 +243,7 @@
     var extra = noBranch.length
       ? '<div class="cc-bcol"><h4>ยังไม่ระบุสาขา<span>' + noBranch.length + "</span></h4>" +
         noBranch.map(function (it) {
-          return '<button class="cc-bitem ' + it.status + '" data-edit="' + it.id + '"><b>' + esc(it.name) + "</b>" +
+          return '<button class="cc-bitem" data-edit="' + it.id + '"' + chipStyle(it) + "><b>" + esc(shortName(it.name)) + "</b>" +
                  '<span class="cc-bmeta">' + fmtRange(it) + "</span></button>";
         }).join("") + "</div>"
       : "";
@@ -241,7 +266,7 @@
             return '<img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy">';
           }).join("") + (atts.length > 4 ? '<span class="cc-more">+' + (atts.length - 4) + "</span>" : "") + "</div>"
         : "";
-      return "<tr>" +
+      return '<tr style="border-left:3px solid ' + colorOf(it) + '">' +
         '<td class="dt">' + fmtRange(it) + "</td>" +
         '<td class="nm">' + esc(it.name) +
           (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + thumbs + "</td>" +
@@ -273,25 +298,52 @@
     return hoverEl;
   }
 
-  function showHover(it, anchor) {
+  function showHover(list, anchor, dayISO) {
     var el = hoverCard();
-    var atts = it.attachments || [];
-    var pics = atts.length
-      ? '<div class="cc-hover-pics">' + atts.slice(0, 3).map(function (a) {
-          return '<img src="' + API + "/attachments/" + a.id + '" alt="">';
-        }).join("") + "</div>"
-      : "";
-    el.innerHTML = pics +
-      '<div class="cc-hover-body">' +
-        '<div class="cc-hover-top"><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
-        (it.budget ? '<span class="cc-hover-budget">฿ ' + baht(it.budget) + "</span>" : "") + "</div>" +
-        "<b>" + esc(it.name) + "</b>" +
-        '<div class="cc-hover-date">' + fullRange(it) + "</div>" +
-        (it.branches && it.branches.length ? '<div class="cc-hover-meta">' + it.branches.map(esc).join(" · ") + "</div>" : "") +
-        (it.channels && it.channels.length ? '<div class="cc-hover-meta">ช่องทาง: ' + it.channels.map(esc).join(" · ") + "</div>" : "") +
-        (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
-        (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
-      "</div>";
+    var head = "";
+    if (dayISO) {
+      var dt = parseISO(dayISO);
+      head = '<div class="cc-hover-day">' + dt.getDate() + " " + MONTHS[dt.getMonth()] + " " + be(dt.getFullYear()) +
+             (list.length > 1 ? '<span>' + list.length + " แคมเปญ</span>" : "") + "</div>";
+    }
+
+    var body;
+    if (list.length === 1) {
+      var it = list[0];
+      var atts = it.attachments || [];
+      var pics = atts.length
+        ? '<div class="cc-hover-pics">' + atts.slice(0, 3).map(function (a) {
+            return '<img src="' + API + "/attachments/" + a.id + '" alt="">';
+          }).join("") + "</div>"
+        : "";
+      body = '<div class="cc-hover-bar" style="background:' + colorOf(it) + '"></div>' + pics +
+        '<div class="cc-hover-body">' + head +
+          '<div class="cc-hover-top"><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+          (it.budget ? '<span class="cc-hover-budget">฿ ' + baht(it.budget) + "</span>" : "") + "</div>" +
+          "<b>" + esc(it.name) + "</b>" +
+          '<div class="cc-hover-date">' + fullRange(it) + "</div>" +
+          (it.branches && it.branches.length ? '<div class="cc-hover-meta">' + it.branches.map(esc).join(" · ") + "</div>" : "") +
+          (it.channels && it.channels.length ? '<div class="cc-hover-meta">ช่องทาง: ' + it.channels.map(esc).join(" · ") + "</div>" : "") +
+          (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
+          (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
+          '<button type="button" class="cc-hover-btn" data-edit="' + it.id + '">เปิดดู / แก้ไขรายละเอียด</button>' +
+        "</div>";
+    } else {
+      // หลายแคมเปญในวันเดียว — โชว์เป็นรายการ กดเลือกได้
+      body = '<div class="cc-hover-body">' + head +
+        list.map(function (it) {
+          var a0 = (it.attachments || [])[0];
+          return '<button type="button" class="cc-hover-item" data-edit="' + it.id + '">' +
+                 '<span class="cc-hover-dot" style="background:' + colorOf(it) + '"></span>' +
+                 (a0 ? '<img src="' + API + "/attachments/" + a0.id + '" alt="">' : '<span class="cc-hover-noimg"></span>') +
+                 '<span class="cc-hover-itemtext"><b>' + esc(shortName(it.name)) + "</b>" +
+                 '<span class="cc-hover-meta">' + fmtRange(it) +
+                 (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span></span>" +
+                 '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+                 "</button>";
+        }).join("") + "</div>";
+    }
+    el.innerHTML = body;
     el.classList.add("show");
 
     var r = anchor.getBoundingClientRect();
@@ -299,43 +351,63 @@
     el.style.left = "0px";
     el.style.top = "0px";
     var w = el.offsetWidth, h = el.offsetHeight;
-    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var left = Math.min(Math.max(8, r.left - 8), window.innerWidth - w - 8);
     var top = r.top - h - 10;
     if (top < 8) top = Math.min(r.bottom + 10, window.innerHeight - h - 8);
     el.style.left = left + "px";
-    el.style.top = top + "px";
+    el.style.top = Math.max(8, top) + "px";
     el.style.visibility = "";
   }
 
-  function hideHover() {
+  var closeTimer = null;
+  function hideHover(delay) {
     clearTimeout(hoverTimer);
-    if (hoverEl) hoverEl.classList.remove("show");
+    clearTimeout(closeTimer);
+    if (!hoverEl) return;
+    if (delay) closeTimer = setTimeout(function () { hoverEl.classList.remove("show"); }, delay);
+    else hoverEl.classList.remove("show");
+  }
+  function keepHover() { clearTimeout(closeTimer); }
+
+  function peekTargets(el) {
+    if (el.dataset.daypeek) {
+      var day = el.dataset.daypeek;
+      var list = items.filter(function (it) { return covers(it, day); });
+      return list.length ? { list: list, day: day } : null;
+    }
+    if (el.dataset.edit) {
+      var it = byId(el.dataset.edit);
+      return it ? { list: [it], day: null } : null;
+    }
+    return null;
   }
 
   document.addEventListener("mouseover", function (e) {
-    var t = e.target.closest("[data-edit]");
+    var t = e.target.closest("[data-edit],[data-daypeek]");
     if (!t) return;
-    var it = byId(t.dataset.edit);
-    if (!it) return;
+    if (t.closest(".cc-hover")) { keepHover(); return; }   // อยู่ในการ์ดเอง อย่าปิด
+    var found = peekTargets(t);
+    if (!found) return;
     clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(function () { showHover(it, t); }, 260);
+    keepHover();
+    hoverTimer = setTimeout(function () { showHover(found.list, t, found.day); }, 220);
   });
   document.addEventListener("mouseout", function (e) {
-    if (e.target.closest("[data-edit]")) hideHover();
+    if (e.target.closest(".cc-hover")) return;
+    if (e.target.closest("[data-edit],[data-daypeek]")) hideHover(260);
   });
-  document.addEventListener("scroll", hideHover, true);
+  document.addEventListener("scroll", function () { hideHover(); }, true);
 
   /* มือถือ: แตะค้าง 450ms = ดูรายละเอียด (ไม่เปิดฟอร์ม) */
   document.addEventListener("touchstart", function (e) {
-    var t = e.target.closest("[data-edit]");
-    if (!t) return;
-    var it = byId(t.dataset.edit);
-    if (!it) return;
-    touchTimer = setTimeout(function () { showHover(it, t); touchTimer = null; }, 450);
+    var t = e.target.closest("[data-edit],[data-daypeek]");
+    if (!t || t.closest(".cc-hover")) return;
+    var found = peekTargets(t);
+    if (!found) return;
+    touchTimer = setTimeout(function () { showHover(found.list, t, found.day); touchTimer = null; }, 450);
   }, { passive: true });
   document.addEventListener("touchend", function () {
     if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
-    else setTimeout(hideHover, 2600);
   }, { passive: true });
 
   function fullRange(it) {
@@ -351,6 +423,26 @@
   }
 
   /* ---------- drawer ---------- */
+  function buildColors() {
+    $("cc-colors").innerHTML = COLORS.map(function (c) {
+      return '<button type="button" class="cc-swatch" data-color="' + c.v + '" title="' + c.n +
+             '" style="background:' + c.v + '" aria-pressed="false"></button>';
+    }).join("");
+  }
+  function setColor(v) {
+    var found = false;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-color]"), function (b) {
+      var on = b.dataset.color.toLowerCase() === String(v || "").toLowerCase();
+      if (on) found = true;
+      b.setAttribute("aria-pressed", String(on));
+    });
+    if (!found) document.querySelector('[data-color="' + DEFAULT_COLOR + '"]').setAttribute("aria-pressed", "true");
+  }
+  function getColor() {
+    var on = document.querySelector('[data-color][aria-pressed="true"]');
+    return on ? on.dataset.color : DEFAULT_COLOR;
+  }
+
   function buildChoices() {
     $("cc-channels").innerHTML = CHANNELS.map(function (c) {
       return '<button type="button" class="cc-choice" data-choice="channel" data-v="' + esc(c) + '" aria-pressed="false">' + esc(c) + "</button>";
@@ -407,6 +499,7 @@
     setSeg("#cc-status", item ? item.status : "plan");
     setChoices("channel", item ? item.channels : []);
     setChoices("branch", item ? item.branches : []);
+    setColor(item ? colorOf(item) : COLORS[items.length % COLORS.length].v);
     renderAttachments(item);
     $("ccDelete").style.visibility = item ? "visible" : "hidden";
     $("ccDrawer").classList.add("open");
@@ -514,7 +607,8 @@
       channels: getChoices("channel"), branches: getChoices("branch"),
       budget: Number($("cc-budget").value) || 0,
       owner: $("cc-owner").value.trim(),
-      note: $("cc-note").value.trim()
+      note: $("cc-note").value.trim(),
+      color: getColor()
     } };
   }
 
@@ -654,6 +748,8 @@
     if (scopeBtn) { setSeg("#cc-scope", scopeBtn.dataset.v); applyScopeUI(); return; }
     var seg = e.target.closest("#cc-status button");
     if (seg) { setSeg("#cc-status", seg.dataset.v); return; }
+    var sw = e.target.closest("[data-color]");
+    if (sw) { setColor(sw.dataset.color); return; }
     var ch = e.target.closest("[data-choice]");
     if (ch) { ch.setAttribute("aria-pressed", ch.getAttribute("aria-pressed") === "true" ? "false" : "true"); return; }
 
@@ -671,7 +767,7 @@
     if (delPending) { pendingFiles.splice(+delPending.dataset.pending, 1); renderAttachments(null); return; }
 
     var ed = e.target.closest("[data-edit]");
-    if (ed) { e.stopPropagation(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
+    if (ed) { e.stopPropagation(); hideHover(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
     var mo = e.target.closest("[data-month]");
     if (mo) { view = { mode:"month", month:+mo.dataset.month }; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
     if (e.target.closest("#ccBack")) { view = { mode:"year", month:null }; render(); return; }
@@ -685,6 +781,7 @@
   });
 
   buildChoices();
+  buildColors();
   render();
   loadAll().then(render);
 })();

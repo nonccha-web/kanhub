@@ -44,6 +44,7 @@ function rowToCampaign(r) {
     budget: r.budget,
     owner: r.owner,
     note: r.note,
+    color: r.color || "#3370FF",
     attachments: attachments,
     updatedAt: r.updated_at,
   };
@@ -69,6 +70,7 @@ function clean(input) {
       budget: Math.max(0, Math.round(Number(input.budget) || 0)),
       owner: String(input.owner || "").trim().slice(0, 120),
       note: String(input.note || "").trim().slice(0, 4000),
+      color: /^#[0-9a-fA-F]{6}$/.test(String(input.color || "")) ? input.color : "#3370FF",
     },
   };
 }
@@ -120,10 +122,10 @@ async function handleApi(request, env, url) {
     const id = "c" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const now = new Date().toISOString();
     await db.prepare(
-      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,created_at,updated_at) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-           v.owner, v.note, now, now).run();
+           v.owner, v.note, v.color, now, now).run();
     return json({ id: id });
   }
 
@@ -138,9 +140,9 @@ async function handleApi(request, env, url) {
       const v = parsed.value;
       const res = await db.prepare(
         "UPDATE campaigns SET name=?,start_date=?,end_date=?,scope=?,status=?,channels=?,branches=?," +
-        "budget=?,owner=?,note=?,updated_at=? WHERE id=?"
+        "budget=?,owner=?,note=?,color=?,updated_at=? WHERE id=?"
       ).bind(v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-             v.owner, v.note, new Date().toISOString(), id).run();
+             v.owner, v.note, v.color, new Date().toISOString(), id).run();
       if (!res.meta.changes) return json({ error: "ไม่พบแคมเปญนี้" }, 404);
       return json({ ok: true });
     }

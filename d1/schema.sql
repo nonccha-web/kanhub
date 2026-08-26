@@ -34,3 +34,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_attachments_campaign ON attachments(campaign_id);
+
+-- 26 ส.ค. 2569: สีประจำแคมเปญ (เลือกเองได้ในฟอร์ม)
+-- ใช้ ALTER แยก เพราะตารางมีข้อมูลจริงแล้ว — รันซ้ำจะ error "duplicate column" ซึ่งไม่เป็นไร
+-- ALTER TABLE campaigns ADD COLUMN color TEXT NOT NULL DEFAULT '#3370FF';
