@@ -207,6 +207,54 @@ body{ padding:24px 20px; }
 .cc-toast.show{ opacity:1; transform:translate(-50%,0); }
 [data-theme="dark"] .cc-toast{ background:#3A3A3A; }
 
+/* ---------- แผนทั้งเดือน ---------- */
+.cc-monthplans{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.cc-mplan{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer;
+  font-family:inherit; font-size:13.5px; color:var(--text-primary); text-align:left;
+  border:1px solid var(--bg-glass-border); background:var(--bg-glass); }
+.cc-mplan:hover{ border-color:var(--accent); }
+.cc-mplan.plan{ border-left:3px solid var(--st-plan); }
+.cc-mplan.live{ border-left:3px solid var(--st-live); }
+.cc-mplan.done{ border-left:3px solid var(--st-done); }
+.cc-mplan b{ font-weight:600; }
+.cc-mplan-br{ color:var(--text-muted); font-size:12.5px; }
+
+/* ---------- บอร์ดรายสาขา ---------- */
+.cc-board{ margin-top:22px; }
+.cc-board h3{ font-size:15px; font-weight:600; margin-bottom:10px; }
+.cc-bgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+.cc-bcol{ background:var(--bg-glass); border:1px solid var(--bg-glass-border); border-radius:8px; padding:12px;
+  display:flex; flex-direction:column; gap:8px; }
+.cc-bcol h4{ font-size:13px; font-weight:600; margin:0; display:flex; justify-content:space-between; align-items:center; }
+.cc-bcol h4 span{ font-size:11.5px; font-weight:500; color:var(--accent); }
+.cc-bitem{ display:flex; flex-direction:column; gap:2px; text-align:left; cursor:pointer; font-family:inherit;
+  padding:8px 10px; border-radius:6px; border:0; border-left:3px solid currentColor; font-size:13px; }
+.cc-bitem.plan{ background:var(--st-plan-bg); color:var(--st-plan); }
+.cc-bitem.live{ background:var(--st-live-bg); color:var(--st-live); }
+.cc-bitem.done{ background:var(--st-done-bg); color:var(--st-done); }
+.cc-bitem b{ font-weight:600; color:var(--text-primary); }
+.cc-bmeta{ font-size:11.5px; }
+.cc-bempty{ font-size:12.5px; color:var(--text-muted); padding:6px 2px; }
+
+/* ---------- รูปแนบ ---------- */
+.cc-thumbs{ display:flex; gap:5px; margin-top:6px; align-items:center; }
+.cc-thumbs img{ width:42px; height:42px; object-fit:cover; border-radius:5px; border:1px solid var(--bg-glass-border); }
+.cc-filegrid{ display:flex; flex-wrap:wrap; gap:8px; }
+.cc-file{ position:relative; width:74px; height:74px; border-radius:7px; overflow:hidden;
+  border:1px solid var(--bg-glass-border); }
+.cc-file img{ width:100%; height:100%; object-fit:cover; display:block; }
+.cc-file.pending{ border-style:dashed; border-color:var(--accent); }
+.cc-filedel{ position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; border:0;
+  background:rgba(31,35,41,.72); color:#fff; cursor:pointer; font-size:14px; line-height:1;
+  display:grid; place-items:center; font-family:inherit; }
+.cc-filedel:hover{ background:var(--danger); }
+.cc-nofile{ font-size:12.5px; color:var(--text-muted); }
+.cc-hint{ font-size:11.5px; color:var(--text-muted); margin-top:6px; line-height:1.5; }
+
+/* ---------- ป้ายโหมดออฟไลน์ ---------- */
+.cc-offline{ display:none; background:var(--st-live-bg); color:var(--st-live); border:1px solid var(--st-live);
+  border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
+
 @media (max-width:640px){
   .cc-cell{ min-height:80px; }
   .cc-two{ grid-template-columns:1fr; }
@@ -245,13 +293,14 @@ body{ padding:24px 20px; }
     </div>
   </div>
 
+  <div class="cc-offline" id="ccOffline">กำลังเปิดจากไฟล์ในเครื่อง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น และแนบรูปไม่ได้ · เปิดที่ <b>admin.kan-hub.com/cmo/campaign-calendar</b> เพื่อบันทึกขึ้นเซิร์ฟเวอร์</div>
   <div class="cc-stats" id="ccStats"></div>
   <div id="ccView"></div>
   <div class="cc-list" id="ccList"></div>
 
   <div class="pager" style="margin-top:28px;"></div>
   <footer class="doc-foot" style="margin-top:18px;font-size:12px;color:var(--text-muted);">
-    KAN ERP · ปฏิทินแคมเปญ · ข้อมูลเก็บในเบราว์เซอร์เครื่องนี้ — กด "สำรองไฟล์" เพื่อส่งต่อให้คนอื่นหรือย้ายเครื่อง
+    KAN ERP · ปฏิทินแคมเปญ · ข้อมูลและรูปเก็บบนเซิร์ฟเวอร์ (Cloudflare D1) ทีมเห็นชุดเดียวกัน
   </footer>
 </div>
 
@@ -268,9 +317,21 @@ body{ padding:24px 20px; }
       <label for="cc-name">ชื่อแคมเปญ</label>
       <input type="text" id="cc-name" placeholder="เช่น ลดกระหน่ำสิ้นเดือน" required>
     </div>
-    <div class="cc-two">
-      <div class="cc-field"><label for="cc-start">วันเริ่ม</label><input type="date" id="cc-start" required></div>
-      <div class="cc-field"><label for="cc-end">วันสิ้นสุด</label><input type="date" id="cc-end"></div>
+    <div class="cc-field">
+      <label>ขอบเขต</label>
+      <div class="cc-seg" id="cc-scope" style="grid-template-columns:repeat(2,1fr)">
+        <button type="button" data-v="range" aria-pressed="true">ระบุช่วงวัน</button>
+        <button type="button" data-v="month" aria-pressed="false">ทั้งเดือน</button>
+      </div>
+    </div>
+    <div id="ccRangeFields">
+      <div class="cc-two">
+        <div class="cc-field"><label for="cc-start">วันเริ่ม</label><input type="date" id="cc-start"></div>
+        <div class="cc-field"><label for="cc-end">วันสิ้นสุด</label><input type="date" id="cc-end"></div>
+      </div>
+    </div>
+    <div id="ccMonthFields" style="display:none">
+      <div class="cc-field"><label for="cc-month">เดือน</label><input type="month" id="cc-month"></div>
     </div>
     <div class="cc-field">
       <label>สถานะ</label>
@@ -287,6 +348,16 @@ body{ padding:24px 20px; }
       <div class="cc-field"><label for="cc-owner">ผู้รับผิดชอบ</label><input type="text" id="cc-owner" placeholder="ชื่อคน/ทีม"></div>
     </div>
     <div class="cc-field"><label for="cc-note">รายละเอียด</label><textarea id="cc-note" placeholder="สิ่งที่ต้องทำ ของแถม เงื่อนไข ฯลฯ"></textarea></div>
+    <div class="cc-field">
+      <label>รูปแนบ</label>
+      <div class="cc-filegrid" id="ccFiles"></div>
+      <button type="button" class="cc-btn" id="ccAddFile" style="margin-top:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg>
+        เพิ่มรูป
+      </button>
+      <input type="file" id="ccImageInput" accept="image/*" multiple hidden>
+      <div class="cc-hint" id="ccFileHint"></div>
+    </div>
     <div class="cc-err" id="ccErr"></div>
   </form>
   <footer>

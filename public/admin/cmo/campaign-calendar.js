@@ -1,11 +1,13 @@
 /* ============================================================
    KAN ERP — ปฏิทินแคมเปญ
-   static ล้วน ไม่มี backend → ข้อมูลเก็บใน localStorage ของเบราว์เซอร์
-   ย้ายเครื่อง/ส่งต่อ ใช้ปุ่ม "สำรองไฟล์" / "นำเข้า" (JSON)
+   ข้อมูลเก็บที่ D1 ผ่าน /api/campaigns (ทีมเห็นชุดเดียวกัน)
+   แนบรูปได้ ย่อฝั่งเบราว์เซอร์ก่อนส่ง เก็บใน D1 เสิร์ฟที่ /api/attachments/<id>
+   เปิดแบบ file:// (ไม่มี API) จะถอยไปใช้ localStorage อัตโนมัติ + ขึ้นป้ายบอก
    ============================================================ */
 (function () {
   "use strict";
 
+  var API = "/api";
   var LS_KEY = "kan-campaign-calendar";
   var MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
   var MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
@@ -13,26 +15,48 @@
   var CHANNELS = ["หน้าร้าน","Facebook","LINE","TikTok","Shopee/Lazada","ขายส่ง"];
   var BRANCHES = ["KAN HUB","ชุมพร","นคร","สุราษฎร์","Kan Fashion"];
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
+  var MAX_IMAGE_PX = 1400;
+  var MAX_IMAGE_BYTES = 1400000;
 
-  var items = load();
+  var items = [];
   var year = new Date().getFullYear();
   var view = { mode:"year", month:null };
   var editingId = null;
+  var pendingFiles = [];   // รูปที่เลือกไว้ตอนแคมเปญยังไม่ถูกบันทึก
+  var online = true;       // ต่อ API ได้หรือไม่
   var toastTimer;
 
-  /* ---------- storage ---------- */
-  function load() {
-    try {
-      var raw = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-      if (raw && Array.isArray(raw.items)) return raw.items;
-    } catch (e) {}
-    return [];
+  function $(id) { return document.getElementById(id); }
+
+  /* ---------- API / storage ---------- */
+  async function api(path, options) {
+    var res = await fetch(API + path, Object.assign(
+      { headers: { "content-type": "application/json" } }, options || {}));
+    var data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+    return data;
   }
-  function persist() {
+
+  async function loadAll() {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ version:1, savedAt:new Date().toISOString(), items:items }));
-      return true;
-    } catch (e) { return false; }
+      var data = await api("/campaigns");
+      items = data.campaigns || [];
+      online = true;
+    } catch (e) {
+      online = false;
+      try {
+        var raw = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+        items = raw && Array.isArray(raw.items) ? raw.items : [];
+      } catch (e2) { items = []; }
+    }
+    var flag = $("ccOffline");
+    if (flag) flag.style.display = online ? "none" : "";
+  }
+
+  function cacheLocal() {
+    if (online) return;
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ version:2, items:items })); } catch (e) {}
   }
 
   /* ---------- helpers ---------- */
@@ -50,8 +74,16 @@
   }
   function baht(n) { return Number(n || 0).toLocaleString("th-TH"); }
   function covers(it, dayISO) { return it.start <= dayISO && dayISO <= (it.end || it.start); }
+  function isMonthPlan(it) { return it.scope === "month"; }
   function fmtRange(it) {
-    var a = parseISO(it.start), txt = a.getDate() + " " + MONTHS_SHORT[a.getMonth()];
+    var a = parseISO(it.start);
+    if (isMonthPlan(it)) {
+      var b0 = parseISO(it.end);
+      if (a.getMonth() === b0.getMonth() && a.getFullYear() === b0.getFullYear()) {
+        return "ทั้งเดือน" + MONTHS[a.getMonth()];
+      }
+    }
+    var txt = a.getDate() + " " + MONTHS_SHORT[a.getMonth()];
     if (it.end && it.end !== it.start) {
       var b = parseISO(it.end);
       txt += " – " + b.getDate() + " " + MONTHS_SHORT[b.getMonth()];
@@ -72,7 +104,6 @@
     });
   }
   function byId(id) { return items.filter(function (x) { return x.id === id; })[0]; }
-  function $(id) { return document.getElementById(id); }
 
   /* ---------- render ---------- */
   function render() {
@@ -128,7 +159,7 @@
     for (var i = lead; i > 0; i--) cells += '<div class="cc-cell out"><span class="cc-dnum">' + (prevDays - i + 1) + "</span></div>";
     for (var d = 1; d <= days; d++) {
       var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
-      var todays = list.filter(function (it) { return covers(it, dISO); });
+      var todays = list.filter(function (it) { return covers(it, dISO) && !isMonthPlan(it); });
       var chips = todays.slice(0, 3).map(function (it) {
         return '<button class="cc-chip ' + it.status + '" data-edit="' + it.id + '" title="' + esc(it.name) + '"><b>' + esc(it.name) + "</b></button>";
       }).join("");
@@ -140,14 +171,52 @@
     var tail = (7 - ((lead + days) % 7)) % 7;
     for (var j = 1; j <= tail; j++) cells += '<div class="cc-cell out"><span class="cc-dnum">' + j + "</span></div>";
 
+    var monthPlans = list.filter(isMonthPlan);
+    var banner = monthPlans.length
+      ? '<div class="cc-monthplans">' + monthPlans.map(function (it) {
+          return '<button class="cc-mplan ' + it.status + '" data-edit="' + it.id + '">' +
+                 '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+                 "<b>" + esc(it.name) + "</b>" +
+                 (it.branches && it.branches.length ? '<span class="cc-mplan-br">' + it.branches.map(esc).join(" · ") + "</span>" : "") +
+                 "</button>";
+        }).join("") + "</div>"
+      : "";
+
     $("ccView").innerHTML =
       '<div class="cc-monthbar">' +
         '<button class="cc-back" id="ccBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ทั้งปี ' + be(year) + "</button>" +
         "<h2>" + MONTHS[m] + " " + be(year) + "</h2>" +
-        '<span style="font-size:13px;color:var(--text-muted)">' + (list.length ? list.length + " แคมเปญ" : "ยังไม่มีแคมเปญ") + "</span>" +
-      "</div>" +
+        '<button class="cc-btn" data-newmonth="1">+ แผนทั้งเดือนนี้</button>' +
+      "</div>" + banner +
       '<div class="cc-cal"><div class="cc-dow">' + DOW.map(function (x) { return "<div>" + x + "</div>"; }).join("") +
-      '</div><div class="cc-grid">' + cells + "</div></div>";
+      '</div><div class="cc-grid">' + cells + "</div></div>" +
+      renderBranchBoard(list);
+  }
+
+  /* เดือนนี้ "สาขาไหนทำอะไร" */
+  function renderBranchBoard(list) {
+    if (!list.length) return "";
+    var cols = BRANCHES.map(function (b) {
+      var mine = list.filter(function (it) { return (it.branches || []).indexOf(b) !== -1; });
+      var body = mine.length
+        ? mine.map(function (it) {
+            return '<button class="cc-bitem ' + it.status + '" data-edit="' + it.id + '">' +
+                   "<b>" + esc(it.name) + "</b>" +
+                   '<span class="cc-bmeta">' + fmtRange(it) + (it.budget ? " · ฿ " + baht(it.budget) : "") + "</span>" +
+                   "</button>";
+          }).join("")
+        : '<div class="cc-bempty">ยังไม่มีแผน</div>';
+      return '<div class="cc-bcol"><h4>' + esc(b) + "<span>" + (mine.length || "") + "</span></h4>" + body + "</div>";
+    }).join("");
+    var noBranch = list.filter(function (it) { return !it.branches || !it.branches.length; });
+    var extra = noBranch.length
+      ? '<div class="cc-bcol"><h4>ยังไม่ระบุสาขา<span>' + noBranch.length + "</span></h4>" +
+        noBranch.map(function (it) {
+          return '<button class="cc-bitem ' + it.status + '" data-edit="' + it.id + '"><b>' + esc(it.name) + "</b>" +
+                 '<span class="cc-bmeta">' + fmtRange(it) + "</span></button>";
+        }).join("") + "</div>"
+      : "";
+    return '<div class="cc-board"><h3>เดือนนี้ แต่ละสาขาทำอะไร</h3><div class="cc-bgrid">' + cols + extra + "</div></div>";
   }
 
   function renderList() {
@@ -160,9 +229,16 @@
       return;
     }
     var rows = list.map(function (it) {
+      var atts = it.attachments || [];
+      var thumbs = atts.length
+        ? '<div class="cc-thumbs">' + atts.slice(0, 4).map(function (a) {
+            return '<img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy">';
+          }).join("") + (atts.length > 4 ? '<span class="cc-more">+' + (atts.length - 4) + "</span>" : "") + "</div>"
+        : "";
       return "<tr>" +
         '<td class="dt">' + fmtRange(it) + "</td>" +
-        '<td class="nm">' + esc(it.name) + (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + "</td>" +
+        '<td class="nm">' + esc(it.name) +
+          (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + thumbs + "</td>" +
         '<td><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></td>" +
         '<td><div class="cc-tags">' + (it.channels || []).map(function (c) { return '<span class="cc-tag">' + esc(c) + "</span>"; }).join("") + "</div></td>" +
         '<td><div class="cc-tags">' + (it.branches || []).map(function (b) { return '<span class="cc-tag">' + esc(b) + "</span>"; }).join("") + "</div></td>" +
@@ -187,14 +263,14 @@
       return '<button type="button" class="cc-choice" data-choice="branch" data-v="' + esc(b) + '" aria-pressed="false">' + esc(b) + "</button>";
     }).join("");
   }
-  function setSeg(v) {
-    Array.prototype.forEach.call(document.querySelectorAll("#cc-status button"), function (b) {
+  function setSeg(sel, v) {
+    Array.prototype.forEach.call(document.querySelectorAll(sel + " button"), function (b) {
       b.setAttribute("aria-pressed", String(b.dataset.v === v));
     });
   }
-  function getSeg() {
-    var on = document.querySelector('#cc-status button[aria-pressed="true"]');
-    return on ? on.dataset.v : "plan";
+  function getSeg(sel, fallback) {
+    var on = document.querySelector(sel + ' button[aria-pressed="true"]');
+    return on ? on.dataset.v : fallback;
   }
   function setChoices(kind, vals) {
     var v = vals || [];
@@ -207,19 +283,35 @@
       return b.getAttribute("aria-pressed") === "true";
     }).map(function (b) { return b.dataset.v; });
   }
-  function openDrawer(item, presetDate) {
+  function applyScopeUI() {
+    var scope = getSeg("#cc-scope", "range");
+    $("ccRangeFields").style.display = scope === "month" ? "none" : "";
+    $("ccMonthFields").style.display = scope === "month" ? "" : "none";
+  }
+
+  function openDrawer(item, presetDate, presetScope) {
     editingId = item ? item.id : null;
+    pendingFiles = [];
     $("ccDrawerTitle").textContent = item ? "แก้ไขแคมเปญ" : "เพิ่มแคมเปญ";
     $("cc-name").value = item ? item.name : "";
+
+    var scope = item ? (item.scope || "range") : (presetScope || "range");
+    setSeg("#cc-scope", scope);
+
+    var base = item ? parseISO(item.start) : (presetDate ? parseISO(presetDate) : new Date());
+    $("cc-month").value = base.getFullYear() + "-" + String(base.getMonth() + 1).padStart(2, "0");
     $("cc-start").value = item ? item.start : (presetDate || todayISO());
-    $("cc-end").value = item ? (item.end || "") : "";
+    $("cc-end").value = item && item.end !== item.start ? item.end : "";
+    applyScopeUI();
+
     $("cc-budget").value = item && item.budget ? item.budget : "";
     $("cc-owner").value = item ? (item.owner || "") : "";
     $("cc-note").value = item ? (item.note || "") : "";
     $("ccErr").textContent = "";
-    setSeg(item ? item.status : "plan");
+    setSeg("#cc-status", item ? item.status : "plan");
     setChoices("channel", item ? item.channels : []);
     setChoices("branch", item ? item.branches : []);
+    renderAttachments(item);
     $("ccDelete").style.visibility = item ? "visible" : "hidden";
     $("ccDrawer").classList.add("open");
     $("ccDrawer").setAttribute("aria-hidden", "false");
@@ -231,47 +323,155 @@
     $("ccDrawer").setAttribute("aria-hidden", "true");
     $("ccScrim").classList.remove("open");
     editingId = null;
+    pendingFiles = [];
   }
 
-  function submit() {
-    var name = $("cc-name").value.trim(), start = $("cc-start").value, end = $("cc-end").value;
-    if (!name) { $("ccErr").textContent = "ใส่ชื่อแคมเปญก่อน"; $("cc-name").focus(); return; }
-    if (!start) { $("ccErr").textContent = "เลือกวันเริ่ม"; return; }
-    if (end && end < start) { $("ccErr").textContent = "วันสิ้นสุดต้องไม่มาก่อนวันเริ่ม"; return; }
+  function renderAttachments(item) {
+    var saved = (item && item.attachments) || [];
+    var html = saved.map(function (a) {
+      return '<div class="cc-file"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '">' +
+             '<button type="button" class="cc-filedel" data-delfile="' + a.id + '" aria-label="ลบรูป">&times;</button></div>';
+    }).join("");
+    html += pendingFiles.map(function (f, i) {
+      return '<div class="cc-file pending"><img src="' + f.dataUrl + '" alt="' + esc(f.fileName) + '">' +
+             '<button type="button" class="cc-filedel" data-pending="' + i + '" aria-label="เอาออก">&times;</button></div>';
+    }).join("");
+    $("ccFiles").innerHTML = html || '<div class="cc-nofile">ยังไม่มีรูป</div>';
+    $("ccFileHint").textContent = online
+      ? "รูปเก็บบนเซิร์ฟเวอร์ ทีมเห็นเหมือนกัน (สูงสุด 6 รูปต่อแคมเปญ)"
+      : "โหมดออฟไลน์: แนบรูปไม่ได้ ต้องเปิดผ่าน admin.kan-hub.com";
+  }
 
-    var data = {
-      name: name, start: start, end: end || start, status: getSeg(),
+  /* ย่อรูปก่อนส่ง ไม่งั้นไฟล์จากกล้องมือถือใหญ่เกินลิมิต */
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error("อ่านไฟล์ไม่ได้")); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("ไฟล์นี้ไม่ใช่รูป")); };
+        img.onload = function () {
+          var w = img.width, h = img.height, scale = Math.min(1, MAX_IMAGE_PX / Math.max(w, h));
+          var cv = document.createElement("canvas");
+          cv.width = Math.round(w * scale);
+          cv.height = Math.round(h * scale);
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          var q = 0.82, out = cv.toDataURL("image/jpeg", q);
+          while (out.length * 0.75 > MAX_IMAGE_BYTES && q > 0.4) {
+            q -= 0.12;
+            out = cv.toDataURL("image/jpeg", q);
+          }
+          resolve({ dataUrl: out, fileName: file.name });
+        };
+        img.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function pickFiles(fileList) {
+    if (!online) { toast("ต้องเปิดผ่าน admin.kan-hub.com ถึงจะแนบรูปได้"); return; }
+    var files = Array.prototype.slice.call(fileList).filter(function (f) { return f.type.indexOf("image/") === 0; });
+    if (!files.length) { toast("เลือกได้เฉพาะไฟล์รูป"); return; }
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var shrunk = await shrinkImage(files[i]);
+        if (editingId) {
+          await api("/campaigns/" + editingId + "?action=attach", { method:"POST", body: JSON.stringify(shrunk) });
+          await loadAll();
+          renderAttachments(byId(editingId));
+          render();
+          toast("แนบรูปแล้ว");
+        } else {
+          pendingFiles.push(shrunk);
+          renderAttachments(null);
+        }
+      } catch (e) {
+        toast("แนบรูปไม่สำเร็จ: " + e.message);
+      }
+    }
+  }
+
+  /* ---------- save ---------- */
+  function collect() {
+    var scope = getSeg("#cc-scope", "range");
+    var name = $("cc-name").value.trim();
+    var start, end;
+
+    if (scope === "month") {
+      var mv = $("cc-month").value; // YYYY-MM
+      if (!/^\d{4}-\d{2}$/.test(mv)) return { error: "เลือกเดือนก่อน" };
+      var y = +mv.slice(0, 4), mo = +mv.slice(5, 7) - 1;
+      start = iso(y, mo, 1);
+      end = iso(y, mo, daysIn(y, mo));
+    } else {
+      start = $("cc-start").value;
+      end = $("cc-end").value || start;
+      if (!start) return { error: "เลือกวันเริ่ม" };
+      if (end < start) return { error: "วันสิ้นสุดต้องไม่มาก่อนวันเริ่ม" };
+    }
+    if (!name) return { error: "ใส่ชื่อแคมเปญก่อน" };
+
+    return { value: {
+      name: name, start: start, end: end, scope: scope,
+      status: getSeg("#cc-status", "plan"),
       channels: getChoices("channel"), branches: getChoices("branch"),
       budget: Number($("cc-budget").value) || 0,
       owner: $("cc-owner").value.trim(),
       note: $("cc-note").value.trim()
-    };
+    } };
+  }
 
-    if (editingId) {
-      items = items.map(function (it) { return it.id === editingId ? Object.assign({}, it, data) : it; });
+  async function submit() {
+    var parsed = collect();
+    if (parsed.error) { $("ccErr").textContent = parsed.error; return; }
+    var data = parsed.value;
+    $("ccSave").disabled = true;
+    try {
+      if (online) {
+        if (editingId) {
+          await api("/campaigns/" + editingId, { method:"PUT", body: JSON.stringify(data) });
+        } else {
+          var created = await api("/campaigns", { method:"POST", body: JSON.stringify(data) });
+          for (var i = 0; i < pendingFiles.length; i++) {
+            await api("/campaigns/" + created.id + "?action=attach", { method:"POST", body: JSON.stringify(pendingFiles[i]) });
+          }
+        }
+        await loadAll();
+      } else {
+        if (editingId) {
+          items = items.map(function (it) { return it.id === editingId ? Object.assign({}, it, data) : it; });
+        } else {
+          data.id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          data.attachments = [];
+          items.push(data);
+        }
+        cacheLocal();
+      }
+      year = parseISO(data.start).getFullYear();
       closeDrawer();
-      done("แก้ไขแล้ว");
-    } else {
-      data.id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      items.push(data);
-      year = parseISO(start).getFullYear();
-      closeDrawer();
-      done("เพิ่มแคมเปญแล้ว");
+      render();
+      toast(online ? "บันทึกแล้ว" : "บันทึกในเครื่องนี้ (ยังไม่ขึ้นเซิร์ฟเวอร์)");
+    } catch (e) {
+      $("ccErr").textContent = "บันทึกไม่สำเร็จ: " + e.message;
+    } finally {
+      $("ccSave").disabled = false;
     }
   }
-  function removeItem() {
+
+  async function removeItem() {
     var it = byId(editingId);
     if (!it) return;
     if (!confirm('ลบ "' + it.name + '" ออกจากปฏิทิน?')) return;
-    items = items.filter(function (x) { return x.id !== editingId; });
-    closeDrawer();
-    done("ลบแล้ว");
+    try {
+      if (online) { await api("/campaigns/" + editingId, { method:"DELETE" }); await loadAll(); }
+      else { items = items.filter(function (x) { return x.id !== editingId; }); cacheLocal(); }
+      closeDrawer();
+      render();
+      toast("ลบแล้ว");
+    } catch (e) { toast("ลบไม่สำเร็จ: " + e.message); }
   }
-  function done(msg) {
-    var ok = persist();
-    render();
-    toast(ok ? msg : msg + " (เบราว์เซอร์บล็อกการบันทึก — กดสำรองไฟล์ไว้ก่อน)");
-  }
+
   function toast(msg) {
     var el = $("ccToast");
     el.textContent = msg;
@@ -282,7 +482,7 @@
 
   /* ---------- backup ---------- */
   function exportFile() {
-    var blob = new Blob([JSON.stringify({ version:1, savedAt:new Date().toISOString(), items:items }, null, 2)],
+    var blob = new Blob([JSON.stringify({ version:2, savedAt:new Date().toISOString(), items:items }, null, 2)],
                         { type: "application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -291,35 +491,44 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    toast("ดาวน์โหลดไฟล์สำรองแล้ว");
+    toast("ดาวน์โหลดไฟล์สำรองแล้ว (ไม่รวมรูป)");
   }
   function importFile(file) {
     var reader = new FileReader();
-    reader.onload = function () {
+    reader.onload = async function () {
       var incoming;
       try {
         var parsed = JSON.parse(String(reader.result));
         incoming = Array.isArray(parsed) ? parsed : parsed.items;
-      } catch (e) { toast("ไฟล์นี้อ่านไม่ได้ ต้องเป็นไฟล์สำรองจากหน้านี้"); return; }
+      } catch (e) { toast("ไฟล์นี้อ่านไม่ได้"); return; }
       if (!Array.isArray(incoming)) { toast("ไฟล์นี้ไม่มีข้อมูลแคมเปญ"); return; }
-      if (items.length && !confirm("นำเข้า " + incoming.length + " แคมเปญ ทับของเดิม " + items.length + " รายการ?")) return;
-      items = incoming.filter(function (x) { return x && x.name && x.start; }).map(function (x) {
-        return {
-          id: x.id || ("c" + Math.random().toString(36).slice(2, 10)),
-          name: String(x.name), start: x.start, end: x.end || x.start,
-          status: STATUS_LABEL[x.status] ? x.status : "plan",
-          channels: Array.isArray(x.channels) ? x.channels : [],
-          branches: Array.isArray(x.branches) ? x.branches : [],
-          budget: Number(x.budget) || 0, owner: x.owner || "", note: x.note || ""
-        };
-      });
-      done("นำเข้า " + items.length + " แคมเปญแล้ว");
+      var valid = incoming.filter(function (x) { return x && x.name && x.start; });
+      if (!valid.length) { toast("ไม่พบแคมเปญในไฟล์"); return; }
+      if (!confirm("นำเข้า " + valid.length + " แคมเปญ เพิ่มเข้าไปในระบบ?")) return;
+      try {
+        if (online) {
+          for (var i = 0; i < valid.length; i++) {
+            await api("/campaigns", { method:"POST", body: JSON.stringify({
+              name: valid[i].name, start: valid[i].start, end: valid[i].end || valid[i].start,
+              scope: valid[i].scope || "range", status: valid[i].status || "plan",
+              channels: valid[i].channels || [], branches: valid[i].branches || [],
+              budget: valid[i].budget || 0, owner: valid[i].owner || "", note: valid[i].note || ""
+            }) });
+          }
+          await loadAll();
+        } else {
+          items = items.concat(valid);
+          cacheLocal();
+        }
+        render();
+        toast("นำเข้า " + valid.length + " แคมเปญแล้ว");
+      } catch (e) { toast("นำเข้าไม่สำเร็จ: " + e.message); }
     };
     reader.readAsText(file);
   }
 
   /* ---------- events ---------- */
-  $("ccAdd").addEventListener("click", function () { openDrawer(null, null); });
+  $("ccAdd").addEventListener("click", function () { openDrawer(null, null, null); });
   $("ccPrev").addEventListener("click", function () { year--; view = { mode:"year", month:null }; render(); });
   $("ccNext").addEventListener("click", function () { year++; view = { mode:"year", month:null }; render(); });
   $("ccClose").addEventListener("click", closeDrawer);
@@ -334,25 +543,52 @@
     if (e.target.files && e.target.files[0]) importFile(e.target.files[0]);
     e.target.value = "";
   });
+  $("ccAddFile").addEventListener("click", function () { $("ccImageInput").click(); });
+  $("ccImageInput").addEventListener("change", function (e) {
+    if (e.target.files && e.target.files.length) pickFiles(e.target.files);
+    e.target.value = "";
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeDrawer();
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && $("ccDrawer").classList.contains("open")) submit();
   });
-  document.addEventListener("click", function (e) {
+
+  document.addEventListener("click", async function (e) {
+    var scopeBtn = e.target.closest("#cc-scope button");
+    if (scopeBtn) { setSeg("#cc-scope", scopeBtn.dataset.v); applyScopeUI(); return; }
     var seg = e.target.closest("#cc-status button");
-    if (seg) { setSeg(seg.dataset.v); return; }
+    if (seg) { setSeg("#cc-status", seg.dataset.v); return; }
     var ch = e.target.closest("[data-choice]");
     if (ch) { ch.setAttribute("aria-pressed", ch.getAttribute("aria-pressed") === "true" ? "false" : "true"); return; }
+
+    var delFile = e.target.closest("[data-delfile]");
+    if (delFile) {
+      try {
+        await api("/attachments/" + delFile.dataset.delfile, { method:"DELETE" });
+        await loadAll();
+        renderAttachments(byId(editingId));
+        render();
+      } catch (err) { toast("ลบรูปไม่สำเร็จ"); }
+      return;
+    }
+    var delPending = e.target.closest("[data-pending]");
+    if (delPending) { pendingFiles.splice(+delPending.dataset.pending, 1); renderAttachments(null); return; }
+
     var ed = e.target.closest("[data-edit]");
-    if (ed) { e.stopPropagation(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null); return; }
+    if (ed) { e.stopPropagation(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
     var mo = e.target.closest("[data-month]");
     if (mo) { view = { mode:"month", month:+mo.dataset.month }; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
     if (e.target.closest("#ccBack")) { view = { mode:"year", month:null }; render(); return; }
+    if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
     var day = e.target.closest("[data-day]");
-    if (day) { openDrawer(null, day.dataset.day); return; }
-    if (e.target.closest("[data-new]")) { openDrawer(null, view.mode === "month" ? iso(year, view.month, 1) : null); return; }
+    if (day) { openDrawer(null, day.dataset.day, "range"); return; }
+    if (e.target.closest("[data-new]")) {
+      openDrawer(null, view.mode === "month" ? iso(year, view.month, 1) : null, null);
+      return;
+    }
   });
 
   buildChoices();
   render();
+  loadAll().then(render);
 })();

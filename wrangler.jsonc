@@ -4,6 +4,13 @@
   "name": "kanhub",
   "compatibility_date": "2025-06-01",
   "main": "./worker.js",
+  "d1_databases": [
+    {
+      "binding": "KAN_ERP",
+      "database_name": "kan-erp",
+      "database_id": "c45f9c3f-7e4d-45a2-b318-af22bf2ac87d"
+    }
+  ],
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
