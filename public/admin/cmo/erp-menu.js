@@ -184,7 +184,7 @@
       if (openIdx < 0) { openIdx = 0; }
 
       var h = '<a class="erp-brand" href="' + homeHref + '">' +
-        '<span class="erp-k">K</span><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
+        '<img class="erp-k" src="../assets/kan-logo.png" alt="KAN" /><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
         '<small>' + esc(this.brandSub) + '</small></span></a><div class="erp-nav">';
 
       var gi = -1;

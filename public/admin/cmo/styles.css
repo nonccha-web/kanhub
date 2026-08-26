@@ -289,7 +289,7 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
 .erp-brand{ display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:0 8px;
   text-decoration:none; }
 .erp-brand .erp-k{ width:38px; height:38px; border-radius:10px; background:#F2565A; color:#fff;
-  font-weight:800; font-size:18px; display:flex; align-items:center; justify-content:center; }
+  font-weight:800; font-size:18px; display:flex; align-items:center; justify-content:center; ;object-fit:cover;padding:0;font-size:0;background:transparent}
 .erp-brand-tx b{ color:#2A2F45; font-size:16px; display:block; line-height:1.1; }
 .erp-brand-tx small{ font-size:11px; color:#9AA0B5; }
 

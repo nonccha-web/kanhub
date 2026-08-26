@@ -517,18 +517,31 @@
 
   function renderAttachments(item) {
     var saved = (item && item.attachments) || [];
+    var total = saved.length + pendingFiles.length;
+    var n = 0;
     var html = saved.map(function (a) {
-      return '<div class="cc-file"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '">' +
+      n++;
+      return '<div class="cc-shot"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '">' +
+             '<span class="cc-shot-num">' + n + "/" + total + "</span>" +
              '<button type="button" class="cc-filedel" data-delfile="' + a.id + '" aria-label="ลบรูป">&times;</button></div>';
     }).join("");
     html += pendingFiles.map(function (f, i) {
-      return '<div class="cc-file pending"><img src="' + f.dataUrl + '" alt="' + esc(f.fileName) + '">' +
+      n++;
+      return '<div class="cc-shot pending"><img src="' + f.dataUrl + '" alt="' + esc(f.fileName) + '">' +
+             '<span class="cc-shot-num">' + n + "/" + total + " · ยังไม่บันทึก</span>" +
              '<button type="button" class="cc-filedel" data-pending="' + i + '" aria-label="เอาออก">&times;</button></div>';
     }).join("");
-    $("ccFiles").innerHTML = html || '<div class="cc-nofile">ยังไม่มีรูป</div>';
-    $("ccFileHint").textContent = online
-      ? "รูปเก็บบนเซิร์ฟเวอร์ ทีมเห็นเหมือนกัน (สูงสุด 6 รูปต่อแคมเปญ)"
-      : "โหมดออฟไลน์: แนบรูปไม่ได้ ต้องเปิดผ่าน admin.kan-hub.com";
+
+    var addBtn = '<button type="button" class="cc-addshot' + (total ? "" : " wide") + '" id="ccAddFile">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/></svg>' +
+      (total ? "เพิ่มรูป" : "เพิ่มรูปแรก") + "</button>";
+
+    $("ccFiles").innerHTML = html + (total < 6 ? addBtn : "");
+    $("ccFileHint").textContent = !online
+      ? "โหมดออฟไลน์: แนบรูปไม่ได้ ต้องเปิดผ่าน admin.kan-hub.com"
+      : (total ? "เลื่อนดูรูปได้ · สูงสุด 6 รูปต่อแคมเปญ (เก็บบนเซิร์ฟเวอร์ ทีมเห็นเหมือนกัน)"
+               : "ใส่รูปไว้จะได้เห็นทันทีว่าแคมเปญนี้คืออะไร");
   }
 
   /* ย่อรูปก่อนส่ง ไม่งั้นไฟล์จากกล้องมือถือใหญ่เกินลิมิต */
@@ -733,7 +746,6 @@
     if (e.target.files && e.target.files[0]) importFile(e.target.files[0]);
     e.target.value = "";
   });
-  $("ccAddFile").addEventListener("click", function () { $("ccImageInput").click(); });
   $("ccImageInput").addEventListener("change", function (e) {
     if (e.target.files && e.target.files.length) pickFiles(e.target.files);
     e.target.value = "";
@@ -748,6 +760,7 @@
     if (scopeBtn) { setSeg("#cc-scope", scopeBtn.dataset.v); applyScopeUI(); return; }
     var seg = e.target.closest("#cc-status button");
     if (seg) { setSeg("#cc-status", seg.dataset.v); return; }
+    if (e.target.closest("#ccAddFile")) { $("ccImageInput").click(); return; }
     var sw = e.target.closest("[data-color]");
     if (sw) { setColor(sw.dataset.color); return; }
     var ch = e.target.closest("[data-choice]");

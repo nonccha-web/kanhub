@@ -24,7 +24,7 @@ aside{width:238px;background:var(--side);color:var(--sub);padding:20px 14px;flex
 #sideHost::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
 .erp-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:0 8px;text-decoration:none}
 .erp-brand .erp-k{width:38px;height:38px;border-radius:10px;background:var(--indigo);color:#fff;
-          font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center}
+          font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;object-fit:cover;padding:0;font-size:0;background:transparent}
 .erp-brand-tx b{color:var(--ink);font-size:16px;display:block;line-height:1.1}
 .erp-brand-tx small{font-size:11px;color:var(--muted)}
 .erp-nav{display:flex;flex-direction:column;gap:3px}
