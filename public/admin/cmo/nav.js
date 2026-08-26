@@ -57,6 +57,35 @@
     document.body.insertBefore(aside, document.body.firstChild);
     document.documentElement.classList.add("has-erp-side");
     if (global.ERP_MENU) { global.ERP_MENU.wire(aside); }
+
+    /* มือถือ: เมนูเป็นลิ้นชัก ต้องมีปุ่มเปิดและฉากหลังกดปิด */
+    var bar = document.createElement("div");
+    bar.className = "erp-topbar";
+    bar.innerHTML =
+      '<button type="button" aria-label="เปิดเมนู" data-erp-toggle>' +
+        '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>' +
+      '<img src="../assets/kan-logo.png" alt=""><b>KAN MKT</b>';
+    document.body.insertBefore(bar, document.body.firstChild);
+
+    var scrim = document.createElement("div");
+    scrim.className = "erp-scrim";
+    scrim.setAttribute("data-erp-close", "1");
+    document.body.insertBefore(scrim, document.body.firstChild);
+
+    document.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-erp-toggle]")) {
+        document.documentElement.classList.toggle("erp-open");
+      } else if (ev.target.closest("[data-erp-close]")) {
+        document.documentElement.classList.remove("erp-open");
+      } else if (document.documentElement.classList.contains("erp-open") &&
+                 ev.target.closest(".erp-sidebar a")) {
+        document.documentElement.classList.remove("erp-open");   /* เลือกเมนูแล้วปิดเอง */
+      }
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") document.documentElement.classList.remove("erp-open");
+    });
   }
 
   // pager (ก่อนหน้า/ถัดไป) ไล่ตามลำดับหน้า CMO ในเมนูรวม

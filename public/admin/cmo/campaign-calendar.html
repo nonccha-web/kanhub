@@ -315,10 +315,36 @@ body{ padding:24px 20px; }
 .cc-offline{ display:none; background:var(--st-live-bg); color:var(--st-live); border:1px solid var(--st-live);
   border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
 
+@media (max-width:900px){
+  /* จอมือถือ: กันหน้าเลื่อนออกข้าง
+     ตัวการหลักคือตารางที่ตั้ง min-width ไว้ 820px — ต้องล็อกกล่องครอบให้ไม่เกินจอ
+     แล้วปล่อยให้เลื่อนอยู่ในกล่องตัวเอง */
+  html, body{ max-width:100%; overflow-x:hidden; }
+  .container{ max-width:100%; width:100%; min-width:0; }
+  .container > *{ min-width:0; max-width:100%; }
+  .cc-tablewrap{ max-width:100%; width:100%; }
+  .cc-cal{ max-width:100%; overflow-x:auto; }
+  .cc-stats{ grid-template-columns:1fr 1fr; gap:8px; }
+  .cc-months{ grid-template-columns:1fr; }
+  .cc-top{ gap:10px; }
+  .cc-actions{ width:100%; }
+  .cc-actions .cc-btn, .cc-actions a.cc-btn{ flex:1 1 calc(50% - 5px); justify-content:center; }
+  .cc-yearnav{ flex:1 1 100%; justify-content:center; }
+  .cc-board .cc-bgrid{ grid-template-columns:1fr 1fr; }
+}
 @media (max-width:640px){
-  .cc-cell{ min-height:80px; }
+  .cc-cell{ min-height:64px; padding:4px; }
+  .cc-dnum{ width:19px; height:19px; font-size:11px; }
+  .cc-chip{ font-size:10px; padding:2px 4px; border-left-width:2px; }
   .cc-two{ grid-template-columns:1fr; }
-  body{ padding:16px 12px; }
+  body{ padding:14px 10px; }
+  .cc-top h1{ font-size:22px; }
+  .cc-stat .v{ font-size:19px; }
+  .cc-dow div{ padding:6px 4px; font-size:10px; }
+  .cc-board .cc-bgrid{ grid-template-columns:1fr; }
+  .cc-drawer{ width:100%; }
+  .cc-shot{ width:min(78vw,290px); height:auto; aspect-ratio:3/2; }
+  .cc-addshot{ width:120px; height:auto; aspect-ratio:3/2; }
 }
 </style>
 </head>
