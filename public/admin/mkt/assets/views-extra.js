@@ -116,7 +116,7 @@
           }),
           datasets: [{
             data: top.map(function (r) { return r.net; }),
-            backgroundColor: top.map(function (r, i) { return i < 3 ? '#0E6E64' : '#A9CBC7'; }),
+            backgroundColor: top.map(function (r, i) { return i < 3 ? '#3D5A98' : '#C5CFE3'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },
@@ -329,7 +329,7 @@
         data: {
           labels: top.map(function (r) { return r.name; }),
           datasets: [{ data: top.map(function (r) { return r.net; }),
-                       backgroundColor: '#0E6E64', borderRadius: 5, borderSkipped: false }],
+                       backgroundColor: '#3D5A98', borderRadius: 5, borderSkipped: false }],
         },
         options: {
           indexAxis: 'y',
@@ -527,7 +527,7 @@
   });
 
   function toneColor(t) {
-    return { r: '#B02A30', a: '#B8820A', g: '#0E6E64', b: '#3D5A98', i: '#0E6E64' }[t] || '#0E6E64';
+    return { r: '#B02A30', a: '#B8820A', g: '#0E6E64', b: '#0E6E64', i: '#3D5A98' }[t] || '#3D5A98';
   }
 
   /* Sidebar reads viewOrder directly, so put the two new pages next to the

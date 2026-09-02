@@ -157,7 +157,7 @@
     if (!flat.length) { return UI.empty('ไม่มีข้อมูลในช่วงที่เลือก'); }
     function q(p) { return flat[Math.min(flat.length - 1, Math.floor(flat.length * p))]; }
     var stops = [q(0.2), q(0.45), q(0.68), q(0.86)];
-    var colors = ['#E6EEF0', '#A9CBC7', '#5A9E96', '#31857B', '#0E6E64'];
+    var colors = ['#E7EBF4', '#C5CFE3', '#93A7CB', '#5F7BB0', '#3D5A98'];
 
     function col(v) {
       if (v <= 0) { return '#EFF3F4'; }
@@ -172,7 +172,7 @@
       h += '<tr><th class="rowh">' + esc(m.dows[i]) + '</th>';
       row.forEach(function (v) {
         var c = col(v);
-        var dark = (c === '#31857B' || c === '#0E6E64') ? ' dark' : '';
+        var dark = (c === '#5F7BB0' || c === '#3D5A98') ? ' dark' : '';
         h += '<td><div class="c' + dark + '" style="background:' + c + '" title="' +
              esc(m.dowsLong[i]) + ' ' + '" >' +
              (v > 0 ? fmt.bahtK(v).replace('฿', '') : '') + '</div></td>';

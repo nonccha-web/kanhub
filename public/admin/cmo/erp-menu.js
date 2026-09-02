@@ -27,7 +27,8 @@
       { icon: 'chart', label: 'ยอดขาย', items: [
         { icon: 'dashboard', label: 'ภาพรวมยอดขาย', sales: '#/overview' },
         { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
-        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
+        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' },
+        { icon: 'chart',     label: 'แดชบอร์ดฝ่ายขาย (เต็ม)', sales: 'sales/' }
       ]},
       { icon: 'megaphone', label: 'โฆษณา', items: [
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
@@ -164,6 +165,12 @@
 
   function href(item, opts) {
     if (item.sales != null) {
+      /* ค่าไม่ขึ้นต้น # = หน้าแยกใต้โฟลเดอร์ mkt (เช่น sales/) ไม่ใช่ hash route */
+      if (item.sales.charAt(0) !== '#') {
+        return opts.ctx === 'sales'
+          ? item.sales
+          : opts.salesBase.replace(/index\.html$/, '') + item.sales;
+      }
       return opts.ctx === 'sales' ? item.sales : (opts.salesBase + item.sales);
     }
     return opts.ctx === 'cmo' ? item.cmo : (opts.cmoBase + item.cmo);

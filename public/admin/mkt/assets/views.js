@@ -178,9 +178,9 @@
       var b = KAN.branchFilter();
       var s = KAN.posSeries(range.i0, range.i1, b);
       var ds = [{
-        label: 'ช่วงที่เลือก', data: s.net, borderColor: '#0E6E64', borderWidth: 2.4,
+        label: 'ช่วงที่เลือก', data: s.net, borderColor: '#3D5A98', borderWidth: 2.4,
         pointRadius: 0, pointHoverRadius: 4, tension: 0.28, fill: true,
-        backgroundColor: 'rgba(14,110,100,.10)',
+        backgroundColor: 'rgba(61,90,152,.10)',
       }];
       if (range.prev.valid) {
         var p = KAN.posSeries(range.prev.i0, range.prev.i1, b);
@@ -225,7 +225,7 @@
           labels: D.billBins,
           datasets: [{
             data: bins.map(function (x) { return x.bills; }),
-            backgroundColor: bins.map(function (x, i) { return i <= 4 ? '#A9CBC7' : '#0E6E64'; }),
+            backgroundColor: bins.map(function (x, i) { return i <= 4 ? '#C5CFE3' : '#3D5A98'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },
@@ -711,7 +711,7 @@
           } },
         { key: 'closingValue', label: 'มูลค่าค้าง', num: true,
           render: function (r) {
-            return UI.miniBar(r.closingValue / maxVal, '#0E6E64') + fmt.bahtK(r.closingValue);
+            return UI.miniBar(r.closingValue / maxVal, '#3D5A98') + fmt.bahtK(r.closingValue);
           } },
       ], shown, { sortKey: 'closingValue', sortDir: -1 }).mount();
     },
@@ -786,6 +786,9 @@
           : UI.empty('ยังไม่พบจุดที่คุ้มจะจัดโปรในช่วงนี้ — ตัวเลขทุกด้านอยู่ในเกณฑ์ปกติ'),
       });
 
+      /* ข้อเสนอที่อ่านจากแดชบอร์ดฝ่ายขาย (ข้อมูล 3 ปี) — suggest-sales.js */
+      if (KAN.suggestSales) { h += KAN.suggestSales.section(); }
+
       h += UI.sect({
         id: 'timing', eyebrow: 'จังหวะเวลา', title: 'ช่วงไหนคนเข้าร้าน',
         lead: 'ใช้เลือกวันและเวลาที่จะปล่อยโปร — เติมช่องที่ว่าง อย่าลดราคาในช่องที่เต็มอยู่แล้ว',
@@ -816,6 +819,7 @@
     after: function () {
       var ctx = this._ctx;
       if (!ctx) { return; }
+      if (KAN.suggestSales) { KAN.suggestSales.wire(); }
 
       var perDay = ctx.heat.dowPerDay || ctx.heat.dowTotals;
       UI.chart('pmDow', {
@@ -827,7 +831,7 @@
             backgroundColor: (function () {
               var max = Math.max.apply(null, perDay.concat([1]));
               return perDay.map(function (v) {
-                return v / max > 0.8 ? '#0E6E64' : v / max > 0.55 ? '#5A9E96' : '#C7DEDA';
+                return v / max > 0.8 ? '#3D5A98' : v / max > 0.55 ? '#93A7CB' : '#CBD6E8';
               });
             }()),
             borderRadius: 5, borderSkipped: false,
@@ -872,7 +876,7 @@
           labels: D.billBins,
           datasets: [{
             data: ctx.billBins.map(function (x) { return x.net; }),
-            backgroundColor: ctx.billBins.map(function (x, i) { return i >= 6 ? '#0E6E64' : '#A9CBC7'; }),
+            backgroundColor: ctx.billBins.map(function (x, i) { return i >= 6 ? '#3D5A98' : '#C5CFE3'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },

@@ -637,8 +637,8 @@
             labels: s.labels,
             datasets: [
               { label: 'ค่าแอด', data: spend, backgroundColor: '#C5CFE3',
-                hoverBackgroundColor: '#3D5A98', borderRadius: 3, yAxisID: 'y', order: 2 },
-              { label: 'ยอดขาย', data: s.net, type: 'line', borderColor: '#0E6E64',
+                hoverBackgroundColor: '#2C4372', borderRadius: 3, yAxisID: 'y', order: 2 },
+              { label: 'ยอดขาย', data: s.net, type: 'line', borderColor: '#3D5A98',
                 borderWidth: 2.2, pointRadius: 0, tension: 0.28, yAxisID: 'y1', order: 1 },
             ],
           },
@@ -704,7 +704,7 @@
         });
         drawDonut('adGender', bd.gender.map(function (r, i) {
           return { label: r.label, v: r.v, sub: r.sub,
-                   color: ['#0E6E64', '#3D5A98', '#8F9AA3'][i] };
+                   color: ['#3D5A98', '#2C7A8C', '#8F9AA3'][i] };
         }));
         drawDonut('adPlace', bd.place);
         drawDonut('adRegion', bd.region.map(function (r) {

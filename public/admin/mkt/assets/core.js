@@ -776,9 +776,9 @@
   function loyaltyDefs(days) {
     var vipMin = Math.max(3, Math.ceil(days / 15));
     return [
-      { key: 'vip', label: 'ขาประจำ', color: '#0E6E64', min: vipMin,
+      { key: 'vip', label: 'ขาประจำ', color: '#3D5A98', min: vipMin,
         hint: 'ซื้อ ' + vipMin + ' บิลขึ้นไปในช่วงนี้' },
-      { key: 'repeat', label: 'กลับมาซื้อ', color: '#3D5A98', min: 2,
+      { key: 'repeat', label: 'กลับมาซื้อ', color: '#2C7A8C', min: 2,
         hint: 'ซื้อ 2–' + (vipMin - 1) + ' บิลในช่วงนี้' },
       { key: 'once', label: 'ซื้อครั้งเดียว', color: '#8F9AA3', min: 1,
         hint: 'ซื้อครั้งเดียวในช่วงนี้' },
@@ -794,8 +794,8 @@
   ];
   var SPEND = KAN.SPEND = [
     { key: 's', label: 'บิลเล็ก', color: '#8F9AA3', max: 300, hint: 'เฉลี่ยต่ำกว่า ฿300/บิล' },
-    { key: 'm', label: 'บิลกลาง', color: '#3D5A98', max: 800, hint: '฿300–799 ต่อบิล' },
-    { key: 'l', label: 'บิลใหญ่', color: '#0E6E64', max: Infinity, hint: '฿800 ขึ้นไปต่อบิล' },
+    { key: 'm', label: 'บิลกลาง', color: '#2C7A8C', max: 800, hint: '฿300–799 ต่อบิล' },
+    { key: 'l', label: 'บิลใหญ่', color: '#3D5A98', max: Infinity, hint: '฿800 ขึ้นไปต่อบิล' },
   ];
 
   /* custEvents rows: [customerIx, dateIx, bills, net] — one per customer-day.
@@ -931,7 +931,7 @@
 
   /* ── misc ──────────────────────────────────────────────────────────────── */
 
-  KAN.PALETTE = ['#0E6E64', '#3D5A98', '#B8820A', '#B02A30', '#4A7C59', '#7A4E8C',
+  KAN.PALETTE = ['#3D5A98', '#0E6E64', '#B8820A', '#B02A30', '#4A7C59', '#7A4E8C',
                  '#2C7A8C', '#946B3D', '#5D6D7E', '#8C6A4F', '#3E8E7E', '#A0522D',
                  '#8A939C', '#64707A'];
 
