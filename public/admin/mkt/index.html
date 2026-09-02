@@ -40,13 +40,13 @@
 <div id="guideHost"></div>
 
 <script src="vendor/chart.umd.min.js?v=18"></script>
-<script src="../cmo/erp-menu.js?v=22"></script>
+<script src="../cmo/erp-menu.js?v=23"></script>
 <script src="assets/ingest.js?v=18"></script>
 <script>
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=21',
+  v: '?v=22',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
             'assets/rules.js', 'data/sales-insight.js', 'assets/views.js', 'assets/suggest-sales.js', 'assets/views-extra.js',

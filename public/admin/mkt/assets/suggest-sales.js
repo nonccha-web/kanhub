@@ -44,8 +44,8 @@
     var C = SI.scopes[scopeKey];
     if (!C) { return []; }
     var isAll = scopeKey === 'all';
-    var scopeName = isAll ? 'ทุกสาขา'
-      : 'สาขา' + SI.meta.stores.filter(function (s) { return 's' + s.si === scopeKey; })[0].short;
+    var sc = (SI.meta.scopeList || []).filter(function (x) { return x.key === scopeKey; })[0];
+    var scopeName = sc ? sc.label : scopeKey;
     var out = [];
     var F = mLab(SI.meta.full);
     var mm = {}; C.monthly.forEach(function (r) { mm[r.ym] = r.net; });
@@ -207,6 +207,8 @@
     }());
 
     /* เฉพาะ scope รวม: สาขาที่ตกทั้ง MoM+YoY และ Fashion CRM */
+    if (scopeKey === 'fashion') { pushFashionCRM(out); }
+
     if (isAll && C.branches) {
       (function () {
         var worst = null;
@@ -218,25 +220,30 @@
         });
         if (!worst || worst.gap < worst.prev * 0.08) { return; }
         var est = worst.gap * 0.5;
+        var wname = worst.name === 'Fashion' ? 'KAN Fashion (สุราษฎร์)' : 'สาขา' + worst.name;
         out.push({
           est: est, tone: 'r', tag: 'รายสาขา', tagCls: 'r',
-          scope: 'สาขา' + worst.name + ' · เดือน ' + F,
-          title: 'โปรเฉพาะสาขา ' + worst.name + ' — ดูรายละเอียดในแท็บสาขานั้น',
+          scope: wname + ' · เดือน ' + F,
+          title: 'โปรเฉพาะ' + wname + ' — สลับขอบเขตด้านบนเพื่อเจาะรายละเอียด',
           metrics: [
             { label: 'ยอด ' + F, value: fmt.bahtK(worst.net) },
             { label: 'เทียบเดือนก่อน', value: pctTxt(worst.net, worst.prev) },
             { label: 'เทียบปีก่อน', value: pctTxt(worst.net, worst.yoy) },
           ],
-          why: 'สาขานี้ตกทั้งเทียบเดือนก่อนและปีก่อน ขณะที่สาขาอื่นไม่ตกแรงเท่า — ' +
-               'ปัญหาอยู่ที่พื้นที่ ไม่ใช่ภาพรวมตลาด',
-          action: 'สลับไปดูแท็บสาขา' + worst.name + ' ด้านบนเพื่อเจาะโซน/วัน/ชั่วโมงของสาขานี้ ' +
-                  'แล้วยิงแอดรัศมีรอบสาขา + ดีลเฉพาะสาขา',
+          why: wname + 'ตกทั้งเทียบเดือนก่อนและปีก่อน ขณะที่หน่วยอื่นไม่ตกแรงเท่า — ' +
+               'ปัญหาอยู่ที่พื้นที่/หน่วยนั้น ไม่ใช่ภาพรวมตลาด',
+          action: 'เลือกขอบเขต ' + wname + ' ด้านบนเพื่อเจาะโซน/วัน/ชั่วโมง ' +
+                  'แล้วยิงแอดรัศมีรอบสาขา + ดีลเฉพาะจุด',
           expect: 'ดึงกลับครึ่งหนึ่งของที่หายไป = +' + fmt.bahtK(est) +
                   '/เดือน (สมมติฐาน: กำลังซื้อพื้นที่ยังอยู่ — ปีก่อนทำได้ ' + fmt.bahtK(worst.yoy) + ')',
           src: ['store'],
         });
       }());
 
+      pushFashionCRM(out);
+    }
+
+    function pushFashionCRM(out) {
       (function () {
         var f = SI.fashion; if (!f || f.idrate >= 0.6) { return; }
         var buyers = Math.round(f.ncust / f.idrate);
@@ -423,10 +430,10 @@
             'หน้านี้ไม่ขยับตามตัวกรองช่วงเวลา',
       noFilter: true,
       render: function () {
-        var chips = '<button class="qchip on" data-scope="all">ทุกสาขา</button>' +
-          SI.meta.stores.map(function (st) {
-            return '<button class="qchip" data-scope="s' + st.si + '">' + esc(st.short) + '</button>';
-          }).join('');
+        var chips = (SI.meta.scopeList || []).map(function (sc, i) {
+          return '<button class="qchip' + (i === 0 ? ' on' : '') + '" data-scope="' + sc.key +
+                 '"' + (sc.note ? ' title="' + esc(sc.note) + '"' : '') + '>' + esc(sc.label) + '</button>';
+        }).join('');
         curScope = 'all';
         return '<div class="scope"><div>เลือกขอบเขต:</div></div>' +
           '<div class="filters" style="margin-top:0"><div class="chiprow" style="margin:0;padding:0;border:0" id="psScopes">' +
@@ -443,5 +450,6 @@
       },
     };
     if (KAN.viewOrder) { KAN.viewOrder.push('promo-sales'); }
+    KAN.suggestSalesDebug = { build: build, cards: cardsHTML };  /* ไว้ smoke test */
   }
 }(window));

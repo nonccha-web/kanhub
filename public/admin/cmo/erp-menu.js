@@ -30,14 +30,14 @@
         { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
         { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
       ]},
-      { icon: 'megaphone', label: 'โฆษณา', items: [
+      { icon: 'megaphone', label: 'การตลาด', items: [
+        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
+        { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
+        { icon: 'monitor',   label: 'แผนการตลาด (พรีเซนเก่า)', cmo: 'index.html' },
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
       ]},
       { icon: 'phone', label: 'รายงานการรับสาย', items: [
         { icon: 'phone', label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
-      ]},
-      { icon: 'monitor', label: 'พรีเซนต์', items: [
-        { icon: 'monitor', label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' }
       ]}
 
     ]},
@@ -46,12 +46,11 @@
     { id: 'work', label: 'งานประจำ (ไว้ทำงาน)', groups: [
 
       { icon: 'calendar', label: 'วางแผนแคมเปญ', items: [
-        { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' }
+        { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' },
+        { icon: 'monitor',  label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' }
       ]},
       { icon: 'target', label: 'ลงมือ', items: [
-        { icon: 'target',   label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
-        { icon: 'megaphone', label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
-        { icon: 'clipboard', label: 'แผนลงมือ',        sales: '#/plan' }
+        { icon: 'clipboard', label: 'แผนลงมือ', sales: '#/plan' }
       ]},
       { icon: 'filetext', label: 'กรอกผล', items: [
         { icon: 'filetext', label: 'กรอกผล KPI รายเดือน', cmo: 'kpi.html?mode=edit' }
