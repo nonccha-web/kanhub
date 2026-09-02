@@ -116,7 +116,7 @@
           }),
           datasets: [{
             data: top.map(function (r) { return r.net; }),
-            backgroundColor: top.map(function (r, i) { return i < 3 ? '#F2565A' : '#F8ABAB'; }),
+            backgroundColor: top.map(function (r, i) { return i < 3 ? '#0E6E64' : '#A9CBC7'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },
@@ -156,7 +156,7 @@
         { key: 'days', label: 'ขายกี่วัน', num: true,
           render: function (r) {
             var cov = days ? r.days / days : 0;
-            var tone = cov > 0.7 ? '#16A34A' : cov > 0.3 ? '#B45309' : '#DC2626';
+            var tone = cov > 0.7 ? '#0E6E64' : cov > 0.3 ? '#B8820A' : '#B02A30';
             return UI.miniBar(cov, tone) + r.days + '/' + days;
           } },
       ];
@@ -329,12 +329,12 @@
         data: {
           labels: top.map(function (r) { return r.name; }),
           datasets: [{ data: top.map(function (r) { return r.net; }),
-                       backgroundColor: '#F2565A', borderRadius: 5, borderSkipped: false }],
+                       backgroundColor: '#0E6E64', borderRadius: 5, borderSkipped: false }],
         },
         options: {
           indexAxis: 'y',
           scales: {
-            x: { grid: { color: '#F1F2F7' }, border: { display: false },
+            x: { grid: { color: '#EDF1F4' }, border: { display: false },
                  ticks: { callback: function (v) { return fmt.bahtK(v); } } },
             y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10.5 } } },
           },
@@ -390,7 +390,7 @@
         { key: 'price', label: '฿/ชิ้น', num: true, render: function (r) { return fmt.baht(r.price); } },
         { key: 'nDays', label: 'ขายกี่วัน', num: true,
           render: function (r) {
-            var tone = r.coverage > 0.7 ? '#16A34A' : r.coverage > 0.3 ? '#B45309' : '#DC2626';
+            var tone = r.coverage > 0.7 ? '#0E6E64' : r.coverage > 0.3 ? '#B8820A' : '#B02A30';
             return UI.miniBar(r.coverage, tone) + r.nDays + '/' + days;
           } },
         { key: 'disc', label: 'ส่วนลด', num: true,
@@ -497,7 +497,7 @@
             ? '<span class="cell" style="background:' + toneColor(s.tone) + '"></span>'
             : '<span class="cell off"></span>') + '</td>';
         }
-        h += '<td style="font-size:12px;color:#5B6172">' + esc(s.plan.owner) + '</td>' +
+        h += '<td style="font-size:12px;color:#5A656E">' + esc(s.plan.owner) + '</td>' +
              '<td style="font-size:12px;white-space:nowrap">สัปดาห์ ' + s.plan.week +
              (s.plan.span > 1 ? '–' + (s.plan.week + s.plan.span - 1) : '') + '</td></tr>';
       });
@@ -527,7 +527,7 @@
   });
 
   function toneColor(t) {
-    return { r: '#EF4444', a: '#F59E0B', g: '#16A34A', b: '#2563EB', i: '#F86D6D' }[t] || '#F86D6D';
+    return { r: '#B02A30', a: '#B8820A', g: '#0E6E64', b: '#3D5A98', i: '#0E6E64' }[t] || '#0E6E64';
   }
 
   /* Sidebar reads viewOrder directly, so put the two new pages next to the

@@ -178,14 +178,14 @@
       var b = KAN.branchFilter();
       var s = KAN.posSeries(range.i0, range.i1, b);
       var ds = [{
-        label: 'ช่วงที่เลือก', data: s.net, borderColor: '#F2565A', borderWidth: 2.4,
+        label: 'ช่วงที่เลือก', data: s.net, borderColor: '#0E6E64', borderWidth: 2.4,
         pointRadius: 0, pointHoverRadius: 4, tension: 0.28, fill: true,
-        backgroundColor: 'rgba(242,86,90,.10)',
+        backgroundColor: 'rgba(14,110,100,.10)',
       }];
       if (range.prev.valid) {
         var p = KAN.posSeries(range.prev.i0, range.prev.i1, b);
         ds.push({
-          label: 'ช่วงก่อนหน้า', data: p.net, borderColor: '#C9CCDA', borderWidth: 1.8,
+          label: 'ช่วงก่อนหน้า', data: p.net, borderColor: '#B4BFC5', borderWidth: 1.8,
           borderDash: [5, 4], pointRadius: 0, tension: 0.28, fill: false,
         });
       }
@@ -225,13 +225,13 @@
           labels: D.billBins,
           datasets: [{
             data: bins.map(function (x) { return x.bills; }),
-            backgroundColor: bins.map(function (x, i) { return i <= 4 ? '#F8ABAB' : '#F2565A'; }),
+            backgroundColor: bins.map(function (x, i) { return i <= 4 ? '#A9CBC7' : '#0E6E64'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },
         options: {
           scales: {
-            y: { grid: { color: '#F1F2F7' }, border: { display: false },
+            y: { grid: { color: '#EDF1F4' }, border: { display: false },
                  ticks: { callback: function (v) { return fmt.int(v); } } },
             x: UI.catAxis,
           },
@@ -276,9 +276,9 @@
             KAN.PALETTE[i % KAN.PALETTE.length] + '"></span>' +
             '<span class="nm"><b>' + esc(z.name) + '</b><small>' +
             (z.qty ? fmt.int(z.qty) + ' ชิ้น' : 'รวมหลายโซน') + '</small></span>' +
-            '<span class="amt">' + fmt.bahtK(z.net) + '<br><small style="color:#9AA0B1;font-weight:400">' +
+            '<span class="amt">' + fmt.bahtK(z.net) + '<br><small style="color:#8F9AA3;font-weight:400">' +
             fmt.pct(z.net / (totalZone || 1), 1) + '</small></span></div>';
-        }).join('') : '<div style="color:#9AA0B1;padding:20px 0">ไม่มีข้อมูลโซนในช่วงนี้</div>';
+        }).join('') : '<div style="color:#8F9AA3;padding:20px 0">ไม่มีข้อมูลโซนในช่วงนี้</div>';
       }
     },
   });
@@ -561,7 +561,7 @@
           '<option value="all">รวมคลังและสต๊อกหลังร้าน</option>' +
         '</select></div>' +
         '<div class="ctl" style="flex:1;min-width:220px"><label>&nbsp;</label>' +
-          '<div style="font-size:12px;color:#5B6172;line-height:1.5;padding-bottom:8px">' +
+          '<div style="font-size:12px;color:#5A656E;line-height:1.5;padding-bottom:8px">' +
           'เลื่อนแถบเพื่อถามกลับด้าน: “ของกลุ่มนี้ออก ' + fmt.pct(this.ctl.pct, 0) +
           ' ภายในกี่วัน” คำตอบอยู่คอลัมน์สุดท้ายของตาราง</div></div>' +
         '</div>' +
@@ -575,10 +575,10 @@
         var set = gradable.filter(function (r) { return r.grade.key === g; });
         var val = set.reduce(function (a, r) { return a + r.closingValue; }, 0);
         var G = KAN.GRADES[g];
-        var color = g === 'dead' ? '#DC2626' : g === 'slow' ? '#B45309' : g === 'ok' ? '#16A34A' : '#2563EB';
+        var color = g === 'dead' ? '#B02A30' : g === 'slow' ? '#B8820A' : g === 'ok' ? '#0E6E64' : '#3D5A98';
         return '<div class="seg"><div class="st"><span class="dotc" style="background:' + color +
           '"></span>' + esc(G.label) + '</div>' +
-          '<div class="sn">' + fmt.int(set.length) + ' <span style="font-size:13px;color:#9AA0B1">โซน</span></div>' +
+          '<div class="sn">' + fmt.int(set.length) + ' <span style="font-size:13px;color:#8F9AA3">โซน</span></div>' +
           '<div class="ss">' + esc(G.hint) + '<br>มูลค่าคงเหลือ ' + fmt.bahtK(val) + '</div></div>';
       }).join('') + '</div>';
 
@@ -644,9 +644,9 @@
           datasets: [{
             data: chartRows.map(function (r) { return r.sellThrough * 100; }),
             backgroundColor: chartRows.map(function (r) {
-              return r.grade.key === 'dead' ? '#EF4444'
-                : r.grade.key === 'slow' ? '#F59E0B'
-                : r.grade.key === 'fast' ? '#2563EB' : '#16A34A';
+              return r.grade.key === 'dead' ? '#B02A30'
+                : r.grade.key === 'slow' ? '#B8820A'
+                : r.grade.key === 'fast' ? '#3D5A98' : '#0E6E64';
             }),
             borderRadius: 5, borderSkipped: false,
           }],
@@ -654,7 +654,7 @@
         options: {
           indexAxis: 'y',
           scales: {
-            x: { grid: { color: '#F1F2F7' }, border: { display: false }, max: 100,
+            x: { grid: { color: '#EDF1F4' }, border: { display: false }, max: 100,
                  ticks: { callback: function (v) { return v + '%'; } } },
             y: { grid: { display: false }, border: { display: false },
                  ticks: { font: { size: 11 } } },
@@ -677,7 +677,7 @@
           render: function (r) {
             return '<div class="dept"><b>' + esc(r.name) + '</b><small>' +
               esc(KAN.branchName(r.branch)) +
-              (r.trusted ? '' : ' · <span style="color:#DC2626">ข้อมูลขายไม่ครบ</span>') +
+              (r.trusted ? '' : ' · <span style="color:#B02A30">ข้อมูลขายไม่ครบ</span>') +
               '</small></div>';
           } },
         { key: 'grade', label: 'ความเร็ว', sort: function (r) {
@@ -696,22 +696,22 @@
           render: function (r) {
             if (r.sellThrough == null) { return '—'; }
             return UI.miniBar(r.sellThrough,
-              r.grade.key === 'dead' ? '#EF4444' : r.grade.key === 'slow' ? '#F59E0B' : '#16A34A') +
+              r.grade.key === 'dead' ? '#B02A30' : r.grade.key === 'slow' ? '#B8820A' : '#0E6E64') +
               fmt.pct(r.sellThrough, 0);
           } },
         { key: 'daysToPct', label: 'วันถึงเป้า', num: true,
           render: function (r) {
-            if (r.daysToPct == null) { return '<span style="color:#DC2626">ไม่ถึง</span>'; }
+            if (r.daysToPct == null) { return '<span style="color:#B02A30">ไม่ถึง</span>'; }
             return (r.projected ? '~' : '') + fmt.days(r.daysToPct) + ' วัน';
           } },
         { key: 'dsi', label: 'ของพอขายอีก', num: true,
           render: function (r) {
-            if (r.dsi == null || !isFinite(r.dsi)) { return '<span style="color:#DC2626">ไม่ขยับ</span>'; }
+            if (r.dsi == null || !isFinite(r.dsi)) { return '<span style="color:#B02A30">ไม่ขยับ</span>'; }
             return fmt.days(r.dsi) + ' วัน';
           } },
         { key: 'closingValue', label: 'มูลค่าค้าง', num: true,
           render: function (r) {
-            return UI.miniBar(r.closingValue / maxVal, '#F2565A') + fmt.bahtK(r.closingValue);
+            return UI.miniBar(r.closingValue / maxVal, '#0E6E64') + fmt.bahtK(r.closingValue);
           } },
       ], shown, { sortKey: 'closingValue', sortDir: -1 }).mount();
     },
@@ -827,7 +827,7 @@
             backgroundColor: (function () {
               var max = Math.max.apply(null, perDay.concat([1]));
               return perDay.map(function (v) {
-                return v / max > 0.8 ? '#F2565A' : v / max > 0.55 ? '#F8A0A0' : '#FBD4D4';
+                return v / max > 0.8 ? '#0E6E64' : v / max > 0.55 ? '#5A9E96' : '#C7DEDA';
               });
             }()),
             borderRadius: 5, borderSkipped: false,
@@ -850,7 +850,7 @@
           labels: D.discBins,
           datasets: [{
             data: ctx.discBins.map(function (x) { return x.net; }),
-            backgroundColor: ['#16A34A', '#F59E0B', '#F97316', '#EF4444', '#991B1B'],
+            backgroundColor: ['#0E6E64', '#B8820A', '#C1611B', '#B02A30', '#7A1E22'],
             borderWidth: 2, borderColor: '#fff',
           }],
         },
@@ -872,7 +872,7 @@
           labels: D.billBins,
           datasets: [{
             data: ctx.billBins.map(function (x) { return x.net; }),
-            backgroundColor: ctx.billBins.map(function (x, i) { return i >= 6 ? '#16A34A' : '#F8ABAB'; }),
+            backgroundColor: ctx.billBins.map(function (x, i) { return i >= 6 ? '#0E6E64' : '#A9CBC7'; }),
             borderRadius: 5, borderSkipped: false,
           }],
         },
@@ -928,7 +928,7 @@
               '<div class="st"><span class="dotc" style="background:' + x.def.color + '"></span>' +
               esc(x.def.label) + '</div>' +
               '<div class="sn">' + fmt.int(x.n) +
-              ' <span style="font-size:13px;color:#9AA0B1">คน · ' +
+              ' <span style="font-size:13px;color:#8F9AA3">คน · ' +
               fmt.pct(total ? x.n / total : 0, 0) + '</span></div>' +
               '<div class="ss">' + esc(x.def.hint) + '<br>' +
               'ยอดรวม ' + fmt.bahtK(x.spend) + ' (' + fmt.pct(spend ? x.spend / spend : 0, 0) + ' ของยอด)' +

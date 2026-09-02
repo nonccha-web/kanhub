@@ -7,9 +7,9 @@
   var UI = KAN.UI = {};
 
   if (global.Chart) {
-    Chart.defaults.font.family = 'Kanit, sans-serif';
+    Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
     Chart.defaults.font.size = 11.5;
-    Chart.defaults.color = '#5B6172';
+    Chart.defaults.color = '#5A656E';
     Chart.defaults.plugins.legend.display = false;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.animation.duration = 320;
@@ -21,13 +21,13 @@
        และได้ค่าของทุกเส้นในวันเดียวกันมาเทียบพร้อมกัน */
     Chart.defaults.interaction.mode = 'index';
     Chart.defaults.interaction.intersect = false;
-    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(42,47,69,.96)';
+    Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(20,26,31,.96)';
     Chart.defaults.plugins.tooltip.padding = 11;
     Chart.defaults.plugins.tooltip.cornerRadius = 9;
-    Chart.defaults.plugins.tooltip.titleFont = { family: 'Kanit, sans-serif', size: 12.5, weight: '700' };
-    Chart.defaults.plugins.tooltip.bodyFont = { family: 'Kanit, sans-serif', size: 12.5 };
-    Chart.defaults.plugins.tooltip.footerFont = { family: 'Kanit, sans-serif', size: 11.5, weight: '400' };
-    Chart.defaults.plugins.tooltip.footerColor = '#C9CCDA';
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'IBM Plex Sans Thai', sans-serif", size: 12.5, weight: '700' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'IBM Plex Sans Thai', sans-serif", size: 12.5 };
+    Chart.defaults.plugins.tooltip.footerFont = { family: "'IBM Plex Sans Thai', sans-serif", size: 11.5, weight: '400' };
+    Chart.defaults.plugins.tooltip.footerColor = '#B4BFC5';
     Chart.defaults.plugins.tooltip.boxPadding = 5;
     Chart.defaults.plugins.tooltip.usePointStyle = true;
   }
@@ -46,7 +46,7 @@
   };
 
   UI.bahtAxis = {
-    grid: { color: '#F1F2F7', drawTicks: false },
+    grid: { color: '#EDF1F4', drawTicks: false },
     border: { display: false },
     ticks: {
       padding: 8,
@@ -55,7 +55,7 @@
   };
   UI.catAxis = {
     grid: { display: false },
-    border: { color: '#E8EAF1' },
+    border: { color: '#DCE3E8' },
     ticks: { maxRotation: 0, autoSkipPadding: 14 },
   };
   function tipVal(c) { return c.parsed.y != null ? c.parsed.y : c.parsed; }
@@ -142,7 +142,7 @@
   };
 
   UI.deltaSpan = function (v, invert) {
-    if (v == null || !isFinite(v)) { return '<span class="pc" style="color:#9AA0B1">—</span>'; }
+    if (v == null || !isFinite(v)) { return '<span class="pc" style="color:#8F9AA3">—</span>'; }
     var cls = v < 0 ? 'neg' : 'pos';
     if (invert) { cls = v < 0 ? 'pos' : 'neg'; }
     return '<span class="d ' + cls + ' pc">' + fmt.delta(v) + '</span>';
@@ -157,10 +157,10 @@
     if (!flat.length) { return UI.empty('ไม่มีข้อมูลในช่วงที่เลือก'); }
     function q(p) { return flat[Math.min(flat.length - 1, Math.floor(flat.length * p))]; }
     var stops = [q(0.2), q(0.45), q(0.68), q(0.86)];
-    var colors = ['#E6F1FB', '#B5D4F4', '#85B7EB', '#378ADD', '#185FA5'];
+    var colors = ['#E6EEF0', '#A9CBC7', '#5A9E96', '#31857B', '#0E6E64'];
 
     function col(v) {
-      if (v <= 0) { return '#F5F6FA'; }
+      if (v <= 0) { return '#EFF3F4'; }
       for (var i = 0; i < stops.length; i++) { if (v < stops[i]) { return colors[i]; } }
       return colors[4];
     }
@@ -172,7 +172,7 @@
       h += '<tr><th class="rowh">' + esc(m.dows[i]) + '</th>';
       row.forEach(function (v) {
         var c = col(v);
-        var dark = (c === '#378ADD' || c === '#185FA5') ? ' dark' : '';
+        var dark = (c === '#31857B' || c === '#0E6E64') ? ' dark' : '';
         h += '<td><div class="c' + dark + '" style="background:' + c + '" title="' +
              esc(m.dowsLong[i]) + ' ' + '" >' +
              (v > 0 ? fmt.bahtK(v).replace('฿', '') : '') + '</div></td>';
@@ -214,7 +214,7 @@
       });
       h += '</tr></thead><tbody>';
       if (!sorted.length) {
-        h += '<tr><td colspan="' + cols.length + '" style="text-align:center;color:#9AA0B1;padding:26px">' +
+        h += '<tr><td colspan="' + cols.length + '" style="text-align:center;color:#8F9AA3;padding:26px">' +
              'ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
       }
       sorted.forEach(function (r) {

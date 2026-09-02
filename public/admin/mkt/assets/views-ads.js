@@ -131,14 +131,14 @@
 
   /* ใช้โครงเดียวกับ legend ของหน้าอื่น (โซนสินค้า ฯลฯ) — ชื่อซ้าย ยอดขวา % ใต้ยอด */
   function legend(rows, total) {
-    if (!total) { return '<div style="color:#9AA0B1;padding:20px 0">ไม่มีข้อมูลในช่วงนี้</div>'; }
+    if (!total) { return '<div style="color:#8F9AA3;padding:20px 0">ไม่มีข้อมูลในช่วงนี้</div>'; }
     return rows.map(function (r, i) {
       return '<div class="li"><span class="sw" style="background:' +
         (r.color || KAN.PALETTE[i % KAN.PALETTE.length]) + '"></span>' +
         '<span class="nm"><b>' + esc(r.label) + '</b>' +
         (r.sub ? '<small>' + r.sub + '</small>' : '') + '</span>' +
         '<span class="amt">' + fmt.bahtK(r.v) +
-        '<br><small style="color:#9AA0B1;font-weight:400">' +
+        '<br><small style="color:#8F9AA3;font-weight:400">' +
         fmt.pct(r.v / total, 1) + '</small></span></div>';
     }).join('');
   }
@@ -157,7 +157,7 @@
 
   function statMini(label, value, sub) {
     return '<div class="mini"><small>' + esc(label) + '</small><b>' + value + '</b>' +
-      (sub ? '<div class="d" style="color:#9AA0B1;font-weight:400">' + sub + '</div>' : '') + '</div>';
+      (sub ? '<div class="d" style="color:#8F9AA3;font-weight:400">' + sub + '</div>' : '') + '</div>';
   }
 
   function pctOrDash(a, b) { return b ? fmt.pct(a / b, 1) : '—'; }
@@ -385,7 +385,7 @@
               '</small></div>' +
             '<div class="bar"><i class="' + itone + '" style="width:' +
               (r.a.spend / maxSpend * 100).toFixed(1) + '%' +
-              (sh == null ? ';background:#C9CCDA' : '') + '"></i></div>' +
+              (sh == null ? ';background:#B4BFC5' : '') + '"></i></div>' +
             '<div class="bstats">' +
               '<div><small>ถูกเห็น</small><b>' + fmt.int(r.a.imp) + '</b></div>' +
               '<div><small>กดโต้ตอบ</small><b>' + fmt.int(r.a.eng) + '</b></div>' +
@@ -571,7 +571,7 @@
             '</div>' +
             '<div class="legend" style="margin-top:14px">' +
             PAGES.map(function (pg) {
-              return '<div class="li"><span class="sw" style="background:#D3D6E2"></span>' +
+              return '<div class="li"><span class="sw" style="background:#C6CFD4"></span>' +
                 '<span class="nm"><b>' + esc(pg) + '</b></span>' +
                 '<span class="amt"><span class="badge-off">รอกุญแจเพจ</span></span></div>';
             }).join('') +
@@ -636,16 +636,16 @@
           data: {
             labels: s.labels,
             datasets: [
-              { label: 'ค่าแอด', data: spend, backgroundColor: '#C7C9F7',
-                hoverBackgroundColor: '#8B8DF5', borderRadius: 3, yAxisID: 'y', order: 2 },
-              { label: 'ยอดขาย', data: s.net, type: 'line', borderColor: '#F2565A',
+              { label: 'ค่าแอด', data: spend, backgroundColor: '#C5CFE3',
+                hoverBackgroundColor: '#3D5A98', borderRadius: 3, yAxisID: 'y', order: 2 },
+              { label: 'ยอดขาย', data: s.net, type: 'line', borderColor: '#0E6E64',
                 borderWidth: 2.2, pointRadius: 0, tension: 0.28, yAxisID: 'y1', order: 1 },
             ],
           },
           options: {
             scales: {
               x: UI.catAxis,
-              y: { position: 'left', grid: { color: '#F1F2F7', drawTicks: false },
+              y: { position: 'left', grid: { color: '#EDF1F4', drawTicks: false },
                    border: { display: false },
                    ticks: { padding: 8, callback: function (v) { return fmt.bahtK(v); } } },
               y1: { position: 'right', grid: { display: false }, border: { display: false },
@@ -671,7 +671,7 @@
             labels: [['วันที่ยิงแอด', onN + ' วัน'], ['วันที่ไม่ยิง', offN + ' วัน']],
             datasets: [{
               data: [onN ? onSum / onN : 0, offN ? offSum / offN : 0],
-              backgroundColor: ['#8B8DF5', '#D3D6E2'], borderRadius: 5, barPercentage: 0.62,
+              backgroundColor: ['#3D5A98', '#C6CFD4'], borderRadius: 5, barPercentage: 0.62,
             }],
           },
           options: {
@@ -691,7 +691,7 @@
             labels: bd.age.map(function (r) { return r.label; }),
             datasets: [{
               data: bd.age.map(function (r) { return r.v; }),
-              backgroundColor: '#8B8DF5', borderRadius: 4, barPercentage: 0.68,
+              backgroundColor: '#3D5A98', borderRadius: 4, barPercentage: 0.68,
             }],
           },
           options: {
@@ -704,16 +704,16 @@
         });
         drawDonut('adGender', bd.gender.map(function (r, i) {
           return { label: r.label, v: r.v, sub: r.sub,
-                   color: ['#F2565A', '#2563EB', '#9AA0B1'][i] };
+                   color: ['#0E6E64', '#3D5A98', '#8F9AA3'][i] };
         }));
         drawDonut('adPlace', bd.place);
         drawDonut('adRegion', bd.region.map(function (r) {
           return { label: r.label, v: r.v, sub: r.sub,
-                   color: HOME[r.key] ? '#15803D' : '#C9CCDA' };
+                   color: HOME[r.key] ? '#0E6E64' : '#B4BFC5' };
         }));
         fillLegend('adPlatLg', bd.plat.map(function (r, i) {
           return { label: r.label, v: r.v, sub: r.sub,
-                   color: ['#2563EB', '#F2565A', '#111827'][i] };
+                   color: ['#3D5A98', '#0E6E64', '#141A1F'][i] };
         }));
         fillLegend('adDevLg', bd.dev.filter(function (r) { return r.v >= 1; }));
 
@@ -726,7 +726,7 @@
             datasets: [{
               data: bd.hour.map(function (r) { return r[1]; }),
               backgroundColor: bd.hour.map(function (r) {
-                return r[1] >= hourMax * 0.75 ? '#4F46E5' : '#C7C9F7';
+                return r[1] >= hourMax * 0.75 ? '#2C4372' : '#C5CFE3';
               }),
               borderRadius: 3,
             }],
@@ -771,8 +771,8 @@
           render: function (r) { return fmt.int(r.eng); } },
         { key: 'cpe', label: 'ราคา/โต้ตอบ', num: true,
           render: function (r) {
-            if (!r.eng) { return '<span style="color:#9AA0B1">—</span>'; }
-            return '<span' + (r.burn ? ' style="color:#C43D42;font-weight:700"' : '') + '>' +
+            if (!r.eng) { return '<span style="color:#8F9AA3">—</span>'; }
+            return '<span' + (r.burn ? ' style="color:#B02A30;font-weight:700"' : '') + '>' +
               bahtFine(r.cpe) + '</span>';
           } },
       ], camps, { sortKey: 'spend', sortDir: -1 }).mount();

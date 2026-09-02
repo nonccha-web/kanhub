@@ -7,8 +7,8 @@
 <title>KAN MKT — Sales &amp; Stock Intelligence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=21">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=22">
 </head>
 <body>
 <div class="layout">
@@ -46,14 +46,14 @@
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=18',
+  v: '?v=19',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
             'assets/rules.js', 'assets/views.js', 'assets/views-extra.js',
             'data/ads-data.js', 'assets/views-ads.js',
             'assets/views-data.js', 'assets/guide.js', 'assets/app.js']
 }).catch(function (e) {
-  document.body.innerHTML = '<div style="font:15px Kanit,sans-serif;padding:40px;color:#C43D42">' +
+  document.body.innerHTML = '<div style="font:15px IBM Plex Sans Thai,sans-serif;padding:40px;color:#C43D42">' +
     'โหลดระบบไม่สำเร็จ: ' + (e && e.message ? e.message : e) + '</div>';
 });
 </script>
