@@ -278,46 +278,46 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
 /* ============================================================
    ERP unified sidebar (เพิ่มโดย nav.js) — เข้มแบบเดียวกับ KAN ERP
    ============================================================ */
-.erp-sidebar{ position:fixed; left:0; top:0; height:100vh; width:238px; background:#FFFFFF;
-  color:#5B6172; padding:20px 14px; display:flex; flex-direction:column; gap:4px;
-  overflow-y:auto; z-index:60; border-right:1px solid #E8EAF1; }
+.erp-sidebar{ position:fixed; left:0; top:0; height:100vh; width:238px; background:#141A1F;
+  color:#94A3AC; padding:20px 14px; display:flex; flex-direction:column; gap:4px;
+  overflow-y:auto; z-index:60; }
 .has-erp-side body{ padding-left:258px; }
 .has-erp-side .nav, .has-erp-side .subnav{ display:none !important; }
 .erp-sidebar::-webkit-scrollbar{ width:7px; }
-.erp-sidebar::-webkit-scrollbar-thumb{ background:#E0E3EE; border-radius:99px; }
+.erp-sidebar::-webkit-scrollbar-thumb{ background:#3A444C; border-radius:99px; }
 
 .erp-brand{ display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:0 8px;
   text-decoration:none; }
 .erp-brand .erp-k{ width:38px; height:38px; border-radius:10px; background:#F2565A; color:#fff;
   font-weight:800; font-size:18px; display:flex; align-items:center; justify-content:center; ;object-fit:cover;padding:0;font-size:0;background:transparent}
-.erp-brand-tx b{ color:#2A2F45; font-size:16px; display:block; line-height:1.1; }
-.erp-brand-tx small{ font-size:11px; color:#9AA0B5; }
+.erp-brand-tx b{ color:#fff; font-size:16px; display:block; line-height:1.1; }
+.erp-brand-tx small{ font-size:11px; color:#94A3AC; }
 
 /* accordion: หัวข้อใหญ่กดเปิด/ปิด → โชว์หมวดย่อย */
 .erp-nav{ display:flex; flex-direction:column; gap:3px; }
 .erp-gh{ display:flex; align-items:center; gap:10px; width:100%; font-family:inherit; font-size:13.5px;
-  font-weight:700; color:#2A2F45; background:transparent; border:none; cursor:pointer; padding:10px 12px;
+  font-weight:600; color:#E6EBEE; background:transparent; border:none; cursor:pointer; padding:10px 12px;
   border-radius:9px; text-align:left; }
-.erp-gh:hover{ background:#FDECEC; }
+.erp-gh:hover{ background:rgba(255,255,255,.08); }
 .erp-gico{ width:20px; text-align:center; font-size:15px; flex-shrink:0; }
 .erp-glabel{ flex:1; }
-.erp-chev{ color:#9AA0B5; font-size:11px; transition:transform .15s; }
+.erp-chev{ color:#8F9AA3; font-size:11px; transition:transform .15s; }
 .erp-acc.open > .erp-gh .erp-chev{ transform:rotate(180deg); }
 .erp-sub{ display:none; flex-direction:column; gap:2px; padding:2px 0 6px; }
 .erp-acc.open > .erp-sub{ display:flex; }
-.erp-link{ color:#5B6172; text-decoration:none; font-size:13px; padding:8px 12px 8px 28px; border-radius:9px;
+.erp-link{ color:#94A3AC; text-decoration:none; font-size:13px; padding:8px 12px 8px 28px; border-radius:9px;
   display:flex; align-items:center; gap:9px; transition:background .12s; }
-.erp-link:hover{ background:#FDECEC; color:#C43D42; }
-.erp-link.on{ background:#FDECEC; color:#C43D42; font-weight:600; outline:1px solid rgba(242,86,90,.35); }
+.erp-link:hover{ background:rgba(255,255,255,.10); color:#fff; }
+.erp-link.on{ background:rgba(157,183,232,.14); color:#9DB7E8; font-weight:600; outline:1px solid rgba(157,183,232,.35); }
 .erp-link .erp-ico{ width:16px; text-align:center; flex-shrink:0; font-size:12.5px; }
-.erp-badge{ margin-left:auto; background:#F2565A; color:#fff; font-size:10.5px; font-weight:700;
+.erp-badge{ margin-left:auto; background:#B02A30; color:#fff; font-size:10.5px; font-weight:700;
   border-radius:99px; padding:1px 7px; }
 
-.erp-foot{ margin-top:auto; padding:12px 8px 4px; border-top:1px solid #E8EAF1; }
-.erp-theme{ width:100%; font-family:inherit; font-size:12.5px; color:#5B6172; background:transparent;
+.erp-foot{ margin-top:auto; padding:12px 8px 4px; border-top:1px solid #2A343B; }
+.erp-theme{ width:100%; font-family:inherit; font-size:12.5px; color:#94A3AC; background:transparent;
   border:1px solid #E0E3EE; border-radius:9px; padding:8px 10px; cursor:pointer; }
-.erp-theme:hover{ background:#FDECEC; color:#C43D42; }
-.erp-foot-note{ font-size:11px; color:#9AA0B5; text-align:center; margin-top:8px; }
+.erp-theme:hover{ background:rgba(255,255,255,.08); color:#fff; }
+.erp-foot-note{ font-size:11px; color:#66727B; text-align:center; margin-top:8px; }
 
 /* จอเล็ก: เมนูเดิมกางเต็มความกว้างแล้วดันเนื้อหาตกจอ — เปลี่ยนเป็นลิ้นชักเลื่อนออกมาแทน
    (ใช้เปิดพรีเซนต์บนมือถือได้จริง) */
@@ -348,14 +348,14 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
 .erp-gico .erp-svg,.erp-gico svg{width:18px;height:18px}
 
 /* หัวข้อหมวดสถานะใน sidebar (เปิดใช้ได้แล้ว / ยังไม่สมบูรณ์ / เอกสาร + ระบบ) */
-.erp-sec{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
-         color:var(--muted);padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
+.erp-sec{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
+         color:#66727B;padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
 .erp-sec:first-child{padding-top:2px}
-.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#22A06B;flex-shrink:0}
-.erp-sec.work::before{background:#3370FF}
-.erp-sec.pending::before{background:#E8A33D}
-.erp-sec.ref::before{background:#C9CCDA}
-.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);
+.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#0E6E64;flex-shrink:0}
+.erp-sec.work::before{background:#3D5A98}
+.erp-sec.pending::before{background:#B8820A}
+.erp-sec.ref::before{background:#66727B}
+.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:#8F9AA3;
                   letter-spacing:0;margin-top:1px}
-.erp-acc.pend .erp-gh{color:var(--sub)}
+.erp-acc.pend .erp-gh{color:#8F9AA3}
 .erp-acc.pend .erp-gico{opacity:.6}
