@@ -46,10 +46,10 @@
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=20',
+  v: '?v=21',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/suggest.js',
-            'assets/rules.js', 'data/sales-insight.js', 'assets/suggest-sales.js', 'assets/views.js', 'assets/views-extra.js',
+            'assets/rules.js', 'data/sales-insight.js', 'assets/views.js', 'assets/suggest-sales.js', 'assets/views-extra.js',
             'data/ads-data.js', 'assets/views-ads.js',
             'assets/views-data.js', 'assets/guide.js', 'assets/app.js']
 }).catch(function (e) {

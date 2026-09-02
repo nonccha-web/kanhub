@@ -786,9 +786,6 @@
           : UI.empty('ยังไม่พบจุดที่คุ้มจะจัดโปรในช่วงนี้ — ตัวเลขทุกด้านอยู่ในเกณฑ์ปกติ'),
       });
 
-      /* ข้อเสนอที่อ่านจากแดชบอร์ดฝ่ายขาย (ข้อมูล 3 ปี) — suggest-sales.js */
-      if (KAN.suggestSales) { h += KAN.suggestSales.section(); }
-
       h += UI.sect({
         id: 'timing', eyebrow: 'จังหวะเวลา', title: 'ช่วงไหนคนเข้าร้าน',
         lead: 'ใช้เลือกวันและเวลาที่จะปล่อยโปร — เติมช่องที่ว่าง อย่าลดราคาในช่องที่เต็มอยู่แล้ว',
@@ -819,7 +816,6 @@
     after: function () {
       var ctx = this._ctx;
       if (!ctx) { return; }
-      if (KAN.suggestSales) { KAN.suggestSales.wire(); }
 
       var perDay = ctx.heat.dowPerDay || ctx.heat.dowTotals;
       UI.chart('pmDow', {

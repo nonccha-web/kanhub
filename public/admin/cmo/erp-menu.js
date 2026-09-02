@@ -25,10 +25,10 @@
         { icon: 'trophy', label: 'KPI Dashboard 2026', cmo: 'kpi.html' }
       ]},
       { icon: 'chart', label: 'ยอดขาย', items: [
-        { icon: 'dashboard', label: 'ภาพรวมยอดขาย', sales: '#/overview' },
+        { icon: 'dashboard', label: 'แดชบอร์ดยอดขาย (หลัก)', sales: 'sales/' },
+        { icon: 'chart',     label: 'ภาพรวมยอดขาย', sales: '#/overview' },
         { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
-        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' },
-        { icon: 'chart',     label: 'แดชบอร์ดฝ่ายขาย (เต็ม)', sales: 'sales/' }
+        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
       ]},
       { icon: 'megaphone', label: 'โฆษณา', items: [
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
@@ -50,6 +50,7 @@
       ]},
       { icon: 'target', label: 'ลงมือ', items: [
         { icon: 'target',   label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
+        { icon: 'megaphone', label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
         { icon: 'clipboard', label: 'แผนลงมือ',        sales: '#/plan' }
       ]},
       { icon: 'filetext', label: 'กรอกผล', items: [

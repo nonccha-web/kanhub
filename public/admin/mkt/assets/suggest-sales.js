@@ -1,17 +1,18 @@
-/* KAN ERP — ข้อเสนอโปรโมชันจากแดชบอร์ดฝ่ายขาย
+/* KAN ERP — หน้า "โปรรายสาขา (จากฝ่ายขาย)"  (#/promo-sales)
  *
- * หลักการ: ฝ่ายการตลาดเห็นตัวเลขฝ่ายขายแล้วรู้ว่าต้องไปจัดโปรตรงไหน
- * ทุกใบคำนวณจาก data/sales-insight.js (สกัดจาก kan_dashboard ของฝ่ายขาย
- * ข้อมูล ม.ค. 67 – ส.ค. 69) ไม่ขยับตามตัวกรองช่วงเวลาของหน้านี้ —
- * ฐานคือเดือนเต็มล่าสุด · ทุกใบพก "ที่มา ▸" เอาเมาส์ชี้ค้างจะเห็น
- * หน้าต้นทางจริง (iframe เลื่อนไปจุดนั้น + ไฮไลต์) แบบเดียวกับหน้า KPI
+ * หลักการ: ฝ่ายการตลาดเห็นตัวเลขฝ่ายขายแล้วรู้ว่าต้องไปจัดโปรตรงไหน —
+ * หน้านี้อ่าน data/sales-insight.js (สกัดจากแดชบอร์ดฝ่ายขาย ม.ค. 67 – ส.ค. 69)
+ * เลือกดูได้ทีละสาขา ทุกใบพก "ที่มา ▸" เอาเมาส์ชี้ค้างเห็นหน้าต้นทางจริง
+ * (iframe เลื่อนไปจุดนั้น + ไฮไลต์) แบบเดียวกับ provenance หน้า KPI
+ * ต้องโหลดหลัง views.js เพราะ register view ลง KAN.views
  */
 (function (global) {
   'use strict';
 
-  var KAN = global.KAN, fmt = KAN.fmt, esc = KAN.esc;
+  var KAN = global.KAN, fmt = KAN.fmt, esc = KAN.esc, UI = KAN.UI;
   var SI = global.KAN_SALES_INSIGHT;
-  var SALES_URL = 'sales/';
+  var PAGE_URL = 'sales/';                       /* เปลือกมี sidebar */
+  var EMBED_URL = 'sales/dashboard.html';        /* ตัวจริง ใช้ใน popup */
 
   var TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
               'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -22,7 +23,7 @@
   }
   function pctTxt(a, b) { return b ? Math.round((a / b - 1) * 100) + '%' : '—'; }
 
-  /* ── ทะเบียนที่มา: การ์ดไหนชี้ไปจุดไหนของแดชบอร์ดฝ่ายขาย ─────────────── */
+  /* ── ทะเบียนที่มา ────────────────────────────────────────────────────── */
   var SRC = {
     ztrend: { tab: 'store',   el: 'ch-ztrend', label: 'แนวโน้มยอดขายรายโซน' },
     ztable: { tab: 'store',   el: 't-zone',    label: 'ตารางยอดขายรายโซน' },
@@ -37,70 +38,75 @@
   };
   var TAB_NAME = { store: 'KAN Store · ยอดขาย', fashion: 'KAN Fashion · ยอดขาย' };
 
-  /* ── กติกาแต่ละใบ ────────────────────────────────────────────────────── */
-  function build() {
+  /* ── กติกา — คิดต่อ scope ('all' หรือ 's<i>') ───────────────────────── */
+  function build(scopeKey) {
     if (!SI) { return []; }
+    var C = SI.scopes[scopeKey];
+    if (!C) { return []; }
+    var isAll = scopeKey === 'all';
+    var scopeName = isAll ? 'ทุกสาขา'
+      : 'สาขา' + SI.meta.stores.filter(function (s) { return 's' + s.si === scopeKey; })[0].short;
     var out = [];
     var F = mLab(SI.meta.full);
+    var mm = {}; C.monthly.forEach(function (r) { mm[r.ym] = r.net; });
 
-    /* โซนที่หลุดจากฟอร์มตัวเอง — เทียบทั้งค่าเฉลี่ย 3 เดือนและปีก่อน */
-    SI.zones
-      .filter(function (z) { return z.avg3 >= 30000 && z.net < z.avg3 * 0.88 && z.net < z.yoy; })
+    /* โซนหลุดฟอร์ม — เทียบเฉลี่ย 3 เดือนของตัวเอง + ปีก่อน */
+    C.zones
+      .filter(function (z) { return z.avg3 >= (isAll ? 30000 : 12000) && z.net < z.avg3 * 0.88 && z.net < z.yoy; })
       .sort(function (a, b) { return (b.avg3 - b.net) - (a.avg3 - a.net); })
-      .slice(0, 2)
+      .slice(0, isAll ? 2 : 3)
       .forEach(function (z) {
         var gap = z.avg3 - z.net;
         out.push({
           est: gap * 0.5, tone: 'i', tag: 'โซนอ่อนแรง', tagCls: 'r',
-          scope: 'ทุกสาขา · เดือน ' + F,
+          scope: scopeName + ' · เดือน ' + F,
           title: 'โปรกระตุ้นโซน ' + z.name,
           metrics: [
             { label: 'ยอด ' + F, value: fmt.bahtK(z.net) },
             { label: 'เทียบเฉลี่ย 3 เดือน', value: pctTxt(z.net, z.avg3) },
             { label: 'เทียบปีก่อน', value: pctTxt(z.net, z.yoy) },
           ],
-          why: 'โซนนี้ทำได้ ' + fmt.bahtK(z.net) + ' ต่ำกว่าค่าเฉลี่ย 3 เดือนของตัวเอง (' +
-               fmt.bahtK(z.avg3) + ') และต่ำกว่าเดือนเดียวกันปีก่อน — ตกทั้งสองแกน ไม่ใช่แค่ฤดูกาล',
+          why: 'โซนนี้' + (isAll ? '' : 'ของ' + scopeName) + 'ทำได้ ' + fmt.bahtK(z.net) +
+               ' ต่ำกว่าค่าเฉลี่ย 3 เดือนของตัวเอง (' + fmt.bahtK(z.avg3) +
+               ') และต่ำกว่าเดือนเดียวกันปีก่อน — ตกทั้งสองแกน ไม่ใช่แค่ฤดูกาล',
           action: 'จัดโปรเฉพาะโซน: เซ็ตสินค้าขายดีของโซนคู่กับชิ้นที่ค้าง + ป้ายชี้จากหน้าร้าน ' +
-                  'และให้เพจยิงคอนเทนต์หมวดนี้ในสัปดาห์แรกของเดือน',
-          expect: 'ถ้าดึงยอดกลับได้ครึ่งทางของค่าเฉลี่ย 3 เดือน = +' + fmt.bahtK(gap * 0.5) +
-                  '/เดือน (สมมติฐาน: ความต้องการยังอยู่ เห็นจากปีก่อนทำได้ ' + fmt.bahtK(z.yoy) + ')',
+                  'และยิงคอนเทนต์หมวดนี้ในสัปดาห์แรกของเดือน',
+          expect: 'ดึงยอดกลับครึ่งทางของค่าเฉลี่ย 3 เดือน = +' + fmt.bahtK(gap * 0.5) +
+                  '/เดือน (สมมติฐาน: ความต้องการยังอยู่ — ปีก่อนโซนนี้ทำได้ ' + fmt.bahtK(z.yoy) + ')',
           src: ['ztrend', 'ztable'],
         });
       });
 
-    /* วันในสัปดาห์ที่แผ่วสุด */
+    /* วันแผ่วสุดของสัปดาห์ */
     (function () {
       var min = Infinity, mi = 0, sum = 0;
-      SI.dowAvg.forEach(function (v, i) { sum += v; if (v < min) { min = v; mi = i; } });
+      C.dowAvg.forEach(function (v, i) { sum += v; if (v < min) { min = v; mi = i; } });
+      if (!sum) { return; }
       var others = (sum - min) / 6;
-      if (min < others * 0.75) {
-        var est = min * 0.15 * 4.3;
-        out.push({
-          est: est, tone: 'b', tag: 'จังหวะเวลา', tagCls: 'a',
-          scope: 'ทุกสาขา · เฉลี่ย 3 เดือนล่าสุด',
-          title: 'โปรเฉพาะวัน' + DOW_LONG[mi] + ' — วันที่เงียบสุดของสัปดาห์',
-          metrics: [
-            { label: 'เฉลี่ยวัน' + DOW_LONG[mi], value: fmt.bahtK(min) },
-            { label: 'เฉลี่ยวันอื่น', value: fmt.bahtK(others) },
-            { label: 'ส่วนต่าง', value: pctTxt(min, others) },
-          ],
-          why: 'วัน' + DOW_LONG[mi] + 'ขายเฉลี่ย ' + fmt.bahtK(min) + '/วัน ต่ำกว่าค่าเฉลี่ยวันอื่น (' +
-               fmt.bahtK(others) + ') อยู่มาก — เป็นช่องที่เติมได้โดยไม่กินยอดวันที่แน่นอยู่แล้ว',
-          action: 'กลไกที่ผูกกับวัน: คูปองท้ายบิลเสาร์–อาทิตย์ให้กลับมาใช้ได้เฉพาะวัน' + DOW_LONG[mi] +
-                  ' หรือดีลเฉพาะวันนั้นที่สื่อสารซ้ำทุกสัปดาห์ให้คนจำ',
-          expect: 'ยกยอดวัน' + DOW_LONG[mi] + 'ขึ้น 15% = +' + fmt.bahtK(est) +
-                  '/เดือน (สมมติฐาน: ~4.3 วันต่อเดือน และโปรไม่ดึงยอดจากวันอื่นมาแทน)',
-          src: ['dow', 'heat'],
-        });
-      }
+      if (min >= others * 0.75) { return; }
+      var est = min * 0.15 * 4.3;
+      out.push({
+        est: est, tone: 'b', tag: 'จังหวะเวลา', tagCls: 'a',
+        scope: scopeName + ' · เฉลี่ย 3 เดือนล่าสุด',
+        title: 'โปรเฉพาะวัน' + DOW_LONG[mi] + ' — วันที่เงียบสุดของ' + scopeName,
+        metrics: [
+          { label: 'เฉลี่ยวัน' + DOW_LONG[mi], value: fmt.bahtK(min) },
+          { label: 'เฉลี่ยวันอื่น', value: fmt.bahtK(others) },
+          { label: 'ส่วนต่าง', value: pctTxt(min, others) },
+        ],
+        why: 'วัน' + DOW_LONG[mi] + 'ขายเฉลี่ย ' + fmt.bahtK(min) + '/วัน เทียบวันอื่น ' +
+             fmt.bahtK(others) + ' — เป็นช่องที่เติมได้โดยไม่กินยอดวันที่แน่นอยู่แล้ว',
+        action: 'คูปองท้ายบิลเสาร์–อาทิตย์ให้กลับมาใช้เฉพาะวัน' + DOW_LONG[mi] +
+                ' หรือดีลประจำวันนั้นที่สื่อสารซ้ำทุกสัปดาห์ให้คนจำ',
+        expect: 'ยกยอดวัน' + DOW_LONG[mi] + 'ขึ้น 15% = +' + fmt.bahtK(est) +
+                '/เดือน (สมมติฐาน: ~4.3 วัน/เดือน โปรไม่ดึงยอดจากวันอื่น)',
+        src: ['dow', 'heat'],
+      });
     }());
 
-    /* ช่วงชั่วโมงเงียบ — หน้าต่าง 3 ชม.ที่เบาสุดในเวลาเปิด */
+    /* ช่วง 3 ชม.ติดกันที่เบาสุดกลางวันทำการ (ตัดชม.แรก + 2 ชม.ท้าย) */
     (function () {
-      /* มองเฉพาะ "กลางวันทำการ" — ตัดชั่วโมงแรกกับสองชั่วโมงท้าย (ร้านเพิ่งเปิด/ใกล้ปิด
-       * เงียบเป็นธรรมชาติ จัดโปรไปก็ไม่มีคน) และต้องเป็น 3 ชม.ติดกันจริง */
-      var hs = SI.hours;
+      var hs = C.hours;
       if (hs.length < 7) { return; }
       var lo = hs[0].h + 1, hi = hs[hs.length - 1].h - 2;
       var best = null;
@@ -115,26 +121,26 @@
       var est = best.s * 0.20 * 30;
       out.push({
         est: est, tone: 'b', tag: 'จังหวะเวลา', tagCls: 'a',
-        scope: 'ทุกสาขา · เฉลี่ย 3 เดือนล่าสุด',
-        title: 'Happy hour ช่วง ' + best.from + ':00–' + (best.to + 1) + ':00',
+        scope: scopeName + ' · เฉลี่ย 3 เดือนล่าสุด',
+        title: 'Happy hour ' + best.from + ':00–' + (best.to + 1) + ':00 ที่' + scopeName,
         metrics: [
           { label: 'ยอดช่วงนี้/วัน', value: fmt.bahtK(best.s) },
           { label: 'สัดส่วนของวัน', value: Math.round(best.s / day * 100) + '%' },
           { label: 'ยอดทั้งวันเฉลี่ย', value: fmt.bahtK(day) },
         ],
         why: 'สามชั่วโมงนี้รวมกันขายแค่ ' + Math.round(best.s / day * 100) +
-             '% ของวัน ทั้งที่ร้านเปิดและมีต้นทุนพนักงานเท่าเดิม',
-        action: 'ดีลจำกัดเวลาเฉพาะช่วงนี้ (ลดหมวดเจาะจง / แถมเมื่อครบยอด) สื่อสารหน้าร้าน + ' +
-                'ไลน์บรอดแคสต์ตอนเช้าของวันนั้น',
+             '% ของวัน ทั้งที่ร้านเปิดและต้นทุนพนักงานเท่าเดิม',
+        action: 'ดีลจำกัดเวลาเฉพาะช่วงนี้ (ลดหมวดเจาะจง / แถมเมื่อครบยอด) ป้ายหน้าร้าน + ' +
+                'ไลน์บรอดแคสต์เช้าวันนั้น',
         expect: 'ยกยอดช่วงเงียบขึ้น 20% = +' + fmt.bahtK(est) +
-                '/เดือน (สมมติฐาน: 30 วัน/เดือน และลูกค้าใหม่มาเพิ่ม ไม่ใช่ลูกค้าเดิมย้ายเวลา)',
+                '/เดือน (สมมติฐาน: 30 วัน/เดือน ลูกค้ามาเพิ่มจริง ไม่ใช่ย้ายเวลา)',
         src: ['hour', 'heat'],
       });
     }());
 
-    /* โครงสร้างราคา — ของชิ้นเล็กครองปริมาณ ใช้ขั้นบันไดดันมูลค่า */
+    /* โครงสร้างราคา — ของชิ้นเล็กครองตะกร้า ใช้ขั้นบันได */
     (function () {
-      var b = SI.bands; if (!b || !b.rows.length) { return; }
+      var b = C.bands; if (!b || !b.rows.length) { return; }
       var mids = b.labels.map(function (l) {
         var n = l.replace(/[^0-9–\-]/g, '').split(/[–\-]/).map(Number).filter(function (x) { return x > 0; });
         if (!n.length) { return 15; }
@@ -147,7 +153,7 @@
       var est = 0.10 * lowQ / 3 * (mids[2] - (mids[0] + mids[1]) / 2);
       out.push({
         est: est, tone: 'i', tag: 'โครงสร้างราคา', tagCls: 'b',
-        scope: 'ทุกสาขา · 3 เดือนล่าสุด',
+        scope: scopeName + ' · 3 เดือนล่าสุด',
         title: 'ขั้นบันไดดันมูลค่าบิล — ของชิ้นเล็กครองตะกร้า',
         metrics: [
           { label: 'ชิ้นราคา ' + b.labels[0] + '/' + b.labels[1], value: Math.round(lowQ / totQ * 100) + '% ของชิ้น' },
@@ -156,21 +162,19 @@
         ],
         why: 'ชิ้นที่ขายส่วนใหญ่อยู่กรอบราคาต่ำสุดสองขั้น — ลดราคาตรง ๆ กับกลุ่มนี้คือแจกมาร์จิน ' +
              'กลไกที่ถูกคือให้ "หยิบเพิ่มเพื่อให้ถึงเงื่อนไข"',
-        action: 'ซื้อครบยอดแล้วลด/แถม (เช่น ครบ ฿300 ลด ฿30) + จัดจุดวางสินค้าราคาถัดขึ้นไป ' +
+        action: 'ซื้อครบยอดแล้วลด/แถม (เช่น ครบ ฿300 ลด ฿30) + วางสินค้าราคาถัดขึ้นไป ' +
                 'ใกล้แคชเชียร์ให้หยิบปิดยอดง่าย',
-        expect: 'ถ้า 10% ของชิ้นกลุ่มนี้ขยับขึ้นหนึ่งขั้นราคา = +' + fmt.bahtK(est) +
+        expect: '10% ของชิ้นกลุ่มนี้ขยับขึ้นหนึ่งขั้นราคา = +' + fmt.bahtK(est) +
                 '/เดือน (สมมติฐาน: ใช้ราคากลางของแต่ละกรอบเป็นตัวแทน)',
         src: ['pb'],
       });
     }());
 
-    /* ฤดูกาลเดือนหน้า — ประวัติ 2 ปีบอกว่าเดือนถัดไปมักแผ่ว/พีค */
+    /* ฤดูกาลเดือนถัดไป — แพตเทิร์น 2 ปี */
     (function () {
-      var mm = {}; SI.monthly.forEach(function (r) { mm[r.ym] = r.net; });
-      var last = SI.meta.full;                       // เดือนเต็มล่าสุด เช่น 2026-07
+      var last = SI.meta.full;
       var p = last.split('-'); var y = +p[0], m = +p[1];
-      var nm = m === 12 ? (y + 1) + '-01' : y + '-' + ('0' + (m + 2)).slice(-2); // เดือนถัดจากเดือนปัจจุบัน (ส.ค.→ก.ย.)
-      var nmM = +nm.split('-')[1];
+      var nmM = (m + 2 > 12) ? m + 2 - 12 : m + 2;   /* เดือนถัดจากเดือนปัจจุบัน */
       var rs = [];
       [y - 2, y - 1].forEach(function (py) {
         var a = mm[py + '-' + ('0' + nmM).slice(-2)];
@@ -184,85 +188,86 @@
       var est = base * Math.abs(d) / 2;
       out.push({
         est: est, tone: 'a', tag: 'ฤดูกาล', tagCls: 'y',
-        scope: 'ทุกสาขา · แพตเทิร์น 2 ปีย้อนหลัง',
-        title: 'เตรียมแคมเปญรับเดือน' + TH_M[nmM - 1] + ' — ปีก่อน ๆ ตกเฉลี่ย ' +
-               Math.round(Math.abs(d) * 100) + '%',
+        scope: scopeName + ' · แพตเทิร์น 2 ปีย้อนหลัง',
+        title: 'เตรียมแคมเปญรับเดือน' + TH_M[nmM - 1] + ' — ปีก่อน ๆ ' + scopeName +
+               'ตกเฉลี่ย ' + Math.round(Math.abs(d) * 100) + '%',
         metrics: [
           { label: TH_M[nmM - 1] + ' ' + (y - 1 + 543 - 2500), value: pctTxt(1 + rs[1], 1) },
           { label: TH_M[nmM - 1] + ' ' + (y - 2 + 543 - 2500), value: pctTxt(1 + rs[0], 1) },
           { label: 'ฐานเดือนล่าสุด', value: fmt.bahtK(base) },
         ],
-        why: 'สองปีติดที่เดือน' + TH_M[nmM - 1] + 'หดจากเดือนก่อนหน้า — ไม่ใช่เรื่องบังเอิญ ' +
-             'เป็นแพตเทิร์นฤดูกาลที่วางแผนล่วงหน้าได้',
-        action: 'ล็อกแคมเปญลงปฏิทินก่อนต้นเดือน: เปิดตัวโปรสัปดาห์แรก อย่ารอให้ยอดตกแล้วค่อยแก้ ' +
-                'และเทงบแอดช่วงครึ่งเดือนแรกที่คนยังมีกำลังซื้อ',
-        expect: 'ถ้าลดการตกลงได้ครึ่งหนึ่ง = รักษายอดไว้ +' + fmt.bahtK(est) +
+        why: 'สองปีติดที่เดือน' + TH_M[nmM - 1] + 'หดจากเดือนก่อนหน้า — เป็นแพตเทิร์นฤดูกาล ' +
+             'ที่วางแผนล่วงหน้าได้ ไม่ใช่เรื่องบังเอิญ',
+        action: 'ล็อกแคมเปญลงปฏิทินก่อนต้นเดือน เปิดตัวโปรสัปดาห์แรก อย่ารอยอดตกแล้วค่อยแก้ ' +
+                'เทงบแอดครึ่งเดือนแรก',
+        expect: 'ลดการตกได้ครึ่งหนึ่ง = รักษายอด +' + fmt.bahtK(est) +
                 ' (สมมติฐาน: การตกปีนี้ใกล้เคียงค่าเฉลี่ยสองปีก่อน)',
         src: ['trend', 'growth'],
       });
     }());
 
-    /* สาขาที่ตกทั้ง MoM และ YoY */
-    (function () {
-      var worst = null;
-      SI.branches.forEach(function (b) {
-        if (b.net < b.prev && b.yoy && b.net < b.yoy) {
-          var gap = b.prev - b.net;
-          if (!worst || gap > worst.gap) { worst = b; worst.gap = gap; }
-        }
-      });
-      if (!worst || worst.gap < worst.prev * 0.08) { return; }
-      var est = worst.gap * 0.5;
-      out.push({
-        est: est, tone: 'r', tag: 'รายสาขา', tagCls: 'r',
-        scope: worst.name + ' · เดือน ' + F,
-        title: 'โปรเฉพาะสาขา ' + worst.name.replace('KAN Super Store ', ''),
-        metrics: [
-          { label: 'ยอด ' + F, value: fmt.bahtK(worst.net) },
-          { label: 'เทียบเดือนก่อน', value: pctTxt(worst.net, worst.prev) },
-          { label: 'เทียบปีก่อน', value: pctTxt(worst.net, worst.yoy) },
-        ],
-        why: 'สาขานี้ตกทั้งเทียบเดือนก่อนและปีก่อน ขณะที่สาขาอื่นไม่ได้ตกแรงเท่า — ' +
-             'ปัญหาอยู่ที่พื้นที่ ไม่ใช่ภาพรวมตลาด',
-        action: 'แคมเปญท้องถิ่น: ยิงแอดรัศมีรอบสาขา + ดีลรับหน้าฝนเฉพาะสาขา และเช็คหน้างานว่า ' +
-                'มีปัจจัยกดยอด (ของขาด/จัดร้าน/คู่แข่งเปิดใหม่) ประกอบด้วย',
-        expect: 'ดึงกลับครึ่งหนึ่งของที่หายไป = +' + fmt.bahtK(est) +
-                '/เดือน (สมมติฐาน: กำลังซื้อพื้นที่ยังอยู่ อ้างอิงยอดปีก่อน ' + fmt.bahtK(worst.yoy) + ')',
-        src: ['store'],
-      });
-    }());
+    /* เฉพาะ scope รวม: สาขาที่ตกทั้ง MoM+YoY และ Fashion CRM */
+    if (isAll && C.branches) {
+      (function () {
+        var worst = null;
+        C.branches.forEach(function (b) {
+          if (b.net < b.prev && b.yoy && b.net < b.yoy) {
+            var gap = b.prev - b.net;
+            if (!worst || gap > worst.gap) { worst = b; worst.gap = gap; }
+          }
+        });
+        if (!worst || worst.gap < worst.prev * 0.08) { return; }
+        var est = worst.gap * 0.5;
+        out.push({
+          est: est, tone: 'r', tag: 'รายสาขา', tagCls: 'r',
+          scope: 'สาขา' + worst.name + ' · เดือน ' + F,
+          title: 'โปรเฉพาะสาขา ' + worst.name + ' — ดูรายละเอียดในแท็บสาขานั้น',
+          metrics: [
+            { label: 'ยอด ' + F, value: fmt.bahtK(worst.net) },
+            { label: 'เทียบเดือนก่อน', value: pctTxt(worst.net, worst.prev) },
+            { label: 'เทียบปีก่อน', value: pctTxt(worst.net, worst.yoy) },
+          ],
+          why: 'สาขานี้ตกทั้งเทียบเดือนก่อนและปีก่อน ขณะที่สาขาอื่นไม่ตกแรงเท่า — ' +
+               'ปัญหาอยู่ที่พื้นที่ ไม่ใช่ภาพรวมตลาด',
+          action: 'สลับไปดูแท็บสาขา' + worst.name + ' ด้านบนเพื่อเจาะโซน/วัน/ชั่วโมงของสาขานี้ ' +
+                  'แล้วยิงแอดรัศมีรอบสาขา + ดีลเฉพาะสาขา',
+          expect: 'ดึงกลับครึ่งหนึ่งของที่หายไป = +' + fmt.bahtK(est) +
+                  '/เดือน (สมมติฐาน: กำลังซื้อพื้นที่ยังอยู่ — ปีก่อนทำได้ ' + fmt.bahtK(worst.yoy) + ')',
+          src: ['store'],
+        });
+      }());
 
-    /* Fashion — ฐานลูกค้าระบุตัวยังโตได้ */
-    (function () {
-      var f = SI.fashion; if (!f || f.idrate >= 0.6) { return; }
-      var buyers = Math.round(f.ncust / f.idrate);
-      var plus = Math.round(buyers * 0.15);
-      var perCust = f.net / f.ncust;
-      var est = plus * perCust * 0.3;
-      out.push({
-        est: est, tone: 'g', tag: 'KAN Fashion', tagCls: 'g',
-        scope: 'KAN Fashion · ' + f.days + ' วันแรกของธุรกิจ',
-        title: 'เก็บเบอร์ลูกค้า Fashion ให้ได้ก่อน — ฐาน CRM คือแต้มต่อระยะยาว',
-        metrics: [
-          { label: 'ระบุตัวได้', value: Math.round(f.idrate * 100) + '%' },
-          { label: 'ลูกค้าระบุตัว', value: fmt.int(f.ncust) + ' คน' },
-          { label: 'ยอด/คน', value: fmt.baht(perCust) },
-        ],
-        why: 'Fashion เพิ่งเปิด ' + f.days + ' วัน มีลูกค้าระบุตัวแค่ ' + Math.round(f.idrate * 100) +
-             '% — ทุกบิลที่ไม่ได้เบอร์คือลูกค้าที่ตามกลับมาซื้อซ้ำไม่ได้',
-        action: 'โปรผูกสมาชิก: สมัคร LINE/ให้เบอร์รับส่วนลดทันที ณ จุดขาย Fashion ' +
-                'แล้วใช้ฐานนี้บรอดแคสต์คอลเลกชันใหม่',
-        expect: 'เพิ่มอัตราระบุตัว +15 จุด ≈ ลูกค้าติดตามได้อีก ' + fmt.int(plus) + ' คน ถ้า 30% ' +
-                'กลับมาซื้อซ้ำ = +' + fmt.bahtK(est) + '/ไตรมาส (สมมติฐาน: ยอด/คนเท่าค่าเฉลี่ยปัจจุบัน)',
-        src: ['fmem'],
-      });
-    }());
+      (function () {
+        var f = SI.fashion; if (!f || f.idrate >= 0.6) { return; }
+        var buyers = Math.round(f.ncust / f.idrate);
+        var plus = Math.round(buyers * 0.15);
+        var perCust = f.net / f.ncust;
+        var est = plus * perCust * 0.3;
+        out.push({
+          est: est, tone: 'g', tag: 'KAN Fashion', tagCls: 'g',
+          scope: 'KAN Fashion · ' + f.days + ' วันแรกของธุรกิจ',
+          title: 'เก็บเบอร์ลูกค้า Fashion ให้ได้ก่อน — ฐาน CRM คือแต้มต่อระยะยาว',
+          metrics: [
+            { label: 'ระบุตัวได้', value: Math.round(f.idrate * 100) + '%' },
+            { label: 'ลูกค้าระบุตัว', value: fmt.int(f.ncust) + ' คน' },
+            { label: 'ยอด/คน', value: fmt.baht(perCust) },
+          ],
+          why: 'Fashion เพิ่งเปิด ' + f.days + ' วัน ระบุตัวลูกค้าได้แค่ ' +
+               Math.round(f.idrate * 100) + '% — ทุกบิลที่ไม่ได้เบอร์คือลูกค้าที่ตามกลับมาไม่ได้',
+          action: 'โปรผูกสมาชิก: สมัคร LINE/ให้เบอร์รับส่วนลดทันที ณ จุดขาย Fashion ' +
+                  'แล้วใช้ฐานนี้บรอดแคสต์คอลเลกชันใหม่',
+          expect: 'อัตราระบุตัว +15 จุด ≈ ตามลูกค้าได้อีก ' + fmt.int(plus) + ' คน ถ้า 30% ' +
+                  'ซื้อซ้ำ = +' + fmt.bahtK(est) + '/ไตรมาส (สมมติฐาน: ยอด/คนเท่าค่าเฉลี่ย)',
+          src: ['fmem'],
+        });
+      }());
+    }
 
     out.sort(function (a, b) { return b.est - a.est; });
-    return out.slice(0, 6);
+    return out.slice(0, isAll ? 6 : 5);
   }
 
-  /* ── popup "ที่มา" — hover แล้วเห็นหน้าต้นทางจริง เลื่อนไปจุดนั้น ────── */
+  /* ── popup "ที่มา" ───────────────────────────────────────────────────── */
   function injectCSS() {
     if (document.getElementById('sp-css')) { return; }
     var s = document.createElement('style');
@@ -301,7 +306,7 @@
       '<div class="sp-title" id="spTitle"></div><div class="sp-path" id="spPath"></div></div>' +
       '<div class="sp-body"><div class="sp-load" id="spLoad">กำลังโหลดหน้าฝ่ายขาย…</div>' +
       '<iframe class="sp-frame" id="spFrame" loading="eager" title="พรีวิวแดชบอร์ดฝ่ายขาย"></iframe></div>' +
-      '<div class="sp-foot"><span class="sp-note">พรีวิวสด — จุดที่ใช้ถูกไฮไลต์ไว้</span>' +
+      '<div class="sp-foot"><span class="sp-note">พรีวิวสด — จุดที่ใช้ถูกไฮไลต์ไว้ · ตัวเลขในพรีวิวคือทุกสาขารวม</span>' +
       '<a class="sp-open" id="spOpen" target="_blank" rel="noopener">เปิดหน้าเต็ม →</a></div>';
     document.body.appendChild(pop);
     frame = pop.querySelector('#spFrame');
@@ -316,19 +321,19 @@
     var loc = SRC[key]; if (!loc) { return; }
     ensurePop();
     clearTimeout(hideTimer);
-    var url = SALES_URL + '#peek=' + loc.tab + ':' + loc.el;
+    var peek = 'peek=' + loc.tab + ':' + loc.el;
     pop.querySelector('#spTitle').textContent = loc.label;
     pop.querySelector('#spPath').textContent =
       'แดชบอร์ดฝ่ายขาย › แท็บ ' + (TAB_NAME[loc.tab] || loc.tab);
-    pop.querySelector('#spOpen').href = url;
+    pop.querySelector('#spOpen').href = PAGE_URL + '#' + peek;
     if (curKey !== key) {
       pop.querySelector('#spLoad').style.display = 'flex';
       /* เปลี่ยนเฉพาะ hash = ไฟล์ 6MB โหลดครั้งเดียว ครั้งถัดไปแค่เลื่อน */
-      if (frame.src && frame.src.indexOf(SALES_URL) >= 0) {
-        frame.contentWindow.location.hash = '#peek=' + loc.tab + ':' + loc.el;
+      if (frame.src && frame.src.indexOf('dashboard.html') >= 0) {
+        frame.contentWindow.location.hash = '#embed&' + peek;
         pop.querySelector('#spLoad').style.display = 'none';
       } else {
-        frame.src = url;
+        frame.src = EMBED_URL + '#embed&' + peek;
       }
       curKey = key;
     }
@@ -347,6 +352,8 @@
   }
 
   /* ── render ──────────────────────────────────────────────────────────── */
+  var curScope = 'all';
+
   function chipHTML(keys) {
     return '<div class="srcrow">' + keys.map(function (k) {
       return '<button type="button" class="spchip" data-sp="' + k + '">ที่มา ▸ ' +
@@ -354,51 +361,87 @@
     }).join('') + '</div>';
   }
 
-  KAN.suggestSales = {
-    section: function () {
-      if (!SI) { return ''; }
-      var cards = build();
-      var UI = KAN.UI;
-      var lead = 'อ่านจากตัวเลขฝ่ายขายทั้งชุด (ม.ค. 67 – ส.ค. 69 ทุกสาขา ฐาน = เดือนเต็มล่าสุด ' +
-        mLab(SI.meta.full) + ') ไม่ขยับตามตัวกรองด้านบน · เอาเมาส์ชี้ “ที่มา ▸” ' +
-        'จะเห็นหน้าต้นทางพร้อมไฮไลต์จุดที่ใช้ · <a href="' + SALES_URL +
-        '" target="_blank" rel="noopener" style="color:var(--indigo-deep);font-weight:700">' +
-        'เปิดแดชบอร์ดฝ่ายขายเต็ม →</a>';
-      var body = cards.length
-        ? '<div class="actions">' + cards.map(function (s, i) {
-            return '<div class="act ' + s.tone + '">' +
-              '<div class="no"><span>S' + (i + 1) + '</span>' +
-              '<span class="tag ' + s.tagCls + '">' + esc(s.tag) + '</span></div>' +
-              '<div class="br">' + esc(s.scope) + '</div>' +
-              '<h4>' + esc(s.title) + '</h4>' +
-              '<div class="mini3">' + s.metrics.map(function (m) {
-                return '<div class="mini"><small>' + esc(m.label) + '</small><b>' +
-                       esc(m.value) + '</b></div>';
-              }).join('') + '</div>' +
-              '<div class="prob"><b>เห็นอะไรในข้อมูลฝ่ายขาย</b>' + esc(s.why) + '</div>' +
-              '<div class="rec"><b>โปรที่แนะนำ</b>' + esc(s.action) + '</div>' +
-              '<div class="prob"><b>ประเมินผลลัพธ์</b>' + esc(s.expect) + '</div>' +
-              chipHTML(s.src) +
-              '</div>';
-          }).join('') + '</div>'
-        : KAN.UI.empty('ตัวเลขฝ่ายขายเดือนล่าสุดไม่มีจุดที่เข้าเงื่อนไขพอจะเสนอ');
-      return UI.sect({
-        id: 'salesIdeas', eyebrow: 'เชื่อมข้อมูลฝ่ายขาย',
-        title: 'ข้อเสนอจากแดชบอร์ดฝ่ายขาย', lead: lead, body: body,
+  function cardsHTML(scopeKey) {
+    var cards = build(scopeKey);
+    if (!cards.length) {
+      return UI.empty('ตัวเลขฝ่ายขายของขอบเขตนี้ไม่มีจุดที่เข้าเงื่อนไขพอจะเสนอ — ถือว่าเดือนล่าสุดอยู่ในเกณฑ์ปกติ');
+    }
+    return '<div class="actions">' + cards.map(function (s, i) {
+      return '<div class="act ' + s.tone + '">' +
+        '<div class="no"><span>S' + (i + 1) + '</span>' +
+        '<span class="tag ' + s.tagCls + '">' + esc(s.tag) + '</span></div>' +
+        '<div class="br">' + esc(s.scope) + '</div>' +
+        '<h4>' + esc(s.title) + '</h4>' +
+        '<div class="mini3">' + s.metrics.map(function (m) {
+          return '<div class="mini"><small>' + esc(m.label) + '</small><b>' +
+                 esc(m.value) + '</b></div>';
+        }).join('') + '</div>' +
+        '<div class="prob"><b>เห็นอะไรในข้อมูลฝ่ายขาย</b>' + esc(s.why) + '</div>' +
+        '<div class="rec"><b>โปรที่แนะนำ</b>' + esc(s.action) + '</div>' +
+        '<div class="prob"><b>ประเมินผลลัพธ์</b>' + esc(s.expect) + '</div>' +
+        chipHTML(s.src) +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  function wirePops(root) {
+    injectCSS();
+    (root || document).querySelectorAll('.spchip').forEach(function (chip) {
+      var k = chip.getAttribute('data-sp');
+      chip.addEventListener('mouseenter', function () { showPop(chip, k); });
+      chip.addEventListener('mouseleave', scheduleHide);
+      chip.addEventListener('click', function () {
+        var loc = SRC[k];
+        window.open(PAGE_URL + '#peek=' + loc.tab + ':' + loc.el, '_blank');
       });
-    },
-    wire: function (root) {
-      if (!SI) { return; }
-      injectCSS();
-      (root || document).querySelectorAll('.spchip').forEach(function (chip) {
-        var k = chip.getAttribute('data-sp');
-        chip.addEventListener('mouseenter', function () { showPop(chip, k); });
-        chip.addEventListener('mouseleave', scheduleHide);
-        chip.addEventListener('click', function () {
-          var loc = SRC[k];
-          window.open(SALES_URL + '#peek=' + loc.tab + ':' + loc.el, '_blank');
+    });
+  }
+
+  function wireScopeChips() {
+    document.querySelectorAll('#psScopes .qchip').forEach(function (c) {
+      c.addEventListener('click', function () {
+        curScope = c.getAttribute('data-scope');
+        document.querySelectorAll('#psScopes .qchip').forEach(function (x) {
+          x.classList.toggle('on', x === c);
         });
+        var host = document.getElementById('psCards');
+        host.innerHTML = cardsHTML(curScope);
+        wirePops(host);
       });
-    },
-  };
+    });
+  }
+
+  /* ── หน้าใหม่ในแอป: #/promo-sales ───────────────────────────────────── */
+  if (KAN.views && SI) {
+    KAN.views['promo-sales'] = {
+      id: 'promo-sales',
+      group: 'การตลาด',
+      icon: '📣',
+      title: 'โปรรายสาขา — จากข้อมูลฝ่ายขาย',
+      lead: 'อ่านจากแดชบอร์ดฝ่ายขายทั้งชุด (ม.ค. 67 – ส.ค. 69) ฐาน = เดือนเต็มล่าสุด ' +
+            mLab(SI.meta.full) + ' · เลือกสาขาเพื่อดูข้อเสนอเฉพาะพื้นที่ · ' +
+            'หน้านี้ไม่ขยับตามตัวกรองช่วงเวลา',
+      noFilter: true,
+      render: function () {
+        var chips = '<button class="qchip on" data-scope="all">ทุกสาขา</button>' +
+          SI.meta.stores.map(function (st) {
+            return '<button class="qchip" data-scope="s' + st.si + '">' + esc(st.short) + '</button>';
+          }).join('');
+        curScope = 'all';
+        return '<div class="scope"><div>เลือกขอบเขต:</div></div>' +
+          '<div class="filters" style="margin-top:0"><div class="chiprow" style="margin:0;padding:0;border:0" id="psScopes">' +
+          chips + '</div></div>' +
+          '<div class="sect" style="margin-top:14px"><div class="eyebrow">เชื่อมข้อมูลฝ่ายขาย</div>' +
+          '<h2>ข้อเสนอโปรโมชัน</h2>' +
+          '<div class="lead">เอาเมาส์ชี้ “ที่มา ▸” ใต้การ์ดจะเห็นหน้าต้นทางพร้อมไฮไลต์จุดที่ใช้ · ' +
+          '<a href="' + PAGE_URL + '" style="color:var(--indigo-deep);font-weight:700">เปิดแดชบอร์ดยอดขาย (หลัก) →</a></div>' +
+          '<div id="psCards" style="margin-top:12px">' + cardsHTML('all') + '</div></div>';
+      },
+      after: function () {
+        wireScopeChips();
+        wirePops(document.getElementById('psCards'));
+      },
+    };
+    if (KAN.viewOrder) { KAN.viewOrder.push('promo-sales'); }
+  }
 }(window));
