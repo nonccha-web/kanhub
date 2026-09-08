@@ -537,3 +537,75 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ptab.on i{ background:rgba(255,255,255,.18); color:var(--k-paper); }
 tr.prow{ cursor:pointer; }
 tr.prow:hover td{ background:var(--k-hair); }
+
+/* ── ปฏิทินโพสต์ ── */
+.mnav{ display:inline-flex; align-items:center; gap:4px; }
+.mnav button{ width:30px; height:30px; border:1px solid var(--k-line); border-radius:999px; background:var(--k-paper);
+  color:var(--k-soft); font:inherit; font-size:15px; line-height:1; cursor:pointer; }
+.mnav button:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+.mnav b{ min-width:96px; text-align:center; font-size:13.5px; font-weight:600; }
+.mnav .btn-text{ width:auto; height:auto; border:0; border-bottom:1px solid var(--k-line); border-radius:0; font-size:12px; margin-left:4px; }
+
+.cal{ border:1px solid var(--k-line); background:var(--k-paper); margin-bottom:22px; }
+.calhead{ display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid var(--k-line); }
+.calhead span{ padding:9px 6px; text-align:center; font-size:11px; font-weight:600; color:var(--k-mut); }
+.calgrid{ display:grid; grid-template-columns:repeat(7,1fr); }
+.calgrid > *{ min-height:92px; border-right:1px solid var(--k-hair); border-bottom:1px solid var(--k-hair); }
+.calgrid > *:nth-child(7n){ border-right:0; }
+.celloff{ background:var(--k-ground); }
+.cell{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:8px 8px 7px; border-top:0; border-left:0;
+  background:var(--k-paper); font:inherit; text-align:left; cursor:pointer; position:relative; transition:background .14s; }
+.cell:hover{ background:var(--k-hair); }
+.cell.empty{ cursor:default; }
+.cell.empty:hover{ background:var(--k-paper); }
+.cd{ font-family:var(--k-display); font-size:12.5px; font-weight:600; color:var(--k-soft); }
+.cell.today .cd{ display:grid; place-items:center; width:22px; height:22px; margin:-2px 0 -2px -3px; border-radius:50%;
+  background:var(--k-ink); color:var(--k-paper); }
+.cell.good{ background:color-mix(in srgb, var(--k-ok) 9%, transparent); }
+.cell.warn{ background:color-mix(in srgb, var(--k-warn) 11%, transparent); }
+.cell.bad{ background:color-mix(in srgb, var(--k-bad) 10%, transparent); }
+.cell.pick{ outline:2px solid var(--k-ink); outline-offset:-2px; }
+.cdots{ display:flex; flex-wrap:wrap; align-items:center; gap:3px; }
+.cdots i{ width:7px; height:7px; border-radius:50%; display:block; }
+.cdots i.ok{ background:var(--k-ok); }
+.cdots i.nolink{ background:var(--k-warn); }
+.cdots i.miss{ background:var(--k-bad); }
+.cdots i.plan{ background:var(--k-line); border:1px solid var(--k-mut); box-sizing:border-box; }
+.cdots i.skip{ background:transparent; border:1px dashed var(--k-mut); box-sizing:border-box; }
+.cdots b{ font-family:var(--k-display); font-size:9.5px; color:var(--k-mut); }
+.cn{ margin-top:auto; font-family:var(--k-display); font-size:10.5px; color:var(--k-mut); font-variant-numeric:tabular-nums; }
+
+/* ── เกจรายสาขา ── */
+.gauges{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-bottom:20px; }
+.gauge{ border:1px solid var(--k-line); background:var(--k-paper); padding:13px 15px; }
+.gtop{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.gtop b{ font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gpct{ font-family:var(--k-display); font-size:17px; font-weight:700; }
+.gbar{ display:flex; height:6px; margin-top:9px; background:var(--k-hair); overflow:hidden; }
+.gbar i{ display:block; height:100%; }
+.gbar i.ok{ background:var(--k-ok); }
+.gbar i.nolink{ background:var(--k-warn); }
+.gbar i.miss{ background:var(--k-bad); }
+.gbar i.plan{ background:var(--k-line); }
+.gleg{ display:flex; flex-wrap:wrap; gap:4px 11px; margin-top:8px; font-size:10.5px; color:var(--k-mut); }
+.gleg span{ display:inline-flex; align-items:center; gap:5px; }
+.gleg span::before{ content:''; width:7px; height:7px; border-radius:50%; }
+.gleg .ok::before{ background:var(--k-ok); }
+.gleg .nolink::before{ background:var(--k-warn); }
+.gleg .miss::before{ background:var(--k-bad); }
+.gleg .plan::before{ background:var(--k-line); }
+
+.subcheck.tone-ok{ border-color:var(--k-ok); background:var(--k-ok); }
+.subcheck.tone-nolink{ border-color:var(--k-warn); background:var(--k-warn); }
+.subcheck.tone-miss{ border-color:var(--k-bad); }
+.subcheck.tone-skip{ border-color:var(--k-line); background:var(--k-hair); color:var(--k-mut); }
+.postrow.t-miss .pt{ color:var(--k-bad); }
+
+@media (max-width:760px){
+  .calgrid > *{ min-height:62px; }
+  .cell{ padding:5px 4px; gap:3px; }
+  .cd{ font-size:11px; }
+  .cdots i{ width:5px; height:5px; }
+  .cn{ font-size:9px; }
+  .mnav b{ min-width:74px; font-size:12.5px; }
+}

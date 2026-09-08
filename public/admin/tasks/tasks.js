@@ -1219,11 +1219,17 @@
   /* ---------- ตารางโพสต์ ----------
      พิซซ่ากรอกแผน · หัวหน้าเข้ามาดูว่า "วันนี้โพสต์ครบยัง มีลิงก์ไหม" แล้วติ๊กจบ
      เก็บแยกจาก task เพราะเดือนหนึ่งมีเป็นร้อยโพสต์ ถ้ายัดเป็น task งานจริงจะถูกกลบ */
-  var P = { page: '', range: 'today', status: '' };
+  var P = { page: '', range: 'month', status: '', view: 'cal', month: null, day: '' };
   var POST_KIND = { content: 'คอนเทนต์', promo: 'โปรโมชัน', video: 'วิดีโอ', live: 'ไลฟ์' };
 
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function curMonth() { return P.month ? new Date(P.month + '-01T00:00:00') : new Date(); }
   function postRangeDates() {
+    /* โหมดปฏิทินยึดเดือนที่เปิดอยู่ ไม่ใช่ปุ่มช่วงเวลา */
+    if (P.view === 'cal') {
+      var m = curMonth();
+      return [ymd(new Date(m.getFullYear(), m.getMonth(), 1)), ymd(new Date(m.getFullYear(), m.getMonth() + 1, 0))];
+    }
     var now = new Date();
     if (P.range === 'today') return [ymd(now), ymd(now)];
     if (P.range === 'week') {
@@ -1267,10 +1273,12 @@
 
       var view = $('#view');
       view.className = 'page';
-      var label = { today: 'วันนี้', week: 'สัปดาห์นี้', month: 'เดือนนี้', all: 'ทั้งหมด' }[P.range];
+      var m = curMonth();
+      var monthLabel = MON_TH[m.getMonth()] + ' ' + String(m.getFullYear() + 543).slice(-2);
+      var label = P.view === 'cal' ? monthLabel : { today: 'วันนี้', week: 'สัปดาห์นี้', month: 'เดือนนี้', all: 'ทั้งหมด' }[P.range];
       var h = '<div class="top"><div><span class="kicker">ตารางโพสต์' + (P.page ? ' · ' + esc(pageName(P.page)) : '') + '</span>' +
         '<h1>คอนเทนต์ ' + esc(label) + '</h1>' +
-        '<p>ดูว่าโพสต์ไปหรือยังและมีลิงก์ไหม — ติ๊กช่องหน้าแถวเพื่อปิดงาน หรือวางลิงก์โพสต์ลงช่องแล้วระบบติ๊กให้เอง</p></div>' +
+        '<p>เขียวคือโพสต์แล้ว แดงคือเลยวันแล้วยังไม่โพสต์ เหลืองคือโพสต์แล้วแต่ยังไม่มีลิงก์ — กดวันในปฏิทินเพื่อดูและอัปเดตโพสต์ของวันนั้น</p></div>' +
         '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
 
       h += '<div class="cards">' +
@@ -1284,8 +1292,13 @@
           return '<button type="button" class="' + (obj[name] === o[0] ? 'on' : '') + '" data-p="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
         }).join('') + '</div>';
       };
-      h += '<div class="tbar">' +
-        seg('range', [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']], P) +
+      h += '<div class="tbar">' + seg('view', [['cal', 'ปฏิทิน'], ['list', 'รายการ']], P) +
+        (P.view === 'cal'
+          ? '<div class="mnav"><button type="button" data-mon="-1" aria-label="เดือนก่อน">‹</button>' +
+            '<b>' + esc(monthLabel) + '</b>' +
+            '<button type="button" data-mon="1" aria-label="เดือนถัดไป">›</button>' +
+            '<button type="button" class="btn-text" data-mon="0">เดือนนี้</button></div>'
+          : seg('range', [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']], P)) +
         (P.status ? '<button type="button" class="fchip" data-p="status" data-v="">' +
           ({ left: 'ยังไม่ได้โพสต์', nolink: 'ไม่มีลิงก์', done: 'โพสต์แล้ว' }[P.status] || '') + ' <span>✕</span></button>' : '') +
         '<span class="tbar-n">' + shown.length + ' โพสต์</span></div>';
@@ -1305,8 +1318,33 @@
             '<i' + (st.left ? ' class="warn"' : '') + '>' + (st.left || st.n) + '</i></button>';
         }).join('') + '</div>';
 
+      /* เกจ: ของเพจที่เลือก หรือแยกทุกสาขาเมื่อดูรวม */
+      if (all.length) {
+        h += '<div class="gauges">' +
+          (P.page
+            ? gaugeHtml(posts, pageName(P.page))
+            : (S.pages || []).map(function (pg) {
+                var l = all.filter(function (x) { return x.pageId === pg.id; });
+                return l.length ? gaugeHtml(l, pg.name) : '';
+              }).join('')) + '</div>';
+      }
+
+      if (P.view === 'cal') {
+        h += calendarHtml(posts);
+        if (P.day) {
+          var dayItems = shown.filter(function (x) { return x.date === P.day; });
+          var dd = new Date(P.day + 'T00:00:00');
+          h += '<div class="group"><div class="group-h' + (sameDay(dd, new Date()) ? ' late' : '') + '"><h3>' +
+            esc(DAY_TH[dd.getDay()] + ' ' + fmtDate(dd, true)) + '</h3><span>' + dayItems.length + '</span>' +
+            '<button type="button" class="btn-text" style="margin-left:auto" data-day="">ดูทั้งเดือน</button></div>' +
+            (dayItems.length
+              ? '<div class="tlist">' + dayItems.map(postRow).join('') + '</div>'
+              : '<div class="sec"><div class="empty">วันนี้ไม่มีโพสต์ในแผน</div></div>') + '</div>';
+        }
+      }
+
       /* ดูรวมทุกเพจ = ต้องรู้ว่าสาขาไหนตามหลัง ตารางสรุปตอบตรงนั้น */
-      if (!P.page && all.length) {
+      if (P.view === 'list' && !P.page && all.length) {
         h += '<div class="sec"><div class="sec-h"><h2>แยกตามเพจ</h2><p>กดชื่อเพจเพื่อดูเฉพาะเพจนั้น</p></div>' +
           '<div class="sec-b tight" style="overflow-x:auto"><table class="table"><thead><tr><th>เพจ</th>' +
           '<th class="num">ทั้งหมด</th><th class="num">โพสต์แล้ว</th><th class="num">ยังไม่ได้โพสต์</th><th class="num">ไม่มีลิงก์</th></tr></thead><tbody>' +
@@ -1323,7 +1361,9 @@
           '<td class="num">' + statOf(all).nolink + '</td></tr></tbody></table></div></div>';
       }
 
-      if (!shown.length) {
+      if (P.view === 'cal') {
+        /* โหมดปฏิทินจบที่ปฏิทิน + รายการของวันที่กด */
+      } else if (!shown.length) {
         /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
            (ยิงจากเบราว์เซอร์ของหัวหน้า เพราะ API ต้องใช้สิทธิ์เจ้าของ) */
         var emptyAll = !posts.length && !P.page && P.range === 'all' && !P.status;
@@ -1352,11 +1392,76 @@
     }).catch(function (e) { showError(e); });
   }
 
+  /* สีเดียวใช้ทั้งปฏิทินและรายการ
+     เขียว = โพสต์แล้วมีลิงก์ · เหลือง = โพสต์แล้วแต่ยังไม่มีลิงก์ (ตรวจไม่ได้ว่าขึ้นจริง)
+     แดง = เลยวันแล้วยังไม่โพสต์ · เทา = ยังไม่ถึงวัน · จาง = ตั้งใจไม่โพสต์ */
+  function postTone(x) {
+    if (x.status === 'skip') return 'skip';
+    if (x.status === 'done') return x.url ? 'ok' : 'nolink';
+    var d = new Date(x.date + 'T23:59:59');
+    return d < new Date() ? 'miss' : 'plan';
+  }
+  var TONE_TH = { ok: 'โพสต์แล้ว', nolink: 'โพสต์แล้ว ไม่มีลิงก์', miss: 'เลยวันแล้วยังไม่โพสต์', plan: 'รอถึงวัน', skip: 'ไม่ตั้งโพสต์' };
+
+  /* ปฏิทินรายเดือน — เปิดมาเห็นทั้งเดือนว่าวันไหนเขียววันไหนแดง */
+  function calendarHtml(list) {
+    var m = curMonth();
+    var y = m.getFullYear(), mo = m.getMonth();
+    var first = new Date(y, mo, 1), last = new Date(y, mo + 1, 0);
+    var start = (first.getDay() + 6) % 7;            /* ให้สัปดาห์เริ่มวันจันทร์ */
+    var byDay = {};
+    list.forEach(function (x) { (byDay[x.date] = byDay[x.date] || []).push(x); });
+
+    var h = '<div class="cal"><div class="calhead">' +
+      ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'].map(function (d) { return '<span>' + d + '</span>'; }).join('') + '</div><div class="calgrid">';
+    for (var i = 0; i < start; i++) h += '<div class="celloff"></div>';
+    for (var day = 1; day <= last.getDate(); day++) {
+      var dt = ymd(new Date(y, mo, day));
+      var items = byDay[dt] || [];
+      var tones = items.map(postTone);
+      var n = { ok: 0, nolink: 0, miss: 0, plan: 0, skip: 0 };
+      tones.forEach(function (t) { n[t]++; });
+      var isToday = dt === ymd(new Date());
+      var cls = 'cell' + (isToday ? ' today' : '') + (P.day === dt ? ' pick' : '') + (items.length ? '' : ' empty') +
+        (n.miss ? ' bad' : (n.nolink ? ' warn' : (items.length && n.ok === items.length - n.skip ? ' good' : '')));
+      h += '<button type="button" class="' + cls + '" data-day="' + dt + '">' +
+        '<span class="cd">' + day + '</span>' +
+        (items.length
+          ? '<span class="cdots">' + tones.slice(0, 8).map(function (t) { return '<i class="' + t + '"></i>'; }).join('') +
+            (items.length > 8 ? '<b>+' + (items.length - 8) + '</b>' : '') + '</span>' +
+            '<span class="cn">' + (n.ok + n.nolink) + '/' + (items.length - n.skip) + '</span>'
+          : '') + '</button>';
+    }
+    h += '</div></div>';
+    return h;
+  }
+
+  /* เกจความคืบหน้า — ของเพจที่เลือก หรือรวมทุกเพจ */
+  function gaugeHtml(list, label) {
+    var live = list.filter(function (x) { return x.status !== 'skip'; });
+    var ok = live.filter(function (x) { return postTone(x) === 'ok'; }).length;
+    var nolink = live.filter(function (x) { return postTone(x) === 'nolink'; }).length;
+    var miss = live.filter(function (x) { return postTone(x) === 'miss'; }).length;
+    var plan = live.filter(function (x) { return postTone(x) === 'plan'; }).length;
+    var total = live.length || 1;
+    var pct = Math.round((ok / total) * 100);
+    var seg = function (n, cls) { return n ? '<i class="' + cls + '" style="width:' + (n / total * 100) + '%" title="' + n + '"></i>' : ''; };
+    return '<div class="gauge"><div class="gtop"><b>' + esc(label) + '</b>' +
+      '<span class="gpct">' + pct + '%</span></div>' +
+      '<div class="gbar">' + seg(ok, 'ok') + seg(nolink, 'nolink') + seg(miss, 'miss') + seg(plan, 'plan') + '</div>' +
+      '<div class="gleg">' +
+      '<span class="ok">โพสต์แล้ว ' + ok + '</span>' +
+      (nolink ? '<span class="nolink">ไม่มีลิงก์ ' + nolink + '</span>' : '') +
+      (miss ? '<span class="miss">ยังไม่โพสต์ ' + miss + '</span>' : '') +
+      (plan ? '<span class="plan">รอถึงวัน ' + plan + '</span>' : '') +
+      '</div></div>';
+  }
+
   function postRow(x) {
-    var st = x.status;
+    var st = x.status, tone = postTone(x);
     var mark = st === 'done' ? '✓' : (st === 'skip' ? '–' : '');
-    return '<div class="postrow ' + esc(st) + '" data-post="' + esc(x.id) + '">' +
-      '<button type="button" class="subcheck ' + (st === 'done' ? 'done' : (st === 'skip' ? 'blocked' : '')) + '" data-post-toggle="' + esc(x.id) + '" aria-label="ติ๊กว่าโพสต์แล้ว">' + mark + '</button>' +
+    return '<div class="postrow ' + esc(st) + ' t-' + tone + '" data-post="' + esc(x.id) + '" title="' + esc(TONE_TH[tone]) + '">' +
+      '<button type="button" class="subcheck tone-' + tone + '" data-post-toggle="' + esc(x.id) + '" aria-label="ติ๊กว่าโพสต์แล้ว">' + mark + '</button>' +
       '<span class="ptime">' + esc(x.time || '—') + '</span>' +
       '<span class="pmain"><span class="pt">' + esc(x.topic || '(ยังไม่ใส่หัวข้อ)') + '</span>' +
       '<span class="pm"><span class="pill ' + (x.kind === 'live' ? 'blocked' : (x.kind === 'promo' ? 'repeat' : 'todo')) + '">' + esc(POST_KIND[x.kind] || x.kind) + '</span>' +
@@ -1720,7 +1825,24 @@
     if (ev.target.closest('[data-toggle-done]')) { S.showDone = !S.showDone; renderMe(); return; }
     if ((b = ev.target.closest('.cards article[data-p]'))) { P.status = b.getAttribute('data-p'); renderPosts(); return; }
     if ((b = ev.target.closest('.tbar [data-p], .fchip[data-p], .ptab[data-p], tr.prow[data-p]'))) {
-      P[b.getAttribute('data-p')] = b.getAttribute('data-v'); renderPosts(); return;
+      P[b.getAttribute('data-p')] = b.getAttribute('data-v');
+      if (b.getAttribute('data-p') === 'view') P.day = '';
+      renderPosts(); return;
+    }
+    if ((b = ev.target.closest('[data-mon]'))) {
+      var step = Number(b.getAttribute('data-mon'));
+      var m0 = curMonth();
+      P.month = step === 0 ? null : (function () {
+        var x = new Date(m0.getFullYear(), m0.getMonth() + step, 1);
+        return x.getFullYear() + '-' + pad(x.getMonth() + 1);
+      }());
+      P.day = '';
+      renderPosts(); return;
+    }
+    if ((b = ev.target.closest('[data-day]'))) {
+      var dv = b.getAttribute('data-day');
+      P.day = (P.day === dv) ? '' : dv;
+      renderPosts(); return;
     }
     if ((b = ev.target.closest('[data-post-toggle]'))) {
       var pid = b.getAttribute('data-post-toggle');
