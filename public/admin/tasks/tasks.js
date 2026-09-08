@@ -263,9 +263,10 @@
         '<div class="field"><label class="label">ตั้งรหัสผ่าน <small>อย่างน้อย 8 ตัว</small></label><input class="input" name="password" type="password" autocomplete="new-password" minlength="8" required></div>' +
         '<div class="field"><label class="label">พิมพ์รหัสผ่านอีกครั้ง</label><input class="input" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>' +
         '<button type="submit" class="btn" id="setupBtn">ตั้งรหัสแล้วเข้าใช้งาน</button></form>' +
-        '<p class="foot">ตั้งเสร็จแล้วครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย</p>';
+        '<p class="foot">ตั้งเสร็จแล้วครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย · ' +
+        'รหัสตั้งค่าใช้ได้ครั้งเดียว ถ้าใส่แล้วไม่ผ่านให้ขอรหัสล่าสุดจากหัวหน้าทีม</p>';
     }
-    h += '</div>';
+    h += '<div class="login-by">Powered by <b>M Creation</b></div></div>';
     view.innerHTML = h;
 
     $$('[data-lmode]').forEach(function (b) {

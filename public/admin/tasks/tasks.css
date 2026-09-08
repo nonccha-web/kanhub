@@ -495,3 +495,7 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .postbar b{ color:var(--k-ink); font-weight:600; }
 .postbar .btn-text{ margin-left:auto; }
 @media (max-width:700px){ .postbar .btn-text{ margin-left:0; } }
+/* เครดิตท้ายการ์ดล็อกอิน — บนมือถือ sidebar เป็นลิ้นชัก เครดิตท้าย sidebar เลยไม่โผล่ */
+.login-by{ margin-top:18px; padding-top:14px; border-top:1px solid var(--k-hair);
+  text-align:center; font-size:10.5px; color:var(--k-mut); }
+.login-by b{ font-weight:600; color:var(--k-soft); }
