@@ -1292,8 +1292,15 @@
         '<span class="tbar-n">' + shown.length + ' โพสต์</span></div>';
 
       if (!shown.length) {
+        /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
+           (ยิงจากเบราว์เซอร์ของหัวหน้า เพราะ API ต้องใช้สิทธิ์เจ้าของ) */
+        var emptyAll = !posts.length && !P.page && P.range === 'all' && !P.status;
         h += '<div class="sec"><div class="empty"><b>ไม่มีโพสต์ในช่วงนี้</b>' +
-          (P.range === 'today' ? 'วันนี้ยังไม่มีแผนโพสต์ หรือพิซซ่ายังไม่ได้กรอก' : 'ลองเปลี่ยนช่วงเวลาหรือเพจ') + '</div></div>';
+          (P.range === 'today' ? 'วันนี้ยังไม่มีแผนโพสต์ หรือพิซซ่ายังไม่ได้กรอก' : 'ลองเปลี่ยนช่วงเวลาหรือเพจ') +
+          (S.me.role === 'owner'
+            ? '<div style="margin-top:18px"><button type="button" class="btn" id="seedPosts">นำเข้าตารางโพสต์เดิม 469 แถว</button>' +
+              '<p class="hint" style="margin-top:10px">จากไฟล์ ตารางโพสต์.xlsx ของพิซซ่า (ก.ค.–ก.ย. 69) · กดซ้ำได้ ข้อมูลไม่ซ้ำเพราะใช้รหัสแถวเดิม</p></div>'
+            : '') + '</div></div>';
       } else {
         var byDate = {};
         shown.forEach(function (x) { (byDate[x.date] = byDate[x.date] || []).push(x); });
@@ -1309,6 +1316,8 @@
 
       $('#pageSel').addEventListener('change', function () { P.page = this.value; renderPosts(); });
       $('#newPost').addEventListener('click', function () { openPostForm(null); });
+      var sb = $('#seedPosts');
+      if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
     }).catch(function (e) { showError(e); });
   }
 
@@ -1391,6 +1400,41 @@
           onClose: renderPosts,
         });
       }).catch(function (e) { toast(e.message, true); });
+    });
+  }
+
+  /* ดึงไฟล์ตั้งต้นแล้วยิงเข้า API ทีละ 150 แถว — ยิงทีเดียวทั้งก้อนจะเกินขนาดที่ D1 รับไหว */
+  function seedPosts(btn) {
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'กำลังนำเข้า…';
+    fetch('posts-seed.json', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('อ่านไฟล์ตั้งต้นไม่ได้');
+      return r.json();
+    }).then(function (data) {
+      return api('/pages', 'POST', { pages: data.pages }).then(function () {
+        var chunks = [];
+        for (var i = 0; i < data.posts.length; i += 150) chunks.push(data.posts.slice(i, i + 150));
+        var n = 0;
+        return chunks.reduce(function (chain, c, idx) {
+          return chain.then(function () {
+            btn.textContent = 'กำลังนำเข้า ' + Math.round((idx / chunks.length) * 100) + '%';
+            return api('/posts', 'POST', { posts: c }).then(function (j) { n += (j.ids || []).length; });
+          });
+        }, Promise.resolve()).then(function () { return { n: n, pages: data.pages.length }; });
+      });
+    }).then(function (r) {
+      P.range = 'month';
+      okDialog({
+        title: 'นำเข้าตารางโพสต์แล้ว',
+        lines: [r.n + ' โพสต์ · ' + r.pages + ' เพจ', 'ช่วง ก.ค. – ก.ย. 2569 จากไฟล์ของพิซซ่า'],
+        note: 'จากนี้พิซซ่ากรอกต่อในระบบได้เลย ไม่ต้องกลับไปแก้ในไฟล์',
+        onClose: renderPosts,
+      });
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = was;
+      toast(e.message, true);
     });
   }
 
