@@ -40,7 +40,13 @@ const SCHEMA = [
     "id TEXT PRIMARY KEY, task_id TEXT NOT NULL, update_id TEXT, file_name TEXT NOT NULL, " +
     "mime TEXT NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_task_files_task ON task_files(task_id)",
+  /* กันเดา PIN — หน้า /admin ยังเปิดสาธารณะ PIN 4 หลักเดาหมดได้ใน 10,000 ครั้ง */
+  "CREATE TABLE IF NOT EXISTS task_logins (" +
+    "staff_id TEXT PRIMARY KEY, fails INTEGER NOT NULL DEFAULT 0, locked_until TEXT)",
 ];
+
+const MAX_PIN_FAILS = 5;
+const LOCK_MINUTES = 10;
 
 /* KPI CMO ปี 2570 — จาก Executive Offer CMO KanImport 2027 (8 ก.ย. 2569)
    keywords ใช้เดาหมวดตอนวางข้อความสั่งงาน (แก้ได้ในหน้า KPI ภายหลัง) */
@@ -286,8 +292,30 @@ export async function handleTaskApi(request, env, url, path, method) {
     const pin = String(body.pin || "");
     const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
     if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
+
+    /* ถูกล็อกอยู่หรือเปล่า — ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
+    const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
+    if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
+      const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
+      return json({ error: "ใส่ PIN ผิดหลายครั้ง ลองใหม่ในอีก " + wait + " นาที" }, 429);
+    }
+
     const hash = await sha256Hex(row.pin_salt + ":" + pin);
-    if (hash !== row.pin_hash) return json({ error: "PIN ไม่ถูกต้อง" }, 401);
+    if (hash !== row.pin_hash) {
+      const fails = ((gate && gate.fails) || 0) + 1;
+      const lockedUntil = fails >= MAX_PIN_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60000).toISOString() : null;
+      await db.prepare(
+        "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
+        "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
+      ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
+      return json({
+        error: lockedUntil
+          ? "ใส่ PIN ผิด " + MAX_PIN_FAILS + " ครั้ง ล็อก " + LOCK_MINUTES + " นาที"
+          : "PIN ไม่ถูกต้อง (เหลืออีก " + (MAX_PIN_FAILS - fails) + " ครั้ง)",
+      }, lockedUntil ? 429 : 401);
+    }
+
+    if (gate) await db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id).run();
     const tok = await makeSession(db, row.id);
     return json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
   }
@@ -319,7 +347,10 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (oldHash !== row.pin_hash) return json({ error: "PIN เดิมไม่ถูกต้อง" }, 400);
     const salt = randHex(8);
     const hash = await sha256Hex(salt + ":" + body.newPin);
-    await db.prepare("UPDATE staff SET pin_salt = ?, pin_hash = ? WHERE id = ?").bind(salt, hash, me.id).run();
+    await db.batch([
+      db.prepare("UPDATE staff SET pin_salt = ?, pin_hash = ? WHERE id = ?").bind(salt, hash, me.id),
+      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(me.id),
+    ]);
     return json({ ok: true });
   }
 
@@ -372,7 +403,11 @@ export async function handleTaskApi(request, env, url, path, method) {
     }
     if (!sets.length) return json({ error: "ไม่มีอะไรให้แก้" }, 400);
     vals.push(id);
-    await db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+    await db.batch([
+      db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals),
+      /* หัวหน้าตั้ง PIN ใหม่ให้ = ปลดล็อกที่ค้างจากการใส่ผิดด้วย */
+      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(id),
+    ]);
     return json({ ok: true });
   }
 
@@ -511,7 +546,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (!status) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
       await db.batch([
         db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=? WHERE id=?")
-          .bind(status, now, status === "done" ? (task.doneAt || now) : null, id),
+          .bind(status, now, status === "done" ? (task.repeat || task.status !== "done" ? now : task.doneAt) : null, id),
         db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
           .bind(newId("u_"), id, me.id, "status", "", status, now),
       ]);
@@ -554,9 +589,10 @@ export async function handleTaskApi(request, env, url, path, method) {
           "INSERT INTO task_files (id,task_id,update_id,file_name,mime,bytes,data,created_at) VALUES (?,?,?,?,?,?,?,?)"
         ).bind(fid, id, uid, String((f && f.fileName) || "photo.jpg").slice(0, 160), parsed.mime, parsed.bytes, parsed.b64, now));
       }
-      if (status && status !== task.status) {
+      /* งานประจำกดเสร็จซ้ำได้ทุกวัน — ต้องเขียน done_at ใหม่ ไม่งั้นหน้าเว็บนึกว่ายังเป็นรอบเก่า */
+      if (status && (status !== task.status || (task.repeat && status === "done"))) {
         stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=? WHERE id=?")
-          .bind(status, now, status === "done" ? (task.doneAt || now) : null, id));
+          .bind(status, now, status === "done" ? (task.repeat || task.status !== "done" ? now : task.doneAt) : null, id));
       } else {
         stmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id));
       }

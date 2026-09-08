@@ -78,14 +78,41 @@
   }
   function startOfDay(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function sameDay(a, b) { return startOfDay(a).getTime() === startOfDay(b).getTime(); }
-  function isLate(t) { return t.status !== 'done' && !t.repeat && t.dueAt && new Date(t.dueAt) < new Date(); }
-  function isToday(t) { return t.dueAt && sameDay(new Date(t.dueAt), new Date()); }
+  function startOfWeek(d) { var x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+  function sameWeek(a, b) { return startOfWeek(a).getTime() === startOfWeek(b).getTime(); }
+
+  /* งานประจำ "เสร็จ" ได้แค่ในรอบของมัน — ขึ้นวันใหม่ (หรือสัปดาห์ใหม่) ต้องกลับมาเป็นรอทำเอง
+     ไม่งั้นกดเสร็จวันเดียวแล้วงานประจำหายไปตลอดกาล ทั้งที่ทีมต้องอัปเดตทุกวัน */
+  function effStatus(t) {
+    if (!t.repeat || t.status !== 'done') return t.status;
+    if (t.doneAt) {
+      var d = new Date(t.doneAt), now = new Date();
+      if (t.repeat === 'daily' && sameDay(d, now)) return 'done';
+      if (t.repeat === 'weekly' && sameWeek(d, now)) return 'done';
+    }
+    return 'todo';
+  }
+  /* กำหนดส่งของงานประจำ = เวลานั้นของ "วันนี้" */
+  function dueOf(t) {
+    if (!t.dueAt) return null;
+    var d = new Date(t.dueAt);
+    if (t.repeat === 'daily') { var x = new Date(); x.setHours(d.getHours(), d.getMinutes(), 0, 0); return x; }
+    return d;
+  }
+  function isLate(t) {
+    if (effStatus(t) === 'done') return false;
+    if (t.repeat === 'weekly') return false;
+    var d = dueOf(t);
+    return !!d && d < new Date();
+  }
+  function isToday(t) { var d = dueOf(t); return !!d && sameDay(d, new Date()); }
   function fmtTime(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   function fmtDate(d, withYear) {
     return d.getDate() + ' ' + MON_TH[d.getMonth()] + (withYear ? ' ' + String(d.getFullYear() + 543).slice(-2) : '');
   }
   function fmtDue(t) {
     if (t.repeat === 'daily') return 'ทุกวัน ' + (t.dueAt ? fmtTime(new Date(t.dueAt)) : '');
+    /* eslint-disable-next-line no-unreachable */
     if (t.repeat === 'weekly') return 'ทุก' + (t.dueAt ? DAY_TH[new Date(t.dueAt).getDay()] + ' ' + fmtTime(new Date(t.dueAt)) : 'สัปดาห์');
     if (!t.dueAt) return 'ไม่กำหนด';
     var d = new Date(t.dueAt), now = new Date();
@@ -220,17 +247,22 @@
 
   /* ---------- งานของฉัน ---------- */
   function taskRow(t) {
-    var late = isLate(t), st = late ? 'late' : t.status;
-    var dueCls = late ? 'late' : (isToday(t) && t.status !== 'done' ? 'today' : '');
-    var mark = t.status === 'done' ? '✓' : (t.status === 'blocked' ? '!' : '');
+    var es = effStatus(t), late = isLate(t), st = late ? 'late' : es;
+    var dueCls = late ? 'late' : (isToday(t) && es !== 'done' ? 'today' : '');
+    var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : '');
     var sub = t.nUpdates > 1 ? ('อัปเดต ' + fmtAgo(t.lastUpdate)) : (t.nFiles ? t.nFiles + ' รูป' : '');
-    return '<a class="trow ' + esc(t.status) + '" href="#/task/' + esc(t.id) + '">' +
+    var cycle = t.repeat
+      ? (es === 'done'
+          ? '<span class="pill done">' + (t.repeat === 'daily' ? 'อัปเดตแล้ววันนี้' : 'อัปเดตแล้วสัปดาห์นี้') + '</span>'
+          : '<span class="pill ' + (late ? 'late' : 'repeat') + '">' +
+            (t.repeat === 'daily' ? (late ? 'ยังไม่อัปเดตวันนี้' : 'ประจำวัน') : 'ประจำสัปดาห์') + '</span>')
+      : '';
+    return '<a class="trow ' + esc(es) + '" href="#/task/' + esc(t.id) + '">' +
       '<span class="st ' + esc(st) + '">' + mark + '</span>' +
       '<span class="main"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
-      '<span class="m">' + avatars(t.assignees) + kpiChip(t.kpiId) +
-      (t.repeat ? '<span class="pill repeat">' + (t.repeat === 'daily' ? 'ประจำวัน' : 'ประจำสัปดาห์') + '</span>' : '') +
-      (t.status === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
-      (t.status === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
+      '<span class="m">' + avatars(t.assignees) + kpiChip(t.kpiId) + cycle +
+      (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
+      (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
       (t.nFiles ? '<span>📷 ' + t.nFiles + '</span>' : '') + '</span></span>' +
       '<span class="due ' + dueCls + '">' + esc(fmtDue(t)) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
       '<svg class="arr" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>';
@@ -244,12 +276,14 @@
     var now = new Date(), week = new Date(startOfDay(now).getTime() + 7 * 86400000);
     var b = { late: [], today: [], week: [], later: [], nodate: [], repeat: [], done: [] };
     tasks.forEach(function (t) {
-      if (t.status === 'done') { b.done.push(t); return; }
+      if (effStatus(t) === 'done') { b.done.push(t); return; }
+      /* งานประจำที่เลยเวลาของวันนี้แล้วยังไม่อัปเดต ขึ้นกลุ่ม "เลยกำหนด" เหมือนงานอื่น
+         ตัวเลขบนการ์ดกับกลุ่มข้างล่างจะได้ตรงกัน */
+      if (isLate(t)) { b.late.push(t); return; }
       if (t.repeat) { b.repeat.push(t); return; }
       if (!t.dueAt) { b.nodate.push(t); return; }
       var d = new Date(t.dueAt);
-      if (d < now && !isToday(t)) b.late.push(t);
-      else if (isToday(t)) b.today.push(t);
+      if (isToday(t)) b.today.push(t);
       else if (d < week) b.week.push(t);
       else b.later.push(t);
     });
@@ -260,7 +294,7 @@
     loadTasks().then(function (all) {
       var mine = all.filter(function (t) { return t.assignees.indexOf(S.me.id) !== -1; });
       var b = bucketize(mine);
-      var open = mine.length - b.done.length;
+      var open = mine.length - b.done.length;   /* b.done ใช้ effStatus แล้ว งานประจำของวันใหม่จึงกลับมานับเป็นค้าง */
       var view = $('#view');
       view.className = 'page';
       var h = '<div class="top"><div><span class="kicker">งานของฉัน</span><h1>สวัสดี ' + esc(shortName(S.me)) + '</h1>' +
@@ -275,7 +309,7 @@
         h += '<div class="sec"><div class="empty"><b>ยังไม่มีงานที่มอบหมายให้คุณ</b>เมื่อหัวหน้าสั่งงาน รายการจะขึ้นที่นี่</div></div>';
       } else {
         h += groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
-          groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ (อัปเดตทุกวัน)', b.repeat);
+          groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat);
         if (b.done.length) {
           h += '<div class="group"><div class="group-h"><h3>เสร็จแล้ว</h3><span>' + b.done.length + '</span>' +
             '<button type="button" class="btn-text" style="margin-left:auto" data-toggle-done>' + (S.showDone ? 'ซ่อน' : 'แสดง') + '</button></div>' +
@@ -295,13 +329,13 @@
     if (q.status) { F.status = q.status; }
     loadTasks().then(function (all) {
       var now = new Date(), weekAgo = new Date(now.getTime() - 7 * 86400000);
-      var open = all.filter(function (t) { return t.status !== 'done'; });
-      var late = open.filter(isLate), today = open.filter(function (t) { return isToday(t) && !t.repeat; });
+      var open = all.filter(function (t) { return effStatus(t) !== 'done'; });
+      var late = open.filter(isLate), today = open.filter(function (t) { return isToday(t) && !isLate(t); });
       var doneWeek = all.filter(function (t) { return t.status === 'done' && new Date(t.doneAt || t.updatedAt) > weekAgo; });
 
       var list = all.filter(function (t) {
-        if (F.status === 'open' && t.status === 'done') return false;
-        if (F.status === 'done' && t.status !== 'done') return false;
+        if (F.status === 'open' && effStatus(t) === 'done') return false;
+        if (F.status === 'done' && effStatus(t) !== 'done') return false;
         if (F.status === 'late' && !isLate(t)) return false;
         if (F.who && t.assignees.indexOf(F.who) === -1) return false;
         if (F.kpi === 'none' && t.kpiId) return false;
@@ -621,7 +655,7 @@
       var t = j.task, ups = j.updates, files = j.files;
       var filesByUpdate = {};
       files.forEach(function (f) { (filesByUpdate[f.updateId || '_'] = filesByUpdate[f.updateId || '_'] || []).push(f); });
-      var late = isLate(t), canEdit = S.me.role === 'owner' || t.createdBy === S.me.id;
+      var es = effStatus(t), late = isLate(t), canEdit = S.me.role === 'owner' || t.createdBy === S.me.id;
       var mine = t.assignees.indexOf(S.me.id) !== -1;
       var canStatus = canEdit || mine;
       var by = staffById(t.createdBy);
@@ -629,8 +663,11 @@
       view.className = 'page';
       var h = '<div class="task-hero"><div class="crumbs"><a href="#/all">งานทั้งหมด</a><span>›</span>' +
         (t.kpiId ? '<a href="#/all?kpi=' + esc(t.kpiId) + '">' + esc((kpiById(t.kpiId) || {}).code || '') + '</a><span>›</span>' : '') +
-        '<span class="pill ' + (late ? 'late' : esc(t.status)) + '">' + (late ? 'เลยกำหนด' : STATUS_TH[t.status]) + '</span>' +
-        (t.repeat ? '<span class="pill repeat">' + (t.repeat === 'daily' ? 'งานประจำวัน' : 'งานประจำสัปดาห์') + '</span>' : '') + '</div>' +
+        '<span class="pill ' + (late ? 'late' : esc(es)) + '">' + (late ? 'เลยกำหนด' : STATUS_TH[es]) + '</span>' +
+        (t.repeat ? '<span class="pill ' + (es === 'done' ? 'done' : 'repeat') + '">' +
+          (t.repeat === 'daily'
+            ? (es === 'done' ? 'อัปเดตแล้ววันนี้' : 'งานประจำวัน · ยังไม่อัปเดตวันนี้')
+            : (es === 'done' ? 'อัปเดตแล้วสัปดาห์นี้' : 'งานประจำสัปดาห์')) + '</span>' : '') + '</div>' +
         '<h1>' + (t.priority ? '★ ' : '') + esc(t.title) + '</h1>' +
         '<div class="meta"><div><span class="k">ผู้รับผิดชอบ</span><div class="v">' + avatars(t.assignees) + '</div></div>' +
         '<div><span class="k">กำหนดส่ง</span><div class="v' + (late ? ' late' : '') + '">' + esc(fmtDue(t)) + (t.dueAt && !t.repeat ? ' <small style="color:var(--k-mut);font-weight:400">(' + esc(fmtFull(t.dueAt)) + ')</small>' : '') + '</div></div>' +
@@ -665,12 +702,14 @@
 
       h += '<div class="sec"><div class="sec-h"><h2>อัปเดตงาน</h2></div><div class="sec-b"><form id="updForm" class="upl">' +
         (canStatus ? '<div><label class="label">สถานะ</label><div class="chips" id="stChips">' +
-          ['todo', 'doing', 'blocked', 'done'].map(function (s) { return '<button type="button" class="chip plain' + (t.status === s ? ' on' : '') + '" data-st="' + s + '">' + STATUS_TH[s] + '</button>'; }).join('') + '</div></div>' : '') +
+          ['todo', 'doing', 'blocked', 'done'].map(function (s) { return '<button type="button" class="chip plain' + (es === s ? ' on' : '') + '" data-st="' + s + '">' + STATUS_TH[s] + '</button>'; }).join('') + '</div></div>' : '') +
         '<div class="field"><label class="label">บันทึก / รายงานผล</label><textarea class="textarea" name="note" placeholder="ทำอะไรไปแล้ว ติดอะไร ส่งอะไรให้ใคร"></textarea></div>' +
         '<label class="drop"><input type="file" accept="image/*" multiple id="fileIn"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.2-2h5.6L16 5"/></svg><span><b>แนบรูปงาน</b> — ถ่ายจากมือถือได้เลย (สูงสุด 6 รูป/ครั้ง ย่อให้อัตโนมัติ)</span></label>' +
         '<div id="pendThumbs"></div>' +
         '<div class="acts"><button type="submit" class="btn" id="updBtn">บันทึกอัปเดต</button>' +
-        (canStatus && t.status !== 'done' ? '<button type="button" class="btn-ghost" id="doneBtn">✓ เสร็จแล้ว</button>' : '') + '</div></form></div></div>';
+        (canStatus && es !== 'done'
+          ? '<button type="button" class="btn-ghost" id="doneBtn">✓ ' + (t.repeat ? (t.repeat === 'daily' ? 'อัปเดตครบวันนี้' : 'อัปเดตครบสัปดาห์นี้') : 'เสร็จแล้ว') + '</button>'
+          : '') + '</div></form></div></div>';
       if (files.length) {
         h += '<div class="sec"><div class="sec-h"><h2>รูปทั้งหมด</h2><p>' + files.length + ' รูป</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
       }
@@ -722,7 +761,9 @@
     });
     function submitUpdate(statusOverride) {
       var note = $('#updForm').note.value.trim();
-      var status = statusOverride || (chosenStatus && chosenStatus !== t.status ? chosenStatus : null);
+      /* งานประจำ: กด "เสร็จ" ซ้ำในรอบใหม่ต้องส่งขึ้นไป แม้ค่าใน DB ยังเป็น done ของเมื่อวาน */
+      var cur = effStatus(t);
+      var status = statusOverride || (chosenStatus && (chosenStatus !== cur || t.repeat) ? chosenStatus : null);
       if (!note && !status && !pendingFiles.length) { toast('ใส่บันทึก เลือกสถานะ หรือแนบรูปก่อน', true); return; }
       $('#updBtn').disabled = true;
       api('/tasks/' + t.id + '/updates', 'POST', { note: note, status: status, files: pendingFiles })
@@ -767,7 +808,7 @@
         '<div class="big"><b>102M</b><small>เป้ายอดขายรวมบริษัท / ปี (บาท) · น้ำหนัก KPI รวม ' + totalW + '%</small></div></div>';
       h += '<div class="kpi-grid">' + S.kpis.map(function (k) {
         var ts = all.filter(function (t) { return t.kpiId === k.id; });
-        var open = ts.filter(function (t) { return t.status !== 'done'; }), late = open.filter(isLate), done = ts.length - open.length;
+        var open = ts.filter(function (t) { return effStatus(t) !== 'done'; }), late = open.filter(isLate), done = ts.length - open.length;
         return '<a class="kpi-card" href="#/all?kpi=' + esc(k.id) + '" style="--kc:' + esc(k.color) + '"><div class="code"><span>' + esc(k.code) + '</span><b>' + k.weight + '%</b></div>' +
           '<h3>' + esc(k.title) + '</h3><p>' + esc(k.target) + '</p>' +
           '<div class="nums"><div><b>' + open.length + '</b>งานค้าง</div><div class="late"><b>' + late.length + '</b>เลยกำหนด</div><div><b>' + done + '</b>เสร็จแล้ว</div></div></a>';
