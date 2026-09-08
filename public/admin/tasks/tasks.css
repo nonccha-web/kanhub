@@ -454,3 +454,44 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .attrm{ position:absolute; top:5px; right:5px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(11,11,10,.7);
   color:#fff; font-size:10px; line-height:1; cursor:pointer; display:grid; place-items:center; }
 .attrm:hover{ background:var(--k-bad); }
+
+/* ── ตารางโพสต์ ── */
+.postrow{ display:grid; grid-template-columns:22px 62px minmax(0,1fr) 190px auto; align-items:center; gap:12px;
+  padding:11px 18px; border-bottom:1px solid var(--k-hair); transition:background .14s; }
+.postrow:last-child{ border-bottom:0; }
+.postrow:hover{ background:var(--k-hair); }
+.postrow.done .pt{ color:var(--k-mut); }
+.postrow.skip{ opacity:.6; }
+.postrow.skip .pt{ text-decoration:line-through; text-decoration-color:var(--k-line); }
+.ptime{ font-family:var(--k-display); font-size:12.5px; color:var(--k-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pmain{ min-width:0; }
+.pt{ display:block; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pm{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:4px; font-size:11.5px; color:var(--k-mut); }
+.pm .ch{ border:1px solid var(--k-line); border-radius:999px; padding:0 7px; font-size:10.5px; }
+.pnote{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; font-style:normal; }
+.plink{ font-size:12.5px; color:var(--k-info); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.plink:hover{ text-decoration:underline; }
+.purl{ font-size:12px; padding:5px 9px; }
+.pedit{ font-size:11.5px; white-space:nowrap; }
+@media (max-width:900px){
+  .postrow{ grid-template-columns:22px 56px minmax(0,1fr); }
+  .postrow .plink, .postrow .purl{ grid-column:2 / -1; }
+  .postrow .pedit{ grid-column:3; justify-self:end; margin-top:-24px; }
+  .pt{ white-space:normal; }
+}
+
+/* ── กล่องลอย (ฟอร์มเพิ่ม/แก้โพสต์) ── */
+.modal{ position:fixed; inset:0; z-index:250; display:grid; place-items:center; padding:20px;
+  background:rgba(11,11,10,.5); overflow-y:auto; }
+.modal-box{ width:100%; max-width:620px; border:1px solid var(--k-line); background:var(--k-paper); max-height:92vh; overflow-y:auto; }
+.modal .sec-h{ position:sticky; top:0; background:var(--k-paper); z-index:1; }
+
+/* ── แถบตรวจโพสต์วันนี้ บนหน้า "งานของฉัน" ── */
+.postbar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-bottom:22px; padding:12px 18px;
+  border:1px solid var(--k-line); border-left:3px solid var(--k-mut); background:var(--k-paper); font-size:13px; color:var(--k-soft); }
+.postbar.warn{ border-left-color:var(--k-warn); }
+.postbar.ok{ border-left-color:var(--k-ok); }
+.postbar.quiet{ color:var(--k-mut); }
+.postbar b{ color:var(--k-ink); font-weight:600; }
+.postbar .btn-text{ margin-left:auto; }
+@media (max-width:700px){ .postbar .btn-text{ margin-left:0; } }

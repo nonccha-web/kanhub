@@ -46,6 +46,17 @@ const SCHEMA = [
   /* กันเดา PIN — หน้า /admin ยังเปิดสาธารณะ PIN 4 หลักเดาหมดได้ใน 10,000 ครั้ง */
   "CREATE TABLE IF NOT EXISTS task_logins (" +
     "staff_id TEXT PRIMARY KEY, fails INTEGER NOT NULL DEFAULT 0, locked_until TEXT)",
+  /* ตารางโพสต์คอนเทนต์รายเพจ — พิซซ่าเป็นคนกรอกแผน หัวหน้าเข้ามาตรวจว่าโพสต์แล้วยังและมีลิงก์ไหม
+     ไม่ทำเป็น task รายโพสต์ เพราะเดือนหนึ่งมีเป็นร้อย จะกลบงานจริงในระบบจนหาไม่เจอ */
+  "CREATE TABLE IF NOT EXISTS post_pages (" +
+    "id TEXT PRIMARY KEY, name TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1)",
+  "CREATE TABLE IF NOT EXISTS posts (" +
+    "id TEXT PRIMARY KEY, page_id TEXT NOT NULL, post_date TEXT NOT NULL, post_time TEXT NOT NULL DEFAULT '', " +
+    "channels TEXT NOT NULL DEFAULT '[]', topic TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'content', " +
+    "status TEXT NOT NULL DEFAULT 'plan', url TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', " +
+    "posted_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_posts_date ON posts(post_date)",
+  "CREATE INDEX IF NOT EXISTS idx_posts_page ON posts(page_id, post_date)",
   /* แท็กคนในคอมเมนต์ → กระดิ่งแจ้งเตือนของคนนั้น */
   "CREATE TABLE IF NOT EXISTS task_mentions (" +
     "id TEXT PRIMARY KEY, task_id TEXT NOT NULL, update_id TEXT NOT NULL, staff_id TEXT NOT NULL, " +
@@ -532,6 +543,141 @@ export async function handleTaskApi(request, env, url, path, method) {
       await db.prepare("UPDATE task_mentions SET read_at = ? WHERE staff_id = ? AND read_at IS NULL").bind(now, me.id).run();
     }
     return json({ ok: true });
+  }
+
+  /* ---------- ตารางโพสต์ ---------- */
+  const POST_STATUS = ["plan", "done", "skip"];
+
+  if (path === "/pages" && method === "GET") {
+    const res = await db.prepare("SELECT * FROM post_pages WHERE active = 1 ORDER BY sort, name").all();
+    return json({ pages: res.results || [] });
+  }
+  if (path === "/pages" && method === "POST") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const body = await readBody(request);
+    const list = Array.isArray(body.pages) ? body.pages : [body];
+    const stmts = [];
+    for (const p of list) {
+      const name = String((p && p.name) || "").trim().slice(0, 120);
+      if (!name) continue;
+      stmts.push(db.prepare("INSERT OR IGNORE INTO post_pages (id,name,sort,active) VALUES (?,?,?,1)")
+        .bind(String(p.id || newId("pg_")).slice(0, 40), name, Number(p.sort) || 0));
+    }
+    if (!stmts.length) return json({ error: "ไม่มีเพจให้เพิ่ม" }, 400);
+    await db.batch(stmts);
+    return json({ ok: true, n: stmts.length });
+  }
+
+  if (path === "/posts" && method === "GET") {
+    const from = url.searchParams.get("from") || "";
+    const to = url.searchParams.get("to") || "";
+    const page = url.searchParams.get("page") || "";
+    const where = [], binds = [];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push("post_date >= ?"); binds.push(from); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push("post_date <= ?"); binds.push(to); }
+    if (page) { where.push("page_id = ?"); binds.push(page); }
+    const sql = "SELECT * FROM posts " + (where.length ? "WHERE " + where.join(" AND ") : "") +
+      " ORDER BY post_date ASC, post_time ASC LIMIT 1000";
+    const res = await db.prepare(sql).bind(...binds).all();
+    return json({
+      posts: (res.results || []).map((r) => ({
+        id: r.id, pageId: r.page_id, date: r.post_date, time: r.post_time,
+        channels: JSON.parse(r.channels || "[]"), topic: r.topic, kind: r.kind,
+        status: r.status, url: r.url, note: r.note, postedAt: r.posted_at,
+        updatedAt: r.updated_at, updatedBy: r.updated_by,
+      })),
+    });
+  }
+
+  if (path === "/posts" && method === "POST") {
+    const body = await readBody(request);
+    const list = Array.isArray(body.posts) ? body.posts : [body];
+    if (!list.length) return json({ error: "ไม่มีโพสต์ให้บันทึก" }, 400);
+    if (list.length > 500) return json({ error: "ครั้งละไม่เกิน 500 แถว" }, 413);
+    const now = nowIso();
+    const stmts = [];
+    const ids = [];
+    for (const p of list) {
+      const date = String((p && p.date) || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "วันที่ไม่ถูกต้อง: " + date }, 400);
+      const id = String((p && p.id) || newId("po_")).slice(0, 40);
+      ids.push(id);
+      stmts.push(db.prepare(
+        "INSERT OR REPLACE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(
+        id, String(p.pageId || "").slice(0, 40), date, String(p.time || "").slice(0, 40),
+        JSON.stringify(Array.isArray(p.channels) ? p.channels.slice(0, 10) : []),
+        String(p.topic || "").slice(0, 1000), String(p.kind || "content").slice(0, 40),
+        POST_STATUS.indexOf(p.status) !== -1 ? p.status : "plan",
+        String(p.url || "").slice(0, 1000), String(p.note || "").slice(0, 500),
+        p.postedAt || null, now, now, me.id
+      ));
+    }
+    await db.batch(stmts);
+    return json({ ids });
+  }
+
+  const postMatch = path.match(/^\/posts\/([A-Za-z0-9_-]{1,40})$/);
+  if (postMatch && method === "PUT") {
+    const body = await readBody(request);
+    const row = await db.prepare("SELECT * FROM posts WHERE id = ?").bind(postMatch[1]).first();
+    if (!row) return json({ error: "ไม่พบโพสต์นี้" }, 404);
+    const now = nowIso();
+    const sets = ["updated_at = ?", "updated_by = ?"], vals = [now, me.id];
+    if (body.status != null) {
+      if (POST_STATUS.indexOf(body.status) === -1) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      sets.push("status = ?"); vals.push(body.status);
+      /* ติ๊กว่าโพสต์แล้ว = จดเวลาที่ติ๊กไว้ด้วย จะได้รู้ว่าโพสต์ตรงเวลาหรือช้า */
+      sets.push("posted_at = ?"); vals.push(body.status === "done" ? (row.posted_at || now) : null);
+    }
+    if (body.url != null) {
+      const u = String(body.url).trim();
+      if (u && !/^https?:\/\//i.test(u)) return json({ error: "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://" }, 400);
+      sets.push("url = ?"); vals.push(u.slice(0, 1000));
+      /* วางลิงก์มาแล้ว = ถือว่าโพสต์แล้ว ไม่ต้องกดสองที */
+      if (u && row.status !== "done") {
+        sets.push("status = ?"); vals.push("done");
+        sets.push("posted_at = ?"); vals.push(row.posted_at || now);
+      }
+    }
+    ["time", "topic", "note", "kind"].forEach((k) => {
+      if (body[k] != null) {
+        sets.push((k === "time" ? "post_time" : k) + " = ?");
+        vals.push(String(body[k]).slice(0, k === "topic" ? 1000 : 500));
+      }
+    });
+    if (body.date != null) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) return json({ error: "วันที่ไม่ถูกต้อง" }, 400);
+      sets.push("post_date = ?"); vals.push(body.date);
+    }
+    if (body.channels != null) { sets.push("channels = ?"); vals.push(JSON.stringify(Array.isArray(body.channels) ? body.channels.slice(0, 10) : [])); }
+    if (body.pageId != null) { sets.push("page_id = ?"); vals.push(String(body.pageId).slice(0, 40)); }
+    vals.push(row.id);
+    await db.prepare("UPDATE posts SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+    return json({ ok: true });
+  }
+  if (postMatch && method === "DELETE") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    await db.prepare("DELETE FROM posts WHERE id = ?").bind(postMatch[1]).run();
+    return json({ ok: true });
+  }
+
+  /* สรุปให้หน้าแรก: วันนี้โพสต์ครบยัง */
+  if (path === "/posts/today" && method === "GET") {
+    const d = url.searchParams.get("date") || "";
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : nowIso().slice(0, 10);
+    const res = await db.prepare(
+      "SELECT status, COUNT(*) AS n, SUM(CASE WHEN url != '' THEN 1 ELSE 0 END) AS withUrl " +
+      "FROM posts WHERE post_date = ? GROUP BY status"
+    ).bind(day).all();
+    let total = 0, done = 0, withUrl = 0;
+    for (const r of (res.results || [])) {
+      total += r.n;
+      if (r.status === "done") done += r.n;
+      withUrl += r.withUrl || 0;
+    }
+    return json({ date: day, total, done, withUrl, left: total - done });
   }
 
   /* พื้นที่ที่รูปกินไปจริง — D1 เก็บ base64 ขนาดบนดิสก์จึงมากกว่าไฟล์ต้นฉบับราว 1.33 เท่า */

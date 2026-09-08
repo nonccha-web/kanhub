@@ -18,11 +18,34 @@
        ref     = เอกสารแผนงานกับหน้าดูแลระบบ ไม่ใช่ตัวเลขที่เดินตามวัน
      ย้ายกลุ่มข้ามหมวดได้ด้วยการย้ายบล็อกไปมา ไม่ต้องแก้ที่อื่น */
   var SECTIONS = [
-    /* โหมดโชว์ — เรียงตามลำดับที่ใช้เล่าในที่ประชุม ไล่บนลงล่างคือ agenda ได้เลย */
-    { id: 'ready', label: 'รายงาน (ไว้โชว์)', groups: [
+    /* ── ทำงาน: ของที่เปิดใช้ทุกวัน อยู่บนสุดเสมอ ───────────────────────────── */
+    { id: 'work', label: 'ทำงาน', groups: [
 
-      { icon: 'trophy', label: 'KPI ฝ่ายการตลาด', items: [
-        { icon: 'trophy', label: 'KPI Dashboard 2026', cmo: 'kpi.html' }
+      { icon: 'clipboard', label: 'งานทีม', items: [
+        { icon: 'user',      label: 'งานของฉัน',  tasks: '#/me' },
+        { icon: 'bell',      label: 'แจ้งเตือน',   tasks: '#/inbox', badge: 'mentions' },
+        { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
+        { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' }
+      ]},
+      { icon: 'megaphone', label: 'ตารางโพสต์', items: [
+        { icon: 'calendar',  label: 'โพสต์วันนี้',  tasks: '#/posts' },
+        { icon: 'monitor',   label: 'ทั้งเดือน',    tasks: '#/posts?range=month' }
+      ]},
+      { icon: 'calendar', label: 'แคมเปญ', items: [
+        { icon: 'calendar',  label: 'ปฏิทินแคมเปญ',  cmo: 'campaign-calendar.html' },
+        { icon: 'monitor',   label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' },
+        { icon: 'clipboard', label: 'แผนลงมือ',      sales: '#/plan' }
+      ]}
+
+    ]},
+
+    /* ── ตัวเลข: ของที่เปิดดูเวลาจะตัดสินใจหรือเอาไปโชว์ ───────────────────── */
+    { id: 'ready', label: 'ตัวเลข', groups: [
+
+      { icon: 'trophy', label: 'KPI', items: [
+        { icon: 'trophy',   label: 'KPI 2570 (เป้า + งานที่ผูก)', tasks: '#/kpi' },
+        { icon: 'chart',    label: 'KPI Dashboard 2026',        cmo: 'kpi.html' },
+        { icon: 'filetext', label: 'กรอกผล KPI รายเดือน',        cmo: 'kpi.html?mode=edit' }
       ]},
       { icon: 'chart', label: 'ยอดขาย', items: [
         { icon: 'dashboard', label: 'แดชบอร์ดยอดขาย (หลัก)', sales: 'sales/' },
@@ -33,70 +56,25 @@
       { icon: 'megaphone', label: 'การตลาด', items: [
         { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
         { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
-        { icon: 'monitor',   label: 'แผนการตลาด (พรีเซนเก่า)', cmo: 'index.html' },
-        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' }
-      ]},
-      { icon: 'phone', label: 'รายงานการรับสาย', items: [
-        { icon: 'phone', label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
+        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' },
+        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
       ]}
 
     ]},
 
-    /* โหมดทำงาน — เรียงตาม flow จริง: วางแผน → ลงมือ → กรอกผล */
-    { id: 'work', label: 'งานประจำ (ไว้ทำงาน)', groups: [
-
-      /* ระบบมอบหมายงาน — ทีมเข้าด้วยชื่อ+PIN ทำงานของตัวเอง อัปเดตรูป · ข้อมูลอยู่ D1 ผ่าน /api/t/* */
-      { icon: 'clipboard', label: 'งานทีม (Task)', items: [
-        { icon: 'user',      label: 'งานของฉัน',  tasks: '#/me' },
-        { icon: 'bell',      label: 'แจ้งเตือน',   tasks: '#/inbox', badge: 'mentions' },
-        { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
-        { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' },
-        { icon: 'trophy',    label: 'KPI 2570',   tasks: '#/kpi' },
-        { icon: 'users',     label: 'ทีม + รหัสผ่าน', tasks: '#/team' }
-      ]},
-      { icon: 'calendar', label: 'วางแผนแคมเปญ', items: [
-        { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' },
-        { icon: 'monitor',  label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' }
-      ]},
-      { icon: 'target', label: 'ลงมือ', items: [
-        { icon: 'clipboard', label: 'แผนลงมือ', sales: '#/plan' }
-      ]},
-      { icon: 'filetext', label: 'กรอกผล', items: [
-        { icon: 'filetext', label: 'กรอกผล KPI รายเดือน', cmo: 'kpi.html?mode=edit' }
-      ]}
-
-    ]},
-
-    { id: 'pending', label: 'ยังไม่สมบูรณ์', groups: [
-
-      /* สต็อกย้ายไปทำที่ Odoo แล้ว ตัวเลขที่นี่หยุดที่ 22 ก.ค. 2569 */
-      { icon: 'package', label: 'สต็อก', note: 'ข้อมูลหยุดอัปเดต', items: [
-        { icon: 'package', label: 'สินค้าเข้า–ออก', sales: '#/velocity' },
-        { icon: 'tag',     label: 'สินค้ารายตัว',   sales: '#/sku' }
-      ]},
-      /* ชีตสรุปลงยอดผิดสาขาตั้งแต่ มิ.ย. 2569 — ยอดรวมยังถูก แต่แยกโซนเชื่อไม่ได้ */
-      { icon: 'store', label: 'สาขาและแผนก', note: 'ชีตโซนลงผิดสาขา', items: [
-        { icon: 'store', label: 'สาขาและแผนก', sales: '#/branch' }
-      ]},
-      { icon: 'activity', label: 'ทราฟฟิกหน้าร้าน', note: 'บันทึกมือ ยังไม่ครบ', items: [
-        { icon: 'linechart', label: 'ภาพรวมทราฟฟิก', cmo: 'traffic.html' }
-      ]}
-
-    ]},
-
+    /* ── เอกสาร + ระบบ: เปิดนาน ๆ ที · ของที่ข้อมูลยังเชื่อไม่ได้อยู่ในนี้ ──── */
     { id: 'ref', label: 'เอกสาร + ระบบ', groups: [
 
-      { icon: 'calendar', label: 'แผนปี', items: [
+      { icon: 'folder', label: 'เอกสารแผนงาน', items: [
         { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
         { icon: 'linechart', label: 'Dashboard ผลจริง',    cmo: '01a-dashboard.html' },
         { icon: 'calendar',  label: 'แผนรายเดือน',         cmo: '01c-monthly.html' },
         { icon: 'calendar',  label: 'จังหวะรายสัปดาห์',    cmo: '01d-weekly.html' },
-        { icon: 'link',      label: 'ลิงก์ Report & Dashboard', cmo: 'report-links.html' }
-      ]},
-      { icon: 'network', label: 'ทีม', items: [
-        { icon: 'network',   label: 'ผังทีม',              cmo: 'team-structure.html' },
-        { icon: 'clipboard', label: 'JD รายตำแหน่ง',        cmo: 'team-jd.html' },
-        { icon: 'chart',     label: 'KPI รายตำแหน่ง (เดิม)', cmo: 'team-kpi.html' }
+        { icon: 'monitor',   label: 'แผนการตลาด (พรีเซนเก่า)', cmo: 'index.html' },
+        { icon: 'link',      label: 'ลิงก์ Report & Dashboard', cmo: 'report-links.html' },
+        { icon: 'network',   label: 'ผังทีม + JD',          cmo: 'team-structure.html' },
+        { icon: 'bookmark',  label: 'MarCom · ภาพรวม + KPI', cmo: '05-promo.html' },
+        { icon: 'filetext',  label: 'MarCom · แผนสื่อสารฉบับเต็ม', cmo: '05-comm-plan.html' }
       ]},
       { icon: 'briefcase', label: 'B2B (ขายส่ง + Online)', items: [
         { icon: 'folder',     label: 'Overview',           cmo: '04a-overview.html' },
@@ -110,14 +88,17 @@
         { icon: 'radio',      label: 'Live Commerce',      cmo: '04i-live.html' },
         { icon: 'megaphone',  label: 'งบโฆษณา',            cmo: '04j-media.html' },
         { icon: 'calendar',   label: 'Calendar & Budget',  cmo: '04k-calendar.html' },
-        { icon: 'alert',      label: 'Actions & Risk',     cmo: '04l-actions-risk.html' },
-        { icon: 'globe',      label: 'ตัวอย่างเว็บ (Kan Hub)', cmo: 'b2b-web-demo.html' }
+        { icon: 'alert',      label: 'Actions & Risk',     cmo: '04l-actions-risk.html' }
       ]},
-      { icon: 'megaphone', label: 'MarCom', items: [
-        { icon: 'bookmark', label: 'ภาพรวม + KPI',       cmo: '05-promo.html' },
-        { icon: 'filetext', label: 'แผนสื่อสารฉบับเต็ม', cmo: '05-comm-plan.html' }
+      /* ข้อมูลชุดนี้หยุดอัปเดต/ลงผิด — ยังเปิดดูได้ แต่ต้องรู้ตัวก่อน */
+      { icon: 'package', label: 'ข้อมูลที่ยังเชื่อไม่ได้', note: 'สต็อกหยุดอัปเดต · ชีตโซนลงผิดสาขา', pend: true, items: [
+        { icon: 'package',   label: 'สินค้าเข้า–ออก',   sales: '#/velocity' },
+        { icon: 'tag',       label: 'สินค้ารายตัว',     sales: '#/sku' },
+        { icon: 'store',     label: 'สาขาและแผนก',      sales: '#/branch' },
+        { icon: 'linechart', label: 'ทราฟฟิกหน้าร้าน',  cmo: 'traffic.html' }
       ]},
       { icon: 'shield', label: 'ระบบ', items: [
+        { icon: 'users',       label: 'ทีม + รหัสผ่าน',  tasks: '#/team' },
         { icon: 'shieldcheck', label: 'คุณภาพข้อมูล',    sales: '#/quality', badge: 'quality' },
         { icon: 'folder',      label: 'แหล่งข้อมูล + log', sales: '#/data' },
         { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',      sales: '#/rules' }
@@ -243,7 +224,7 @@
           gi++;
           var isOpen = gi === openIdx;
           h += '<div class="erp-acc' + (isOpen ? ' open' : '') +
-            (sec.id === 'pending' ? ' pend' : '') + '">' +
+            (g.pend ? ' pend' : '') + '">' +
             '<button type="button" class="erp-gh">' +
               '<span class="erp-gico">' + svgIco(g.icon) + '</span>' +
               '<span class="erp-glabel">' + esc(g.label) +

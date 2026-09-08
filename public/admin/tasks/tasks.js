@@ -7,7 +7,7 @@
   'use strict';
 
   var API = '/api/t';
-  var S = { me: null, staff: [], kpis: [], tasks: null, notif: { unread: 0, items: [] }, route: { name: 'me' } };
+  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, notif: { unread: 0, items: [] }, route: { name: 'me' } };
 
   /* ---------- KPI 2570 (จากเอกสาร Executive Offer CMO 2027 — ข้อความอ้างอิงในหน้า KPI) ---------- */
   var KPI_DOC = {
@@ -193,7 +193,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox' };
+  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts' };
   function renderSidebar() {
     var host = $('#sideHost');
     if (!host || !global.ERP_MENU) return;
@@ -379,6 +379,9 @@
         '<article' + (b.late.length ? ' class="bad"' : '') + '><span class="l">เลยกำหนด</span><b>' + b.late.length + '</b><small>ต้องเคลียร์ก่อน</small></article>' +
         '<article' + (b.today.length ? ' class="warn"' : '') + '><span class="l">ครบกำหนดวันนี้</span><b>' + b.today.length + '</b><small>' + esc(DAY_TH[new Date().getDay()] + ' ' + fmtDate(new Date())) + '</small></article>' +
         '<article><span class="l">เสร็จแล้ว</span><b>' + b.done.length + '</b><small>ทั้งหมดที่เคยทำ</small></article></div>';
+      /* แถบตรวจโพสต์ของวันนี้ — งาน routine ที่หัวหน้าทำทุกวัน ไม่ต้องสร้างเป็น task รายโพสต์ */
+      h += '<div class="postbar" id="postBar"><span class="pbi">กำลังอ่านตารางโพสต์…</span></div>';
+
       if (!mine.length) {
         h += '<div class="sec"><div class="empty"><b>ยังไม่มีงานที่มอบหมายให้คุณ</b>เมื่อหัวหน้าสั่งงาน รายการจะขึ้นที่นี่</div></div>';
       } else {
@@ -391,6 +394,24 @@
         }
       }
       view.innerHTML = h;
+
+      api('/posts/today').then(function (t) {
+        var bar = $('#postBar');
+        if (!bar) return;
+        if (!t.total) {
+          bar.className = 'postbar quiet';
+          bar.innerHTML = '<span class="pbi">วันนี้ยังไม่มีแผนโพสต์ในตาราง</span><a class="btn-text" href="#/posts">เปิดตารางโพสต์</a>';
+          return;
+        }
+        var noLink = t.done - t.withUrl;
+        bar.className = 'postbar' + (t.left ? ' warn' : (noLink > 0 ? ' warn' : ' ok'));
+        bar.innerHTML = '<span class="pbi"><b>โพสต์วันนี้ ' + t.done + '/' + t.total + '</b>' +
+          (t.left ? ' · ยังไม่ได้โพสต์ ' + t.left + ' รายการ' : ' · ครบแล้ว') +
+          (noLink > 0 ? ' · ไม่มีลิงก์ ' + noLink : '') + '</span>' +
+          '<a class="btn-text" href="#/posts">' + (t.left || noLink > 0 ? 'ไปตรวจ' : 'ดูตาราง') + '</a>';
+      }).catch(function () {
+        var bar = $('#postBar'); if (bar) bar.remove();
+      });
     }).catch(function (e) { showError(e); });
   }
 
@@ -1125,6 +1146,182 @@
     }).catch(function (e) { showError(e); });
   }
 
+  /* ---------- ตารางโพสต์ ----------
+     พิซซ่ากรอกแผน · หัวหน้าเข้ามาดูว่า "วันนี้โพสต์ครบยัง มีลิงก์ไหม" แล้วติ๊กจบ
+     เก็บแยกจาก task เพราะเดือนหนึ่งมีเป็นร้อยโพสต์ ถ้ายัดเป็น task งานจริงจะถูกกลบ */
+  var P = { page: '', range: 'today', status: '' };
+  var POST_KIND = { content: 'คอนเทนต์', promo: 'โปรโมชัน', video: 'วิดีโอ', live: 'ไลฟ์' };
+
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function postRangeDates() {
+    var now = new Date();
+    if (P.range === 'today') return [ymd(now), ymd(now)];
+    if (P.range === 'week') {
+      var a = startOfWeek(now), b = new Date(a); b.setDate(b.getDate() + 6);
+      return [ymd(a), ymd(b)];
+    }
+    if (P.range === 'month') {
+      return [ymd(new Date(now.getFullYear(), now.getMonth(), 1)), ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+    }
+    return ['', ''];
+  }
+  function pageName(id) {
+    var p = (S.pages || []).filter(function (x) { return x.id === id; })[0];
+    return p ? p.name : (id || '—');
+  }
+  function loadPages() {
+    if (S.pages) return Promise.resolve(S.pages);
+    return api('/pages').then(function (j) { S.pages = j.pages || []; return S.pages; });
+  }
+
+  function renderPosts() {
+    var q = S.route.query || {};
+    if (q.range) P.range = q.range;
+    if (q.page) P.page = q.page;
+    var d = postRangeDates();
+    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '') + (P.page ? '&page=' + encodeURIComponent(P.page) : '');
+    Promise.all([loadPages(), api('/posts' + qs)]).then(function (r) {
+      var posts = r[1].posts || [];
+      var shown = posts.filter(function (x) {
+        if (P.status === 'left') return x.status !== 'done';
+        if (P.status === 'nolink') return x.status === 'done' && !x.url;
+        if (P.status === 'done') return x.status === 'done';
+        return true;
+      });
+      var done = posts.filter(function (x) { return x.status === 'done'; });
+      var noLink = done.filter(function (x) { return !x.url; });
+      var left = posts.filter(function (x) { return x.status === 'plan'; });
+      var skip = posts.filter(function (x) { return x.status === 'skip'; });
+
+      var view = $('#view');
+      view.className = 'page';
+      var label = { today: 'วันนี้', week: 'สัปดาห์นี้', month: 'เดือนนี้', all: 'ทั้งหมด' }[P.range];
+      var h = '<div class="top"><div><span class="kicker">ตารางโพสต์</span><h1>คอนเทนต์ ' + esc(label) + '</h1>' +
+        '<p>ดูว่าโพสต์ไปหรือยังและมีลิงก์ไหม — ติ๊กช่องหน้าแถวเพื่อปิดงาน หรือวางลิงก์โพสต์ลงช่องแล้วระบบติ๊กให้เอง</p></div>' +
+        '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
+
+      h += '<div class="cards">' +
+        '<article class="hot"><span class="l">โพสต์ในช่วงนี้</span><b>' + posts.length + '</b><small>' + esc(d[0] ? d[0] + ' → ' + d[1] : 'ทุกวัน') + '</small></article>' +
+        '<article' + (left.length ? ' class="warn"' : '') + ' data-p="left"><span class="l">ยังไม่ได้โพสต์</span><b>' + left.length + '</b><small>กดเพื่อดูเฉพาะที่ค้าง</small></article>' +
+        '<article' + (noLink.length ? ' class="bad"' : '') + ' data-p="nolink"><span class="l">โพสต์แล้วแต่ไม่มีลิงก์</span><b>' + noLink.length + '</b><small>ตรวจไม่ได้ว่าขึ้นจริง</small></article>' +
+        '<article data-p="done"><span class="l">โพสต์แล้ว</span><b>' + done.length + '</b><small>' + (skip.length ? skip.length + ' รายการไม่ได้ตั้งโพสต์' : 'ครบตามแผน') + '</small></article></div>';
+
+      var seg = function (name, opts, obj) {
+        return '<div class="seg">' + opts.map(function (o) {
+          return '<button type="button" class="' + (obj[name] === o[0] ? 'on' : '') + '" data-p="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
+        }).join('') + '</div>';
+      };
+      h += '<div class="tbar">' +
+        seg('range', [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']], P) +
+        '<select class="select" id="pageSel" style="width:auto;min-width:170px"><option value="">ทุกเพจ</option>' +
+        (S.pages || []).map(function (pg) {
+          return '<option value="' + esc(pg.id) + '"' + (P.page === pg.id ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
+        }).join('') + '</select>' +
+        (P.status ? '<button type="button" class="fchip" data-p="status" data-v="">' +
+          ({ left: 'ยังไม่ได้โพสต์', nolink: 'ไม่มีลิงก์', done: 'โพสต์แล้ว' }[P.status] || '') + ' <span>✕</span></button>' : '') +
+        '<span class="tbar-n">' + shown.length + ' โพสต์</span></div>';
+
+      if (!shown.length) {
+        h += '<div class="sec"><div class="empty"><b>ไม่มีโพสต์ในช่วงนี้</b>' +
+          (P.range === 'today' ? 'วันนี้ยังไม่มีแผนโพสต์ หรือพิซซ่ายังไม่ได้กรอก' : 'ลองเปลี่ยนช่วงเวลาหรือเพจ') + '</div></div>';
+      } else {
+        var byDate = {};
+        shown.forEach(function (x) { (byDate[x.date] = byDate[x.date] || []).push(x); });
+        Object.keys(byDate).sort().forEach(function (dt) {
+          var dd = new Date(dt + 'T00:00:00');
+          var isToday = sameDay(dd, new Date());
+          h += '<div class="group"><div class="group-h' + (isToday ? ' late' : '') + '"><h3>' +
+            (isToday ? 'วันนี้ · ' : '') + esc(DAY_TH[dd.getDay()] + ' ' + fmtDate(dd, true)) + '</h3><span>' + byDate[dt].length + '</span></div>' +
+            '<div class="tlist">' + byDate[dt].map(postRow).join('') + '</div></div>';
+        });
+      }
+      view.innerHTML = h;
+
+      $('#pageSel').addEventListener('change', function () { P.page = this.value; renderPosts(); });
+      $('#newPost').addEventListener('click', function () { openPostForm(null); });
+    }).catch(function (e) { showError(e); });
+  }
+
+  function postRow(x) {
+    var st = x.status;
+    var mark = st === 'done' ? '✓' : (st === 'skip' ? '–' : '');
+    return '<div class="postrow ' + esc(st) + '" data-post="' + esc(x.id) + '">' +
+      '<button type="button" class="subcheck ' + (st === 'done' ? 'done' : (st === 'skip' ? 'blocked' : '')) + '" data-post-toggle="' + esc(x.id) + '" aria-label="ติ๊กว่าโพสต์แล้ว">' + mark + '</button>' +
+      '<span class="ptime">' + esc(x.time || '—') + '</span>' +
+      '<span class="pmain"><span class="pt">' + esc(x.topic || '(ยังไม่ใส่หัวข้อ)') + '</span>' +
+      '<span class="pm"><span class="pill ' + (x.kind === 'live' ? 'blocked' : (x.kind === 'promo' ? 'repeat' : 'todo')) + '">' + esc(POST_KIND[x.kind] || x.kind) + '</span>' +
+      '<span>' + esc(pageName(x.pageId)) + '</span>' +
+      (x.channels || []).map(function (c) { return '<span class="ch">' + esc(c) + '</span>'; }).join('') +
+      (x.note ? '<span class="pnote" title="' + esc(x.note) + '">' + esc(x.note.slice(0, 40)) + '</span>' : '') + '</span></span>' +
+      (x.url
+        ? '<a class="plink" href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer">เปิดโพสต์ ↗</a>'
+        : '<input class="input purl" data-post-url="' + esc(x.id) + '" placeholder="วางลิงก์โพสต์" autocomplete="off">') +
+      '<button type="button" class="btn-text pedit" data-post-edit="' + esc(x.id) + '">แก้</button></div>';
+  }
+
+  /* ฟอร์มเพิ่ม/แก้โพสต์ — พิซซ่าใช้กรอกแผน */
+  function openPostForm(post) {
+    var isNew = !post;
+    var host = document.createElement('div');
+    host.className = 'modal';
+    var chAll = ['Facebook', 'Line OA', 'TikTok', 'Instagram'];
+    host.innerHTML = '<div class="modal-box"><div class="sec-h"><h2>' + (isNew ? 'เพิ่มโพสต์' : 'แก้โพสต์') + '</h2>' +
+      '<button type="button" class="btn-text" data-close>ปิด</button></div><div class="sec-b"><form id="postForm" style="display:grid;gap:12px">' +
+      '<div class="grid2"><div class="field"><label class="label">เพจ</label><select class="select" name="pageId">' +
+      (S.pages || []).map(function (pg) { return '<option value="' + esc(pg.id) + '"' + (post && post.pageId === pg.id ? ' selected' : '') + '>' + esc(pg.name) + '</option>'; }).join('') +
+      '</select></div><div class="field"><label class="label">ชนิด</label><select class="select" name="kind">' +
+      Object.keys(POST_KIND).map(function (k) { return '<option value="' + k + '"' + (post && post.kind === k ? ' selected' : '') + '>' + POST_KIND[k] + '</option>'; }).join('') +
+      '</select></div></div>' +
+      '<div class="grid2"><div class="field"><label class="label">วันที่</label><input class="input" type="date" name="date" value="' + esc(post ? post.date : ymd(new Date())) + '" required></div>' +
+      '<div class="field"><label class="label">เวลาโพสต์</label><input class="input" name="time" value="' + esc(post ? post.time : '') + '" placeholder="เช่น 17.00"></div></div>' +
+      '<div class="field"><label class="label">ช่องทาง</label><div class="chips" id="chSel">' +
+      chAll.map(function (c) {
+        var on = post && (post.channels || []).indexOf(c) !== -1;
+        return '<button type="button" class="chip plain' + (on ? ' on' : '') + '" data-ch="' + esc(c) + '">' + esc(c) + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="field"><label class="label">หัวข้อ / เนื้อหา</label><textarea class="textarea" name="topic" placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ">' + esc(post ? post.topic : '') + '</textarea></div>' +
+      '<div class="grid2"><div class="field"><label class="label">ลิงก์โพสต์ <small>ใส่แล้วนับว่าโพสต์แล้ว</small></label><input class="input" name="url" value="' + esc(post ? post.url : '') + '" placeholder="https://..."></div>' +
+      '<div class="field"><label class="label">หมายเหตุ</label><input class="input" name="note" value="' + esc(post ? post.note : '') + '"></div></div>' +
+      '<div class="acts"><button type="submit" class="btn">' + (isNew ? 'เพิ่มโพสต์' : 'บันทึก') + '</button>' +
+      '<button type="button" class="btn-ghost" data-close>ยกเลิก</button>' +
+      (!isNew && S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delPost" style="margin-left:auto">ลบ</button>' : '') +
+      '</div></form></div></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); };
+    $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
+    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
+    $('#chSel', host).addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-ch]'); if (b) b.classList.toggle('on');
+    });
+    var del = $('#delPost', host);
+    if (del) del.addEventListener('click', function () {
+      if (!confirm('ลบโพสต์นี้?')) return;
+      api('/posts/' + post.id, 'DELETE').then(function () { close(); renderPosts(); }).catch(function (e) { toast(e.message, true); });
+    });
+    $('#postForm', host).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var f = this;
+      var body = {
+        pageId: f.pageId.value, kind: f.kind.value, date: f.date.value, time: f.time.value,
+        topic: f.topic.value, url: f.url.value.trim(), note: f.note.value,
+        channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
+      };
+      var req = isNew ? api('/posts', 'POST', { posts: [body] }) : api('/posts/' + post.id, 'PUT', body);
+      req.then(function () { close(); toast(isNew ? 'เพิ่มแล้ว' : 'บันทึกแล้ว'); renderPosts(); })
+        .catch(function (e) { toast(e.message, true); });
+    });
+  }
+
+  function openPostFormById(id) {
+    var d = postRangeDates();
+    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '') + (P.page ? '&page=' + encodeURIComponent(P.page) : '');
+    api('/posts' + qs).then(function (j) {
+      var post = (j.posts || []).filter(function (x) { return x.id === id; })[0];
+      if (!post) { toast('ไม่พบโพสต์นี้แล้ว', true); renderPosts(); return; }
+      openPostForm(post);
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
   /* ---------- กระดิ่ง: คนแท็กถึงเรา ---------- */
   function renderInbox() {
     loadNotif().then(function (j) {
@@ -1293,6 +1490,7 @@
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return renderKpi();
       case 'inbox': return renderInbox();
+      case 'posts': return renderPosts();
       case 'team': return renderTeam();
       default: return renderMe();
     }
@@ -1323,6 +1521,20 @@
       return;
     }
     if (ev.target.closest('[data-toggle-done]')) { S.showDone = !S.showDone; renderMe(); return; }
+    if ((b = ev.target.closest('.cards article[data-p]'))) { P.status = b.getAttribute('data-p'); renderPosts(); return; }
+    if ((b = ev.target.closest('.tbar [data-p], .fchip[data-p]'))) { P[b.getAttribute('data-p')] = b.getAttribute('data-v'); renderPosts(); return; }
+    if ((b = ev.target.closest('[data-post-toggle]'))) {
+      var pid = b.getAttribute('data-post-toggle');
+      var next = b.className.indexOf('done') !== -1 ? 'plan' : 'done';
+      b.disabled = true;
+      api('/posts/' + pid, 'PUT', { status: next }).then(renderPosts).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-post-edit]'))) {
+      /* ดึงตัวจริงจากเซิร์ฟเวอร์ก่อนแก้ จะได้ไม่ทับข้อมูลที่คนอื่นเพิ่งเปลี่ยน */
+      openPostFormById(b.getAttribute('data-post-edit'));
+      return;
+    }
     if ((b = ev.target.closest('.cards article[data-go]'))) { F.status = b.getAttribute('data-go'); renderAll(); return; }
     if (ev.target.closest('[data-filter-toggle]')) { S.filterOpen = !S.filterOpen; renderAll(); return; }
     if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; renderAll(); return; }
@@ -1349,8 +1561,32 @@
     }
     if (ev.target.closest('#lightbox')) { $('#lightbox').hidden = true; return; }
   });
+  /* วางลิงก์ในแถวตารางโพสต์ แล้วกด Enter หรือคลิกที่อื่น = บันทึกทันที */
+  function savePostUrl(input) {
+    var pid = input.getAttribute('data-post-url');
+    var v = input.value.trim();
+    if (!v || input.dataset.saving) return;
+    input.dataset.saving = '1';
+    api('/posts/' + pid, 'PUT', { url: v })
+      .then(function () { toast('บันทึกลิงก์แล้ว'); renderPosts(); })
+      .catch(function (e) { input.dataset.saving = ''; toast(e.message, true); });
+  }
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') { document.documentElement.classList.remove('erp-open'); $('#lightbox').hidden = true; }
+    if (ev.key === 'Escape') {
+      document.documentElement.classList.remove('erp-open');
+      $('#lightbox').hidden = true;
+      var m = $('.modal'); if (m) m.remove();
+    }
+    if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('[data-post-url]')) {
+      ev.preventDefault(); savePostUrl(ev.target);
+    }
+  });
+  document.addEventListener('blur', function (ev) {
+    if (ev.target.matches && ev.target.matches('[data-post-url]')) savePostUrl(ev.target);
+  }, true);
+  document.addEventListener('paste', function (ev) {
+    if (!ev.target.matches || !ev.target.matches('[data-post-url]')) return;
+    setTimeout(function () { savePostUrl(ev.target); }, 30);
   });
   window.addEventListener('hashchange', render);
 
