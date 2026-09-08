@@ -13,21 +13,28 @@
   var saved = null;
   try { saved = localStorage.getItem("kan-theme"); } catch (e) {}
   if (saved === "dark") document.documentElement.setAttribute("data-theme", "dark");
+  /* สถานะย่อเมนู (แถบ 64px) — ใช้ค่าเดียวกันทุกหน้า */
+  try { if (localStorage.getItem("kan-erp-collapsed") === "1") document.documentElement.classList.add("erp-collapsed"); } catch (e) {}
 
-  window.toggleTheme = function () {
+  function setTheme(next) {
     var h = document.documentElement;
-    var next = h.getAttribute("data-theme") === "dark" ? "light" : "dark";
     if (next === "dark") h.setAttribute("data-theme", "dark");
     else h.removeAttribute("data-theme");
     try { localStorage.setItem("kan-theme", next); } catch (e) {}
     syncToggle();
+  }
+  window.toggleTheme = function () {
+    setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
   };
   function syncToggle() {
     var dark = document.documentElement.getAttribute("data-theme") === "dark";
     var icon = document.getElementById("theme-icon");
     var label = document.getElementById("theme-label");
     if (icon) icon.textContent = dark ? "☀️" : "🌙";
-    if (label) label.textContent = dark ? "Light" : "Dark";
+    if (label) label.textContent = dark ? "โหมดสว่าง" : "โหมดมืด";
+    document.querySelectorAll("[data-theme-pick]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-theme-pick") === (dark ? "dark" : "light") ? "true" : "false");
+    });
   }
 
   function currentFile() {
@@ -43,13 +50,13 @@
   function buildSidebar(here) {
     var menuHTML = global.ERP_MENU
       ? global.ERP_MENU.render({ ctx: "cmo", active: "cmo:" + here,
-          salesBase: ERP_BASE, cmoBase: "" })
+          salesBase: ERP_BASE, cmoBase: "", tasksBase: "../tasks/" })
       : "";
     var h = menuHTML +
       '<div class="erp-foot">' +
         '<button class="erp-theme" onclick="toggleTheme()"><span id="theme-icon">🌙</span> ' +
-        '<span id="theme-label">Dark</span></button>' +
-        '<div class="erp-foot-note">KAN MKT · รวมทุกระบบ</div></div>';
+        '<span id="theme-label">โหมดมืด</span></button>' +
+        (global.ERP_MENU ? global.ERP_MENU.powered : '') + '</div>';
 
     var aside = document.createElement("aside");
     aside.className = "erp-sidebar";
@@ -57,6 +64,21 @@
     document.body.insertBefore(aside, document.body.firstChild);
     document.documentElement.classList.add("has-erp-side");
     if (global.ERP_MENU) { global.ERP_MENU.wire(aside); }
+
+    /* แถบบนแบบ M CRM: ชื่อระบบ + ชื่อหน้า + สลับธีม (เดสก์ท็อป — มือถือใช้ .erp-topbar) */
+    var head = document.createElement("header");
+    head.className = "erp-head";
+    var pageName = (document.title || "").replace(/\s*[—–-]\s*KAN.*$/, "").trim() || "ระบบหลังบ้าน";
+    head.innerHTML =
+      '<div class="erp-head-t"><b>KAN Admin</b><small>' + esc(pageName) + ' · Internal operations</small></div>' +
+      '<div class="erp-head-r"><div class="erp-seg" aria-label="ธีมของระบบ">' +
+        '<button type="button" data-theme-pick="light" title="โหมดสว่าง" aria-label="โหมดสว่าง">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>' +
+        '<button type="button" data-theme-pick="dark" title="โหมดมืด" aria-label="โหมดมืด">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></div></div>';
+    document.body.insertBefore(head, aside.nextSibling);
 
     /* มือถือ: เมนูเป็นลิ้นชัก ต้องมีปุ่มเปิดและฉากหลังกดปิด */
     var bar = document.createElement("div");
@@ -74,6 +96,8 @@
     document.body.insertBefore(scrim, document.body.firstChild);
 
     document.addEventListener("click", function (ev) {
+      var pick = ev.target.closest("[data-theme-pick]");
+      if (pick) { setTheme(pick.getAttribute("data-theme-pick")); return; }
       if (ev.target.closest("[data-erp-toggle]")) {
         document.documentElement.classList.toggle("erp-open");
       } else if (ev.target.closest("[data-erp-close]")) {

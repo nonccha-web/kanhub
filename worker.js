@@ -3,6 +3,8 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
+import { handleTaskApi } from "./worker-tasks.js";
+
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
 const SEP = String.fromCharCode(31); // คั่น id กับชื่อไฟล์ใน GROUP_CONCAT
@@ -86,6 +88,11 @@ async function handleApi(request, env, url) {
 
   const path = url.pathname.replace(/^\/api/, "");
   const method = request.method;
+
+  // ---- ระบบมอบหมายงานทีม (/api/t/*) — โค้ดอยู่ worker-tasks.js ----
+  if (path === "/t" || path.indexOf("/t/") === 0) {
+    return handleTaskApi(request, env, url, path.slice(2) || "/", method);
+  }
 
   // ---- รูปแนบ ----
   const fileMatch = path.match(/^\/attachments\/([A-Za-z0-9_-]{1,40})$/);

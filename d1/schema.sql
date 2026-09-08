@@ -50,3 +50,22 @@ CREATE TABLE IF NOT EXISTS kpi_entries (
   updated_at TEXT    NOT NULL,
   PRIMARY KEY (year, month, code)
 );
+
+
+-- ============================================================
+-- ระบบมอบหมายงานทีม (Task) — 8 ก.ย. 2569
+-- ตารางชุดนี้ worker-tasks.js สร้างให้เอง (CREATE TABLE IF NOT EXISTS) ตอนมีคนเรียก /api/t/* ครั้งแรก
+-- จึง "ไม่ต้อง" รัน wrangler d1 execute — ที่เขียนไว้ตรงนี้เพื่อให้อ่านโครงได้ที่เดียว
+-- ============================================================
+-- task_settings (key, value)                    : session_secret สุ่มครั้งแรก ใช้เซ็น cookie
+-- staff (id, name, aliases, role, pin_salt, pin_hash, active, created_at)
+--                                               : ทีม — role owner|member · aliases = คำที่พิมพ์หลัง @ ตอนสั่งงาน
+-- kpis (id, sort, code, title, weight, target, keywords, color)
+--                                               : KPI CMO 2570 จาก Executive Offer (6 ข้อ) · keywords ใช้เดาหมวด
+-- tasks (id, title, detail, kpi_id, status, due_at, repeat, priority, created_by, created_at, updated_at, done_at)
+--                                               : status todo|doing|done|blocked · repeat ''|daily|weekly · due_at ISO UTC
+-- task_assignees (task_id, staff_id)            : งาน 1 ชิ้นมีคนรับได้หลายคน
+-- task_updates (id, task_id, staff_id, kind, note, status_to, created_at)
+--                                               : ไทม์ไลน์ — kind create|status|note|photo
+-- task_files (id, task_id, update_id, file_name, mime, bytes, data, created_at)
+--                                               : รูปแนบ base64 (ย่อฝั่งเบราว์เซอร์ ≤1.2MB) แบบเดียวกับ attachments

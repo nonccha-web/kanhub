@@ -3,15 +3,16 @@
    แก้ดีไซน์ที่ไฟล์นี้ที่เดียว มีผลทุกหน้า
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap');
+@import url('../assets/erp-shell.css?v=1');   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar + แถบบน */
 
 :root {
-  /* CI: coral primary + purple accent + soft-lavender · ปรับเฉพาะสี */
-  --bg-page:#EEF0F7; --bg-glass:rgba(255,255,255,0.72); --bg-glass-border:rgba(255,255,255,0.8);
-  --bg-card-subtle:rgba(0,0,0,0.025); --bg-card-hover:rgba(242,86,90,0.05); --bg-input:rgba(255,255,255,0.7);
-  --bg-row-divider:rgba(0,0,0,0.06);
-  --text-primary:#2A2F45; --text-secondary:#3F4358; --text-tertiary:#6B7086; --text-muted:#9AA0B5;
-  --shadow-card:0 1px 2px rgba(31,20,22,0.04),0 8px 24px rgba(0,0,0,0.03);
-  --shadow-card-hover:0 4px 16px rgba(0,0,0,0.08),0 12px 32px rgba(242,86,90,0.12);
+  /* พื้น/กระดาษ/เส้น ชุดเดียวกับ M CRM (ดู ../assets/erp-shell.css) · สี accent ของ KAN คงเดิม */
+  --bg-page:#F4F3EF; --bg-glass:#FFFFFF; --bg-glass-border:#E5E4DF;
+  --bg-card-subtle:rgba(11,11,10,0.03); --bg-card-hover:rgba(242,86,90,0.05); --bg-input:#FFFFFF;
+  --bg-row-divider:#EFEEE9;
+  --text-primary:#0B0B0A; --text-secondary:#3F3E3A; --text-tertiary:#575652; --text-muted:#8B8A84;
+  --shadow-card:0 1px 2px rgba(11,11,10,0.03);
+  --shadow-card-hover:0 4px 14px rgba(11,11,10,0.06);
   --accent:#F2565A; --accent-light:#F86D6D; --accent-faint:rgba(242,86,90,0.08); --accent-faint-2:rgba(242,86,90,0.16);
   --accent-text-dark:#C43D42; --accent-text:#E24A50;
   --gold:#F0943E; --gold-bg:rgba(240,148,62,0.12);
@@ -22,15 +23,15 @@
   --purple:#7A5CF0; --purple-bg:rgba(122,92,240,0.1);
   --danger:#F2565A; --danger-bg:rgba(242,86,90,0.08);
   --success:#1FA968; --success-bg:rgba(37,194,129,0.1);
-  --grid-line:rgba(0,0,0,0.05); --nav-bg:#1F1416; --nav-text:#F9F6F5;
+  --grid-line:rgba(11,11,10,0.05); --nav-bg:#0B0B0A; --nav-text:#F9F6F5;
 }
 [data-theme="dark"] {
-  --bg-page:#120B0C; --bg-glass:rgba(38,26,28,0.6); --bg-glass-border:rgba(255,255,255,0.06);
-  --bg-card-subtle:rgba(255,255,255,0.04); --bg-card-hover:rgba(224,58,82,0.13); --bg-input:rgba(255,255,255,0.05);
-  --bg-row-divider:rgba(255,255,255,0.06);
-  --text-primary:#F6EEEF; --text-secondary:#D6C9CB; --text-tertiary:#A08D90; --text-muted:#776568;
-  --shadow-card:0 1px 2px rgba(0,0,0,0.3),0 8px 24px rgba(0,0,0,0.2);
-  --shadow-card-hover:0 4px 16px rgba(0,0,0,0.4),0 12px 32px rgba(224,58,82,0.18);
+  --bg-page:#0E0D10; --bg-glass:#19171C; --bg-glass-border:#3A353E;
+  --bg-card-subtle:rgba(255,255,255,0.04); --bg-card-hover:rgba(224,58,82,0.13); --bg-input:#19171C;
+  --bg-row-divider:#252229;
+  --text-primary:#F6F2F5; --text-secondary:#D3CCD2; --text-tertiary:#C8C1C7; --text-muted:#968F97;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.3);
+  --shadow-card-hover:0 4px 16px rgba(0,0,0,0.4);
   --accent:#F0566E; --accent-light:#F47D90; --accent-faint:rgba(240,86,110,0.12); --accent-faint-2:rgba(240,86,110,0.2);
   --accent-text-dark:#FAC0CA; --accent-text:#F58FA0;
   --gold:#E0BC6E; --gold-bg:rgba(224,188,110,0.12);
@@ -41,13 +42,13 @@
   --purple:#C4B5FD; --purple-bg:rgba(196,181,253,0.12);
   --danger:#FCA5A5; --danger-bg:rgba(248,113,113,0.12);
   --success:#6EE7A7; --success-bg:rgba(110,231,167,0.1);
-  --grid-line:rgba(255,255,255,0.06); --nav-bg:#F6EEEF; --nav-text:#1F1416;
+  --grid-line:rgba(255,255,255,0.06); --nav-bg:#F6F2F5; --nav-text:#0B0B0A;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Kanit',-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif; background:var(--bg-page); color:var(--text-primary); -webkit-font-smoothing:antialiased; padding:32px 20px; min-height:100vh; transition:background .25s,color .25s; }
 .container { max-width:1180px; margin:0 auto; }
-.glass { background:var(--bg-glass); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%); border:.5px solid var(--bg-glass-border); border-radius:18px; padding:24px; box-shadow:var(--shadow-card); }
-.hero { background:linear-gradient(135deg,rgba(248,109,109,0.97) 0%,rgba(242,86,90,0.95) 100%); border-radius:18px; padding:24px; color:#FFF3F3; border:.5px solid rgba(255,255,255,0.18); box-shadow:0 8px 24px rgba(242,86,90,0.28); }
+.glass { background:var(--bg-glass); border:1px solid var(--bg-glass-border); border-radius:6px; padding:24px; box-shadow:var(--shadow-card); }
+.hero { background:linear-gradient(135deg,rgba(248,109,109,0.97) 0%,rgba(242,86,90,0.95) 100%); border-radius:6px; padding:24px; color:#FFF3F3; border:.5px solid rgba(255,255,255,0.18); box-shadow:0 8px 24px rgba(242,86,90,0.28); }
 
 /* header */
 .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; flex-wrap:wrap; gap:16px; }
@@ -74,7 +75,7 @@ h4 { font-size:13px; margin-bottom:10px; }
 
 /* kpi cards */
 .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
-.kpi-card { background:var(--bg-glass); backdrop-filter:blur(20px); border:.5px solid var(--bg-glass-border); border-radius:16px; padding:20px; box-shadow:var(--shadow-card); transition:transform .15s,box-shadow .15s; }
+.kpi-card { background:var(--bg-glass); border:1px solid var(--bg-glass-border); border-radius:6px; padding:20px; box-shadow:var(--shadow-card); transition:transform .15s,box-shadow .15s; }
 .kpi-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-card-hover); }
 .kpi-label { font-size:11px; font-weight:500; letter-spacing:.5px; text-transform:uppercase; opacity:.55; }
 .kpi-value { font-size:24px; font-weight:600; letter-spacing:-.5px; line-height:1.1; margin-top:6px; }
@@ -89,7 +90,7 @@ h4 { font-size:13px; margin-bottom:10px; }
 .card-grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-bottom:14px; }
 .card-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
 .card-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
-.svc-card { background:var(--bg-glass); backdrop-filter:blur(20px); border:.5px solid var(--bg-glass-border); border-radius:16px; padding:18px; box-shadow:var(--shadow-card); transition:all .18s; position:relative; overflow:hidden; }
+.svc-card { background:var(--bg-glass); border:1px solid var(--bg-glass-border); border-radius:6px; padding:18px; box-shadow:var(--shadow-card); transition:all .18s; position:relative; overflow:hidden; }
 .svc-card:hover { box-shadow:var(--shadow-card-hover); }
 .svc-card.p1::before,.svc-card.p2::before,.svc-card.pc::before,.svc-card.pt::before,.svc-card.pg::before,.svc-card.pp::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; }
 .svc-card.p1::before { background:var(--accent); }
@@ -276,86 +277,14 @@ footer.doc-foot { text-align:center; margin-top:32px; font-size:11px; color:var(
 [data-theme="dark"] .c-cp { color:#E0BC6E; } [data-theme="dark"] .c-live { color:#BBD9F7; }
 
 /* ============================================================
-   ERP unified sidebar (เพิ่มโดย nav.js) — เข้มแบบเดียวกับ KAN ERP
+   ERP sidebar (ฉีดโดย nav.js) — หน้าตา/สี/โหมดย่อ อยู่ที่ ../assets/erp-shell.css (ชุดเดียวกับ M CRM)
+   ที่นี่เหลือแค่ "ตำแหน่ง" บนหน้า CMO: sidebar ตรึงซ้าย + เนื้อหาเว้นที่ให้
    ============================================================ */
-.erp-sidebar{ position:fixed; left:0; top:0; height:100vh; width:238px; background:#141A1F;
-  color:#94A3AC; padding:20px 14px; display:flex; flex-direction:column; gap:4px;
-  overflow-y:auto; z-index:60; }
-.has-erp-side body{ padding-left:258px; }
+.erp-sidebar{ position:fixed; left:0; top:0; height:100vh; display:flex; flex-direction:column; overflow-y:auto; z-index:60; }
+.has-erp-side body{ padding-left:calc(var(--erp-w) + 20px); padding-top:0; }
+html.erp-collapsed.has-erp-side body{ padding-left:calc(var(--erp-rail) + 20px); }
 .has-erp-side .nav, .has-erp-side .subnav{ display:none !important; }
-.erp-sidebar::-webkit-scrollbar{ width:7px; }
-.erp-sidebar::-webkit-scrollbar-thumb{ background:#3A444C; border-radius:99px; }
-
-.erp-brand{ display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:0 8px;
-  text-decoration:none; }
-.erp-brand .erp-k{ width:38px; height:38px; border-radius:10px; background:#F2565A; color:#fff;
-  font-weight:800; font-size:18px; display:flex; align-items:center; justify-content:center; ;object-fit:cover;padding:0;font-size:0;background:transparent}
-.erp-brand-tx b{ color:#fff; font-size:16px; display:block; line-height:1.1; }
-.erp-brand-tx small{ font-size:11px; color:#94A3AC; }
-
-/* accordion: หัวข้อใหญ่กดเปิด/ปิด → โชว์หมวดย่อย */
-.erp-nav{ display:flex; flex-direction:column; gap:3px; }
-.erp-gh{ display:flex; align-items:center; gap:10px; width:100%; font-family:inherit; font-size:13.5px;
-  font-weight:600; color:#E6EBEE; background:transparent; border:none; cursor:pointer; padding:10px 12px;
-  border-radius:9px; text-align:left; }
-.erp-gh:hover{ background:rgba(255,255,255,.08); }
-.erp-gico{ width:20px; text-align:center; font-size:15px; flex-shrink:0; }
-.erp-glabel{ flex:1; }
-.erp-chev{ color:#8F9AA3; font-size:11px; transition:transform .15s; }
-.erp-acc.open > .erp-gh .erp-chev{ transform:rotate(180deg); }
-.erp-sub{ display:none; flex-direction:column; gap:2px; padding:2px 0 6px; }
-.erp-acc.open > .erp-sub{ display:flex; }
-.erp-link{ color:#94A3AC; text-decoration:none; font-size:13px; padding:8px 12px 8px 28px; border-radius:9px;
-  display:flex; align-items:center; gap:9px; transition:background .12s; }
-.erp-link:hover{ background:rgba(255,255,255,.10); color:#fff; }
-.erp-link.on{ background:rgba(157,183,232,.14); color:#9DB7E8; font-weight:600; outline:1px solid rgba(157,183,232,.35); }
-.erp-link .erp-ico{ width:16px; text-align:center; flex-shrink:0; font-size:12.5px; }
-.erp-badge{ margin-left:auto; background:#B02A30; color:#fff; font-size:10.5px; font-weight:700;
-  border-radius:99px; padding:1px 7px; }
-
-.erp-foot{ margin-top:auto; padding:12px 8px 4px; border-top:1px solid #2A343B; }
-.erp-theme{ width:100%; font-family:inherit; font-size:12.5px; color:#94A3AC; background:transparent;
-  border:1px solid #E0E3EE; border-radius:9px; padding:8px 10px; cursor:pointer; }
-.erp-theme:hover{ background:rgba(255,255,255,.08); color:#fff; }
-.erp-foot-note{ font-size:11px; color:#66727B; text-align:center; margin-top:8px; }
-
-/* จอเล็ก: เมนูเดิมกางเต็มความกว้างแล้วดันเนื้อหาตกจอ — เปลี่ยนเป็นลิ้นชักเลื่อนออกมาแทน
-   (ใช้เปิดพรีเซนต์บนมือถือได้จริง) */
+.has-erp-side .erp-head{ margin:0 -20px 28px; }
 @media(max-width:900px){
-  .erp-sidebar{ position:fixed; left:0; top:0; height:100dvh; width:min(300px,84vw);
-    transform:translateX(-100%); transition:transform .22s ease; z-index:70;
-    box-shadow:6px 0 26px rgba(31,20,22,.14); }
-  html.erp-open .erp-sidebar{ transform:none; }
-  .has-erp-side body{ padding-left:14px; padding-right:14px; padding-top:60px; }
-  .erp-topbar{ display:flex !important; }
-  .erp-scrim{ position:fixed; inset:0; background:rgba(20,12,11,.42); z-index:65;
-    opacity:0; pointer-events:none; transition:opacity .2s; }
-  html.erp-open .erp-scrim{ opacity:1; pointer-events:auto; }
+  .has-erp-side body, html.erp-collapsed.has-erp-side body{ padding-left:14px; padding-right:14px; padding-top:60px; }
 }
-
-/* แถบบนสำหรับมือถือ — ปุ่มเปิดเมนู (ซ่อนบนจอใหญ่) */
-.erp-topbar{ display:none; position:fixed; left:0; right:0; top:0; height:52px; z-index:60;
-  align-items:center; gap:11px; padding:0 14px; background:var(--bg-glass,#fff);
-  border-bottom:1px solid var(--bg-row-divider,#e5e5e5); backdrop-filter:saturate(180%) blur(12px); }
-.erp-topbar button{ border:0; background:transparent; padding:7px; margin-left:-7px; border-radius:8px;
-  cursor:pointer; color:var(--text-primary,#1F2329); display:grid; place-items:center; }
-.erp-topbar button:hover{ background:var(--bg-card-subtle,#f2f2f2); }
-.erp-topbar img{ width:26px; height:26px; border-radius:7px; }
-.erp-topbar b{ font-size:14.5px; font-weight:600; }
-
-/* ไอคอน SVG ในเมนู */
-.erp-svg{width:17px;height:17px;display:block}
-.erp-gico .erp-svg,.erp-gico svg{width:18px;height:18px}
-
-/* หัวข้อหมวดสถานะใน sidebar (เปิดใช้ได้แล้ว / ยังไม่สมบูรณ์ / เอกสาร + ระบบ) */
-.erp-sec{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
-         color:#66727B;padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
-.erp-sec:first-child{padding-top:2px}
-.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#0E6E64;flex-shrink:0}
-.erp-sec.work::before{background:#3D5A98}
-.erp-sec.pending::before{background:#B8820A}
-.erp-sec.ref::before{background:#66727B}
-.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:#8F9AA3;
-                  letter-spacing:0;margin-top:1px}
-.erp-acc.pend .erp-gh{color:#8F9AA3}
-.erp-acc.pend .erp-gico{opacity:.6}

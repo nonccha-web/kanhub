@@ -1,0 +1,149 @@
+/* ============================================================
+   KAN Admin — เปลือกระบบ (โทเคนสี + sidebar + แถบบน) หน้าตาชุดเดียวกับหลังบ้าน M CRM
+   ใช้ร่วมกัน 3 ที่ผ่าน @import: cmo/styles.css · mkt/assets/app.css · tasks/tasks.css
+   แก้ที่นี่ที่เดียว มีผลทุกหน้า — ตำแหน่ง (fixed/sticky) ของ sidebar ยังอยู่ในไฟล์ของแต่ละฝั่ง
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&display=swap');
+
+:root{
+  --k-ground:#F4F3EF; --k-paper:#FFFFFF; --k-ink:#0B0B0A; --k-soft:#575652; --k-mut:#8B8A84;
+  --k-line:#E5E4DF; --k-hair:#EFEEE9;
+  --k-brand:#F2565A; --k-purple:#7A5CF0; --k-gold:#F0943E;
+  --k-ok:#1FA968; --k-warn:#C97A00; --k-bad:#DC3232; --k-info:#0E9BA8;
+  --k-grad:linear-gradient(96deg,#7A5CF0 0%,#F2565A 46%,#F0943E 100%);
+  --k-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --erp-w:280px; --erp-rail:64px;
+}
+[data-theme="dark"]{
+  --k-ground:#0E0D10; --k-paper:#19171C; --k-ink:#F6F2F5; --k-soft:#C8C1C7; --k-mut:#968F97;
+  --k-line:#3A353E; --k-hair:#252229; --k-warn:#FFBD55; --k-ok:#6EE7A7; --k-bad:#FF939B;
+}
+
+/* ── ตัวกล่อง sidebar (สีและความกว้าง — ตำแหน่งอยู่ที่ไฟล์ของแต่ละฝั่ง) ── */
+.erp-sidebar, .layout > aside{
+  width:var(--erp-w); background:var(--k-paper); color:var(--k-soft);
+  border-right:1px solid var(--k-line); padding:0 10px 12px; gap:0;
+  transition:width .18s ease, box-shadow .18s ease; scrollbar-width:thin; scrollbar-color:var(--k-line) transparent;
+}
+.erp-sidebar::-webkit-scrollbar, #sideHost::-webkit-scrollbar{ width:6px; }
+.erp-sidebar::-webkit-scrollbar-thumb, #sideHost::-webkit-scrollbar-thumb{ background:var(--k-line); border-radius:99px; }
+
+/* แถวแบรนด์ + ปุ่มย่อเมนู */
+.erp-top{ position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:4px; height:56px;
+  margin:0 -10px 6px; padding:0 12px 0 14px; background:var(--k-paper); border-bottom:1px solid var(--k-line); }
+.erp-brand{ display:flex; align-items:center; gap:9px; min-width:0; flex:1; text-decoration:none; }
+.erp-brand .erp-k{ width:32px; height:32px; border-radius:8px; object-fit:cover; flex:none; }
+.erp-brand-tx{ min-width:0; flex:1; }
+.erp-brand-tx b{ display:block; color:var(--k-ink); font-size:14px; font-weight:700; line-height:1.15;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.erp-brand-tx small{ display:block; color:var(--k-mut); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.erp-pin{ flex:none; width:30px; height:30px; border:0; border-radius:999px; background:transparent; color:var(--k-mut);
+  display:grid; place-items:center; cursor:pointer; transition:background .15s, color .15s; }
+.erp-pin:hover{ background:var(--k-hair); color:var(--k-ink); }
+.erp-pin svg{ width:17px; height:17px; display:block; }
+
+/* หมวด / กลุ่ม / ลิงก์ */
+.erp-nav{ display:flex; flex-direction:column; gap:2px; }
+.erp-sec{ display:flex; align-items:center; gap:7px; padding:14px 10px 6px; font-size:11px; font-weight:600; color:var(--k-mut); }
+.erp-sec::before{ content:''; width:6px; height:6px; border-radius:99px; background:var(--k-ok); flex:none; }
+.erp-sec.work::before{ background:var(--k-purple); }
+.erp-sec.pending::before{ background:var(--k-warn); }
+.erp-sec.ref::before{ background:var(--k-line); }
+.erp-gh{ display:flex; align-items:center; gap:10px; width:100%; font-family:inherit; font-size:13.5px; font-weight:600;
+  color:var(--k-ink); background:transparent; border:0; cursor:pointer; padding:9px 10px; border-radius:8px; text-align:left;
+  transition:background .12s; }
+.erp-gh:hover{ background:var(--k-hair); }
+.erp-gico{ width:20px; flex:none; display:grid; place-items:center; color:var(--k-soft); font-size:15px; }
+.erp-glabel{ flex:1; min-width:0; }
+.erp-glabel small{ display:block; font-size:10.5px; font-weight:500; color:var(--k-mut); margin-top:1px; letter-spacing:0; }
+.erp-chev{ color:var(--k-mut); font-size:11px; transition:transform .15s; }
+.erp-acc.open > .erp-gh .erp-chev{ transform:rotate(180deg); }
+.erp-sub{ display:none; flex-direction:column; gap:1px; padding:1px 0 6px; }
+.erp-acc.open > .erp-sub{ display:flex; }
+.erp-acc.pend .erp-gh{ color:var(--k-mut); }
+.erp-acc.pend .erp-gico{ opacity:.6; }
+.erp-link{ position:relative; display:flex; align-items:center; gap:9px; color:var(--k-soft); text-decoration:none;
+  font-size:13px; padding:7px 10px 7px 30px; border-radius:8px; cursor:pointer; transition:background .12s, color .12s; }
+.erp-link:hover{ background:var(--k-hair); color:var(--k-ink); }
+.erp-link.on{ background:var(--k-ink); color:var(--k-paper); font-weight:600; outline:0; }
+.erp-link.on::before{ content:''; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:99px; background:var(--k-grad); }
+.erp-link .erp-ico{ width:16px; flex:none; display:grid; place-items:center; font-size:12.5px; }
+.erp-badge{ margin-left:auto; background:#F06400; color:#fff; font-size:10.5px; font-weight:700; border-radius:99px; padding:1px 7px; }
+.erp-svg{ width:17px; height:17px; display:block; }
+.erp-gico .erp-svg, .erp-gico svg{ width:18px; height:18px; }
+
+/* ท้าย sidebar */
+.erp-foot{ margin-top:auto; padding:12px 4px 4px; border-top:1px solid var(--k-line); }
+.erp-theme{ width:100%; font-family:inherit; font-size:12.5px; font-weight:500; color:var(--k-ink); background:var(--k-paper);
+  border:1px solid var(--k-line); border-radius:999px; padding:8px 10px; cursor:pointer; transition:background .15s, color .15s; }
+.erp-theme:hover{ background:var(--k-ink); color:var(--k-paper); }
+.erp-foot-note{ font-size:11px; color:var(--k-mut); text-align:center; margin-top:8px; }
+.side-foot{ flex-shrink:0; margin-top:8px; font-size:11.5px; color:var(--k-mut); padding:12px 8px; border-top:1px solid var(--k-line); background:var(--k-paper); }
+.side-foot .dot{ background:var(--k-ok); }
+
+/* ── โหมดย่อเป็นแถบ 64px (กดปุ่มที่แถวแบรนด์) — เอาเมาส์ชี้แล้วขยายชั่วคราว ── */
+html.erp-collapsed .erp-sidebar, html.erp-collapsed .layout > aside{ width:var(--erp-rail); padding-left:8px; padding-right:8px; }
+html.erp-collapsed .erp-sidebar:hover, html.erp-collapsed .layout > aside:hover{
+  width:var(--erp-w); padding-left:10px; padding-right:10px; box-shadow:14px 0 34px rgba(11,11,10,.10); }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-top, html.erp-collapsed .layout > aside:not(:hover) .erp-top{ margin:0 -8px 6px; padding:0; justify-content:center; }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-brand, html.erp-collapsed .layout > aside:not(:hover) .erp-brand{ flex:none; }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-brand-tx, html.erp-collapsed .layout > aside:not(:hover) .erp-brand-tx,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-pin, html.erp-collapsed .layout > aside:not(:hover) .erp-pin,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-sec, html.erp-collapsed .layout > aside:not(:hover) .erp-sec,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-glabel, html.erp-collapsed .layout > aside:not(:hover) .erp-glabel,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-chev, html.erp-collapsed .layout > aside:not(:hover) .erp-chev,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-sub, html.erp-collapsed .layout > aside:not(:hover) .erp-sub,
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-foot-note, html.erp-collapsed .layout > aside:not(:hover) .erp-foot-note,
+html.erp-collapsed .erp-sidebar:not(:hover) .side-foot, html.erp-collapsed .layout > aside:not(:hover) .side-foot,
+html.erp-collapsed .erp-sidebar:not(:hover) #theme-label, html.erp-collapsed .layout > aside:not(:hover) #theme-label{ display:none; }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-gh, html.erp-collapsed .layout > aside:not(:hover) .erp-gh{ justify-content:center; padding:10px 0; margin-top:4px; }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-acc.open > .erp-gh, html.erp-collapsed .layout > aside:not(:hover) .erp-acc.open > .erp-gh{ background:var(--k-ink); color:var(--k-paper); }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-acc.open > .erp-gh .erp-gico, html.erp-collapsed .layout > aside:not(:hover) .erp-acc.open > .erp-gh .erp-gico{ color:inherit; opacity:1; }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-theme, html.erp-collapsed .layout > aside:not(:hover) .erp-theme{ padding:8px 0; }
+
+/* ── แถบบนของหน้า (เดสก์ท็อป) — ชื่อระบบ + สลับธีม + ผู้ใช้ ── */
+.erp-head{ position:sticky; top:0; z-index:40; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  height:56px; padding:0 28px; background:color-mix(in srgb, var(--k-paper) 94%, transparent);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-bottom:1px solid var(--k-line); }
+.erp-head-t{ min-width:0; }
+.erp-head-t b{ display:block; font-size:14px; font-weight:600; color:var(--k-ink); white-space:nowrap; }
+.erp-head-t small{ display:block; font-size:11px; color:var(--k-mut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.erp-head-r{ display:flex; align-items:center; gap:8px; flex:none; }
+.erp-seg{ display:inline-flex; gap:2px; padding:2px; border:1px solid var(--k-line); border-radius:6px; background:var(--k-paper); }
+.erp-seg button{ width:28px; height:24px; border:0; border-radius:4px; background:transparent; color:var(--k-mut);
+  display:grid; place-items:center; cursor:pointer; transition:background .15s, color .15s; }
+.erp-seg button:hover{ background:var(--k-hair); color:var(--k-ink); }
+.erp-seg button[aria-pressed="true"]{ background:var(--k-grad); color:#fff; }
+.erp-seg svg{ width:13px; height:13px; display:block; }
+.erp-user{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--k-line); border-radius:999px;
+  padding:3px 11px 3px 3px; font-size:12px; color:var(--k-soft); background:var(--k-paper); }
+.erp-user i{ width:24px; height:24px; border-radius:50%; background:var(--k-hair); color:var(--k-soft); flex:none;
+  font:700 10px/24px var(--k-display); text-align:center; font-style:normal; }
+.erp-user b{ font-weight:500; color:var(--k-ink); max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.erp-user button{ border:0; background:transparent; color:var(--k-mut); font:inherit; font-size:11.5px; cursor:pointer; padding:0 0 0 4px; }
+.erp-user button:hover{ color:var(--k-bad); }
+
+/* ── มือถือ: sidebar เป็นลิ้นชัก + แถบบนมีปุ่มเปิด ── */
+.erp-topbar{ display:none; position:fixed; left:0; right:0; top:0; height:52px; z-index:60; align-items:center; gap:11px;
+  padding:0 14px; background:color-mix(in srgb, var(--k-paper) 94%, transparent); color:var(--k-ink);
+  border-bottom:1px solid var(--k-line); backdrop-filter:saturate(180%) blur(12px); -webkit-backdrop-filter:saturate(180%) blur(12px); }
+.erp-topbar button{ border:0; background:transparent; padding:7px; margin-left:-7px; border-radius:8px; cursor:pointer;
+  color:var(--k-ink); display:grid; place-items:center; }
+.erp-topbar button:hover{ background:var(--k-hair); }
+.erp-topbar img{ width:26px; height:26px; border-radius:7px; }
+.erp-topbar b{ font-size:14.5px; font-weight:600; }
+.erp-scrim{ position:fixed; inset:0; background:rgba(11,11,10,.42); z-index:65; opacity:0; pointer-events:none; transition:opacity .2s; }
+html.erp-open .erp-scrim{ opacity:1; pointer-events:auto; }
+@media (max-width:900px){
+  .erp-sidebar{ position:fixed; left:0; top:0; height:100dvh; width:min(300px,84vw) !important; padding:0 10px 12px !important;
+    transform:translateX(-100%); transition:transform .22s ease; z-index:70; box-shadow:6px 0 26px rgba(11,11,10,.14); }
+  html.erp-open .erp-sidebar{ transform:none; }
+  .erp-topbar{ display:flex !important; }
+  .erp-head{ display:none; }
+  .erp-pin{ display:none; }
+}
+
+/* บรรทัดเล็กท้าย sidebar */
+.erp-powered{ font-size:10px; color:var(--k-mut); text-align:center; margin-top:8px; opacity:.85; }
+.erp-powered b{ font-weight:600; color:var(--k-mut); }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-powered, html.erp-collapsed .layout > aside:not(:hover) .erp-powered{ display:none; }

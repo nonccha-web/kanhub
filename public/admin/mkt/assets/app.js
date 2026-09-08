@@ -17,6 +17,7 @@
       active: 'sales:#/' + current,
       salesBase: '',
       cmoBase: '../cmo/',
+      tasksBase: '../tasks/',
       badges: nErr ? { quality: nErr } : {}
     });
     global.ERP_MENU.wire(host);

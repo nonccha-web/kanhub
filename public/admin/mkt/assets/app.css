@@ -1,10 +1,11 @@
+@import url('../../assets/erp-shell.css?v=1');   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar */
 :root{
-  /* CI: ภาษาเดียวกับ kan_dashboard — พื้นเทา การ์ดขาวแบน teal/indigo/amber ตัวเลข Plex Mono */
-  --bg:#E9EDF0; --card:#FFFFFF; --ink:#141A1F; --sub:#5A656E; --muted:#8F9AA3;
+  /* พื้น/กระดาษ/เส้น ชุดเดียวกับ M CRM · teal/indigo/amber ของกราฟคงเดิม · ตัวเลข Plex Mono */
+  --bg:#F4F3EF; --card:#FFFFFF; --ink:#0B0B0A; --sub:#575652; --muted:#8B8A84;
   --indigo:#3D5A98; --indigo-deep:#2C4372; --indigo-soft:#E7EBF4;
   --green:#0E6E64; --green-soft:#E2EDEB; --red:#B02A30; --red-soft:#F6E7E8;
   --amber:#B8820A; --amber-soft:#F4ECD9; --blue:#0E6E64; --blue-soft:#E2EDEB;
-  --line:#DCE3E8; --side:#141A1F; --radius:10px;
+  --line:#E5E4DF; --side:#FFFFFF; --radius:6px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -15,53 +16,10 @@ body{font-family:'IBM Plex Sans Thai',-apple-system,sans-serif;background:var(--
   font-family:'IBM Plex Mono','IBM Plex Sans Thai',monospace;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
 .layout{display:flex;min-height:100vh}
 
-/* ── sidebar (shared accordion · เมนูรวมจาก erp-menu.js) ──────────────────── */
-aside{width:238px;background:var(--side);color:#94A3AC;padding:20px 14px;flex-shrink:0;
-      display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;overflow-y:auto}
-/* เมนูยาวเกินจอเมื่อไร ให้เลื่อนอยู่ในกล่องตัวเอง — ไม่มี overflow ที่นี่
-   เนื้อหาจะล้นออกไปทับ .side-foot ข้างล่างจนคลิกเมนูท้าย ๆ ไม่ได้ */
-#sideHost{display:flex;flex-direction:column;flex:1;min-height:0;
-          overflow-y:auto;overscroll-behavior:contain}
-#sideHost::-webkit-scrollbar{width:7px}
-#sideHost::-webkit-scrollbar-thumb{background:#3A444C;border-radius:99px}
-.erp-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:0 8px;text-decoration:none}
-.erp-brand .erp-k{width:38px;height:38px;border-radius:10px;background:var(--indigo);color:#fff;
-          font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;object-fit:cover;padding:0;font-size:0;background:transparent}
-.erp-brand-tx b{color:#fff;font-size:16px;display:block;line-height:1.1}
-.erp-brand-tx small{font-size:11px;color:#94A3AC}
-.erp-nav{display:flex;flex-direction:column;gap:3px}
-.erp-gh{display:flex;align-items:center;gap:10px;width:100%;font-family:inherit;font-size:13.5px;
-        font-weight:600;color:#E6EBEE;background:transparent;border:none;cursor:pointer;padding:10px 12px;
-        border-radius:9px;text-align:left}
-.erp-gh:hover{background:rgba(255,255,255,.08)}
-.erp-gico{width:20px;text-align:center;font-size:15px;flex-shrink:0}
-.erp-glabel{flex:1}
-.erp-chev{color:var(--muted);font-size:11px;transition:transform .15s}
-.erp-acc.open > .erp-gh .erp-chev{transform:rotate(180deg)}
-.erp-sub{display:none;flex-direction:column;gap:2px;padding:2px 0 6px}
-.erp-acc.open > .erp-sub{display:flex}
-.erp-link{color:#94A3AC;text-decoration:none;font-size:13px;padding:8px 12px 8px 28px;border-radius:9px;
-       display:flex;align-items:center;gap:9px;cursor:pointer;transition:background .12s}
-.erp-link:hover{background:rgba(255,255,255,.10);color:#fff}
-.erp-link.on{background:rgba(157,183,232,.14);color:#9DB7E8;font-weight:600;outline:1px solid rgba(157,183,232,.35)}
-.erp-link .erp-ico{width:16px;text-align:center;flex-shrink:0;font-size:12.5px}
-.erp-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10.5px;font-weight:700;
-              border-radius:99px;padding:1px 7px}
-/* หัวข้อหมวดสถานะใน sidebar (เปิดใช้ได้แล้ว / ยังไม่สมบูรณ์ / เอกสาร + ระบบ) */
-.erp-sec{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
-         color:#66727B;padding:14px 12px 5px;display:flex;align-items:center;gap:7px}
-.erp-sec:first-child{padding-top:2px}
-.erp-sec::before{content:'';width:6px;height:6px;border-radius:99px;background:#0E6E64;flex-shrink:0}
-.erp-sec.work::before{background:#3D5A98}
-.erp-sec.pending::before{background:#B8820A}
-.erp-sec.ref::before{background:#B4BFC5}
-.erp-glabel small{display:block;font-size:10.5px;font-weight:500;color:#8F9AA3;
-                  letter-spacing:0;margin-top:1px}
-.erp-acc.pend .erp-gh{color:#8F9AA3}
-.erp-acc.pend .erp-gico{opacity:.6}
-.side-foot{flex-shrink:0;margin-top:8px;font-size:11.5px;color:#66727B;padding:12px 8px;
-           border-top:1px solid #2A343B;background:var(--side)}
-.side-foot .dot{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--green);margin-right:6px}
+/* ── sidebar — ตัวเมนู/สี/โหมดย่อ อยู่ใน ../../assets/erp-shell.css (ชุดเดียวกับ M CRM) ที่นี่เหลือแค่ตำแหน่ง ── */
+aside{flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+/* เมนูยาวเกินจอเมื่อไร ให้เลื่อนอยู่ในกล่องตัวเอง */
+#sideHost{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 
 /* ── main ────────────────────────────────────────────────────────────────── */
 main{flex:1;padding:22px 26px 60px;min-width:0}

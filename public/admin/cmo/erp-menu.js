@@ -45,6 +45,14 @@
     /* โหมดทำงาน — เรียงตาม flow จริง: วางแผน → ลงมือ → กรอกผล */
     { id: 'work', label: 'งานประจำ (ไว้ทำงาน)', groups: [
 
+      /* ระบบมอบหมายงาน — ทีมเข้าด้วยชื่อ+PIN ทำงานของตัวเอง อัปเดตรูป · ข้อมูลอยู่ D1 ผ่าน /api/t/* */
+      { icon: 'clipboard', label: 'งานทีม (Task)', items: [
+        { icon: 'user',      label: 'งานของฉัน',  tasks: '#/me' },
+        { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
+        { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' },
+        { icon: 'trophy',    label: 'KPI 2570',   tasks: '#/kpi' },
+        { icon: 'users',     label: 'ทีม + PIN',  tasks: '#/team' }
+      ]},
       { icon: 'calendar', label: 'วางแผนแคมเปญ', items: [
         { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' },
         { icon: 'monitor',  label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' }
@@ -159,11 +167,18 @@
     filetext:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
     phone:'<path d="M4 4h4l2 5-3 2a12 12 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 2 6a2 2 0 0 1 2-2z"/>',
     alert:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
-    compass:'<circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/>'
+    compass:'<circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/>',
+    user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    panel:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/>'
   };
   function svgIco(n){ var p = ICONS[n]; return p ? '<svg class="erp-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>' : esc(n); }
 
   function href(item, opts) {
+    /* item.tasks = '#/xxx' → หน้าในระบบงานทีม (โฟลเดอร์ tasks/) */
+    if (item.tasks != null) {
+      return opts.ctx === 'tasks' ? item.tasks
+        : ((opts.tasksBase != null ? opts.tasksBase : '../tasks/') + item.tasks);
+    }
     if (item.sales != null) {
       /* ค่าไม่ขึ้นต้น # = หน้าแยกใต้โฟลเดอร์ mkt (เช่น sales/) ไม่ใช่ hash route */
       if (item.sales.charAt(0) !== '#') {
@@ -176,14 +191,18 @@
     return opts.ctx === 'cmo' ? item.cmo : (opts.cmoBase + item.cmo);
   }
   function keyOf(item) {
+    if (item.tasks != null) { return 'tasks:' + item.tasks; }
     return item.sales != null ? ('sales:' + item.sales) : ('cmo:' + item.cmo);
   }
 
   var ERP_MENU = global.ERP_MENU = {
     GROUPS: GROUPS,
     SECTIONS: SECTIONS,
-    brandTitle: 'KAN MKT',
-    brandSub: 'ยอดขาย · การตลาด · ทีม',
+    brandTitle: 'KAN Admin',
+    brandSub: 'ยอดขาย · การตลาด · งานทีม',
+
+    /* บรรทัดเล็ก ๆ ท้าย sidebar ทุกหน้า */
+    powered: '<div class="erp-powered">Powered by <b>M Creation</b></div>',
 
     /* รายชื่อไฟล์ CMO เรียงตามเมนู (ใช้ทำ pager ก่อนหน้า/ถัดไป) */
     cmoFiles: (function () {
@@ -209,9 +228,11 @@
       });
       if (openIdx < 0) { openIdx = 0; }
 
-      var h = '<a class="erp-brand" href="' + homeHref + '">' +
+      var h = '<div class="erp-top"><a class="erp-brand" href="' + homeHref + '">' +
         '<img class="erp-k" src="../assets/kan-logo.png" alt="KAN" /><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
-        '<small>' + esc(this.brandSub) + '</small></span></a><div class="erp-nav">';
+        '<small>' + esc(this.brandSub) + '</small></span></a>' +
+        '<button type="button" class="erp-pin" data-erp-collapse title="ย่อ/ขยายเมนู" aria-label="ย่อ/ขยายเมนู">' +
+        svgIco('panel') + '</button></div><div class="erp-nav">';
 
       var gi = -1;
       SECTIONS.forEach(function (sec) {
@@ -246,6 +267,13 @@
       (root || document).querySelectorAll('.erp-gh').forEach(function (btn) {
         btn.addEventListener('click', function () {
           this.parentNode.classList.toggle('open');
+        });
+      });
+      /* ปุ่มย่อเมนูเป็นแถบ 64px — จำค่าไว้ ใช้ร่วมกันทุกหน้า */
+      (root || document).querySelectorAll('[data-erp-collapse]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var on = document.documentElement.classList.toggle('erp-collapsed');
+          try { localStorage.setItem('kan-erp-collapsed', on ? '1' : '0'); } catch (e) {}
         });
       });
     }
