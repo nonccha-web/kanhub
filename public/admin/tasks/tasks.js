@@ -159,6 +159,35 @@
   function fromLocalInput(v) { if (!v) return null; var d = new Date(v); return isNaN(d) ? null : d.toISOString(); }
   function fmtBaht(n) { return Number(n).toLocaleString('th-TH'); }
 
+  /* กล่องยืนยันหลังกดบันทึก — toast มุมล่างเล็กเกินไป กรอกเสร็จแล้วไม่ชัวร์ว่าเข้าระบบจริงไหม
+     ใช้กับ "ฟอร์ม" เท่านั้น ส่วนการติ๊กทีละช่องยังใช้ toast เพราะผลเห็นได้ทันทีบนหน้าจอ */
+  function okDialog(opt) {
+    opt = opt || {};
+    var host = document.createElement('div');
+    host.className = 'modal okmodal';
+    host.innerHTML = '<div class="modal-box okbox">' +
+      '<div class="okmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 6 6L20 6"/></svg></div>' +
+      '<h2>' + esc(opt.title || 'บันทึกแล้ว') + '</h2>' +
+      (opt.lines && opt.lines.length
+        ? '<ul class="oklist">' + opt.lines.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'
+        : '') +
+      (opt.note ? '<p class="oknote">' + esc(opt.note) + '</p>' : '') +
+      '<div class="okacts">' +
+      (opt.link ? '<a class="btn-ghost" href="' + esc(opt.link.href) + '" data-ok-close>' + esc(opt.link.label) + '</a>' : '') +
+      '<button type="button" class="btn" data-ok-close autofocus>ตกลง</button></div></div>';
+    document.body.appendChild(host);
+    var close = function () {
+      host.remove();
+      if (typeof opt.onClose === 'function') opt.onClose();
+    };
+    $$('[data-ok-close]', host).forEach(function (b) { b.addEventListener('click', close); });
+    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
+    var btn = host.querySelector('.btn');
+    if (btn) btn.focus();
+    host._close = close;
+    return host;
+  }
+
   var toastTimer = null;
   function toast(msg, bad) {
     var el = $('#toast');
@@ -292,7 +321,16 @@
           method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ staffId: f.staffId.value, setupCode: f.setupCode.value, email: f.email.value, password: f.password.value }),
         }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'ตั้งรหัสไม่สำเร็จ'); return j; }); })
-          .then(function () { loginMode = 'in'; return boot(); })
+          .then(function (j) {
+            loginMode = 'in';
+            return boot().then(function () {
+              okDialog({
+                title: 'ตั้งรหัสเรียบร้อย ยินดีต้อนรับ',
+                lines: ['อีเมล: ' + f.email.value.trim(), 'ครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย'],
+                note: 'ลืมรหัสผ่านเมื่อไหร่ ให้หัวหน้าทีมตั้งใหม่ให้ในหน้า "ทีม + รหัสผ่าน"',
+              });
+            });
+          })
           .catch(function (e) { renderLogin(e.message); });
       });
       return;
@@ -781,13 +819,24 @@
     if (bad.length) { toast('มีงานที่ยังไม่มีชื่อ', true); return; }
     var btn = $('#saveBtn');
     btn.disabled = true;
-    api('/tasks', 'POST', { tasks: drafts.map(function (d) {
+    var payload = drafts.map(function (d) {
       return { title: d.title, detail: d.detail, assignees: d.assignees, dueAt: d.dueAt, repeat: d.repeat, kpiId: d.kpiId, priority: d.priority ? 1 : 0 };
-    }) }).then(function (j) {
-      toast('บันทึกแล้ว ' + (j.ids || []).length + ' งาน');
+    });
+    api('/tasks', 'POST', { tasks: payload }).then(function (j) {
+      var n = (j.ids || []).length;
+      var noOwner = payload.filter(function (d) { return !d.assignees.length; }).length;
+      var noDate = payload.filter(function (d) { return !d.dueAt; }).length;
       S.tasks = null;
       drafts = [];
-      location.hash = '#/all';
+      okDialog({
+        title: 'บันทึกเข้าระบบแล้ว ' + n + ' งาน',
+        lines: payload.slice(0, 6).map(function (d) {
+          return d.title + (d.assignees.length ? ' → ' + d.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ') : ' → ยังไม่มอบหมาย');
+        }).concat(n > 6 ? ['และอีก ' + (n - 6) + ' งาน'] : []),
+        note: (noOwner ? noOwner + ' งานยังไม่มีคนรับ · ' : '') + (noDate ? noDate + ' งานยังไม่กำหนดวัน' : '') || 'มอบหมายและกำหนดวันครบทุกงาน',
+        link: { href: '#/all', label: 'ดูงานทั้งหมด' },
+        onClose: function () { location.hash = '#/all'; },
+      });
     }).catch(function (e) { btn.disabled = false; toast(e.message, true); });
   }
 
@@ -1054,12 +1103,29 @@
       var status = statusOverride || (chosenStatus && (chosenStatus !== cur || t.repeat) ? chosenStatus : null);
       if (!note && !status && !pendingFiles.length && !pendingLinks.length) { toast('ใส่บันทึก เลือกสถานะ หรือแนบไฟล์ก่อน', true); return; }
       $('#updBtn').disabled = true;
+      var nFile = pendingFiles.length, nLink = pendingLinks.length;
       api('/tasks/' + t.id + '/updates', 'POST', {
         note: note, status: status,
         files: pendingFiles.map(function (f) { return { fileName: f.fileName, dataUrl: f.dataUrl }; }),
         links: pendingLinks.map(function (l) { return { url: l.url, title: l.title }; }),
       })
-        .then(function () { toast('บันทึกแล้ว'); S.tasks = null; renderTask(t.id); })
+        .then(function () {
+          var lines = [];
+          if (status) lines.push('เปลี่ยนสถานะเป็น "' + STATUS_TH[status] + '"');
+          if (note) lines.push('บันทึก: ' + (note.length > 60 ? note.slice(0, 60) + '…' : note));
+          if (nFile) lines.push('แนบไฟล์ ' + nFile + ' ไฟล์');
+          if (nLink) lines.push('แนบลิงก์ ' + nLink + ' อัน');
+          var tagged = note ? S.staff.filter(function (x) {
+            return x.id !== S.me.id && new RegExp('@' + shortName(x), 'i').test(note);
+          }).map(shortName) : [];
+          S.tasks = null;
+          okDialog({
+            title: 'อัปเดตงานแล้ว',
+            lines: lines,
+            note: tagged.length ? 'แจ้งเตือนไปที่ ' + tagged.join(', ') + ' แล้ว' : 'ทีมเห็นในไทม์ไลน์ของงานนี้ทันที',
+            onClose: function () { renderTask(t.id); },
+          });
+        })
         .catch(function (e) { $('#updBtn').disabled = false; toast(e.message, true); });
     }
     $('#updForm').addEventListener('submit', function (ev) { ev.preventDefault(); submitUpdate(null); });
@@ -1079,7 +1145,7 @@
       var btn = this.querySelector('button');
       btn.disabled = true;
       api('/tasks', 'POST', { tasks: [{ title: title, parentId: t.id, kpiId: t.kpiId }] })
-        .then(function () { S.tasks = null; renderTask(t.id); })
+        .then(function () { S.tasks = null; toast('เพิ่มงานย่อย “' + title + '” แล้ว'); renderTask(t.id); })
         .catch(function (e) { btn.disabled = false; toast(e.message, true); });
     });
     $$('[data-subtoggle]').forEach(function (b) {
@@ -1107,7 +1173,10 @@
           title: f.title.value, detail: f.detail.value, dueAt: fromLocalInput(f.dueAt.value), repeat: f.repeat.value,
           kpiId: f.kpiId.value || null, priority: f.priority.checked ? 1 : 0,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
-        }).then(function () { toast('แก้ไขแล้ว'); S.tasks = null; renderTask(t.id); }).catch(function (e) { toast(e.message, true); });
+        }).then(function () {
+          S.tasks = null;
+          okDialog({ title: 'แก้ไขงานแล้ว', lines: ['ชื่องาน: ' + f.title.value], onClose: function () { renderTask(t.id); } });
+        }).catch(function (e) { toast(e.message, true); });
       });
       var delBtn = $('#delBtn');
       if (delBtn) delBtn.addEventListener('click', function () {
@@ -1308,8 +1377,20 @@
         channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
       };
       var req = isNew ? api('/posts', 'POST', { posts: [body] }) : api('/posts/' + post.id, 'PUT', body);
-      req.then(function () { close(); toast(isNew ? 'เพิ่มแล้ว' : 'บันทึกแล้ว'); renderPosts(); })
-        .catch(function (e) { toast(e.message, true); });
+      req.then(function () {
+        close();
+        var pg = (S.pages || []).filter(function (x) { return x.id === body.pageId; })[0];
+        okDialog({
+          title: isNew ? 'เพิ่มโพสต์เข้าตารางแล้ว' : 'บันทึกโพสต์แล้ว',
+          lines: [
+            (pg ? pg.name : '') + ' · ' + body.date + (body.time ? ' ' + body.time : ''),
+            body.topic ? (body.topic.length > 70 ? body.topic.slice(0, 70) + '…' : body.topic) : '(ยังไม่ใส่หัวข้อ)',
+            body.channels.length ? 'ช่องทาง: ' + body.channels.join(', ') : 'ยังไม่เลือกช่องทาง',
+          ],
+          note: body.url ? 'มีลิงก์แล้ว ระบบนับว่าโพสต์เรียบร้อย' : 'ยังไม่มีลิงก์ — พอโพสต์จริงแล้ววางลิงก์ในตารางได้เลย',
+          onClose: renderPosts,
+        });
+      }).catch(function (e) { toast(e.message, true); });
     });
   }
 
@@ -1417,16 +1498,35 @@
       if (f.newPassword.value) body.newPassword = f.newPassword.value;
       if (!body.email && !body.newPassword) { toast('ยังไม่ได้กรอกอีเมลหรือรหัสผ่านใหม่', true); return; }
       api('/me/password', 'PUT', body)
-        .then(function () { toast('บันทึกแล้ว'); f.reset(); return refreshMe(); })
-        .then(renderTeam)
+        .then(function () { f.reset(); return refreshMe(); })
+        .then(function () {
+          var lines = [];
+          if (body.email) lines.push('อีเมลใหม่: ' + body.email);
+          if (body.newPassword) lines.push('เปลี่ยนรหัสผ่านแล้ว');
+          okDialog({
+            title: 'บันทึกแล้ว',
+            lines: lines,
+            note: body.newPassword ? 'ครั้งหน้าใช้รหัสผ่านใหม่เข้าระบบ' : '',
+            onClose: renderTeam,
+          });
+        })
         .catch(function (e) { toast(e.message, true); });
     });
     var add = $('#addStaff');
     if (add) add.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var f = this;
-      api('/staff', 'POST', { name: f.name.value, aliases: f.aliases.value, pin: f.pin.value, role: f.role.value, email: f.email.value.trim() || null })
-        .then(function () { toast('เพิ่มแล้ว'); return refreshMe(); }).then(renderTeam).catch(function (e) { toast(e.message, true); });
+      var who = f.name.value, code = f.pin.value;
+      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null })
+        .then(function () { return refreshMe(); })
+        .then(function () {
+          okDialog({
+            title: 'เพิ่ม ' + who + ' เข้าทีมแล้ว',
+            lines: ['รหัสตั้งค่าของเขาคือ ' + code, 'ให้เขาเข้า admin.kan-hub.com/tasks/ แล้วกดแท็บ "ตั้งรหัสครั้งแรก"'],
+            note: 'รหัสนี้ใช้ได้ครั้งเดียว พอเขาตั้งรหัสผ่านเองแล้วจะใช้ไม่ได้อีก',
+            onClose: renderTeam,
+          });
+        }).catch(function (e) { toast(e.message, true); });
     });
     view.addEventListener('click', function (ev) {
       var b;
@@ -1435,7 +1535,15 @@
         var pin = prompt('รหัสตั้งค่าใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)\nให้เจ้าตัวเอาไปใช้ที่แท็บ "ตั้งรหัสครั้งแรก"');
         if (pin == null) return;
         api('/staff/' + s.id, 'PUT', { pin: pin, resetSetup: true })
-          .then(refreshMe).then(renderTeam).then(function () { toast('ตั้งรหัสตั้งค่าใหม่แล้ว — รหัสผ่านเดิมถูกล้าง'); })
+          .then(refreshMe)
+          .then(function () {
+            okDialog({
+              title: 'ตั้งรหัสตั้งค่าใหม่ให้ ' + s.name + ' แล้ว',
+              lines: ['รหัสตั้งค่า: ' + pin, 'รหัสผ่านเดิมถูกล้าง เขาต้องไปตั้งใหม่ที่แท็บ "ตั้งรหัสครั้งแรก"'],
+              note: 'ส่งรหัสนี้ให้เขาทางไลน์ได้เลย ใช้ได้ครั้งเดียว',
+              onClose: renderTeam,
+            });
+          })
           .catch(function (e) { toast(e.message, true); });
       } else if ((b = ev.target.closest('[data-pw-staff]'))) {
         var st2 = staffById(b.getAttribute('data-pw-staff'));
@@ -1443,7 +1551,15 @@
         var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเข้าระบบด้วยอีเมล ' + st2.email);
         if (pw == null) return;
         api('/staff/' + st2.id, 'PUT', { password: pw })
-          .then(refreshMe).then(renderTeam).then(function () { toast('ตั้งรหัสผ่านให้แล้ว'); })
+          .then(refreshMe)
+          .then(function () {
+            okDialog({
+              title: 'ตั้งรหัสผ่านให้ ' + st2.name + ' แล้ว',
+              lines: ['อีเมล: ' + st2.email, 'รหัสผ่าน: ' + pw],
+              note: 'ส่งให้เขาแล้วบอกให้เปลี่ยนเองในหน้า "ทีม + รหัสผ่าน"',
+              onClose: renderTeam,
+            });
+          })
           .catch(function (e) { toast(e.message, true); });
       } else if ((b = ev.target.closest('[data-active-staff]'))) {
         api('/staff/' + b.getAttribute('data-active-staff'), 'PUT', { active: b.getAttribute('data-to') === '1' })
@@ -1454,7 +1570,12 @@
         var aliases = prompt('ชื่อเรียกใน @ (คั่นด้วยจุลภาค)', st.aliases || ''); if (aliases == null) return;
         var email = prompt('อีเมลสำหรับเข้าระบบ (เว้นว่างได้)', st.email || ''); if (email == null) return;
         api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases, email: email.trim() })
-          .then(refreshMe).then(renderTeam).then(function () { toast('บันทึกแล้ว'); }).catch(function (e) { toast(e.message, true); });
+          .then(refreshMe)
+          .then(function () {
+            okDialog({ title: 'บันทึกข้อมูล ' + name + ' แล้ว',
+              lines: ['อีเมล: ' + (email.trim() || 'ยังไม่มี'), 'ชื่อเรียกใน @: ' + (aliases || '—')],
+              onClose: renderTeam });
+          }).catch(function (e) { toast(e.message, true); });
       }
     });
   }
@@ -1576,7 +1697,7 @@
     if (ev.key === 'Escape') {
       document.documentElement.classList.remove('erp-open');
       $('#lightbox').hidden = true;
-      var m = $('.modal'); if (m) m.remove();
+      var m = $('.modal'); if (m) { if (m._close) m._close(); else m.remove(); }
     }
     if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('[data-post-url]')) {
       ev.preventDefault(); savePostUrl(ev.target);
