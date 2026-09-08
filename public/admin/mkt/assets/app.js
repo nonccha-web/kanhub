@@ -68,8 +68,8 @@
     KAN.currentView = v.id;
 
     document.getElementById('crumb').innerHTML =
-      'KAN MKT <span style="color:#C6CFD4">/</span> ' + esc(v.group) +
-      ' <span style="color:#C6CFD4">/</span> <b>' + esc(v.title) + '</b>';
+      'KAN Admin <span style="color:var(--muted)">/</span> ' + esc(v.group) +
+      ' <span style="color:var(--muted)">/</span> <b>' + esc(v.title) + '</b>';
     document.getElementById('pageTitle').textContent = v.title;
     document.getElementById('pageLead').textContent = v.lead || '';
 

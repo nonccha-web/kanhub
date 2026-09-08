@@ -745,6 +745,7 @@
       };
       this._ctx = ctx;
       var ideas = KAN.suggest(ctx);
+      if (global.KAN_TASKADD) { global.KAN_TASKADD.reset(); }
 
       var h = '';
       h += '<div class="scope"><div>ขอบเขต: <b>' + esc(KAN.scopeLabel()) + '</b> · ' +
@@ -781,6 +782,16 @@
             '<div class="prob"><b>ทำไมถึงเสนอแบบนี้</b>' + esc(s.why) + '</div>' +
             '<div class="rec"><b>ลงมือยังไง</b>' + esc(s.action) + '</div>' +
             '<div class="prob"><b>คาดว่าจะได้อะไร</b>' + esc(s.expect) + '</div>' +
+            /* ดันข้อเสนอนี้เข้าระบบงานทีมได้เลย ไม่ต้องพิมพ์ใหม่ */
+            (global.KAN_TASKADD ? '<div class="actfoot">' + global.KAN_TASKADD.btn({
+              title: s.title,
+              detail: 'ขอบเขต: ' + s.scope + ' · ' + range.label +
+                '\n\nทำไมถึงเสนอแบบนี้\n' + s.why +
+                '\n\nลงมือยังไง\n' + s.action +
+                '\n\nคาดว่าจะได้อะไร\n' + s.expect +
+                '\n\n(มาจากหน้า “ข้อเสนอโปรโมชัน” ในแดชบอร์ดยอดขาย)',
+              guess: s.title + ' ' + s.why + ' ' + s.action + ' ' + s.tag,
+            }) + '</div>' : '') +
             '</div>';
         }).join('') + '</div>'
           : UI.empty('ยังไม่พบจุดที่คุ้มจะจัดโปรในช่วงนี้ — ตัวเลขทุกด้านอยู่ในเกณฑ์ปกติ'),

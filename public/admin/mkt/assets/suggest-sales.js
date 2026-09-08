@@ -142,6 +142,7 @@
     if (!A.promos || !A.promos.length) {
       return UI.empty('เดือนนี้ไม่มีจุดที่เข้าเงื่อนไขพอจะเสนอโปร');
     }
+    if (global.KAN_TASKADD) { global.KAN_TASKADD.reset(); }
     return '<div class="actions">' + A.promos.map(function (s, i) {
       return '<div class="act ' + s.tone + '">' +
         '<div class="no"><span>P' + (i + 1) + '</span>' +
@@ -154,6 +155,14 @@
         '<div class="rec"><b>โปรที่แนะนำ</b>' + esc(s.action) + '</div>' +
         '<div class="prob"><b>ประเมินผลลัพธ์</b>' + esc(s.expect) + '</div>' +
         '<div class="src2">ที่มา: ' + esc(s.src) + '</div>' +
+        (global.KAN_TASKADD ? '<div class="actfoot">' + global.KAN_TASKADD.btn({
+          title: s.title,
+          detail: 'เห็นอะไรในใบเสร็จ\n' + s.why +
+            '\n\nโปรที่แนะนำ\n' + s.action +
+            '\n\nประเมินผลลัพธ์\n' + s.expect +
+            '\n\nที่มา: ' + s.src + ' (หน้า “โปรรายสาขา” ในแดชบอร์ดยอดขาย)',
+          guess: s.title + ' ' + s.why + ' ' + s.action + ' ' + s.tag,
+        }) + '</div>' : '') +
         '</div>';
     }).join('') + '</div>';
   }

@@ -43,6 +43,17 @@ const SCHEMA = [
   /* กันเดา PIN — หน้า /admin ยังเปิดสาธารณะ PIN 4 หลักเดาหมดได้ใน 10,000 ครั้ง */
   "CREATE TABLE IF NOT EXISTS task_logins (" +
     "staff_id TEXT PRIMARY KEY, fails INTEGER NOT NULL DEFAULT 0, locked_until TEXT)",
+  /* แท็กคนในคอมเมนต์ → กระดิ่งแจ้งเตือนของคนนั้น */
+  "CREATE TABLE IF NOT EXISTS task_mentions (" +
+    "id TEXT PRIMARY KEY, task_id TEXT NOT NULL, update_id TEXT NOT NULL, staff_id TEXT NOT NULL, " +
+    "by_staff TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, read_at TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_task_mentions_staff ON task_mentions(staff_id, read_at)",
+];
+
+/* คอลัมน์ที่เพิ่มทีหลัง — ตารางมีข้อมูลจริงแล้ว CREATE TABLE IF NOT EXISTS ไม่เติมให้
+   รันซ้ำจะได้ error "duplicate column" ซึ่งกลืนทิ้งได้ */
+const ALTERS = [
+  "ALTER TABLE tasks ADD COLUMN parent_id TEXT",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -62,11 +73,11 @@ const KPI_SEED = [
   { id: "kpi3", sort: 3, code: "KPI 3", weight: 15, color: "#7A5CF0",
     title: "CRM / Retention / Repeat Purchase",
     target: "Company Churn <= 35% · Segmentation New/Active/VIP/At-risk · Loyalty / Win-back วัดผลได้",
-    keywords: "vip,ส่วนลด,สะสม,crm,retention,repeat,win-back,loyalty,privilege,ซื้อซ้ำ" },
+    keywords: "vip,สะสม,crm,retention,repeat,win-back,loyalty,privilege,ซื้อซ้ำ,ลูกค้าเก่า,หายไป,คูปอง,สมาชิกเดิม,ดึงกลับ" },
   { id: "kpi4", sort: 4, code: "KPI 4", weight: 15, color: "#B8820A",
     title: "Basket Size / Spend per Customer / Customer Value",
     target: "Average Basket · Spend per Visit · Purchase Frequency · Cross-category โตจากฐานปี 2569",
-    keywords: "basket,ตะกร้า,cross,upsell,ยอดต่อบิล,ต่อบิล,spend" },
+    keywords: "basket,ตะกร้า,cross,upsell,ยอดต่อบิล,ต่อบิล,spend,บิล,ซื้อครบ,มัธยฐาน,ยอดเฉลี่ย,พ่วง,จับคู่" },
   { id: "kpi5", sort: 5, code: "KPI 5", weight: 20, color: "#0E9BA8",
     title: "New Sales Channel & New S-Curve Development",
     target: "Scale >= 3 ช่องทาง/ปี ผ่าน Explore → Business Case → Pilot → Measure → Scale · 1 ช่องทางเป็น New S-Curve >= 20% ของรายได้",
@@ -138,6 +149,9 @@ async function ensureSchema(db) {
   if (!schemaReady) {
     schemaReady = (async () => {
       await db.batch(SCHEMA.map((s) => db.prepare(s)));
+      for (const sql of ALTERS) {
+        try { await db.prepare(sql).run(); } catch (e) { /* มีคอลัมน์อยู่แล้ว */ }
+      }
       const k = await db.prepare("SELECT COUNT(*) AS n FROM kpis").first();
       if (!k || !k.n) {
         await db.batch(KPI_SEED.map((r) => db.prepare(
@@ -219,6 +233,9 @@ function rowToTask(r) {
     nFiles: r.n_files || 0,
     nUpdates: r.n_updates || 0,
     lastUpdate: r.last_update || null,
+    parentId: r.parent_id || null,
+    nSub: r.n_sub || 0,
+    nSubDone: r.n_sub_done || 0,
   };
 }
 
@@ -227,7 +244,9 @@ const TASK_SELECT =
   "(SELECT GROUP_CONCAT(staff_id) FROM task_assignees a WHERE a.task_id = t.id) AS assignee_ids, " +
   "(SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id) AS n_files, " +
   "(SELECT COUNT(*) FROM task_updates u WHERE u.task_id = t.id) AS n_updates, " +
-  "(SELECT MAX(created_at) FROM task_updates u WHERE u.task_id = t.id) AS last_update " +
+  "(SELECT MAX(created_at) FROM task_updates u WHERE u.task_id = t.id) AS last_update, " +
+  "(SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id) AS n_sub, " +
+  "(SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id AND c.status = 'done') AS n_sub_done " +
   "FROM tasks t ";
 
 const TASK_ORDER =
@@ -251,7 +270,8 @@ function cleanTask(input, kpiIds, staffIds) {
   const assignees = Array.isArray(input.assignees)
     ? Array.from(new Set(input.assignees.filter((id) => staffIds.has(id)))).slice(0, 20)
     : [];
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees } };
+  const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
+  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId } };
 }
 
 async function loadIdSets(db) {
@@ -261,6 +281,31 @@ async function loadIdSets(db) {
     kpiIds: new Set((k.results || []).map((r) => r.id)),
     staffIds: new Set((s.results || []).map((r) => r.id)),
   };
+}
+
+/* หา @ชื่อ ในคอมเมนต์ — เทียบกับชื่อจริงและ aliases เหมือนฝั่งหน้าเว็บ
+   คืนรายการ staff_id ที่ถูกแท็ก (ไม่ซ้ำ, ไม่รวมตัวเอง) */
+function findMentions(text, staffRows, meId) {
+  const norm = (x) => String(x || "").toLowerCase().replace(/[.,:;()[\]"'“”]/g, "").trim();
+  const tokensOf = (r) => {
+    const set = new Set();
+    String(r.name).split(/\s+/).forEach((x) => { const n = norm(x); if (n) set.add(n); });
+    String(r.aliases || "").split(",").forEach((x) => { const n = norm(x); if (n) set.add(n); });
+    return set;
+  };
+  const table = staffRows.map((r) => ({ id: r.id, set: tokensOf(r) }));
+  const out = [];
+  const words = String(text || "").split(/\s+/);
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].charAt(0) !== "@") continue;
+    let key = norm(words[i].slice(1));
+    if (!key && words[i + 1]) { key = norm(words[i + 1]); i++; }
+    if (!key) continue;
+    let hit = table.find((r) => r.set.has(key));
+    if (!hit) hit = table.find((r) => Array.from(r.set).some((k) => k.length >= 3 && (k.startsWith(key) || key.startsWith(k))));
+    if (hit && hit.id !== meId && out.indexOf(hit.id) === -1) out.push(hit.id);
+  }
+  return out;
 }
 
 function parseDataUrl(dataUrl) {
@@ -336,6 +381,52 @@ export async function handleTaskApi(request, env, url, path, method) {
       me: publicStaff(me),
       staff: (staff.results || []).map(publicStaff),
       kpis: (kpis.results || []),
+    });
+  }
+
+  /* กระดิ่ง — คอมเมนต์ที่แท็กเรา */
+  if (path === "/notifications" && method === "GET") {
+    const res = await db.prepare(
+      "SELECT m.id, m.task_id, m.note, m.created_at, m.read_at, m.by_staff, t.title " +
+      "FROM task_mentions m LEFT JOIN tasks t ON t.id = m.task_id " +
+      "WHERE m.staff_id = ? ORDER BY m.created_at DESC LIMIT 60"
+    ).bind(me.id).all();
+    const rows = res.results || [];
+    return json({
+      unread: rows.filter((r) => !r.read_at).length,
+      items: rows.map((r) => ({
+        id: r.id, taskId: r.task_id, taskTitle: r.title || "(งานถูกลบแล้ว)", note: r.note,
+        byStaff: r.by_staff, createdAt: r.created_at, read: !!r.read_at,
+      })),
+    });
+  }
+
+  if (path === "/notifications/read" && method === "POST") {
+    const body = await readBody(request);
+    const now = nowIso();
+    if (body.id) {
+      await db.prepare("UPDATE task_mentions SET read_at = ? WHERE id = ? AND staff_id = ? AND read_at IS NULL")
+        .bind(now, String(body.id), me.id).run();
+    } else {
+      await db.prepare("UPDATE task_mentions SET read_at = ? WHERE staff_id = ? AND read_at IS NULL").bind(now, me.id).run();
+    }
+    return json({ ok: true });
+  }
+
+  /* พื้นที่ที่รูปกินไปจริง — D1 เก็บ base64 ขนาดบนดิสก์จึงมากกว่าไฟล์ต้นฉบับราว 1.33 เท่า */
+  if (path === "/storage" && method === "GET") {
+    const f = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS b FROM task_files").first();
+    let camp = { n: 0, b: 0 };
+    try { camp = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS b FROM attachments").first(); } catch (e) {}
+    const raw = (f.b || 0) + (camp.b || 0);
+    return json({
+      taskFiles: f.n || 0,
+      campaignFiles: camp.n || 0,
+      rawBytes: raw,
+      storedBytes: Math.round(raw * 4 / 3),   // base64
+      limitFreeBytes: 500 * 1024 * 1024,      // D1 ฟรี: 500MB ต่อฐานข้อมูล
+      limitPaidBytes: 10 * 1024 * 1024 * 1024, // D1 เสียเงิน: 10GB ต่อฐานข้อมูล
+      maxPerFileBytes: MAX_FILE_BYTES,
     });
   }
 
@@ -441,6 +532,9 @@ export async function handleTaskApi(request, env, url, path, method) {
     const status = url.searchParams.get("status");
     if (status === "open") where.push("t.status != 'done'");
     else if (status === "done") where.push("t.status = 'done'");
+    /* หน้ารายการโชว์เฉพาะงานหลัก งานย่อยไปโผล่ในหน้ารายละเอียดของพ่อแม่แทน
+       เว้นแต่ขอ sub=1 (เช่นหน้า "งานของฉัน" ที่ต้องเห็นงานย่อยที่มอบให้ตัวเอง) */
+    if (url.searchParams.get("sub") !== "1") where.push("t.parent_id IS NULL");
     const sql = TASK_SELECT + (where.length ? "WHERE " + where.join(" AND ") : "") + TASK_ORDER;
     const res = await db.prepare(sql).bind(...binds).all();
     return json({ tasks: (res.results || []).map(rowToTask) });
@@ -462,10 +556,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
-             v.status === "done" ? now : null));
+             v.status === "done" ? now : null, v.parentId));
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -493,8 +587,16 @@ export async function handleTaskApi(request, env, url, path, method) {
       const files = await db.prepare(
         "SELECT id,update_id,file_name,mime,bytes,created_at FROM task_files WHERE task_id = ? ORDER BY created_at ASC"
       ).bind(id).all();
+      const subs = await db.prepare(TASK_SELECT + "WHERE t.parent_id = ?" + TASK_ORDER).bind(id).all();
+      let parent = null;
+      if (task.parentId) {
+        const pr = await db.prepare("SELECT id, title FROM tasks WHERE id = ?").bind(task.parentId).first();
+        if (pr) parent = { id: pr.id, title: pr.title };
+      }
       return json({
         task,
+        parent,
+        subtasks: (subs.results || []).map(rowToTask),
         updates: (ups.results || []).map((u) => ({
           id: u.id, staffId: u.staff_id, kind: u.kind, note: u.note || "", statusTo: u.status_to || null, createdAt: u.created_at,
         })),
@@ -555,13 +657,19 @@ export async function handleTaskApi(request, env, url, path, method) {
 
     if (!sub && method === "DELETE") {
       if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
-      await db.batch([
-        db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(id),
-        db.prepare("DELETE FROM task_updates WHERE task_id = ?").bind(id),
-        db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
-        db.prepare("DELETE FROM tasks WHERE id = ?").bind(id),
-      ]);
-      return json({ ok: true });
+      /* ลบงานหลัก = ลบงานย่อยของมันด้วย ไม่งั้นงานย่อยลอยหาพ่อแม่ไม่เจอ */
+      const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(id).all();
+      const ids = [id].concat((kids.results || []).map((r) => r.id));
+      const stmts = [];
+      for (const tid of ids) {
+        stmts.push(db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_updates WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_mentions WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
+      }
+      await db.batch(stmts);
+      return json({ ok: true, deleted: ids.length });
     }
 
     if (sub === "/updates" && method === "POST") {
@@ -589,6 +697,16 @@ export async function handleTaskApi(request, env, url, path, method) {
           "INSERT INTO task_files (id,task_id,update_id,file_name,mime,bytes,data,created_at) VALUES (?,?,?,?,?,?,?,?)"
         ).bind(fid, id, uid, String((f && f.fileName) || "photo.jpg").slice(0, 160), parsed.mime, parsed.bytes, parsed.b64, now));
       }
+      /* @ชื่อ ในคอมเมนต์ → เข้ากระดิ่งของคนนั้น */
+      if (note) {
+        const all = await db.prepare("SELECT id,name,aliases FROM staff WHERE active = 1").all();
+        for (const sid of findMentions(note, all.results || [], me.id)) {
+          stmts.push(db.prepare(
+            "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+          ).bind(newId("m_"), id, uid, sid, me.id, note.slice(0, 300), now));
+        }
+      }
+
       /* งานประจำกดเสร็จซ้ำได้ทุกวัน — ต้องเขียน done_at ใหม่ ไม่งั้นหน้าเว็บนึกว่ายังเป็นรอบเก่า */
       if (status && (status !== task.status || (task.repeat && status === "done"))) {
         stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=? WHERE id=?")

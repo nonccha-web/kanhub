@@ -3,7 +3,7 @@
    แก้ดีไซน์ที่ไฟล์นี้ที่เดียว มีผลทุกหน้า
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap');
-@import url('../assets/erp-shell.css?v=1');   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar + แถบบน */
+@import url('../assets/erp-shell.css?v=2');   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar + แถบบน */
 
 :root {
   /* พื้น/กระดาษ/เส้น ชุดเดียวกับ M CRM (ดู ../assets/erp-shell.css) · สี accent ของ KAN คงเดิม */

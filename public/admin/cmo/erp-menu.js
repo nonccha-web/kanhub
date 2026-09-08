@@ -48,6 +48,7 @@
       /* ระบบมอบหมายงาน — ทีมเข้าด้วยชื่อ+PIN ทำงานของตัวเอง อัปเดตรูป · ข้อมูลอยู่ D1 ผ่าน /api/t/* */
       { icon: 'clipboard', label: 'งานทีม (Task)', items: [
         { icon: 'user',      label: 'งานของฉัน',  tasks: '#/me' },
+        { icon: 'bell',      label: 'แจ้งเตือน',   tasks: '#/inbox', badge: 'mentions' },
         { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
         { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' },
         { icon: 'trophy',    label: 'KPI 2570',   tasks: '#/kpi' },
@@ -169,6 +170,7 @@
     alert:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
     compass:'<circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/>',
     user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    bell:'<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/>',
     panel:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/>'
   };
   function svgIco(n){ var p = ICONS[n]; return p ? '<svg class="erp-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>' : esc(n); }

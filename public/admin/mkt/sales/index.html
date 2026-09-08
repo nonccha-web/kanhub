@@ -3,12 +3,19 @@
 <head>
 <meta charset="utf-8">
 <link rel="icon" href="../../assets/favicon.png">
+<script>
+/* ธีม + สถานะย่อเมนู ต้องตั้งก่อนวาดหน้า (ค่าเดียวกับหน้าอื่นในหลังบ้าน) */
+try {
+  if (localStorage.getItem('kan-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  if (localStorage.getItem('kan-erp-collapsed') === '1') document.documentElement.classList.add('erp-collapsed');
+} catch (e) {}
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>แดชบอร์ดยอดขาย — KAN MKT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/app.css?v=24">
+<link rel="stylesheet" href="../assets/app.css?v=26">
 <style>
   /* หน้านี้เป็นเปลือก: sidebar เดียวกับทั้งระบบ + แดชบอร์ดฝ่ายขายเต็มจอใน iframe */
   main.dash{padding:0;display:flex;min-width:0}
@@ -26,7 +33,7 @@
     <iframe id="dash" src="dashboard.html" title="แดชบอร์ดยอดขายฝ่ายขาย"></iframe>
   </main>
 </div>
-<script src="../../cmo/erp-menu.js?v=24"></script>
+<script src="../../cmo/erp-menu.js?v=26"></script>
 <script>
 (function () {
   'use strict';
