@@ -7,8 +7,11 @@ const COOKIE = "kan_tsess";
 const SESSION_DAYS = 30;
 const STATUSES = ["todo", "doing", "done", "blocked"];
 const REPEATS = ["", "daily", "weekly"];
-const MAX_FILE_BYTES = 1200000; // ~1.2MB ต่อรูป (หลังย่อแล้ว)
+/* D1 เก็บ 1 แถวได้ไม่เกิน 2MB และเราเก็บเป็น base64 (โต 4/3) → ไฟล์จริงจึงได้ราว 1.4MB
+   1.35MB คือเพดานที่เหลือที่ว่างให้คอลัมน์อื่น · ไฟล์ใหญ่กว่านี้ (วิดีโอ) ให้แนบเป็นลิงก์แทน */
+const MAX_FILE_BYTES = 1350000;
 const MAX_FILES_PER_UPDATE = 6;
+const MAX_LINKS_PER_UPDATE = 6;
 const MAX_BULK_TASKS = 60;
 
 /* ---------- schema ---------- */
@@ -54,6 +57,15 @@ const SCHEMA = [
    รันซ้ำจะได้ error "duplicate column" ซึ่งกลืนทิ้งได้ */
 const ALTERS = [
   "ALTER TABLE tasks ADD COLUMN parent_id TEXT",
+  /* ล็อกอินด้วยอีเมล+รหัสผ่าน (ทีมตั้งเอง) — ของเดิมคือชื่อ+PIN ซึ่งกลายเป็น "รหัสตั้งค่าครั้งแรก" */
+  "ALTER TABLE staff ADD COLUMN email TEXT",
+  "ALTER TABLE staff ADD COLUMN pw_salt TEXT",
+  "ALTER TABLE staff ADD COLUMN pw_hash TEXT",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_email ON staff(email) WHERE email IS NOT NULL",
+  /* แนบได้ทั้งไฟล์และลิงก์ — ของเดิมรับแต่รูป */
+  "ALTER TABLE task_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'file'",
+  "ALTER TABLE task_files ADD COLUMN url TEXT",
+  "ALTER TABLE task_files ADD COLUMN title TEXT",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -93,6 +105,7 @@ const STAFF_SEED = [
   { id: "s_nont", name: "Nont Chawan", aliases: "Nont,นนท์,Chawan", role: "owner" },
   { id: "s_julalak", name: "Julalak Krongkheaw", aliases: "Julalak,Krongkheaw", role: "member" },
   { id: "s_title", name: "Title Thitima S.", aliases: "Title,Thitima", role: "member" },
+  { id: "s_pizza", name: "Pizza", aliases: "Pizza,พิซซ่า", role: "member" },
 ];
 const SEED_PIN = "1234";
 
@@ -113,6 +126,27 @@ function randHex(n) {
 }
 async function sha256Hex(str) {
   return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)));
+}
+
+/* รหัสผ่านของคนใช้ PBKDF2 ไม่ใช่ SHA-256 เปล่า — ตัวหลังเดาด้วยการ์ดจอได้เร็วเกินไป
+   (PIN 4 หลักยังใช้ sha256 ได้เพราะมีล็อกหลังผิด 5 ครั้งคุมอยู่ และเป็นรหัสชั่วคราว) */
+const PBKDF2_ITER = 100000;
+async function pbkdf2Hex(password, salt) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: new TextEncoder().encode(salt), iterations: PBKDF2_ITER, hash: "SHA-256" },
+    key, 256
+  );
+  return hex(bits);
+}
+function normEmail(v) {
+  return String(v || "").trim().toLowerCase();
+}
+function validEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normEmail(v)) && normEmail(v).length <= 160;
+}
+function validPassword(v) {
+  return typeof v === "string" && v.length >= 8 && v.length <= 200;
 }
 async function hmacHex(secret, msg) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
@@ -211,7 +245,10 @@ async function currentStaff(request, db) {
   return row;
 }
 function publicStaff(r) {
-  return { id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active };
+  return {
+    id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
+    email: r.email || null, hasPassword: !!r.pw_hash,
+  };
 }
 
 /* ---------- rows → JSON ---------- */
@@ -308,15 +345,27 @@ function findMentions(text, staffRows, meId) {
   return out;
 }
 
-function parseDataUrl(dataUrl) {
-  const m = String(dataUrl || "").match(/^data:([\w/+.-]+);base64,(.+)$/);
+function parseDataUrl(dataUrl, fileName) {
+  const m = String(dataUrl || "").match(/^data:([\w/+.-]*);base64,(.+)$/);
   if (!m) return { error: "ไฟล์ไม่ถูกต้อง" };
-  const mime = m[1];
+  const mime = m[1] || "application/octet-stream";
   const b64 = m[2];
-  if (mime.indexOf("image/") !== 0) return { error: "รับเฉพาะไฟล์รูป" };
   const bytes = Math.floor((b64.length * 3) / 4);
-  if (bytes > MAX_FILE_BYTES) return { error: "รูปใหญ่เกินไป (เกิน 1.2MB หลังย่อ)" };
+  if (bytes > MAX_FILE_BYTES) {
+    return { error: "ไฟล์ “" + String(fileName || "").slice(0, 40) + "” ใหญ่เกิน " +
+      (MAX_FILE_BYTES / 1048576).toFixed(1) + " MB — ถ้าเป็นวิดีโอหรือไฟล์ใหญ่ ให้อัปขึ้น Drive แล้ววางลิงก์แทน" };
+  }
   return { mime, b64, bytes };
+}
+
+/* ลิงก์: รับเฉพาะ http/https กัน javascript: กับ data: ที่เอาไปทำ XSS ต่อได้ */
+function cleanLink(input) {
+  const url = String((input && input.url) || "").trim();
+  if (!/^https?:\/\//i.test(url) || url.length > 2000) return { error: "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://" };
+  let host = "";
+  try { host = new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return { error: "ลิงก์ไม่ถูกต้อง" }; }
+  const title = String((input && input.title) || "").trim().slice(0, 200) || host;
+  return { url, title, host };
 }
 
 /* ---------- main router ---------- */
@@ -327,16 +376,88 @@ export async function handleTaskApi(request, env, url, path, method) {
 
   /* --- public: รายชื่อสำหรับหน้าล็อกอิน --- */
   if (path === "/login" && method === "GET") {
-    const res = await db.prepare("SELECT id,name,role FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
-    return json({ staff: (res.results || []).map((r) => ({ id: r.id, name: r.name, role: r.role })) });
+    const res = await db.prepare("SELECT id,name,role,pw_hash FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
+    return json({
+      staff: (res.results || []).map((r) => ({ id: r.id, name: r.name, role: r.role, hasPassword: !!r.pw_hash })),
+    });
+  }
+
+  /* ตั้งรหัสครั้งแรก: เลือกชื่อ + ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่านของตัวเอง */
+  if (path === "/setup" && method === "POST") {
+    const body = await readBody(request);
+    const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(String(body.staffId || "")).first();
+    if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 404);
+
+    const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
+    if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
+      const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
+      return json({ error: "ใส่รหัสผิดหลายครั้ง ลองใหม่ในอีก " + wait + " นาที" }, 429);
+    }
+    const codeHash = await sha256Hex(row.pin_salt + ":" + String(body.setupCode || ""));
+    if (codeHash !== row.pin_hash) {
+      const fails = ((gate && gate.fails) || 0) + 1;
+      const lockedUntil = fails >= MAX_PIN_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60000).toISOString() : null;
+      await db.prepare(
+        "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
+        "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
+      ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
+      return json({ error: lockedUntil ? "ใส่รหัสผิดหลายครั้ง ล็อก " + LOCK_MINUTES + " นาที"
+        : "รหัสตั้งค่าไม่ถูกต้อง (เหลืออีก " + (MAX_PIN_FAILS - fails) + " ครั้ง)" }, lockedUntil ? 429 : 401);
+    }
+
+    const email = normEmail(body.email);
+    if (!validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
+    if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
+    const taken = await db.prepare("SELECT id FROM staff WHERE email = ? AND id != ?").bind(email, row.id).first();
+    if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
+
+    const salt = randHex(16);
+    const hash = await pbkdf2Hex(body.password, salt);
+    await db.batch([
+      db.prepare("UPDATE staff SET email = ?, pw_salt = ?, pw_hash = ? WHERE id = ?").bind(email, salt, hash, row.id),
+      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id),
+    ]);
+    const fresh = await db.prepare("SELECT * FROM staff WHERE id = ?").bind(row.id).first();
+    const tok = await makeSession(db, row.id);
+    return json({ ok: true, me: publicStaff(fresh) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
   }
 
   if (path === "/login" && method === "POST") {
     const body = await readBody(request);
     const staffId = String(body.staffId || "");
     const pin = String(body.pin || "");
+
+    /* ทางหลัก: อีเมล + รหัสผ่านที่ทีมตั้งเอง */
+    if (body.email) {
+      const email = normEmail(body.email);
+      const row = await db.prepare("SELECT * FROM staff WHERE email = ? AND active = 1").bind(email).first();
+      const fail = json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" }, 401);
+      if (!row || !row.pw_hash) return fail;
+
+      const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
+      if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
+        const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
+        return json({ error: "ใส่รหัสผิดหลายครั้ง ลองใหม่ในอีก " + wait + " นาที" }, 429);
+      }
+      const hash = await pbkdf2Hex(String(body.password || ""), row.pw_salt);
+      if (hash !== row.pw_hash) {
+        const fails = ((gate && gate.fails) || 0) + 1;
+        const lockedUntil = fails >= MAX_PIN_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60000).toISOString() : null;
+        await db.prepare(
+          "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
+          "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
+        ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
+        return lockedUntil ? json({ error: "ใส่รหัสผิด " + MAX_PIN_FAILS + " ครั้ง ล็อก " + LOCK_MINUTES + " นาที" }, 429) : fail;
+      }
+      if (gate) await db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id).run();
+      const tok = await makeSession(db, row.id);
+      return json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
+    }
+
+    /* ทางสำรอง: ชื่อ + รหัสตั้งค่า — ใช้ได้เฉพาะคนที่ยังไม่ได้ตั้งรหัสผ่าน */
     const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
     if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
+    if (row.pw_hash) return json({ error: "บัญชีนี้ตั้งรหัสผ่านแล้ว ให้เข้าด้วยอีเมล", needEmail: true }, 409);
 
     /* ถูกล็อกอยู่หรือเปล่า — ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
     const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
@@ -375,7 +496,7 @@ export async function handleTaskApi(request, env, url, path, method) {
   const isOwner = me.role === "owner";
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     return json({
       me: publicStaff(me),
@@ -415,7 +536,7 @@ export async function handleTaskApi(request, env, url, path, method) {
 
   /* พื้นที่ที่รูปกินไปจริง — D1 เก็บ base64 ขนาดบนดิสก์จึงมากกว่าไฟล์ต้นฉบับราว 1.33 เท่า */
   if (path === "/storage" && method === "GET") {
-    const f = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS b FROM task_files").first();
+    const f = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS b FROM task_files WHERE kind != 'link'").first();
     let camp = { n: 0, b: 0 };
     try { camp = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(bytes),0) AS b FROM attachments").first(); } catch (e) {}
     const raw = (f.b || 0) + (camp.b || 0);
@@ -428,6 +549,34 @@ export async function handleTaskApi(request, env, url, path, method) {
       limitPaidBytes: 10 * 1024 * 1024 * 1024, // D1 เสียเงิน: 10GB ต่อฐานข้อมูล
       maxPerFileBytes: MAX_FILE_BYTES,
     });
+  }
+
+  /* เปลี่ยนรหัสผ่านของตัวเอง (และตั้ง/เปลี่ยนอีเมลได้ในตัว) */
+  if (path === "/me/password" && method === "PUT") {
+    const body = await readBody(request);
+    const row = await db.prepare("SELECT * FROM staff WHERE id = ?").bind(me.id).first();
+    if (!row.pw_hash) return json({ error: "ยังไม่ได้ตั้งรหัสผ่าน ให้ใช้หน้าตั้งรหัสครั้งแรก" }, 400);
+    const cur = await pbkdf2Hex(String(body.password || ""), row.pw_salt);
+    if (cur !== row.pw_hash) return json({ error: "รหัสผ่านเดิมไม่ถูกต้อง" }, 400);
+
+    const sets = [], vals = [];
+    if (body.email != null) {
+      const email = normEmail(body.email);
+      if (!validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
+      const taken = await db.prepare("SELECT id FROM staff WHERE email = ? AND id != ?").bind(email, me.id).first();
+      if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
+      sets.push("email = ?"); vals.push(email);
+    }
+    if (body.newPassword != null) {
+      if (!validPassword(body.newPassword)) return json({ error: "รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัว" }, 400);
+      const salt = randHex(16);
+      sets.push("pw_salt = ?"); vals.push(salt);
+      sets.push("pw_hash = ?"); vals.push(await pbkdf2Hex(body.newPassword, salt));
+    }
+    if (!sets.length) return json({ error: "ไม่มีอะไรให้แก้" }, 400);
+    vals.push(me.id);
+    await db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+    return json({ ok: true });
   }
 
   if (path === "/me/pin" && method === "PUT") {
@@ -451,15 +600,21 @@ export async function handleTaskApi(request, env, url, path, method) {
     const body = await readBody(request);
     const name = String(body.name || "").trim().slice(0, 120);
     if (!name) return json({ error: "ต้องมีชื่อ" }, 400);
-    if (!validPin(body.pin)) return json({ error: "PIN ต้องเป็นตัวเลข 4–8 หลัก" }, 400);
+    if (!validPin(body.pin)) return json({ error: "รหัสตั้งค่าต้องเป็นตัวเลข 4–8 หลัก" }, 400);
     const role = body.role === "owner" ? "owner" : "member";
     const aliases = String(body.aliases || "").trim().slice(0, 200);
+    const email = body.email ? normEmail(body.email) : null;
+    if (email && !validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
+    if (email) {
+      const taken = await db.prepare("SELECT id FROM staff WHERE email = ?").bind(email).first();
+      if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
+    }
     const id = newId("s_");
     const salt = randHex(8);
     const hash = await sha256Hex(salt + ":" + body.pin);
     await db.prepare(
-      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at) VALUES (?,?,?,?,?,?,1,?)"
-    ).bind(id, name, aliases, role, salt, hash, nowIso()).run();
+      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email) VALUES (?,?,?,?,?,?,1,?,?)"
+    ).bind(id, name, aliases, role, salt, hash, nowIso(), email).run();
     return json({ id });
   }
 
@@ -487,10 +642,31 @@ export async function handleTaskApi(request, env, url, path, method) {
       sets.push("active = ?"); vals.push(body.active ? 1 : 0);
     }
     if (body.pin != null) {
-      if (!validPin(body.pin)) return json({ error: "PIN ต้องเป็นตัวเลข 4–8 หลัก" }, 400);
+      if (!validPin(body.pin)) return json({ error: "รหัสตั้งค่าต้องเป็นตัวเลข 4–8 หลัก" }, 400);
       const salt = randHex(8);
       sets.push("pin_salt = ?"); vals.push(salt);
       sets.push("pin_hash = ?"); vals.push(await sha256Hex(salt + ":" + body.pin));
+    }
+    if (body.email != null) {
+      const email = normEmail(body.email);
+      if (email && !validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
+      if (email) {
+        const taken = await db.prepare("SELECT id FROM staff WHERE email = ? AND id != ?").bind(email, id).first();
+        if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
+      }
+      sets.push("email = ?"); vals.push(email || null);
+    }
+    /* หัวหน้าตั้งรหัสผ่านให้เลย — ใช้ตอนลืมรหัส */
+    if (body.password != null) {
+      if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
+      const salt = randHex(16);
+      sets.push("pw_salt = ?"); vals.push(salt);
+      sets.push("pw_hash = ?"); vals.push(await pbkdf2Hex(body.password, salt));
+    }
+    /* หรือล้างรหัสผ่านทิ้ง ให้เจ้าตัวไปตั้งใหม่เองด้วยรหัสตั้งค่า */
+    if (body.resetSetup) {
+      sets.push("pw_hash = ?"); vals.push(null);
+      sets.push("pw_salt = ?"); vals.push(null);
     }
     if (!sets.length) return json({ error: "ไม่มีอะไรให้แก้" }, 400);
     vals.push(id);
@@ -585,7 +761,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         "SELECT id,staff_id,kind,note,status_to,created_at FROM task_updates WHERE task_id = ? ORDER BY created_at DESC"
       ).bind(id).all();
       const files = await db.prepare(
-        "SELECT id,update_id,file_name,mime,bytes,created_at FROM task_files WHERE task_id = ? ORDER BY created_at ASC"
+        "SELECT id,update_id,file_name,mime,bytes,created_at,kind,url,title FROM task_files WHERE task_id = ? ORDER BY created_at ASC"
       ).bind(id).all();
       const subs = await db.prepare(TASK_SELECT + "WHERE t.parent_id = ?" + TASK_ORDER).bind(id).all();
       let parent = null;
@@ -601,7 +777,8 @@ export async function handleTaskApi(request, env, url, path, method) {
           id: u.id, staffId: u.staff_id, kind: u.kind, note: u.note || "", statusTo: u.status_to || null, createdAt: u.created_at,
         })),
         files: (files.results || []).map((f) => ({
-          id: f.id, updateId: f.update_id || null, fileName: f.file_name, mime: f.mime, bytes: f.bytes, createdAt: f.created_at,
+          id: f.id, updateId: f.update_id || null, fileName: f.file_name, mime: f.mime, bytes: f.bytes,
+          createdAt: f.created_at, kind: f.kind || "file", url: f.url || null, title: f.title || null,
         })),
       });
     }
@@ -677,7 +854,8 @@ export async function handleTaskApi(request, env, url, path, method) {
       const note = String(body.note || "").trim().slice(0, 4000);
       const status = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
       const files = Array.isArray(body.files) ? body.files.slice(0, MAX_FILES_PER_UPDATE) : [];
-      if (!note && !status && !files.length) return json({ error: "ยังไม่ได้ใส่อะไรเลย" }, 400);
+      const links = Array.isArray(body.links) ? body.links.slice(0, MAX_LINKS_PER_UPDATE) : [];
+      if (!note && !status && !files.length && !links.length) return json({ error: "ยังไม่ได้ใส่อะไรเลย" }, 400);
       if (status && !(isOwner || mine || task.createdBy === me.id)) {
         return json({ error: "เปลี่ยนสถานะได้เฉพาะคนที่รับงานหรือหัวหน้า" }, 403);
       }
@@ -685,17 +863,27 @@ export async function handleTaskApi(request, env, url, path, method) {
       const uid = newId("u_");
       const stmts = [
         db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
-          .bind(uid, id, me.id, files.length ? "photo" : (status ? "status" : "note"), note, status, now),
+          .bind(uid, id, me.id, (files.length || links.length) ? "photo" : (status ? "status" : "note"), note, status, now),
       ];
       const fileIds = [];
       for (const f of files) {
-        const parsed = parseDataUrl(f && f.dataUrl);
+        const parsed = parseDataUrl(f && f.dataUrl, f && f.fileName);
         if (parsed.error) return json({ error: parsed.error }, 400);
         const fid = newId("f_");
         fileIds.push(fid);
         stmts.push(db.prepare(
-          "INSERT INTO task_files (id,task_id,update_id,file_name,mime,bytes,data,created_at) VALUES (?,?,?,?,?,?,?,?)"
-        ).bind(fid, id, uid, String((f && f.fileName) || "photo.jpg").slice(0, 160), parsed.mime, parsed.bytes, parsed.b64, now));
+          "INSERT INTO task_files (id,task_id,update_id,file_name,mime,bytes,data,created_at,kind) VALUES (?,?,?,?,?,?,?,?,'file')"
+        ).bind(fid, id, uid, String((f && f.fileName) || "file").slice(0, 160), parsed.mime, parsed.bytes, parsed.b64, now));
+      }
+      for (const l of links) {
+        const parsed = cleanLink(l);
+        if (parsed.error) return json({ error: parsed.error }, 400);
+        const fid = newId("l_");
+        fileIds.push(fid);
+        stmts.push(db.prepare(
+          "INSERT INTO task_files (id,task_id,update_id,file_name,mime,bytes,data,created_at,kind,url,title) " +
+          "VALUES (?,?,?,?,?,?,?,?,'link',?,?)"
+        ).bind(fid, id, uid, parsed.host, "text/uri-list", 0, "", now, parsed.url, parsed.title));
       }
       /* @ชื่อ ในคอมเมนต์ → เข้ากระดิ่งของคนนั้น */
       if (note) {
@@ -722,13 +910,24 @@ export async function handleTaskApi(request, env, url, path, method) {
   /* --- รูปแนบ --- */
   const fileMatch = path.match(/^\/files\/([A-Za-z0-9_-]{1,40})$/);
   if (fileMatch && method === "GET") {
-    const row = await db.prepare("SELECT mime, data FROM task_files WHERE id = ?").bind(fileMatch[1]).first();
-    if (!row) return new Response("ไม่พบรูป", { status: 404 });
+    const row = await db.prepare("SELECT mime, data, file_name, kind, url FROM task_files WHERE id = ?").bind(fileMatch[1]).first();
+    if (!row) return new Response("ไม่พบไฟล์", { status: 404 });
+    if (row.kind === "link") return Response.redirect(row.url, 302);
     const binary = atob(row.data);
     const bin = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bin[i] = binary.charCodeAt(i);
+    const mime = row.mime || "application/octet-stream";
+    /* รูปกับวิดีโอเปิดดูในเบราว์เซอร์ได้เลย · อย่างอื่นให้เซฟลง โดยคงชื่อไฟล์เดิม
+       ไฟล์ที่ทีมอัปมาไม่ควรถูกเบราว์เซอร์รันเป็น HTML — บังคับ inline เฉพาะชนิดที่ปลอดภัย */
+    const viewable = /^(image|video|audio)\//.test(mime) || mime === "application/pdf";
+    const safeName = String(row.file_name || "file").replace(/[^\w.\-ก-๙ ]+/g, "_").slice(0, 120);
     return new Response(bin, {
-      headers: { "content-type": row.mime || "application/octet-stream", "cache-control": "private, max-age=86400" },
+      headers: {
+        "content-type": viewable ? mime : "application/octet-stream",
+        "content-disposition": (viewable ? "inline" : "attachment") + '; filename="' + safeName + '"',
+        "cache-control": "private, max-age=86400",
+        "x-content-type-options": "nosniff",
+      },
     });
   }
   if (fileMatch && method === "DELETE") {

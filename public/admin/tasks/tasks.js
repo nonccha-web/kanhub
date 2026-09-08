@@ -1,7 +1,7 @@
 /* ============================================================
    KAN Admin — งานทีม (Task) · SPA (hash route) คุยกับ /api/t/* ใน worker.js
    หน้า: #/me งานของฉัน · #/all งานทั้งหมด · #/new สั่งงาน (วางข้อความ) ·
-         #/task/:id รายละเอียด+อัปเดต+รูป · #/kpi KPI 2570 · #/team ทีม+PIN
+         #/task/:id รายละเอียด+อัปเดต+ไฟล์แนบ · #/kpi KPI 2570 · #/team ทีม+รหัสผ่าน · #/inbox กระดิ่ง
    ============================================================ */
 (function (global) {
   'use strict';
@@ -233,40 +233,88 @@
     if (lb) lb.textContent = dark ? 'โหมดสว่าง' : 'โหมดมืด';
   }
 
-  /* ---------- ล็อกอิน ---------- */
+  /* ---------- ล็อกอิน: อีเมล + รหัสผ่านที่ทีมตั้งเอง ---------- */
+  var loginMode = 'in';   // 'in' = เข้าสู่ระบบ · 'setup' = ตั้งรหัสครั้งแรก
+
   function renderLogin(err) {
     renderHeaderUser();
     var view = $('#view');
     view.className = 'login';
-    view.innerHTML = '<div class="login-card"><h1>KAN Admin — งานทีม</h1><p>เลือกชื่อแล้วใส่ PIN เพื่อเข้าทำงานของคุณ</p>' +
-      (err ? '<div class="err" style="margin:16px 0 0"><p>' + esc(err) + '</p></div>' : '') +
-      '<form id="loginForm"><div class="field"><label class="label">ชื่อ</label><select class="select" name="staffId" id="loginStaff"><option value="">กำลังโหลดรายชื่อ…</option></select></div>' +
-      '<div class="field"><label class="label">PIN</label><input class="input pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="••••"></div>' +
-      '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button></form>' +
-      '<p class="foot">ยังไม่มีชื่อในรายการ หรือลืม PIN — ให้หัวหน้าทีมเพิ่ม/รีเซ็ตให้ในหน้า "ทีม + PIN"</p></div>';
-    fetch(API + '/login', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
-      var sel = $('#loginStaff');
-      if (!sel) return;
-      var last = '';
-      try { last = localStorage.getItem('kan-task-last-staff') || ''; } catch (e) {}
-      sel.innerHTML = '<option value="">— เลือกชื่อ —</option>' + (j.staff || []).map(function (s) {
-        return '<option value="' + esc(s.id) + '"' + (s.id === last ? ' selected' : '') + '>' + esc(s.name) + (s.role === 'owner' ? ' (หัวหน้า)' : '') + '</option>';
-      }).join('');
-    }).catch(function () {});
+    var tab = function (k, label) {
+      return '<button type="button" class="ltab' + (loginMode === k ? ' on' : '') + '" data-lmode="' + k + '">' + label + '</button>';
+    };
+    var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
+      '<p>' + (loginMode === 'in' ? 'เข้าด้วยอีเมลกับรหัสผ่านของคุณ' : 'เลือกชื่อตัวเอง ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่าน') + '</p>' +
+      '<div class="ltabs">' + tab('in', 'เข้าสู่ระบบ') + tab('setup', 'ตั้งรหัสครั้งแรก') + '</div>' +
+      (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
+
+    if (loginMode === 'in') {
+      h += '<form id="loginForm">' +
+        '<div class="field"><label class="label">อีเมล</label><input class="input" name="email" type="email" autocomplete="username" placeholder="you@example.com" required></div>' +
+        '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" required></div>' +
+        '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button></form>' +
+        '<p class="foot">ยังไม่เคยตั้งรหัส กดแท็บ “ตั้งรหัสครั้งแรก” · ลืมรหัสผ่านให้หัวหน้าตั้งใหม่ให้ในหน้า “ทีม”</p>';
+    } else {
+      h += '<form id="setupForm">' +
+        '<div class="field"><label class="label">ชื่อของคุณ</label><select class="select" name="staffId" id="setupStaff"><option value="">กำลังโหลดรายชื่อ…</option></select></div>' +
+        '<div class="field"><label class="label">รหัสตั้งค่า <small>ตัวเลขที่หัวหน้าให้มา</small></label>' +
+        '<input class="input pin" name="setupCode" type="password" inputmode="numeric" maxlength="8" placeholder="••••" required></div>' +
+        '<div class="field"><label class="label">อีเมลของคุณ</label><input class="input" name="email" type="email" autocomplete="username" placeholder="you@example.com" required></div>' +
+        '<div class="field"><label class="label">ตั้งรหัสผ่าน <small>อย่างน้อย 8 ตัว</small></label><input class="input" name="password" type="password" autocomplete="new-password" minlength="8" required></div>' +
+        '<div class="field"><label class="label">พิมพ์รหัสผ่านอีกครั้ง</label><input class="input" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>' +
+        '<button type="submit" class="btn" id="setupBtn">ตั้งรหัสแล้วเข้าใช้งาน</button></form>' +
+        '<p class="foot">ตั้งเสร็จแล้วครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย</p>';
+    }
+    h += '</div>';
+    view.innerHTML = h;
+
+    $$('[data-lmode]').forEach(function (b) {
+      b.addEventListener('click', function () { loginMode = b.getAttribute('data-lmode'); renderLogin(); });
+    });
+
+    if (loginMode === 'setup') {
+      fetch(API + '/login', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+        var sel = $('#setupStaff');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— เลือกชื่อ —</option>' + (j.staff || []).map(function (x) {
+          return '<option value="' + esc(x.id) + '">' + esc(x.name) + (x.hasPassword ? ' (ตั้งรหัสแล้ว)' : '') + '</option>';
+        }).join('');
+      }).catch(function () {});
+
+      $('#setupForm').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var f = this;
+        if (f.password.value !== f.password2.value) { toast('รหัสผ่านสองช่องไม่ตรงกัน', true); return; }
+        if (!f.staffId.value) { toast('เลือกชื่อก่อน', true); return; }
+        $('#setupBtn').disabled = true;
+        fetch(API + '/setup', {
+          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ staffId: f.staffId.value, setupCode: f.setupCode.value, email: f.email.value, password: f.password.value }),
+        }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'ตั้งรหัสไม่สำเร็จ'); return j; }); })
+          .then(function () { loginMode = 'in'; return boot(); })
+          .catch(function (e) { renderLogin(e.message); });
+      });
+      return;
+    }
+
     $('#loginForm').addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var staffId = $('#loginStaff').value, pin = this.pin.value;
-      if (!staffId) { toast('เลือกชื่อก่อน', true); return; }
+      var f = this;
       $('#loginBtn').disabled = true;
-      fetch(API + '/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ staffId: staffId, pin: pin }) })
-        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
+      fetch(API + '/login', {
+        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: f.email.value, password: f.password.value }),
+      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
         .then(function () {
-          try { localStorage.setItem('kan-task-last-staff', staffId); } catch (e) {}
+          try { localStorage.setItem('kan-task-last-email', f.email.value); } catch (e) {}
           return boot();
         })
         .catch(function (e) { renderLogin(e.message); });
     });
+    try {
+      var last = localStorage.getItem('kan-task-last-email');
+      if (last) $('#loginForm').email.value = last;
+    } catch (e) {}
   }
 
   /* ---------- งานของฉัน ---------- */
@@ -723,12 +771,48 @@
 
   /* ---------- รายละเอียดงาน ---------- */
   var pendingFiles = [];
+  var pendingLinks = [];
+
+  function fmtBytes(b) {
+    if (!b) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return Math.round(b / 1024) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+  function fileIcon(mime) {
+    var m = String(mime || '');
+    if (m.indexOf('video/') === 0) return '<path d="M4 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="m16 10 5-3v10l-5-3z"/>';
+    if (m.indexOf('audio/') === 0) return '<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>';
+    if (m === 'application/pdf') return '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 15h6"/>';
+    if (m.indexOf('zip') !== -1 || m.indexOf('compressed') !== -1) return '<path d="M4 4h16v16H4z"/><path d="M10 4v4M14 8v4M10 12v4M14 16v4"/>';
+    if (m.indexOf('sheet') !== -1 || m.indexOf('excel') !== -1 || m.indexOf('csv') !== -1) return '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 4v16"/>';
+    return '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>';
+  }
+  function isImg(f) { return String(f.mime || '').indexOf('image/') === 0; }
+
+  /* การ์ดไฟล์แนบ — รูปโชว์ภาพ · วิดีโอเล่นได้ · ไฟล์อื่นเป็นการ์ดกดโหลด · ลิงก์เป็นการ์ดเปิดเว็บ */
   function thumbsHtml(files, removable) {
-    return '<div class="thumbs">' + files.map(function (f, i) {
+    return '<div class="atts">' + files.map(function (f, i) {
+      var rm = removable ? '<button type="button" class="attrm" data-rmfile="' + i + '" aria-label="เอาออก">✕</button>' : '';
+      if (f.kind === 'link') {
+        return '<a class="att link" href="' + esc(f.url) + '" target="_blank" rel="noopener noreferrer">' +
+          '<span class="atti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>' +
+          '<span class="attx"><b>' + esc(f.title || f.url) + '</b><small>' + esc(f.fileName || '') + '</small></span>' + rm + '</a>';
+      }
       var src = f.dataUrl || (API + '/files/' + f.id);
-      return '<div class="th" data-src="' + esc(src) + '"><img src="' + esc(src) + '" alt="" loading="lazy">' +
-        (removable ? '<button type="button" data-rmfile="' + i + '" aria-label="เอาออก">✕</button>' : '') +
-        (f.fileName ? '<small>' + esc(f.fileName) + '</small>' : '') + '</div>';
+      if (isImg(f)) {
+        return '<div class="att img" data-src="' + esc(src) + '"><img src="' + esc(src) + '" alt="" loading="lazy">' +
+          '<small>' + esc(f.fileName || '') + '</small>' + rm + '</div>';
+      }
+      if (String(f.mime || '').indexOf('video/') === 0 && !f.dataUrl) {
+        return '<div class="att vid"><video src="' + esc(src) + '" controls preload="metadata"></video>' +
+          '<small>' + esc(f.fileName || '') + ' · ' + fmtBytes(f.bytes) + '</small>' + rm + '</div>';
+      }
+      return '<a class="att file" href="' + esc(src) + '"' + (f.dataUrl ? '' : ' download') + '>' +
+        '<span class="atti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+        fileIcon(f.mime) + '</svg></span>' +
+        '<span class="attx"><b>' + esc(f.fileName || 'ไฟล์') + '</b><small>' + esc(fmtBytes(f.bytes)) + '</small></span>' + rm + '</a>';
     }).join('') + '</div>';
   }
   function renderTask(id) {
@@ -799,7 +883,7 @@
       h += '<div class="sec"><div class="sec-h"><h2>ความคืบหน้า</h2><p>' + ups.length + ' รายการ · ' + files.length + ' รูป</p></div><div class="sec-b tight"><div class="tl">' +
         (ups.length ? ups.map(function (u) {
           var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
-          var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบรูป' : 'บันทึก'));
+          var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
           return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) + '</time></div>' +
             (u.note ? '<div class="n">' + withMentions(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
         }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
@@ -813,18 +897,25 @@
         '<div class="chips" style="margin-top:8px">' + S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
           return '<button type="button" class="chip" data-tag="' + esc(shortName(x)) + '">' + avatar(x) + '@' + esc(shortName(x)) + '</button>';
         }).join('') + '</div></div>' +
-        '<label class="drop"><input type="file" accept="image/*" multiple id="fileIn"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.2-2h5.6L16 5"/></svg><span><b>แนบรูปงาน</b> — ถ่ายจากมือถือได้เลย (สูงสุด 6 รูป/ครั้ง ย่อให้อัตโนมัติ)</span></label>' +
+        '<div class="drop" id="drop"><input type="file" multiple id="fileIn">' +
+        '<svg class="dropi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>' +
+        '<span><b>ลากไฟล์มาวางตรงนี้</b> หรือกดเพื่อเลือก — รูป วิดีโอ PDF ไฟล์อะไรก็ได้<br>' +
+        '<small>รูปย่อให้อัตโนมัติ · ไฟล์อื่นไม่เกิน 1.3 MB ต่อไฟล์ · ไฟล์ใหญ่/วิดีโอยาว ให้วางลิงก์แทน</small></span></div>' +
+        '<div class="linkrow"><input class="input" id="linkIn" placeholder="หรือวางลิงก์ Drive / YouTube / Figma แล้วกด Enter" autocomplete="off">' +
+        '<button type="button" class="btn-ghost sm" id="linkAdd">แนบลิงก์</button></div>' +
         '<div id="pendThumbs"></div>' +
         '<div class="acts"><button type="submit" class="btn" id="updBtn">บันทึกอัปเดต</button>' +
         (canStatus && es !== 'done'
           ? '<button type="button" class="btn-ghost" id="doneBtn">✓ ' + (t.repeat ? (t.repeat === 'daily' ? 'อัปเดตครบวันนี้' : 'อัปเดตครบสัปดาห์นี้') : 'เสร็จแล้ว') + '</button>'
           : '') + '</div></form></div></div>';
       if (files.length) {
-        h += '<div class="sec"><div class="sec-h"><h2>รูปทั้งหมด</h2><p>' + files.length + ' รูป</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
+        h += '<div class="sec"><div class="sec-h"><h2>ไฟล์แนบทั้งหมด</h2><p>' + files.length + ' รายการ</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
       }
       h += '</div></div>';
       view.innerHTML = h;
       pendingFiles = [];
+      pendingLinks = [];
       wireTask(t);
     }).catch(function (e) { showError(e); });
   }
@@ -853,29 +944,99 @@
       $$('[data-st]', stChips).forEach(function (x) { x.classList.toggle('on', x === b); });
       chosenStatus = b.getAttribute('data-st');
     });
+    function drawPending() {
+      var all = pendingLinks.concat(pendingFiles);
+      $('#pendThumbs').innerHTML = all.length ? thumbsHtml(all, true) : '';
+    }
+    /* รูปย่อก่อนส่ง · ไฟล์อื่นส่งตามจริงแต่ต้องไม่เกินเพดานของ D1 */
+    function readFile(f) {
+      if (f.type.indexOf('image/') === 0) {
+        return resizeImage(f, 1600, 0.82).then(function (d) { return { fileName: f.name, mime: 'image/jpeg', dataUrl: d, bytes: Math.floor(d.length * 3 / 4) }; });
+      }
+      if (f.size > 1350000) {
+        return Promise.reject(new Error('“' + f.name + '” ใหญ่ ' + fmtBytes(f.size) + ' — เกิน 1.3 MB ให้อัปขึ้น Drive แล้ววางลิงก์แทน'));
+      }
+      return new Promise(function (res, rej) {
+        var r = new FileReader();
+        r.onload = function () { res({ fileName: f.name, mime: f.type || 'application/octet-stream', dataUrl: r.result, bytes: f.size }); };
+        r.onerror = function () { rej(new Error('อ่านไฟล์ไม่ได้: ' + f.name)); };
+        r.readAsDataURL(f);
+      });
+    }
+    function takeFiles(list) {
+      list = Array.prototype.slice.call(list || []);
+      if (!list.length) return;
+      if (pendingFiles.length + list.length > 6) {
+        toast('แนบได้สูงสุด 6 ไฟล์ต่อครั้ง', true);
+        list = list.slice(0, 6 - pendingFiles.length);
+      }
+      Promise.all(list.map(function (f) { return readFile(f).catch(function (e) { toast(e.message, true); return null; }); }))
+        .then(function (arr) {
+          pendingFiles = pendingFiles.concat(arr.filter(Boolean));
+          drawPending();
+        });
+    }
     var fileIn = $('#fileIn');
-    fileIn.addEventListener('change', function () {
-      var list = Array.prototype.slice.call(fileIn.files || []);
-      fileIn.value = '';
-      if (pendingFiles.length + list.length > 6) { toast('แนบได้สูงสุด 6 รูปต่อครั้ง', true); list = list.slice(0, 6 - pendingFiles.length); }
-      Promise.all(list.map(function (f) { return resizeImage(f, 1400, 0.82).then(function (d) { return { fileName: f.name, dataUrl: d }; }); }))
-        .then(function (arr) { pendingFiles = pendingFiles.concat(arr); $('#pendThumbs').innerHTML = pendingFiles.length ? thumbsHtml(pendingFiles, true) : ''; })
-        .catch(function (e) { toast(e.message, true); });
+    fileIn.addEventListener('change', function () { takeFiles(fileIn.files); fileIn.value = ''; });
+
+    /* ลากวาง — ต้องกัน dragover ไม่งั้นเบราว์เซอร์เปิดไฟล์ทับหน้าเว็บ */
+    var drop = $('#drop');
+    drop.addEventListener('click', function (ev) { if (ev.target !== fileIn) fileIn.click(); });
+    ['dragenter', 'dragover'].forEach(function (t) {
+      drop.addEventListener(t, function (ev) { ev.preventDefault(); drop.classList.add('over'); });
     });
+    ['dragleave', 'drop'].forEach(function (t) {
+      drop.addEventListener(t, function (ev) { ev.preventDefault(); drop.classList.remove('over'); });
+    });
+    drop.addEventListener('drop', function (ev) {
+      var dt = ev.dataTransfer;
+      if (dt.files && dt.files.length) { takeFiles(dt.files); return; }
+      var url = dt.getData('text/uri-list') || dt.getData('text/plain');
+      if (url) addLink(url);
+    });
+    /* วางไฟล์/ลิงก์จากคลิปบอร์ดลงช่องบันทึกได้ตรง ๆ */
+    $('#updForm').note.addEventListener('paste', function (ev) {
+      var items = (ev.clipboardData || {}).items || [];
+      var files = [];
+      for (var i = 0; i < items.length; i++) if (items[i].kind === 'file') { var f = items[i].getAsFile(); if (f) files.push(f); }
+      if (files.length) { ev.preventDefault(); takeFiles(files); }
+    });
+
+    function addLink(url) {
+      url = String(url || '').trim();
+      if (!/^https?:\/\//i.test(url)) { toast('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://', true); return; }
+      if (pendingLinks.length >= 6) { toast('แนบลิงก์ได้สูงสุด 6 อันต่อครั้ง', true); return; }
+      var host = url;
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
+      pendingLinks.push({ kind: 'link', url: url, title: url.length > 70 ? url.slice(0, 70) + '…' : url, fileName: host });
+      $('#linkIn').value = '';
+      drawPending();
+    }
+    $('#linkAdd').addEventListener('click', function () { addLink($('#linkIn').value); });
+    $('#linkIn').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); addLink(this.value); }
+    });
+
     $('#pendThumbs').addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-rmfile]'); if (!b) return;
-      ev.stopPropagation();
-      pendingFiles.splice(Number(b.getAttribute('data-rmfile')), 1);
-      $('#pendThumbs').innerHTML = pendingFiles.length ? thumbsHtml(pendingFiles, true) : '';
+      ev.preventDefault(); ev.stopPropagation();
+      var i = Number(b.getAttribute('data-rmfile'));
+      if (i < pendingLinks.length) pendingLinks.splice(i, 1);
+      else pendingFiles.splice(i - pendingLinks.length, 1);
+      drawPending();
     });
     function submitUpdate(statusOverride) {
       var note = $('#updForm').note.value.trim();
       /* งานประจำ: กด "เสร็จ" ซ้ำในรอบใหม่ต้องส่งขึ้นไป แม้ค่าใน DB ยังเป็น done ของเมื่อวาน */
       var cur = effStatus(t);
       var status = statusOverride || (chosenStatus && (chosenStatus !== cur || t.repeat) ? chosenStatus : null);
-      if (!note && !status && !pendingFiles.length) { toast('ใส่บันทึก เลือกสถานะ หรือแนบรูปก่อน', true); return; }
+      if (!note && !status && !pendingFiles.length && !pendingLinks.length) { toast('ใส่บันทึก เลือกสถานะ หรือแนบไฟล์ก่อน', true); return; }
       $('#updBtn').disabled = true;
-      api('/tasks/' + t.id + '/updates', 'POST', { note: note, status: status, files: pendingFiles })
+      api('/tasks/' + t.id + '/updates', 'POST', {
+        note: note, status: status,
+        files: pendingFiles.map(function (f) { return { fileName: f.fileName, dataUrl: f.dataUrl }; }),
+        links: pendingLinks.map(function (l) { return { url: l.url, title: l.title }; }),
+      })
         .then(function () { toast('บันทึกแล้ว'); S.tasks = null; renderTask(t.id); })
         .catch(function (e) { $('#updBtn').disabled = false; toast(e.message, true); });
     }
@@ -1001,27 +1162,32 @@
     var view = $('#view');
     view.className = 'page';
     var owner = S.me.role === 'owner';
-    var h = '<div class="top"><div><span class="kicker">ทีม + PIN</span><h1>ทีมงาน</h1>' +
-      '<p>ทุกคนเข้าระบบด้วยชื่อ + PIN ของตัวเอง ' + (owner ? 'หัวหน้าเพิ่มคน รีเซ็ต PIN และปิดบัญชีได้ที่นี่ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : 'เปลี่ยน PIN ของคุณได้ด้านล่าง') + '</p></div></div>';
+    var h = '<div class="top"><div><span class="kicker">ทีม + รหัสผ่าน</span><h1>ทีมงาน</h1>' +
+      '<p>ทุกคนเข้าระบบด้วยอีเมลกับรหัสผ่านของตัวเอง ' + (owner ? 'หัวหน้าเพิ่มคน ตั้งรหัสผ่านให้ และปิดบัญชีได้ที่นี่ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : 'เปลี่ยนอีเมลกับรหัสผ่านของคุณได้ด้านล่าง') + '</p></div></div>';
     h += '<div class="two"><div class="sec"><div class="sec-h"><h2>สมาชิก</h2><p>' + S.staff.filter(function (s) { return s.active; }).length + ' คนใช้งานอยู่</p></div><div class="sec-b tight">' +
       S.staff.map(function (s) {
-        return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') + '</b>' +
-          '<small>ชื่อเรียกใน @: ' + esc(s.aliases || '—') + '</small></div>' +
-          (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button><button type="button" class="btn-ghost sm" data-pin-staff="' + esc(s.id) + '">รีเซ็ต PIN</button>' +
+        return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
+          (s.hasPassword ? '' : ' <span class="pill late">ยังไม่ตั้งรหัส</span>') + '</b>' +
+          '<small>' + (s.email ? esc(s.email) : 'ยังไม่มีอีเมล') + ' · @' + esc(s.aliases || shortName(s)) + '</small></div>' +
+          (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
+            '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' +
+            '<button type="button" class="btn-ghost sm" data-pin-staff="' + esc(s.id) + '">รหัสตั้งค่าใหม่</button>' +
             (s.id !== S.me.id ? '<button type="button" class="btn-ghost sm' + (s.active ? ' danger' : '') + '" data-active-staff="' + esc(s.id) + '" data-to="' + (s.active ? '0' : '1') + '">' + (s.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน') + '</button>' : '') + '</div>' : '') + '</div>';
       }).join('') + '</div></div><div>';
     if (owner) {
       h += '<div class="sec"><div class="sec-h"><h2>เพิ่มคนในทีม</h2></div><div class="sec-b"><form id="addStaff" style="display:grid;gap:12px">' +
         '<div class="field"><label class="label">ชื่อ-นามสกุล</label><input class="input" name="name" required placeholder="เช่น Somchai Dee"></div>' +
         '<div class="field"><label class="label">ชื่อเรียกใน @ <small>(คั่นด้วยจุลภาค)</small></label><input class="input" name="aliases" placeholder="เช่น Somchai,สมชาย"></div>' +
-        '<div class="grid2"><div class="field"><label class="label">PIN เริ่มต้น</label><input class="input" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div>' +
+        '<div class="field"><label class="label">อีเมล <small>(เว้นไว้ให้เจ้าตัวตั้งเองก็ได้)</small></label><input class="input" name="email" type="email" placeholder="you@example.com"></div>' +
+        '<div class="grid2"><div class="field"><label class="label">รหัสตั้งค่า <small>ให้เจ้าตัวใช้ครั้งแรก</small></label><input class="input" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div>' +
         '<div class="field"><label class="label">สิทธิ์</label><select class="select" name="role"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div></div>' +
         '<div class="acts"><button type="submit" class="btn">เพิ่มคน</button></div></form></div></div>';
     }
-    h += '<div class="sec"><div class="sec-h"><h2>เปลี่ยน PIN ของฉัน</h2></div><div class="sec-b"><form id="myPin" style="display:grid;gap:12px">' +
-      '<div class="grid2"><div class="field"><label class="label">PIN เดิม</label><input class="input" name="pin" type="password" inputmode="numeric" required></div>' +
-      '<div class="field"><label class="label">PIN ใหม่</label><input class="input" name="newPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div></div>' +
-      '<div class="acts"><button type="submit" class="btn-ghost">เปลี่ยน PIN</button></div></form></div></div>';
+    h += '<div class="sec"><div class="sec-h"><h2>อีเมลและรหัสผ่านของฉัน</h2></div><div class="sec-b"><form id="myPw" style="display:grid;gap:12px">' +
+      '<div class="field"><label class="label">รหัสผ่านปัจจุบัน</label><input class="input" name="password" type="password" autocomplete="current-password" required></div>' +
+      '<div class="grid2"><div class="field"><label class="label">อีเมล <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="email" type="email" placeholder="' + esc(S.me.email || 'you@example.com') + '"></div>' +
+      '<div class="field"><label class="label">รหัสผ่านใหม่ <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="newPassword" type="password" autocomplete="new-password" minlength="8"></div></div>' +
+      '<div class="acts"><button type="submit" class="btn-ghost">บันทึก</button></div></form></div></div>';
     h += '<div class="sec" id="storageBox"><div class="sec-h"><h2>พื้นที่เก็บรูป</h2></div><div class="sec-b"><p class="hint">กำลังอ่าน…</p></div></div>';
     h += '</div></div>';
     view.innerHTML = h;
@@ -1045,25 +1211,42 @@
       var b = $('#storageBox .sec-b'); if (b) b.innerHTML = '<p class="hint">อ่านพื้นที่ไม่ได้</p>';
     });
 
-    $('#myPin').addEventListener('submit', function (ev) {
+    $('#myPw').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var f = this;
-      api('/me/pin', 'PUT', { pin: f.pin.value, newPin: f.newPin.value }).then(function () { toast('เปลี่ยน PIN แล้ว'); f.reset(); }).catch(function (e) { toast(e.message, true); });
+      var body = { password: f.password.value };
+      if (f.email.value.trim()) body.email = f.email.value.trim();
+      if (f.newPassword.value) body.newPassword = f.newPassword.value;
+      if (!body.email && !body.newPassword) { toast('ยังไม่ได้กรอกอีเมลหรือรหัสผ่านใหม่', true); return; }
+      api('/me/password', 'PUT', body)
+        .then(function () { toast('บันทึกแล้ว'); f.reset(); return refreshMe(); })
+        .then(renderTeam)
+        .catch(function (e) { toast(e.message, true); });
     });
     var add = $('#addStaff');
     if (add) add.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var f = this;
-      api('/staff', 'POST', { name: f.name.value, aliases: f.aliases.value, pin: f.pin.value, role: f.role.value })
+      api('/staff', 'POST', { name: f.name.value, aliases: f.aliases.value, pin: f.pin.value, role: f.role.value, email: f.email.value.trim() || null })
         .then(function () { toast('เพิ่มแล้ว'); return refreshMe(); }).then(renderTeam).catch(function (e) { toast(e.message, true); });
     });
     view.addEventListener('click', function (ev) {
       var b;
       if ((b = ev.target.closest('[data-pin-staff]'))) {
         var s = staffById(b.getAttribute('data-pin-staff'));
-        var pin = prompt('PIN ใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)');
+        var pin = prompt('รหัสตั้งค่าใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)\nให้เจ้าตัวเอาไปใช้ที่แท็บ "ตั้งรหัสครั้งแรก"');
         if (pin == null) return;
-        api('/staff/' + s.id, 'PUT', { pin: pin }).then(function () { toast('รีเซ็ต PIN แล้ว'); }).catch(function (e) { toast(e.message, true); });
+        api('/staff/' + s.id, 'PUT', { pin: pin, resetSetup: true })
+          .then(refreshMe).then(renderTeam).then(function () { toast('ตั้งรหัสตั้งค่าใหม่แล้ว — รหัสผ่านเดิมถูกล้าง'); })
+          .catch(function (e) { toast(e.message, true); });
+      } else if ((b = ev.target.closest('[data-pw-staff]'))) {
+        var st2 = staffById(b.getAttribute('data-pw-staff'));
+        if (!st2.email) { toast('คนนี้ยังไม่มีอีเมล กด "แก้ไข" ใส่อีเมลก่อน', true); return; }
+        var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเข้าระบบด้วยอีเมล ' + st2.email);
+        if (pw == null) return;
+        api('/staff/' + st2.id, 'PUT', { password: pw })
+          .then(refreshMe).then(renderTeam).then(function () { toast('ตั้งรหัสผ่านให้แล้ว'); })
+          .catch(function (e) { toast(e.message, true); });
       } else if ((b = ev.target.closest('[data-active-staff]'))) {
         api('/staff/' + b.getAttribute('data-active-staff'), 'PUT', { active: b.getAttribute('data-to') === '1' })
           .then(refreshMe).then(renderTeam).catch(function (e) { toast(e.message, true); });
@@ -1071,7 +1254,9 @@
         var st = staffById(b.getAttribute('data-edit-staff'));
         var name = prompt('ชื่อ', st.name); if (name == null) return;
         var aliases = prompt('ชื่อเรียกใน @ (คั่นด้วยจุลภาค)', st.aliases || ''); if (aliases == null) return;
-        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases }).then(refreshMe).then(renderTeam).then(function () { toast('บันทึกแล้ว'); }).catch(function (e) { toast(e.message, true); });
+        var email = prompt('อีเมลสำหรับเข้าระบบ (เว้นว่างได้)', st.email || ''); if (email == null) return;
+        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases, email: email.trim() })
+          .then(refreshMe).then(renderTeam).then(function () { toast('บันทึกแล้ว'); }).catch(function (e) { toast(e.message, true); });
       }
     });
   }
@@ -1159,7 +1344,7 @@
     if (ev.target.id === 'saveBtn') { saveDrafts(); return; }
     if ((b = ev.target.closest('.draft [data-rm]'))) { syncDraftsFromDom(); drafts.splice(Number(b.getAttribute('data-rm')), 1); renderDrafts(); return; }
     if ((b = ev.target.closest('.draft [data-as]'))) { b.classList.toggle('on'); return; }
-    if ((b = ev.target.closest('.thumbs .th')) && !ev.target.closest('button')) {
+    if ((b = ev.target.closest('.att.img')) && !ev.target.closest('button')) {
       var lb = $('#lightbox'); lb.querySelector('img').src = b.getAttribute('data-src'); lb.hidden = false; return;
     }
     if (ev.target.closest('#lightbox')) { $('#lightbox').hidden = true; return; }

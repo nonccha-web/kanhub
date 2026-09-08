@@ -413,3 +413,44 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 }
 /* กระดิ่งกับชิปผู้ใช้ต้องอยู่บรรทัดเดียวกัน — #headUser เป็น span ถ้าไม่บังคับ flex มันจะตกบรรทัด */
 #headUser{ display:inline-flex; align-items:center; gap:8px; }
+
+/* ── หน้าล็อกอิน: สองแท็บ ── */
+.ltabs{ display:flex; gap:2px; padding:2px; margin-top:16px; border:1px solid var(--k-line); border-radius:999px; background:var(--k-ground); }
+.ltab{ flex:1; border:0; border-radius:999px; background:transparent; color:var(--k-soft); font:inherit; font-size:12.5px;
+  padding:7px 10px; cursor:pointer; transition:background .15s, color .15s; }
+.ltab:hover{ color:var(--k-ink); }
+.ltab.on{ background:var(--k-ink); color:var(--k-paper); font-weight:600; }
+
+/* ── ช่องลากวางไฟล์ ── */
+.drop{ display:flex; align-items:center; gap:14px; border:1.5px dashed var(--k-line); background:var(--k-ground);
+  padding:16px 18px; font-size:12.5px; color:var(--k-soft); cursor:pointer; transition:border-color .15s, background .15s; }
+.drop:hover{ border-color:var(--k-ink); }
+.drop.over{ border-color:var(--k-brand); background:color-mix(in srgb, var(--k-brand) 8%, transparent); }
+.drop input{ display:none; }
+.drop b{ font-weight:600; color:var(--k-ink); }
+.drop small{ color:var(--k-mut); font-size:11.5px; line-height:1.5; }
+.dropi{ width:26px; height:26px; flex:none; color:var(--k-mut); }
+.drop.over .dropi{ color:var(--k-brand); }
+.linkrow{ display:flex; gap:8px; }
+.linkrow .input{ flex:1; min-width:0; }
+
+/* ── การ์ดไฟล์แนบ ── */
+.atts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+.att{ position:relative; display:block; border:1px solid var(--k-line); background:var(--k-paper); text-decoration:none; color:inherit;
+  overflow:hidden; transition:border-color .15s, background .15s; }
+.att:hover{ border-color:var(--k-ink); }
+.att.img{ aspect-ratio:4/3; background:var(--k-hair); cursor:pointer; }
+.att.img img{ width:100%; height:100%; object-fit:cover; display:block; }
+.att.img small, .att.vid small{ position:absolute; left:0; right:0; bottom:0; padding:3px 6px; background:rgba(11,11,10,.6);
+  color:#fff; font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.att.vid video{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#000; }
+.att.file, .att.link{ display:flex; align-items:center; gap:10px; padding:11px 12px; min-height:62px; }
+.atti{ display:grid; place-items:center; width:30px; height:30px; flex:none; border-radius:6px; background:var(--k-hair); color:var(--k-soft); }
+.atti svg{ width:16px; height:16px; }
+.att.link .atti{ background:color-mix(in srgb, var(--k-info) 16%, transparent); color:var(--k-info); }
+.attx{ min-width:0; flex:1; }
+.attx b{ display:block; font-size:12.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attx small{ display:block; margin-top:2px; color:var(--k-mut); font-size:10.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attrm{ position:absolute; top:5px; right:5px; width:20px; height:20px; border:0; border-radius:50%; background:rgba(11,11,10,.7);
+  color:#fff; font-size:10px; line-height:1; cursor:pointer; display:grid; place-items:center; }
+.attrm:hover{ background:var(--k-bad); }

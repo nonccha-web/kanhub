@@ -52,7 +52,7 @@
         { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
         { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' },
         { icon: 'trophy',    label: 'KPI 2570',   tasks: '#/kpi' },
-        { icon: 'users',     label: 'ทีม + PIN',  tasks: '#/team' }
+        { icon: 'users',     label: 'ทีม + รหัสผ่าน', tasks: '#/team' }
       ]},
       { icon: 'calendar', label: 'วางแผนแคมเปญ', items: [
         { icon: 'calendar', label: 'Campaign Calendar', cmo: 'campaign-calendar.html' },
