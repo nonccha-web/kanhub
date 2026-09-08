@@ -188,9 +188,52 @@ async function readBody(request) {
   return request.json().catch(() => ({}));
 }
 
+/* ---------- นำเข้าตารางโพสต์ตั้งต้น ครั้งเดียวตลอดกาล ----------
+   ไฟล์ posts-seed.json ถูก deploy ไปพร้อมเว็บอยู่แล้ว จึงอ่านผ่าน env.ASSETS ได้เลย
+   ทำฝั่งเซิร์ฟเวอร์เพราะ API ต้องใช้สิทธิ์เจ้าของ และเจ้าของตั้งรหัสผ่านของตัวเองไปแล้ว
+   กันซ้ำด้วยธงใน task_settings — ลบโพสต์ทิ้งทีหลังก็จะไม่กลับมาเอง */
+async function seedPostsOnce(db, env) {
+  const flag = await db.prepare("SELECT value FROM task_settings WHERE key = 'posts_seeded'").first();
+  if (flag && flag.value) return;
+  if (!env || !env.ASSETS) return;
+
+  let data = null;
+  try {
+    const res = await env.ASSETS.fetch(new Request("https://kan.local/admin/tasks/posts-seed.json"));
+    if (!res.ok) return;
+    data = await res.json();
+  } catch (e) { return; }
+  if (!data || !Array.isArray(data.posts)) return;
+
+  const now = nowIso();
+  const pageStmts = (data.pages || []).map((p) =>
+    db.prepare("INSERT OR IGNORE INTO post_pages (id,name,sort,active) VALUES (?,?,?,1)")
+      .bind(String(p.id), String(p.name), Number(p.sort) || 0));
+  if (pageStmts.length) await db.batch(pageStmts);
+
+  /* ยิงทีละ 150 แถว — ก้อนเดียวจะเกินขนาดที่ D1 รับไหว */
+  for (let i = 0; i < data.posts.length; i += 150) {
+    const chunk = data.posts.slice(i, i + 150).map((p) =>
+      db.prepare(
+        "INSERT OR IGNORE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(
+        String(p.id), String(p.pageId || ""), String(p.date), String(p.time || ""),
+        JSON.stringify(Array.isArray(p.channels) ? p.channels : []),
+        String(p.topic || ""), String(p.kind || "content"),
+        ["plan", "done", "skip"].indexOf(p.status) !== -1 ? p.status : "plan",
+        String(p.url || ""), String(p.note || ""),
+        p.status === "done" ? now : null, now, now, null
+      ));
+    await db.batch(chunk);
+  }
+  await db.prepare("INSERT OR REPLACE INTO task_settings (key,value) VALUES ('posts_seeded', ?)")
+    .bind(new Date().toISOString() + " · " + data.posts.length + " แถว").run();
+}
+
 /* ---------- schema bootstrap (ครั้งเดียวต่อ isolate) ---------- */
 let schemaReady = null;
-async function ensureSchema(db) {
+async function ensureSchema(db, env) {
   if (!schemaReady) {
     schemaReady = (async () => {
       await db.batch(SCHEMA.map((s) => db.prepare(s)));
@@ -203,6 +246,7 @@ async function ensureSchema(db) {
           "INSERT OR IGNORE INTO kpis (id,sort,code,title,weight,target,keywords,color) VALUES (?,?,?,?,?,?,?,?)"
         ).bind(r.id, r.sort, r.code, r.title, r.weight, r.target, r.keywords, r.color)));
       }
+      await seedPostsOnce(db, env).catch(() => {});
       const s = await db.prepare("SELECT COUNT(*) AS n FROM staff").first();
       if (!s || !s.n) {
         const stmts = [];
@@ -383,7 +427,7 @@ function cleanLink(input) {
 export async function handleTaskApi(request, env, url, path, method) {
   const db = env.KAN_ERP;
   if (!db) return json({ error: "ยังไม่ได้ผูกฐานข้อมูล" }, 503);
-  await ensureSchema(db);
+  await ensureSchema(db, env);
 
   /* --- public: รายชื่อสำหรับหน้าล็อกอิน --- */
   if (path === "/login" && method === "GET") {

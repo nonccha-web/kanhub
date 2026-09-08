@@ -1249,9 +1249,11 @@
     if (q.range) P.range = q.range;
     if (q.page) P.page = q.page;
     var d = postRangeDates();
-    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '') + (P.page ? '&page=' + encodeURIComponent(P.page) : '');
+    /* ดึงทั้งช่วงโดยไม่กรองเพจที่เซิร์ฟเวอร์ เพื่อให้นับแยกรายเพจได้ในคราวเดียว */
+    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '');
     Promise.all([loadPages(), api('/posts' + qs)]).then(function (r) {
-      var posts = r[1].posts || [];
+      var all = r[1].posts || [];
+      var posts = P.page ? all.filter(function (x) { return x.pageId === P.page; }) : all;
       var shown = posts.filter(function (x) {
         if (P.status === 'left') return x.status !== 'done';
         if (P.status === 'nolink') return x.status === 'done' && !x.url;
@@ -1266,7 +1268,8 @@
       var view = $('#view');
       view.className = 'page';
       var label = { today: 'วันนี้', week: 'สัปดาห์นี้', month: 'เดือนนี้', all: 'ทั้งหมด' }[P.range];
-      var h = '<div class="top"><div><span class="kicker">ตารางโพสต์</span><h1>คอนเทนต์ ' + esc(label) + '</h1>' +
+      var h = '<div class="top"><div><span class="kicker">ตารางโพสต์' + (P.page ? ' · ' + esc(pageName(P.page)) : '') + '</span>' +
+        '<h1>คอนเทนต์ ' + esc(label) + '</h1>' +
         '<p>ดูว่าโพสต์ไปหรือยังและมีลิงก์ไหม — ติ๊กช่องหน้าแถวเพื่อปิดงาน หรือวางลิงก์โพสต์ลงช่องแล้วระบบติ๊กให้เอง</p></div>' +
         '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
 
@@ -1283,13 +1286,42 @@
       };
       h += '<div class="tbar">' +
         seg('range', [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']], P) +
-        '<select class="select" id="pageSel" style="width:auto;min-width:170px"><option value="">ทุกเพจ</option>' +
-        (S.pages || []).map(function (pg) {
-          return '<option value="' + esc(pg.id) + '"' + (P.page === pg.id ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
-        }).join('') + '</select>' +
         (P.status ? '<button type="button" class="fchip" data-p="status" data-v="">' +
           ({ left: 'ยังไม่ได้โพสต์', nolink: 'ไม่มีลิงก์', done: 'โพสต์แล้ว' }[P.status] || '') + ' <span>✕</span></button>' : '') +
         '<span class="tbar-n">' + shown.length + ' โพสต์</span></div>';
+
+      /* แท็บเพจรายสาขา — ตัวเลขบนแท็บคือ "ยังไม่ได้โพสต์" ของเพจนั้นในช่วงที่เลือก */
+      var statOf = function (list) {
+        var dn = list.filter(function (x) { return x.status === 'done'; });
+        return { n: list.length, done: dn.length, left: list.filter(function (x) { return x.status === 'plan'; }).length,
+                 nolink: dn.filter(function (x) { return !x.url; }).length };
+      };
+      h += '<div class="ptabs"><button type="button" class="ptab' + (!P.page ? ' on' : '') + '" data-p="page" data-v="">' +
+        'ทุกเพจ<i>' + all.length + '</i></button>' +
+        (S.pages || []).map(function (pg) {
+          var st = statOf(all.filter(function (x) { return x.pageId === pg.id; }));
+          return '<button type="button" class="ptab' + (P.page === pg.id ? ' on' : '') + (st.left ? ' has' : '') +
+            '" data-p="page" data-v="' + esc(pg.id) + '">' + esc(pg.name) +
+            '<i' + (st.left ? ' class="warn"' : '') + '>' + (st.left || st.n) + '</i></button>';
+        }).join('') + '</div>';
+
+      /* ดูรวมทุกเพจ = ต้องรู้ว่าสาขาไหนตามหลัง ตารางสรุปตอบตรงนั้น */
+      if (!P.page && all.length) {
+        h += '<div class="sec"><div class="sec-h"><h2>แยกตามเพจ</h2><p>กดชื่อเพจเพื่อดูเฉพาะเพจนั้น</p></div>' +
+          '<div class="sec-b tight" style="overflow-x:auto"><table class="table"><thead><tr><th>เพจ</th>' +
+          '<th class="num">ทั้งหมด</th><th class="num">โพสต์แล้ว</th><th class="num">ยังไม่ได้โพสต์</th><th class="num">ไม่มีลิงก์</th></tr></thead><tbody>' +
+          (S.pages || []).map(function (pg) {
+            var st = statOf(all.filter(function (x) { return x.pageId === pg.id; }));
+            if (!st.n) return '';
+            return '<tr class="prow" data-p="page" data-v="' + esc(pg.id) + '"><td><b>' + esc(pg.name) + '</b></td>' +
+              '<td class="num">' + st.n + '</td><td class="num">' + st.done + '</td>' +
+              '<td class="num"' + (st.left ? ' style="color:var(--k-warn);font-weight:600"' : '') + '>' + st.left + '</td>' +
+              '<td class="num"' + (st.nolink ? ' style="color:var(--k-bad);font-weight:600"' : '') + '>' + st.nolink + '</td></tr>';
+          }).join('') +
+          '<tr class="total"><td>รวม</td><td class="num">' + all.length + '</td>' +
+          '<td class="num">' + statOf(all).done + '</td><td class="num">' + statOf(all).left + '</td>' +
+          '<td class="num">' + statOf(all).nolink + '</td></tr></tbody></table></div></div>';
+      }
 
       if (!shown.length) {
         /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
@@ -1314,7 +1346,6 @@
       }
       view.innerHTML = h;
 
-      $('#pageSel').addEventListener('change', function () { P.page = this.value; renderPosts(); });
       $('#newPost').addEventListener('click', function () { openPostForm(null); });
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
@@ -1688,7 +1719,9 @@
     }
     if (ev.target.closest('[data-toggle-done]')) { S.showDone = !S.showDone; renderMe(); return; }
     if ((b = ev.target.closest('.cards article[data-p]'))) { P.status = b.getAttribute('data-p'); renderPosts(); return; }
-    if ((b = ev.target.closest('.tbar [data-p], .fchip[data-p]'))) { P[b.getAttribute('data-p')] = b.getAttribute('data-v'); renderPosts(); return; }
+    if ((b = ev.target.closest('.tbar [data-p], .fchip[data-p], .ptab[data-p], tr.prow[data-p]'))) {
+      P[b.getAttribute('data-p')] = b.getAttribute('data-v'); renderPosts(); return;
+    }
     if ((b = ev.target.closest('[data-post-toggle]'))) {
       var pid = b.getAttribute('data-post-toggle');
       var next = b.className.indexOf('done') !== -1 ? 'plan' : 'done';

@@ -521,3 +521,19 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
   .okacts{ flex-direction:column-reverse; }
   .okacts .btn, .okacts .btn-ghost{ width:100%; }
 }
+
+/* ── แท็บเพจรายสาขา ── */
+.ptabs{ display:flex; gap:6px; margin-bottom:18px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+.ptabs::-webkit-scrollbar{ height:4px; }
+.ptabs::-webkit-scrollbar-thumb{ background:var(--k-line); border-radius:99px; }
+.ptab{ display:inline-flex; align-items:center; gap:7px; flex:none; border:1px solid var(--k-line); border-radius:999px;
+  background:var(--k-paper); color:var(--k-soft); font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer;
+  white-space:nowrap; transition:border-color .15s, background .15s, color .15s; }
+.ptab:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+.ptab.on{ border-color:var(--k-ink); background:var(--k-ink); color:var(--k-paper); font-weight:600; }
+.ptab i{ display:inline-grid; place-items:center; min-width:20px; height:18px; padding:0 5px; border-radius:999px;
+  background:var(--k-hair); color:var(--k-mut); font:600 10.5px/18px var(--k-display); font-style:normal; }
+.ptab i.warn{ background:color-mix(in srgb, var(--k-warn) 22%, transparent); color:var(--k-warn); }
+.ptab.on i{ background:rgba(255,255,255,.18); color:var(--k-paper); }
+tr.prow{ cursor:pointer; }
+tr.prow:hover td{ background:var(--k-hair); }
