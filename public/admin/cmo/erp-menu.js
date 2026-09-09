@@ -62,7 +62,7 @@
     ]},
 
     /* ── เอกสาร + ระบบ: เปิดนาน ๆ ที · ของที่ข้อมูลยังเชื่อไม่ได้อยู่ในนี้ ──── */
-    { id: 'ref', label: 'เอกสาร + ระบบ', groups: [
+    { id: 'ref', label: 'เอกสาร + ระบบ', boxed: 'เมนูอื่น ๆ', boxNote: 'เอกสารแผน · B2B · สต็อก · ระบบ', groups: [
 
       { icon: 'folder', label: 'เอกสารแผนงาน', items: [
         { icon: 'compass',   label: 'Phase ทั้งปี',        cmo: '01b-phase.html' },
@@ -239,6 +239,31 @@
           return g.items.some(function (it) { return visible(it.sec || g.sec, opts); });
         });
         if (!groups.length) { return; }
+        /* หมวดที่ไม่ได้ใช้ทุกวัน ยุบเป็นกล่องเดียว พับไว้ เปิดเองเมื่อหน้าปัจจุบันอยู่ข้างใน (นนท์ 9 ก.ย.) */
+        if (sec.boxed) {
+          var inside = groups.some(function (g) {
+            return g.items.some(function (it) { return keyOf(it) === opts.active; });
+          });
+          h += '<div class="erp-sec erp-sec-gap"></div>' +
+            '<div class="erp-acc erp-box' + (inside ? ' open' : '') + '">' +
+            '<button type="button" class="erp-gh">' +
+              '<span class="erp-gico">' + svgIco('folder') + '</span>' +
+              '<span class="erp-glabel">' + esc(sec.boxed) +
+                (sec.boxNote ? '<small>' + esc(sec.boxNote) + '</small>' : '') + '</span>' +
+              '<span class="erp-chev">▾</span></button>' +
+            '<div class="erp-sub">';
+          groups.forEach(function (g) {
+            h += '<div class="erp-subh">' + esc(g.label) + '</div>';
+            g.items.filter(function (it) { return visible(it.sec || g.sec, opts); }).forEach(function (it) {
+              var on2 = keyOf(it) === opts.active ? ' on' : '';
+              var badge2 = (it.badge && badges[it.badge]) ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';
+              h += '<a class="erp-link' + on2 + '" href="' + href(it, opts) + '">' +
+                   '<span class="erp-ico">' + svgIco(it.icon) + '</span>' + esc(it.label) + badge2 + '</a>';
+            });
+          });
+          h += '</div></div>';
+          return;
+        }
         h += '<div class="erp-sec ' + sec.id + '">' + esc(sec.label) + '</div>';
         groups.forEach(function (g) {
           gi++;

@@ -1608,8 +1608,7 @@
       var h = '<div class="top"><div><span class="kicker">ตารางโพสต์' + (P.page ? ' · ' + esc(pageName(P.page)) : '') + '</span>' +
         '<h1>คอนเทนต์ ' + esc(label) + '</h1>' +
         '<p>เขียวคือโพสต์แล้ว แดงคือเลยวันแล้วยังไม่โพสต์ เหลืองคือโพสต์แล้วแต่ยังไม่มีลิงก์ — กดวันในปฏิทินเพื่อดูและอัปเดตโพสต์ของวันนั้น</p></div>' +
-        '<div class="top-r"><button type="button" class="btn-ghost" id="pastePosts">วางจาก Excel</button>' +
-        '<button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
+        '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
 
       h += '<div class="cards">' +
         '<article class="hot"><span class="l">โพสต์ในช่วงนี้</span><b>' + posts.length + '</b><small>' + esc(d[0] ? d[0] + ' → ' + d[1] : 'ทุกวัน') + '</small></article>' +
@@ -1723,7 +1722,6 @@
       view.innerHTML = h;
 
       $('#newPost').addEventListener('click', function () { openPostSheet(); });
-      $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
 
       renderSheetLog($('#postLog'), {
         editLabel: 'แก้โพสต์',
@@ -1806,6 +1804,21 @@
       { key: 'topic', label: 'หัวข้อ / เนื้อหา', width: 330,
         parse: function (s) { return String(s).trim(); } },
 
+      /* ผูกกับปฏิทินการตลาด — ให้ปฏิทินเป็นจุดเริ่มต้น โพสต์ทุกอันรู้ว่าทำให้รายการไหน */
+      { key: 'campaignId', label: 'ปฏิทินการตลาด', width: 170, type: 'pick',
+        options: function () {
+          return [{ v: '', label: '— ไม่ผูก —' }].concat((S.campaigns || []).map(function (c) { return { v: c.id, label: c.name }; }));
+        },
+        text: function (r) { var c = campaignById(r.campaignId); return c ? c.name : ''; },
+        parse: function (s) {
+          s = String(s).trim().toLowerCase();
+          if (!s || s.indexOf('ไม่ผูก') === 0) return '';
+          var hit = (S.campaigns || []).filter(function (c) { return c.name.toLowerCase() === s; })[0] ||
+                    (S.campaigns || []).filter(function (c) { return c.name.toLowerCase().indexOf(s) !== -1; })[0];
+          return hit ? hit.id : null;
+        },
+        filterValues: function (r) { var c = campaignById(r.campaignId); return [c ? c.name : '(ไม่ผูก)']; } },
+
       { key: 'status', label: 'สถานะ', width: 108, type: 'pick',
         options: function () {
           return Object.keys(POST_STATUS_TH).map(function (k) { return { v: k, label: POST_STATUS_TH[k] }; });
@@ -1852,7 +1865,7 @@
   function gridSnap(row) {
     return JSON.stringify([row.date || '', row.time || '', row.pageId || '', row.kind || 'content',
       (row.channels || []).join('|'), row.topic || '', row.url ? 'done' : (row.status || 'plan'),
-      row.url || '', row.note || '']);
+      row.url || '', row.note || '', row.campaignId || '']);
   }
   function gridMark(row, st, msg) {
     row._st = st; row._msg = msg || '';
@@ -1902,7 +1915,7 @@
       date: row.date, time: row.time || '', channels: row.channels || [],
       topic: row.topic || '', kind: row.kind || 'content',
       status: row.url ? 'done' : (row.status || 'plan'),
-      url: row.url || '', note: row.note || '',
+      url: row.url || '', note: row.note || '', campaignId: row.campaignId || null,
     };
     row._busy = 1;
     var req = row.id ? api('/posts/' + row.id, 'PUT', body) : api('/posts', 'POST', { posts: [body] });
@@ -1976,6 +1989,7 @@
     rows.forEach(function (r) { r._saved = gridSnap(r); r._st = ''; r._msg = ''; });
     var firstPage = opts.pageId || P.page || ((S.pages || [])[0] || {}).id || '';
     var firstDate = opts.date || '';
+    var firstCamp = opts.campaignId || '';
     G.grid = global.KAN_GRID.create(host, {
       id: 'posts',
       columns: postColumns(),
@@ -1985,11 +1999,12 @@
       blankRow: function (last) {
         return { pageId: (last && last.pageId) || firstPage, date: (last && last.date) || firstDate,
                  time: '', channels: (last && last.channels ? last.channels.slice() : []),
-                 topic: '', kind: 'content', status: 'plan', url: '', note: '' };
+                 topic: '', kind: 'content', status: 'plan', url: '', note: '',
+                 campaignId: (last && last.campaignId) || firstCamp };
       },
       cloneRow: function (src) {
         return { pageId: src.pageId, date: src.date, time: src.time, channels: (src.channels || []).slice(),
-                 topic: src.topic, kind: src.kind, status: 'plan', url: '', note: src.note };
+                 topic: src.topic, kind: src.kind, status: 'plan', url: '', note: src.note, campaignId: src.campaignId || '' };
       },
       tone: function (r) { return (!postRowBlank(r) && r.date) ? postTone(r) : ''; },
       canDelete: function () { return S.me.role === 'owner'; },
@@ -2092,27 +2107,6 @@
       '<button type="button" class="btn-text pedit" data-post-edit="' + esc(x.id) + '">แก้</button></div>';
   }
 
-  /* เวลาโพสต์เก็บเป็นข้อความอย่าง "17.00" หรือช่วง "15.00-20.00" (ตามที่ทีมเขียนกันมาแต่เดิม)
-     แต่ตอนกรอกให้เลือกจากนาฬิกาจริง จะได้ไม่ต้องพิมพ์เองให้ผิดรูปแบบ */
-  var TIME_QUICK = ['10.00', '12.00', '14.00', '15.00', '17.00', '18.00', '19.00', '20.00'];
-  function timeToInput(t) {
-    var m = String(t || '').match(/^(\d{1,2})[.:](\d{2})$/);
-    return m ? pad(Number(m[1])) + ':' + m[2] : '';
-  }
-  function parseTimeValue(v) {
-    var parts = String(v || '').split('-');
-    return { a: timeToInput(parts[0]), b: timeToInput(parts[1]) };
-  }
-  function inputToTime(v) {
-    var m = String(v || '').match(/^(\d{2}):(\d{2})$/);
-    return m ? Number(m[1]) + '.' + m[2] : '';
-  }
-  function buildTimeValue(a, b) {
-    var x = inputToTime(a), y = inputToTime(b);
-    if (!x) return '';
-    return y ? x + '-' + y : x;
-  }
-
   /* ---------- ประวัติการแก้ตารางโพสต์ (ใต้ตารางในหน้าต่างเพิ่มโพสต์) ----------
      นนท์: "ถ้าผมบันทึกผิด ผมจะได้รู้ว่าผมแก้อะไรไปเมื่อไหร่ แล้วจะลบยังไง" */
   var LOG_ACT = { create: 'เพิ่ม', update: 'แก้', delete: 'ลบ' };
@@ -2196,13 +2190,14 @@
 
   /* หน้าต่าง "เพิ่มโพสต์" = ตารางแบบ Excel กรอกทีเดียวหลายโพสต์
      (นนท์: หน้าหลักให้เป็นปฏิทิน/รายการเหมือนเดิม ส่วนตารางเอามาไว้ตรงนี้) */
-  function openPostSheet() {
+  function openPostSheet(o) {
+    o = o || {};
     var host = document.createElement('div');
     host.className = 'modal';
-    var today = P.day || ymd(new Date());
+    var today = o.date || P.day || ymd(new Date());
     var pageId = P.page || ((S.pages || [])[0] || {}).id || '';
     host.innerHTML = '<div class="modal-box sheet"><div class="sec-h"><h2>เพิ่มโพสต์</h2>' +
-      '<p>พิมพ์ในตารางได้เลยเหมือน Excel · วางจาก Excel ก็ได้ · ระบบบันทึกให้เองทีละแถว</p>' +
+      '<p>พิมพ์ในตารางได้เลยเหมือน Excel · ก็อปจาก Excel มาวางก็ได้ · ระบบบันทึกให้เองทีละแถว</p>' +
       '<button type="button" class="btn-text" data-close>ปิด</button></div>' +
       '<div class="sheet-bar"><label class="label" for="sheetPage">ตารางนี้อัปเดตของเพจ</label>' +
       '<select class="select" id="sheetPage">' + (S.pages || []).map(function (pg) {
@@ -2224,7 +2219,18 @@
     };
     $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
     host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
-    mountPostGrid($('#sheetHost', host), [], { date: today, pageId: pageId, blankRows: 10 });
+    mountPostGrid($('#sheetHost', host), [], { date: today, pageId: pageId, blankRows: 10, campaignId: o.campaignId || (P.campaign || '') });
+    /* เปิดมาเพื่อแก้โพสต์เดิม: ดึงขึ้นแถวบนสุดแล้วจ่อเคอร์เซอร์ที่หัวข้อ */
+    if (o.postId) {
+      api('/posts?from=1900-01-01&to=2999-12-31').then(function (j) {
+        var pst = (j.posts || []).filter(function (x) { return x.id === o.postId; })[0], g0 = G.grid;
+        if (!pst || !g0) { toast('ไม่พบโพสต์นี้แล้ว', true); return; }
+        pst._saved = gridSnap(pst);
+        g0.rows.unshift(pst);
+        g0.refresh(true);
+        selectSheetRow(g0, pst);
+      }).catch(function (e) { toast(e.message, true); });
+    }
     /* เปลี่ยนเพจด้านบน = เปลี่ยนให้ทุกแถวในตารางนี้ (แถวที่บันทึกไปแล้วก็ย้ายเพจตาม) */
     $('#sheetPage', host).addEventListener('change', function () {
       var pid = this.value, g = G.grid;
@@ -2238,7 +2244,8 @@
       g.opt.blankRow = function (last) {
         return { pageId: pid, date: (last && last.date) || today, time: '',
                  channels: (last && last.channels ? last.channels.slice() : []),
-                 topic: '', kind: 'content', status: 'plan', url: '', note: '' };
+                 topic: '', kind: 'content', status: 'plan', url: '', note: '',
+                 campaignId: (last && last.campaignId) || o.campaignId || '' };
       };
       g.refresh(true);
       if (moved.length) { gridSchedule(moved); toast('ย้าย ' + moved.length + ' แถวไปเพจ ' + pageName(pid) + ' แล้ว'); }
@@ -2275,7 +2282,7 @@
     G.onSaved = function () { renderSheetLog(logHost); };
     setTimeout(function () {
       var g = G.grid;
-      if (g) { g.setSel(0, g.colIdx('topic'), false); }
+      if (g && !o.postId) { g.setSel(0, g.colIdx('topic'), false); }
     }, 60);
   }
   function selectSheetRow(g, row) {
@@ -2284,109 +2291,6 @@
     if (vr >= 0) g.setSel(vr, g.colIdx('topic'), false);
   }
 
-  /* ฟอร์มแก้โพสต์ทีละอัน — ใช้ตอนกด "แก้" จากปฏิทิน/รายการ */
-  function openPostForm(post) {
-    var isNew = !post;
-    var tv = parseTimeValue(post ? post.time : '');
-    var host = document.createElement('div');
-    host.className = 'modal';
-    var chAll = ['Facebook', 'Line OA', 'TikTok', 'Instagram'];
-    host.innerHTML = '<div class="modal-box"><div class="sec-h"><h2>' + (isNew ? 'เพิ่มโพสต์' : 'แก้โพสต์') + '</h2>' +
-      '<button type="button" class="btn-text" data-close>ปิด</button></div><div class="sec-b"><form id="postForm" style="display:grid;gap:12px">' +
-      '<div class="grid2"><div class="field"><label class="label">เพจ</label><select class="select" name="pageId">' +
-      (S.pages || []).map(function (pg) { return '<option value="' + esc(pg.id) + '"' + (post && post.pageId === pg.id ? ' selected' : '') + '>' + esc(pg.name) + '</option>'; }).join('') +
-      '</select></div><div class="field"><label class="label">ชนิด</label><select class="select" name="kind">' +
-      Object.keys(POST_KIND).map(function (k) { return '<option value="' + k + '"' + (post && post.kind === k ? ' selected' : '') + '>' + POST_KIND[k] + '</option>'; }).join('') +
-      '</select></div></div>' +
-      '<div class="grid2"><div class="field"><label class="label">วันที่</label><input class="input" type="date" name="date" value="' + esc(post ? post.date : ymd(new Date())) + '" required></div>' +
-      '<div class="field"><label class="label">เวลาโพสต์</label>' +
-      '<div class="timepick"><input class="input" type="time" name="t1" value="' + esc(tv.a) + '">' +
-      '<label class="tspan"><input type="checkbox" name="hasEnd"' + (tv.b ? ' checked' : '') + '> ถึง</label>' +
-      '<input class="input" type="time" name="t2" value="' + esc(tv.b) + '"' + (tv.b ? '' : ' disabled') + '></div>' +
-      '<div class="chips tquick">' + TIME_QUICK.map(function (q) {
-        return '<button type="button" class="chip plain" data-qt="' + q + '">' + q + '</button>';
-      }).join('') + '<button type="button" class="chip plain" data-qt="">ไม่ระบุ</button></div></div></div>' +
-      '<div class="field"><label class="label">ช่องทาง</label><div class="chips" id="chSel">' +
-      chAll.map(function (c) {
-        var on = post && (post.channels || []).indexOf(c) !== -1;
-        return '<button type="button" class="chip plain' + (on ? ' on' : '') + '" data-ch="' + esc(c) + '">' + esc(c) + '</button>';
-      }).join('') + '</div></div>' +
-      '<div class="field"><label class="label">หัวข้อ / เนื้อหา</label><textarea class="textarea" name="topic" data-rich placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ">' + esc(post ? post.topic : '') + '</textarea></div>' +
-      '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด <small>โพสต์นี้ทำให้คอนเทนต์/แคมเปญ/โปรโมชั่นไหน</small></label>' +
-      campaignSelect('name="campaignId"', post ? post.campaignId : (P.campaign || null)) + '</div>' +
-      '<div class="grid2"><div class="field"><label class="label">ลิงก์โพสต์ <small>ใส่แล้วนับว่าโพสต์แล้ว</small></label><input class="input" name="url" value="' + esc(post ? post.url : '') + '" placeholder="https://..."></div>' +
-      '<div class="field"><label class="label">หมายเหตุ</label><input class="input" name="note" value="' + esc(post ? post.note : '') + '"></div></div>' +
-      '<div class="acts"><button type="submit" class="btn">' + (isNew ? 'เพิ่มโพสต์' : 'บันทึก') + '</button>' +
-      '<button type="button" class="btn-ghost" data-close>ยกเลิก</button>' +
-      (!isNew && S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delPost" style="margin-left:auto">ลบ</button>' : '') +
-      '</div></form></div></div>';
-    document.body.appendChild(host);
-    wireTyping(host);
-    var close = function () { host.remove(); };
-    $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
-    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
-    $('#chSel', host).addEventListener('click', function (ev) {
-      var b = ev.target.closest('[data-ch]'); if (b) b.classList.toggle('on');
-    });
-    var f0 = $('#postForm', host);
-    /* ติ๊ก "ถึง" = เปิดช่องเวลาสิ้นสุด · ไม่ติ๊ก = เวลาเดียว */
-    f0.hasEnd.addEventListener('change', function () {
-      f0.t2.disabled = !this.checked;
-      if (this.checked && !f0.t2.value && f0.t1.value) {
-        var h = Number(f0.t1.value.slice(0, 2)) + 3;
-        f0.t2.value = pad(Math.min(h, 23)) + f0.t1.value.slice(2);
-      }
-      if (!this.checked) f0.t2.value = '';
-    });
-    $('.tquick', host).addEventListener('click', function (ev) {
-      var b = ev.target.closest('[data-qt]'); if (!b) return;
-      var q = b.getAttribute('data-qt');
-      f0.t1.value = timeToInput(q);
-      if (!q) { f0.hasEnd.checked = false; f0.t2.value = ''; f0.t2.disabled = true; }
-      $$('[data-qt]', host).forEach(function (x) { x.classList.toggle('on', x === b); });
-    });
-    var del = $('#delPost', host);
-    if (del) del.addEventListener('click', function () {
-      if (!confirm('ลบโพสต์นี้?')) return;
-      api('/posts/' + post.id, 'DELETE').then(function () { close(); renderPosts(); }).catch(function (e) { toast(e.message, true); });
-    });
-    $('#postForm', host).addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var f = this;
-      var body = {
-        pageId: f.pageId.value, kind: f.kind.value, date: f.date.value,
-        time: buildTimeValue(f.t1.value, f.hasEnd.checked ? f.t2.value : ''),
-        topic: f.topic.value, url: f.url.value.trim(), note: f.note.value,
-        campaignId: f.campaignId.value || null,
-        channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
-      };
-      if (!body.topic.trim() && !body.url) {   /* กันโพสต์เปล่าตั้งแต่ตอนกรอก ไม่ให้ไปค้างในตาราง */
-        toast('ใส่หัวข้อก่อนถึงจะบันทึกได้', true);
-        f.topic.focus();
-        return;
-      }
-      var req = isNew ? api('/posts', 'POST', { posts: [body] }) : api('/posts/' + post.id, 'PUT', body);
-      req.then(function () {
-        close();
-        var pg = (S.pages || []).filter(function (x) { return x.id === body.pageId; })[0];
-        okDialog({
-          title: isNew ? 'เพิ่มโพสต์เข้าตารางแล้ว' : 'บันทึกโพสต์แล้ว',
-          lines: [
-            (pg ? pg.name : '') + ' · ' + body.date + (body.time ? ' ' + body.time : ''),
-            body.topic ? (body.topic.length > 70 ? body.topic.slice(0, 70) + '…' : body.topic) : '(ยังไม่ใส่หัวข้อ)',
-            body.channels.length ? 'ช่องทาง: ' + body.channels.join(', ') : 'ยังไม่เลือกช่องทาง',
-          ],
-          note: body.url ? 'มีลิงก์แล้ว ระบบนับว่าโพสต์เรียบร้อย' : 'ยังไม่มีลิงก์ — พอโพสต์จริงแล้ววางลิงก์ในตารางได้เลย',
-          onClose: renderPosts,
-        });
-      }).catch(function (e) { toast(e.message, true); });
-    });
-  }
-
-  /* ---------- วางตารางจาก Excel ----------------------------------------
-     ทีมทำแผนโพสต์ใน Excel อยู่แล้ว ให้ก็อปทั้งบล็อกมาวางในนี้ทีเดียว
-     ระบบอ่านเป็นตาราง → ให้เลือกว่าคอลัมน์ไหนคืออะไร → พรีวิว → บันทึก
-     แถวที่ตรงกับของเดิม (เพจ + วัน + เวลา) จะทับของเดิม ไม่สร้างซ้ำ */
   var PASTE_COLS = [
     ['skip', '— ไม่ใช้ —'], ['date', 'วันที่ (เต็ม)'], ['day', 'วันที่ (เลขวัน)'], ['month', 'เดือน'],
     ['time', 'เวลา'], ['channels', 'ช่องทาง'], ['topic', 'หัวข้อ / เนื้อหา'], ['kind', 'ชนิด'],
@@ -2601,189 +2505,6 @@
   }
   function topicKey(s) { return normTxt(s).toLowerCase().replace(/[\s\-_.·,"'"'()]/g, '').slice(0, 40); }
 
-  function openPasteImport() {
-    var host = document.createElement('div');
-    host.className = 'modal';
-    host.innerHTML = '<div class="modal-box wide"><div class="sec-h"><h2>วางตารางจาก Excel</h2>' +
-      '<button type="button" class="btn-text" data-close>ปิด</button></div>' +
-      '<div class="sec-b" id="pasteBody"></div></div>';
-    document.body.appendChild(host);
-    var close = function () { host.remove(); };
-    host.addEventListener('click', function (ev) {
-      if (ev.target === host || ev.target.closest('[data-close]')) close();
-    });
-    var body = $('#pasteBody', host);
-    var now = new Date();
-    var st = {
-      pageId: P.page || ((S.pages || [])[0] || {}).id || '',
-      month: (P.month || (now.getFullYear() + '-' + pad(now.getMonth() + 1))),
-      rows: null, map: null
-    };
-    function baseYM() {
-      var p = st.month.split('-');
-      return { baseY: Number(p[0]), baseM: Number(p[1]), pageId: st.pageId };
-    }
-    function pageOptions(sel) {
-      return (S.pages || []).map(function (pg) {
-        return '<option value="' + esc(pg.id) + '"' + (pg.id === sel ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
-      }).join('');
-    }
-
-    function stepPaste(msg) {
-      body.innerHTML =
-        '<div class="grid2"><div class="field"><label class="label">เพจ <small>ใช้กับแถวที่ไม่ได้ระบุเพจเอง</small></label>' +
-        '<select class="select" id="pgSel">' + pageOptions(st.pageId) + '</select></div>' +
-        '<div class="field"><label class="label">เดือนของตาราง <small>ใช้ตอนในไฟล์มีแต่เลขวัน</small></label>' +
-        '<input class="input" type="month" id="moSel" value="' + esc(st.month) + '"></div></div>' +
-        (msg ? '<p class="hint bad" style="margin-top:10px">' + esc(msg) + '</p>' : '') +
-        '<div class="field" style="margin-top:14px"><label class="label">วางตารางตรงนี้ <small>ก็อปจาก Excel / Google Sheet ทั้งบล็อก แล้ว Ctrl+V (Mac: ⌘V)</small></label>' +
-        '<div class="pastebox" id="pasteBox" contenteditable="true" spellcheck="false" data-ph="คลิกตรงนี้แล้ววางตารางได้เลย — เอาหัวตารางมาด้วยจะเดาคอลัมน์ให้ถูกขึ้น"></div></div>' +
-        '<div class="acts" style="margin-top:14px"><button type="button" class="btn" id="readBtn">อ่านตาราง</button>' +
-        '<button type="button" class="btn-ghost" data-close>ยกเลิก</button></div>' +
-        '<p class="hint" style="margin-top:10px">อ่านคอลัมน์ วัน · เดือน · เวลา · ช่องทาง · หัวข้อ · ชนิด · สถานะ · ลิงก์ · หมายเหตุ ได้เอง ' +
-        'แถวที่ตรงกับของเดิม (เพจ + วัน + เวลา) จะทับของเดิมให้ ไม่เพิ่มซ้ำ</p>';
-      var box = $('#pasteBox', body);
-      $('#pgSel', body).addEventListener('change', function () { st.pageId = this.value; });
-      $('#moSel', body).addEventListener('change', function () { st.month = this.value || st.month; });
-      box.addEventListener('paste', function (ev) {
-        var cd = ev.clipboardData;
-        if (!cd) return;
-        var html = cd.getData('text/html'), text = cd.getData('text/plain');
-        var rows = tableFromHtml(html) || tableFromText(text);
-        if (rows) { ev.preventDefault(); stepMap(rows); }
-      });
-      $('#readBtn', body).addEventListener('click', function () {
-        var rows = tableFromText(box.innerText);
-        if (!rows) { toast('ยังไม่มีตารางให้อ่าน — วางข้อมูลก่อน', true); return; }
-        stepMap(rows);
-      });
-      setTimeout(function () { box.focus(); }, 60);
-    }
-
-    function stepMap(rows) {
-      var b = baseYM();
-      var head = rows[0].map(headerFieldOf);
-      var hasHead = head.filter(Boolean).length >= 2;
-      var data = hasHead ? rows.slice(1) : rows;
-      if (!data.length) { stepPaste('มีแต่หัวตาราง ไม่มีข้อมูล'); return; }
-      var map = hasHead
-        ? head.map(function (f) { return f || 'skip'; })
-        : autoMapByContent(data, b.baseY, b.baseM);
-      while (map.length < rows[0].length) map.push('skip');
-      st.rows = data; st.map = map; st.head = hasHead ? rows[0] : null;
-      drawPreview();
-    }
-
-    function drawPreview() {
-      var b = baseYM();
-      var recs = buildPasteRows(st.rows, st.map, b);
-      var ok = recs.filter(function (r) { return !r.err; });
-      var bad = recs.filter(function (r) { return r.err; });
-      var cols = st.map.map(function (f, i) {
-        return '<div class="mapcol"><span>' + esc(st.head ? (st.head[i] || ('คอลัมน์ ' + (i + 1))) : ('คอลัมน์ ' + (i + 1))) + '</span>' +
-          '<select class="select" data-mapc="' + i + '">' +
-          PASTE_COLS.map(function (p) {
-            return '<option value="' + p[0] + '"' + (p[0] === f ? ' selected' : '') + '>' + esc(p[1]) + '</option>';
-          }).join('') + '</select></div>';
-      }).join('');
-      var rowsHtml = recs.slice(0, 60).map(function (r) {
-        if (r.err) {
-          return '<tr class="skiprow"><td>' + r.n + '</td><td colspan="6">' + esc(r.err) + ' — ' +
-            esc(r.raw.join(' · ').slice(0, 90)) + '</td></tr>';
-        }
-        return '<tr><td>' + r.n + '</td><td>' + esc(r.date) + (r.time ? ' <b>' + esc(r.time) + '</b>' : '') + '</td>' +
-          '<td>' + esc(pageName(r.pageId)) + '</td>' +
-          '<td>' + esc(POST_KIND[r.kind] || r.kind) + '</td>' +
-          '<td>' + esc(r.channels.join(', ') || '—') + '</td>' +
-          '<td class="tp">' + esc(r.topic.slice(0, 80) || '—') + '</td>' +
-          '<td>' + (r.status === 'done' ? 'โพสต์แล้ว' : (r.status === 'skip' ? 'ไม่โพสต์' : 'ยังไม่โพสต์')) +
-          (r.url ? ' · มีลิงก์' : '') + '</td></tr>';
-      }).join('');
-      body.innerHTML =
-        '<div class="grid2"><div class="field"><label class="label">เพจ</label>' +
-        '<select class="select" id="pgSel">' + pageOptions(st.pageId) + '</select></div>' +
-        '<div class="field"><label class="label">เดือนของตาราง</label>' +
-        '<input class="input" type="month" id="moSel" value="' + esc(st.month) + '"></div></div>' +
-        '<div class="field" style="margin-top:14px"><label class="label">คอลัมน์ในไฟล์คืออะไร <small>แก้ได้ถ้าเดาผิด</small></label>' +
-        '<div class="mapgrid">' + cols + '</div></div>' +
-        '<div class="pv-sum"><b>' + ok.length + '</b> แถวพร้อมบันทึก' +
-        (bad.length ? ' · <span class="bad">' + bad.length + ' แถวข้าม</span>' : '') +
-        (recs.length > 60 ? ' · แสดง 60 แถวแรก' : '') + '</div>' +
-        '<div class="pvwrap"><table class="pvtable"><thead><tr><th>#</th><th>วัน/เวลา</th><th>เพจ</th><th>ชนิด</th>' +
-        '<th>ช่องทาง</th><th>หัวข้อ</th><th>สถานะ</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
-        '<div class="acts" style="margin-top:14px"><button type="button" class="btn" id="saveBtn"' +
-        (ok.length ? '' : ' disabled') + '>บันทึกเข้าตาราง ' + ok.length + ' แถว</button>' +
-        '<button type="button" class="btn-ghost" id="backBtn">วางใหม่</button>' +
-        '<button type="button" class="btn-ghost" data-close>ยกเลิก</button></div>';
-      $('#pgSel', body).addEventListener('change', function () { st.pageId = this.value; drawPreview(); });
-      $('#moSel', body).addEventListener('change', function () { st.month = this.value || st.month; drawPreview(); });
-      $('#backBtn', body).addEventListener('click', function () { stepPaste(); });
-      $$('[data-mapc]', body).forEach(function (sel) {
-        sel.addEventListener('change', function () {
-          st.map[Number(this.getAttribute('data-mapc'))] = this.value;
-          drawPreview();
-        });
-      });
-      var save = $('#saveBtn', body);
-      if (save) save.addEventListener('click', function () { doSave(ok, this); });
-    }
-
-    /* เทียบกับของเดิมในช่วงวันเดียวกันก่อน แถวไหนซ้ำ (เพจ+วัน+เวลา) ให้ทับ ไม่เพิ่มใหม่ */
-    function doSave(recs, btn) {
-      btn.disabled = true;
-      var was = btn.textContent;
-      btn.textContent = 'กำลังบันทึก…';
-      var dates = recs.map(function (r) { return r.date; }).sort();
-      api('/posts?from=' + dates[0] + '&to=' + dates[dates.length - 1]).then(function (j) {
-        var byKey = {}, bySlot = {};
-        (j.posts || []).forEach(function (p) {
-          byKey[p.pageId + '|' + p.date + '|' + (p.time || '') + '|' + topicKey(p.topic)] = p.id;
-          var slot = p.pageId + '|' + p.date + '|' + (p.time || '');
-          bySlot[slot] = bySlot[slot] ? 'many' : p.id;
-        });
-        var taken = {}, nUp = 0;
-        var payload = recs.map(function (r) {
-          var k = r.pageId + '|' + r.date + '|' + (r.time || '') + '|' + topicKey(r.topic);
-          var slot = r.pageId + '|' + r.date + '|' + (r.time || '');
-          var id = byKey[k] || (bySlot[slot] && bySlot[slot] !== 'many' ? bySlot[slot] : null);
-          if (id && taken[id]) id = null;
-          if (id) { taken[id] = 1; nUp++; }
-          return {
-            id: id || undefined, pageId: r.pageId, date: r.date, time: r.time, channels: r.channels,
-            topic: r.topic, kind: r.kind, status: r.status, url: r.url, note: r.note,
-            postedAt: r.status === 'done' ? nowIsoLocal() : null
-          };
-        });
-        var chunks = [], nBlank = 0;
-        for (var i = 0; i < payload.length; i += 150) chunks.push(payload.slice(i, i + 150));
-        return chunks.reduce(function (pr, c) {
-          return pr.then(function () {
-            return api('/posts', 'POST', { posts: c }).then(function (j) { nBlank += (j && j.blank) || 0; });
-          });
-        }, Promise.resolve()).then(function () { return { nUp: nUp, n: payload.length, nBlank: nBlank }; });
-      }).then(function (res) {
-        close();
-        S.posts = null;
-        okDialog({
-          title: 'อัปเดตตารางโพสต์แล้ว',
-          lines: [
-            'รับเข้า ' + (res.n - res.nBlank) + ' แถว',
-            res.nUp ? 'ทับของเดิม ' + res.nUp + ' แถว · เพิ่มใหม่ ' + Math.max(0, res.n - res.nBlank - res.nUp) + ' แถว' : 'เพิ่มใหม่ทั้งหมด',
-            'เพจ ' + pageName(st.pageId) + ' · เดือน ' + st.month
-          ].concat(res.nBlank ? ['ข้ามแถวที่ไม่มีหัวข้อ ' + res.nBlank + ' แถว'] : []),
-          note: 'แถวที่มีลิงก์ ระบบนับว่าโพสต์แล้วให้เลย',
-          onClose: renderPosts
-        });
-      }).catch(function (e) {
-        btn.disabled = false; btn.textContent = was;
-        toast(e.message, true);
-      });
-    }
-
-    stepPaste();
-  }
-  function nowIsoLocal() { return new Date().toISOString(); }
-
   /* ดึงไฟล์ตั้งต้นแล้วยิงเข้า API ทีละ 150 แถว — ยิงทีเดียวทั้งก้อนจะเกินขนาดที่ D1 รับไหว */
   function seedPosts(btn) {
     btn.disabled = true;
@@ -2819,20 +2540,9 @@
     });
   }
 
+  /* "แก้" จากปฏิทิน/รายการ/ประวัติ = เปิดตารางแล้วดึงโพสต์นั้นขึ้นแถวบนสุด (ทางแก้มีทางเดียว) */
   function openPostFormById(id) {
-    var d = postRangeDates();
-    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '') + (P.page ? '&page=' + encodeURIComponent(P.page) : '');
-    var pick = function (j) { return (j.posts || []).filter(function (x) { return x.id === id; })[0]; };
-    api('/posts' + qs).then(function (j) {
-      var post = pick(j);
-      if (post) { openPostForm(post); return; }
-      /* กดมาจากประวัติ โพสต์อาจอยู่นอกเดือนหรือนอกเพจที่กำลังดูอยู่ — หาทั้งระบบอีกรอบ */
-      return api('/posts?from=1900-01-01&to=2999-12-31').then(function (j2) {
-        var p2 = pick(j2);
-        if (!p2) { toast('ไม่พบโพสต์นี้แล้ว', true); renderPosts(); return; }
-        openPostForm(p2);
-      });
-    }).catch(function (e) { toast(e.message, true); });
+    openPostSheet({ postId: id });
   }
 
   /* ---------- กระดิ่ง: คนแท็กถึงเรา ---------- */

@@ -2,7 +2,7 @@
    KAN Admin — งานทีม (Task) · หน้าตาชุดเดียวกับหลังบ้าน M CRM
    โทเคนสี/sidebar/แถบบน มาจาก ../assets/erp-shell.css
    ============================================================ */
-@import url('../assets/erp-shell.css?v=2');
+@import url('../assets/erp-shell.css?v=3');
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
 
 *{ box-sizing:border-box; margin:0; padding:0; }
