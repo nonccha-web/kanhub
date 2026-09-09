@@ -1716,10 +1716,20 @@
             '<div class="tlist">' + byDate[dt].map(postRow).join('') + '</div></div>';
         });
       }
+      /* ประวัติการแก้ + ปุ่มล้างโพสต์เปล่า อยู่ใต้ปฏิทินเลย
+         (นนท์: ต้องเห็นและลบของที่ค้างได้จากหน้าหลัก ไม่ต้องเปิดหน้าต่างเพิ่มโพสต์ก่อน) */
+      h += '<div class="sheet-log page-log" id="postLog"><div class="lg-empty">กำลังอ่านประวัติ…</div></div>';
+
       view.innerHTML = h;
 
       $('#newPost').addEventListener('click', function () { openPostSheet(); });
       $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
+
+      renderSheetLog($('#postLog'), {
+        editLabel: 'แก้โพสต์',
+        onEdit: function (pid) { openPostFormById(pid); },
+        afterDelete: function () { renderPosts(); return true; },
+      });
 
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
@@ -1876,6 +1886,12 @@
     if (!row.date) {                       /* ยังไม่มีวันที่ = ยังไม่ใช่โพสต์ ไม่บันทึก */
       delete G.pending[k];
       gridMark(row, row.id ? 'err' : '', row.id ? 'ต้องมีวันที่' : 'ใส่วันที่ก่อนถึงจะบันทึก');
+      gridStatus();
+      return;
+    }
+    if (!String(row.topic || '').trim() && !row.url) {   /* ไม่มีหัวข้อและไม่มีลิงก์ = ไม่รับเข้าระบบ จะได้ไม่มีแถวเปล่าค้าง */
+      delete G.pending[k];
+      gridMark(row, row.id ? 'err' : '', row.id ? 'ต้องมีหัวข้อ' : 'ใส่หัวข้อก่อนถึงจะบันทึก');
       gridStatus();
       return;
     }
@@ -2111,7 +2127,7 @@
     if (field === 'channels') { try { return (JSON.parse(v) || []).join(', ') || '(ว่าง)'; } catch (e) { return v; } }
     return String(v).length > 26 ? String(v).slice(0, 26) + '…' : String(v);
   }
-  function logRowHtml(e) {
+  function logRowHtml(e, editLabel) {
     var who = staffById(e.staffId);
     var d = new Date(e.createdAt);
     var when = sameDay(d, new Date()) ? fmtTime(d) : (fmtDate(d) + ' ' + fmtTime(d));
@@ -2128,12 +2144,34 @@
       '<span class="lg-a">' + esc(LOG_ACT[e.action] || e.action) + '</span>' +
       '<span class="lg-m"><b>' + topic + '</b><small>' + head + (detail ? ' · ' + detail : '') + '</small></span>' +
       '<span class="lg-b">' + (e.canEdit
-        ? '<button type="button" class="btn-ghost sm" data-log-edit="' + esc(e.postId) + '">แก้ในตาราง</button>' +
+        ? '<button type="button" class="btn-ghost sm" data-log-edit="' + esc(e.postId) + '">' + esc(editLabel || 'แก้ในตาราง') + '</button>' +
           '<button type="button" class="btn-ghost sm danger" data-log-del="' + esc(e.postId) + '">ลบโพสต์</button>'
         : (e.alive ? '<span class="mut">ของคนอื่น</span>' : '<span class="mut">ลบไปแล้ว</span>')) + '</span></div>';
   }
-  function renderSheetLog(host) {
+  /* แผงเดียวใช้ได้สองที่: ในหน้าต่างเพิ่มโพสต์ และใต้ปฏิทินหน้าหลัก
+     ต่างกันแค่ปุ่ม "แก้" — ในตารางเลื่อนไปที่แถวนั้น ส่วนหน้าหลักเปิดฟอร์มแก้ทีละอัน
+     opts: { editLabel, onEdit(postId), afterDelete(postId) → true ถ้าวาดหน้าใหม่เองแล้ว } */
+  function renderSheetLog(host, opts) {
     if (!host) return;
+    if (opts) host._logOpts = opts;
+    var o = host._logOpts || {};
+    if (!host._logBound) {                 /* ผูกครั้งเดียว เนื้อในถูกวาดใหม่ทุกรอบ */
+      host._logBound = 1;
+      host.addEventListener('click', function (ev) {
+        var op = host._logOpts || {}, b;
+        if ((b = ev.target.closest('[data-log-del]'))) {
+          var pid = b.getAttribute('data-log-del');
+          if (!confirm('ลบโพสต์นี้ออกจากตารางโพสต์?')) return;
+          b.disabled = true;
+          api('/posts/' + pid, 'DELETE').then(function () {
+            toast('ลบโพสต์แล้ว');
+            if (!(op.afterDelete && op.afterDelete(pid))) renderSheetLog(host);
+          }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+          return;
+        }
+        if ((b = ev.target.closest('[data-log-edit]')) && op.onEdit) op.onEdit(b.getAttribute('data-log-edit'), b);
+      });
+    }
     Promise.all([api('/posts/log?limit=40'), api('/posts/blank').catch(function () { return { count: 0 }; })])
       .then(function (r) {
         var list = r[0].log || [], nBlank = r[1].count || 0;
@@ -2141,7 +2179,7 @@
           '<span class="hint">กดดูได้ว่าใครแก้อะไรตอนไหน · ของที่ตัวเองเพิ่มไว้ลบเองได้</span>' +
           (nBlank ? '<button type="button" class="btn-ghost sm danger" id="purgeBlank">ลบโพสต์ที่ไม่มีหัวข้อ (' + nBlank + ')</button>' : '') +
           '</div>' +
-          (list.length ? '<div class="lg-list">' + list.map(logRowHtml).join('') + '</div>'
+          (list.length ? '<div class="lg-list">' + list.map(function (e) { return logRowHtml(e, o.editLabel); }).join('') + '</div>'
                        : '<div class="lg-empty">ยังไม่มีการแก้ในตารางนี้</div>');
         var pb = $('#purgeBlank', host);
         if (pb) pb.addEventListener('click', function () {
@@ -2149,7 +2187,7 @@
           pb.disabled = true;
           api('/posts/blank', 'DELETE').then(function (j) {
             toast('ลบโพสต์เปล่า ' + j.deleted + ' รายการแล้ว');
-            renderSheetLog(host);
+            if (!(o.afterDelete && o.afterDelete(null))) renderSheetLog(host);
           }).catch(function (e) { pb.disabled = false; toast(e.message, true); });
         });
       })
@@ -2206,27 +2244,18 @@
       if (moved.length) { gridSchedule(moved); toast('ย้าย ' + moved.length + ' แถวไปเพจ ' + pageName(pid) + ' แล้ว'); }
     });
     var logHost = $('#sheetLog', host);
-    renderSheetLog(logHost);
-    G.onSaved = function () { renderSheetLog(logHost); };
-    host.addEventListener('click', function (ev) {
-      var b;
-      if ((b = ev.target.closest('[data-log-del]'))) {
-        var pid = b.getAttribute('data-log-del');
-        if (!confirm('ลบโพสต์นี้ออกจากตารางโพสต์?')) return;
-        b.disabled = true;
-        api('/posts/' + pid, 'DELETE').then(function () {
-          var g = G.grid;
-          if (g) {
-            var hit = g.rows.filter(function (r) { return r.id === pid; })[0];
-            if (hit) { g.rows.splice(g.rows.indexOf(hit), 1); g.ensureBlank(); g.refresh(true); }
-          }
-          toast('ลบโพสต์แล้ว');
-          renderSheetLog(logHost);
-        }).catch(function (e) { b.disabled = false; toast(e.message, true); });
-        return;
-      }
-      if ((b = ev.target.closest('[data-log-edit]'))) {
-        var eid = b.getAttribute('data-log-edit'), g2 = G.grid;
+    renderSheetLog(logHost, {
+      /* ลบจากประวัติแล้ว เอาแถวออกจากตารางที่เปิดค้างอยู่ด้วย จะได้ไม่ค้างบนจอ */
+      afterDelete: function (pid) {
+        var g = G.grid;
+        if (g && pid) {
+          var hit = g.rows.filter(function (r) { return r.id === pid; })[0];
+          if (hit) { g.rows.splice(g.rows.indexOf(hit), 1); g.ensureBlank(); g.refresh(true); }
+        }
+        return false;
+      },
+      onEdit: function (eid, b) {
+        var g2 = G.grid;
         if (!g2) return;
         var found = g2.rows.filter(function (r) { return r.id === eid; })[0];
         if (found) { selectSheetRow(g2, found); return; }
@@ -2241,8 +2270,9 @@
           selectSheetRow(g2, pst);
           toast('ดึงโพสต์ขึ้นมาแก้ในตารางแล้ว (แถวบนสุด)');
         }).catch(function (e) { b.disabled = false; toast(e.message, true); });
-      }
+      },
     });
+    G.onSaved = function () { renderSheetLog(logHost); };
     setTimeout(function () {
       var g = G.grid;
       if (g) { g.setSel(0, g.colIdx('topic'), false); }
@@ -2330,6 +2360,11 @@
         campaignId: f.campaignId.value || null,
         channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
       };
+      if (!body.topic.trim() && !body.url) {   /* กันโพสต์เปล่าตั้งแต่ตอนกรอก ไม่ให้ไปค้างในตาราง */
+        toast('ใส่หัวข้อก่อนถึงจะบันทึกได้', true);
+        f.topic.focus();
+        return;
+      }
       var req = isNew ? api('/posts', 'POST', { posts: [body] }) : api('/posts/' + post.id, 'PUT', body);
       req.then(function () {
         close();
@@ -2719,21 +2754,23 @@
             postedAt: r.status === 'done' ? nowIsoLocal() : null
           };
         });
-        var chunks = [];
+        var chunks = [], nBlank = 0;
         for (var i = 0; i < payload.length; i += 150) chunks.push(payload.slice(i, i + 150));
         return chunks.reduce(function (pr, c) {
-          return pr.then(function () { return api('/posts', 'POST', { posts: c }); });
-        }, Promise.resolve()).then(function () { return { nUp: nUp, n: payload.length }; });
+          return pr.then(function () {
+            return api('/posts', 'POST', { posts: c }).then(function (j) { nBlank += (j && j.blank) || 0; });
+          });
+        }, Promise.resolve()).then(function () { return { nUp: nUp, n: payload.length, nBlank: nBlank }; });
       }).then(function (res) {
         close();
         S.posts = null;
         okDialog({
           title: 'อัปเดตตารางโพสต์แล้ว',
           lines: [
-            'รับเข้า ' + res.n + ' แถว',
-            res.nUp ? 'ทับของเดิม ' + res.nUp + ' แถว · เพิ่มใหม่ ' + (res.n - res.nUp) + ' แถว' : 'เพิ่มใหม่ทั้งหมด',
+            'รับเข้า ' + (res.n - res.nBlank) + ' แถว',
+            res.nUp ? 'ทับของเดิม ' + res.nUp + ' แถว · เพิ่มใหม่ ' + Math.max(0, res.n - res.nBlank - res.nUp) + ' แถว' : 'เพิ่มใหม่ทั้งหมด',
             'เพจ ' + pageName(st.pageId) + ' · เดือน ' + st.month
-          ],
+          ].concat(res.nBlank ? ['ข้ามแถวที่ไม่มีหัวข้อ ' + res.nBlank + ' แถว'] : []),
           note: 'แถวที่มีลิงก์ ระบบนับว่าโพสต์แล้วให้เลย',
           onClose: renderPosts
         });
@@ -2785,10 +2822,16 @@
   function openPostFormById(id) {
     var d = postRangeDates();
     var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '') + (P.page ? '&page=' + encodeURIComponent(P.page) : '');
+    var pick = function (j) { return (j.posts || []).filter(function (x) { return x.id === id; })[0]; };
     api('/posts' + qs).then(function (j) {
-      var post = (j.posts || []).filter(function (x) { return x.id === id; })[0];
-      if (!post) { toast('ไม่พบโพสต์นี้แล้ว', true); renderPosts(); return; }
-      openPostForm(post);
+      var post = pick(j);
+      if (post) { openPostForm(post); return; }
+      /* กดมาจากประวัติ โพสต์อาจอยู่นอกเดือนหรือนอกเพจที่กำลังดูอยู่ — หาทั้งระบบอีกรอบ */
+      return api('/posts?from=1900-01-01&to=2999-12-31').then(function (j2) {
+        var p2 = pick(j2);
+        if (!p2) { toast('ไม่พบโพสต์นี้แล้ว', true); renderPosts(); return; }
+        openPostForm(p2);
+      });
     }).catch(function (e) { toast(e.message, true); });
   }
 

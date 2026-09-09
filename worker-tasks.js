@@ -809,7 +809,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       ).bind(...given).all();
       (q.results || []).forEach((r) => { before[r.id] = r; });
     }
+    let blank = 0;
     for (const p of list) {
+      /* ไม่มีหัวข้อและไม่มีลิงก์ = แถวเปล่า ข้ามไป ไม่รับเข้าระบบ (นิยามเดียวกับ /posts/blank) */
+      if (!String((p && p.topic) || "").trim() && !String((p && p.url) || "").trim()) { blank++; continue; }
       const date = String((p && p.date) || "");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "วันที่ไม่ถูกต้อง: " + date }, 400);
       const id = String((p && p.id) || newId("po_")).slice(0, 40);
@@ -838,8 +841,8 @@ export async function handleTaskApi(request, env, url, path, method) {
           { id, pageId: after.pageId, date, time: after.time, topic: after.topic }, old ? changes : null));
       }
     }
-    await db.batch(stmts);
-    return json({ ids });
+    if (stmts.length) await db.batch(stmts);
+    return json({ ids, blank });
   }
 
   /* ประวัติการแก้ตารางโพสต์ — ล่าสุดอยู่บนสุด */

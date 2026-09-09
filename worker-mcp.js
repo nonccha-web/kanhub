@@ -509,7 +509,11 @@ async function runTool(name, args, env, token, handleApi) {
     const nUp = payload.filter((r) => r._up).length;
     payload.forEach((r) => { delete r._up; });
     const j = await tApi(env, token, "POST", "/posts", { posts: payload });
-    return { saved: payload.length, updated: nUp, created: payload.length - nUp, ids: j.ids || [], link: SITE + "/tasks/#/posts?view=grid&range=all" };
+    /* แถวที่ไม่มีหัวข้อและไม่มีลิงก์ ระบบไม่รับเข้า — รายงานตามที่บันทึกจริง */
+    const blank = j.blank || 0;
+    const saved = payload.length - blank;
+    return { saved, updated: nUp, created: Math.max(0, saved - nUp), skippedBlank: blank,
+             ids: j.ids || [], link: SITE + "/tasks/#/posts?view=grid&range=all" };
   }
 
   if (name === "list_campaigns") {
