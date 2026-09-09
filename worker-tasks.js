@@ -77,6 +77,11 @@ const ALTERS = [
   "ALTER TABLE task_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'file'",
   "ALTER TABLE task_files ADD COLUMN url TEXT",
   "ALTER TABLE task_files ADD COLUMN title TEXT",
+  /* เชื่อมโพสต์และงานเข้ากับรายการในปฏิทินการตลาด — "เรื่องเดียวกัน" ต้องชี้ไปที่เดียวกัน */
+  "ALTER TABLE posts ADD COLUMN campaign_id TEXT",
+  "ALTER TABLE tasks ADD COLUMN campaign_id TEXT",
+  "CREATE INDEX IF NOT EXISTS idx_posts_campaign ON posts(campaign_id)",
+  "CREATE INDEX IF NOT EXISTS idx_tasks_campaign ON tasks(campaign_id)",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -207,8 +212,8 @@ async function seedPostsOnce(db, env) {
 
   const now = nowIso();
   const pageStmts = (data.pages || []).map((p) =>
-    db.prepare("INSERT OR IGNORE INTO post_pages (id,name,sort,active) VALUES (?,?,?,1)")
-      .bind(String(p.id), String(p.name), Number(p.sort) || 0));
+    db.prepare("INSERT OR IGNORE INTO post_pages (id,name,sort,active) VALUES (?,?,?,?)")
+      .bind(String(p.id), String(p.name), Number(p.sort) || 0, p.active === 0 || p.active === false ? 0 : 1));
   if (pageStmts.length) await db.batch(pageStmts);
 
   /* ยิงทีละ 150 แถว — ก้อนเดียวจะเกินขนาดที่ D1 รับไหว */
@@ -233,6 +238,7 @@ async function seedPostsOnce(db, env) {
 
 /* ---------- schema bootstrap (ครั้งเดียวต่อ isolate) ---------- */
 let schemaReady = null;
+export function ensureTaskSchema(db, env) { return ensureSchema(db, env); }
 async function ensureSchema(db, env) {
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -247,6 +253,8 @@ async function ensureSchema(db, env) {
         ).bind(r.id, r.sort, r.code, r.title, r.weight, r.target, r.keywords, r.color)));
       }
       await seedPostsOnce(db, env).catch(() => {});
+      /* สาขานคร (KST#2) เลิกดูแลแล้ว 9 ก.ย. 2569 — ปิดเพจทุกครั้งที่ isolate ตื่น จะได้ไม่ต้องพึ่ง owner กดเอง */
+      await db.prepare("UPDATE post_pages SET active = 0 WHERE id = 'pg_kst2' AND active = 1").run().catch(() => {});
       const s = await db.prepare("SELECT COUNT(*) AS n FROM staff").first();
       if (!s || !s.n) {
         const stmts = [];
@@ -326,6 +334,7 @@ function rowToTask(r) {
     nUpdates: r.n_updates || 0,
     lastUpdate: r.last_update || null,
     parentId: r.parent_id || null,
+    campaignId: r.campaign_id || null,
     nSub: r.n_sub || 0,
     nSubDone: r.n_sub_done || 0,
   };
@@ -346,7 +355,7 @@ const TASK_ORDER =
   "CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END, t.due_at ASC, t.created_at DESC";
 
 /* ตรวจข้อมูลงาน 1 ชิ้น (ใช้ทั้งสร้างและแก้) */
-function cleanTask(input, kpiIds, staffIds) {
+function cleanTask(input, kpiIds, staffIds, campaignIds) {
   const title = String(input.title || "").trim().slice(0, 300);
   if (!title) return { error: "ต้องมีชื่องาน" };
   const detail = String(input.detail || "").trim().slice(0, 4000);
@@ -363,15 +372,19 @@ function cleanTask(input, kpiIds, staffIds) {
     ? Array.from(new Set(input.assignees.filter((id) => staffIds.has(id)))).slice(0, 20)
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId } };
+  const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
+  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId } };
 }
 
 async function loadIdSets(db) {
   const k = await db.prepare("SELECT id FROM kpis").all();
   const s = await db.prepare("SELECT id FROM staff WHERE active = 1").all();
+  let c = { results: [] };
+  try { c = await db.prepare("SELECT id FROM campaigns").all(); } catch (e) { /* ตารางปฏิทินยังไม่มี */ }
   return {
     kpiIds: new Set((k.results || []).map((r) => r.id)),
     staffIds: new Set((s.results || []).map((r) => r.id)),
+    campaignIds: new Set((c.results || []).map((r) => r.id)),
   };
 }
 
@@ -612,11 +625,28 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ok: true, n: stmts.length });
   }
 
+  const pageMatch = path.match(/^\/pages\/([A-Za-z0-9_-]{1,40})$/);
+  if (pageMatch && method === "PUT") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const body = await readBody(request);
+    const sets = [], vals = [];
+    if (body.name != null) { sets.push("name = ?"); vals.push(String(body.name).trim().slice(0, 120)); }
+    if (body.sort != null) { sets.push("sort = ?"); vals.push(Number(body.sort) || 0); }
+    if (body.active != null) { sets.push("active = ?"); vals.push(body.active ? 1 : 0); }
+    if (!sets.length) return json({ error: "ไม่มีอะไรให้แก้" }, 400);
+    vals.push(pageMatch[1]);
+    const res = await db.prepare("UPDATE post_pages SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+    if (!res.meta.changes) return json({ error: "ไม่พบเพจนี้" }, 404);
+    return json({ ok: true });
+  }
+
   if (path === "/posts" && method === "GET") {
     const from = url.searchParams.get("from") || "";
     const to = url.searchParams.get("to") || "";
     const page = url.searchParams.get("page") || "";
+    const camp = url.searchParams.get("campaign") || "";
     const where = [], binds = [];
+    if (camp) { where.push("campaign_id = ?"); binds.push(camp); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push("post_date >= ?"); binds.push(from); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push("post_date <= ?"); binds.push(to); }
     if (page) { where.push("page_id = ?"); binds.push(page); }
@@ -628,7 +658,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         id: r.id, pageId: r.page_id, date: r.post_date, time: r.post_time,
         channels: JSON.parse(r.channels || "[]"), topic: r.topic, kind: r.kind,
         status: r.status, url: r.url, note: r.note, postedAt: r.posted_at,
-        updatedAt: r.updated_at, updatedBy: r.updated_by,
+        updatedAt: r.updated_at, updatedBy: r.updated_by, campaignId: r.campaign_id || null,
       })),
     });
   }
@@ -647,15 +677,15 @@ export async function handleTaskApi(request, env, url, path, method) {
       const id = String((p && p.id) || newId("po_")).slice(0, 40);
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT OR REPLACE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT OR REPLACE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by,campaign_id) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
         id, String(p.pageId || "").slice(0, 40), date, String(p.time || "").slice(0, 40),
         JSON.stringify(Array.isArray(p.channels) ? p.channels.slice(0, 10) : []),
         String(p.topic || "").slice(0, 1000), String(p.kind || "content").slice(0, 40),
         POST_STATUS.indexOf(p.status) !== -1 ? p.status : "plan",
         String(p.url || "").slice(0, 1000), String(p.note || "").slice(0, 500),
-        p.postedAt || null, now, now, me.id
+        p.postedAt || null, now, now, me.id, p.campaignId ? String(p.campaignId).slice(0, 40) : null
       ));
     }
     await db.batch(stmts);
@@ -697,6 +727,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     }
     if (body.channels != null) { sets.push("channels = ?"); vals.push(JSON.stringify(Array.isArray(body.channels) ? body.channels.slice(0, 10) : [])); }
     if (body.pageId != null) { sets.push("page_id = ?"); vals.push(String(body.pageId).slice(0, 40)); }
+    if (body.campaignId !== undefined) { sets.push("campaign_id = ?"); vals.push(body.campaignId ? String(body.campaignId).slice(0, 40) : null); }
     vals.push(row.id);
     await db.prepare("UPDATE posts SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
     return json({ ok: true });
@@ -705,6 +736,21 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
     await db.prepare("DELETE FROM posts WHERE id = ?").bind(postMatch[1]).run();
     return json({ ok: true });
+  }
+
+  /* รายการในปฏิทินการตลาด สำหรับช่องเลือก "เชื่อมกับ…" ในโพสต์และงาน */
+  if (path === "/campaigns" && method === "GET") {
+    let rows = [];
+    try {
+      const res = await db.prepare(
+        "SELECT id,name,kind,start_date,end_date,status,color FROM campaigns ORDER BY start_date DESC LIMIT 400"
+      ).all();
+      rows = res.results || [];
+    } catch (e) { rows = []; }
+    return json({ campaigns: rows.map((r) => ({
+      id: r.id, name: r.name, kind: r.kind || "campaign", start: r.start_date, end: r.end_date,
+      status: r.status, color: r.color || "#3370FF",
+    })) });
   }
 
   /* สรุปให้หน้าแรก: วันนี้โพสต์ครบยัง */
@@ -898,6 +944,8 @@ export async function handleTaskApi(request, env, url, path, method) {
     const status = url.searchParams.get("status");
     if (status === "open") where.push("t.status != 'done'");
     else if (status === "done") where.push("t.status = 'done'");
+    const camp = url.searchParams.get("campaign");
+    if (camp) { where.push("t.campaign_id = ?"); binds.push(camp); }
     /* หน้ารายการโชว์เฉพาะงานหลัก งานย่อยไปโผล่ในหน้ารายละเอียดของพ่อแม่แทน
        เว้นแต่ขอ sub=1 (เช่นหน้า "งานของฉัน" ที่ต้องเห็นงานย่อยที่มอบให้ตัวเอง) */
     if (url.searchParams.get("sub") !== "1") where.push("t.parent_id IS NULL");
@@ -916,16 +964,16 @@ export async function handleTaskApi(request, env, url, path, method) {
     const ids = [];
     const now = nowIso();
     for (const input of list) {
-      const parsed = cleanTask(input, sets.kpiIds, sets.staffIds);
+      const parsed = cleanTask(input, sets.kpiIds, sets.staffIds, sets.campaignIds);
       if (parsed.error) return json({ error: parsed.error }, 400);
       const v = parsed.value;
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
-             v.status === "done" ? now : null, v.parentId));
+             v.status === "done" ? now : null, v.parentId, v.campaignId));
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -987,15 +1035,17 @@ export async function handleTaskApi(request, env, url, path, method) {
           repeat: body.repeat != null ? body.repeat : task.repeat,
           priority: body.priority != null ? body.priority : task.priority,
           assignees: body.assignees != null ? body.assignees : task.assignees,
+          parentId: task.parentId,
+          campaignId: body.campaignId !== undefined ? body.campaignId : task.campaignId,
         };
-        const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds);
+        const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds, sets.campaignIds);
         if (parsed.error) return json({ error: parsed.error }, 400);
         const v = parsed.value;
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=? WHERE id=?"
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=? WHERE id=?"
           ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
-                 v.status === "done" ? (task.doneAt || now) : null, id),
+                 v.status === "done" ? (task.doneAt || now) : null, v.campaignId, id),
           db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
         ];
         for (const sid of v.assignees) {

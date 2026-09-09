@@ -7,7 +7,7 @@
   'use strict';
 
   var API = '/api/t';
-  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, notif: { unread: 0, items: [] }, route: { name: 'me' } };
+  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' } };
 
   /* ---------- KPI 2570 (จากเอกสาร Executive Offer CMO 2027 — ข้อความอ้างอิงในหน้า KPI) ---------- */
   var KPI_DOC = {
@@ -106,6 +106,45 @@
       });
     });
     return h;
+  }
+  /* รายการในปฏิทินการตลาด (คอนเทนต์/แคมเปญ/โปรโมชั่น) — โพสต์และงานผูกกับตัวนี้ */
+  var CAMP_KIND = { content: 'คอนเทนต์', campaign: 'แคมเปญ', promo: 'โปรโมชั่น' };
+  var CAMP_COLOR = { content: '#0E9BA8', campaign: '#7A5CF0', promo: '#F2565A' };
+  var CAL_URL = '../cmo/campaign-calendar.html';
+  function loadCampaigns() {
+    if (S.campaigns) return Promise.resolve(S.campaigns);
+    return api('/campaigns').then(function (j) { S.campaigns = j.campaigns || []; return S.campaigns; })
+      .catch(function () { S.campaigns = []; return S.campaigns; });
+  }
+  function campaignById(id) {
+    return (S.campaigns || []).filter(function (c) { return c.id === id; })[0] || null;
+  }
+  /* plain = ใช้ในแถวงานที่ตัวแถวเป็น <a> อยู่แล้ว — <a> ซ้อน <a> ไม่ได้ เบราว์เซอร์จะดันชิปหลุดออกจากแถว
+     เลยวาดเป็น span แล้วให้ click handler กลางพาไปปฏิทินแทน */
+  function campaignChip(id, big, plain) {
+    var c = campaignById(id);
+    if (!c) return '';
+    var col = CAMP_COLOR[c.kind] || '#8B8A84';
+    var title = esc((CAMP_KIND[c.kind] || '') + ' · เปิดในปฏิทินการตลาด');
+    if (plain) {
+      return '<span class="cchip" data-cc="' + esc(c.id) + '" title="' + title + '" style="--cc:' + col + '">' +
+        '<i></i>' + esc(c.name) + '</span>';
+    }
+    return '<a class="cchip' + (big ? ' big' : '') + '" href="' + CAL_URL + '#c=' + esc(c.id) + '" title="' + title +
+      '" style="--cc:' + col + '"><i></i>' + esc(c.name) + '</a>';
+  }
+  function campaignLabel(c) {
+    var a = new Date(c.start + 'T00:00:00'), b = new Date((c.end || c.start) + 'T00:00:00');
+    var when = a.getTime() === b.getTime() ? fmtDate(a) : fmtDate(a) + ' – ' + fmtDate(b);
+    return (CAMP_KIND[c.kind] || '') + ' · ' + c.name + ' (' + when + ')';
+  }
+  /* ช่องเลือกรายการในปฏิทิน ใช้ทั้งฟอร์มโพสต์ ฟอร์มงาน และการ์ดร่าง */
+  function campaignSelect(attrs, selected) {
+    var list = (S.campaigns || []).slice();
+    return '<select class="select" ' + attrs + '><option value="">— ไม่ผูกกับปฏิทิน —</option>' +
+      list.map(function (c) {
+        return '<option value="' + esc(c.id) + '"' + (selected === c.id ? ' selected' : '') + '>' + esc(campaignLabel(c)) + '</option>';
+      }).join('') + '</select>';
   }
   function kpiChip(id) {
     var k = kpiById(id);
@@ -577,7 +616,7 @@
     return '<a class="trow ' + esc(es) + '" href="#/task/' + esc(t.id) + '">' +
       '<span class="st ' + esc(st) + '">' + mark + '</span>' +
       '<span class="main"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
-      '<span class="m">' + avatars(t.assignees) + kpiChip(t.kpiId) + cycle +
+      '<span class="m">' + avatars(t.assignees) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
       (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
       (t.parentId ? '<span class="pill sub">งานย่อย</span>' : '') +
@@ -610,7 +649,8 @@
     return b;
   }
   function renderMe() {
-    loadTasks().then(function (all) {
+    Promise.all([loadTasks(), loadCampaigns()]).then(function (r) {
+      var all = r[0];
       var mine = all.filter(function (t) { return t.assignees.indexOf(S.me.id) !== -1; });
       var b = bucketize(mine);
       var open = mine.length - b.done.length;   /* b.done ใช้ effStatus แล้ว งานประจำของวันใหม่จึงกลับมานับเป็นค้าง */
@@ -661,7 +701,7 @@
   }
 
   /* ---------- งานทั้งหมด ---------- */
-  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all' };
+  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all', campaign: '' };
   var RANGES = [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']];
 
   /* ช่วงเวลาที่เลือกครอบงานนี้ไหม
@@ -684,8 +724,10 @@
     var q = S.route.query || {};
     if (q.kpi) { F.kpi = q.kpi; }
     if (q.who) { F.who = q.who; }
-    if (q.status) { F.status = q.status; }
-    loadTasks().then(function (all) {
+    if (q.status !== undefined) { F.status = q.status; }
+    if (q.campaign !== undefined) { F.campaign = q.campaign; }
+    Promise.all([loadTasks(), loadCampaigns()]).then(function (r) {
+      var all = r[0];
       all = all.filter(function (t) { return !t.parentId; });
       var now = new Date(), weekAgo = new Date(now.getTime() - 7 * 86400000);
       var open = all.filter(function (t) { return effStatus(t) !== 'done'; });
@@ -699,6 +741,7 @@
         if (F.who && t.assignees.indexOf(F.who) === -1) return false;
         if (F.kpi === 'none' && t.kpiId) return false;
         if (F.kpi && F.kpi !== 'none' && t.kpiId !== F.kpi) return false;
+        if (F.campaign && t.campaignId !== F.campaign) return false;
         return true;
       }
       var matched = all.filter(passFilters);
@@ -721,7 +764,7 @@
 
       /* แถบเดียวจบ: ช่วงเวลา · ปุ่มตัวกรอง (กางเมื่อกด) · จัดกลุ่ม
          ของเดิมเป็นชิป 3 แถวเต็มจอ ทั้งที่ส่วนใหญ่ไม่ได้แตะ */
-      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0);
+      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0);
       var seg = function (name, opts) {
         return '<div class="seg">' + opts.map(function (o) {
           return '<button type="button" class="' + (F[name] === o[0] ? 'on' : '') + '" data-f="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
@@ -756,6 +799,7 @@
       if (F.who) act.push(['who', '', 'คน: ' + shortName(staffById(F.who))]);
       if (F.kpi) act.push(['kpi', '', 'KPI: ' + (F.kpi === 'none' ? 'ไม่ระบุ' : ((kpiById(F.kpi) || {}).code || ''))]);
       if (F.status !== 'open') act.push(['status', 'open', 'สถานะ: ' + ({ '': 'ทั้งหมด', late: 'เลยกำหนด', done: 'เสร็จแล้ว' }[F.status] || F.status)]);
+      if (F.campaign) { var cc0 = campaignById(F.campaign); act.push(['campaign', '', 'ปฏิทิน: ' + (cc0 ? cc0.name : F.campaign)]); }
       if (act.length) {
         h += '<div class="factive">' + act.map(function (a) {
           return '<button type="button" class="fchip" data-f="' + a[0] + '" data-v="' + a[1] + '">' + esc(a[2]) + ' <span>✕</span></button>';
@@ -971,14 +1015,18 @@
       '<div class="field"><label class="label">KPI ที่เกี่ยวข้อง</label><select class="select" data-k="kpiId"><option value="">— ไม่ระบุ —</option>' +
       S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
       '<div class="field"><label class="label">รายละเอียด / เงื่อนไข</label><textarea class="textarea" data-rich data-k="detail" placeholder="ข้อความประกอบ เงื่อนไข ขนาด งบ ฯลฯ">' + esc(t.detail) + '</textarea></div>' +
+      '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด</label>' + campaignSelect('data-k="campaignId"', t.campaignId || null) + '</div>' +
       '</div></div>';
     return h;
   }
   function renderNew() {
+    if (!S.campaigns) { loadCampaigns().then(renderNew); return; }
     var view = $('#view');
     view.className = 'page';
     var sample = 'ระบบจอ signmate > kan บขส + fashion : Deadline - พุธ 17.00 น. @Julalak\nออกแบบ บูธขายเสื้อหนาว ที่ Central - อังคาร 16.00 @Title\nขนาดพื้นที่ 8*7 เมตร เลือกได้ 7 / 14 วัน\n\nupdate ontour จังหวัดอื่น @Nont @Title @Julalak ทุกวัน 17.30';
-    var h = '<div class="top"><div><span class="kicker">สั่งงาน</span><h1>วางข้อความสั่งงาน แล้วให้ระบบแยกเป็นงาน</h1>' +
+    var pc = campaignById((S.route.query || {}).campaign || '');
+    var h = '<div class="top"><div><span class="kicker">สั่งงาน' + (pc ? ' · สำหรับ ' + esc(pc.name) : '') + '</span><h1>วางข้อความสั่งงาน แล้วให้ระบบแยกเป็นงาน</h1>' +
+      (pc ? '<p>ทุกงานที่บันทึกจากหน้านี้จะผูกกับ ' + campaignChip(pc.id) + ' ในปฏิทินการตลาดให้เอง</p>' : '') +
       '<p>พิมพ์หรือวางแบบที่สั่งในแชตได้เลย — ระบบจะอ่าน <b>@ชื่อ</b> เป็นคนรับงาน อ่าน <b>วัน + เวลา</b> เป็นกำหนดส่ง และเดา KPI ให้ ตรวจแก้ในการ์ดก่อนกดบันทึก</p></div></div>';
     h += '<div class="compose"><div>' +
       '<div class="sec"><div class="sec-b"><label class="label">ข้อความสั่งงาน</label>' +
@@ -1016,6 +1064,7 @@
         var k = el.getAttribute('data-k');
         if (k === 'dueAt') d.dueAt = fromLocalInput(el.value);
         else if (k === 'kpiId') d.kpiId = el.value || null;
+        else if (k === 'campaignId') d.campaignId = el.value || null;
         else d[k] = el.value;
       });
       d.assignees = $$('.chip.on[data-as]', card).map(function (b) { return b.getAttribute('data-as'); });
@@ -1028,7 +1077,7 @@
     var btn = $('#saveBtn');
     btn.disabled = true;
     var payload = drafts.map(function (d) {
-      return { title: d.title, detail: d.detail, assignees: d.assignees, dueAt: d.dueAt, repeat: d.repeat, kpiId: d.kpiId, priority: d.priority ? 1 : 0 };
+      return { title: d.title, detail: d.detail, assignees: d.assignees, dueAt: d.dueAt, repeat: d.repeat, kpiId: d.kpiId, priority: d.priority ? 1 : 0, campaignId: d.campaignId || null };
     });
     api('/tasks', 'POST', { tasks: payload }).then(function (j) {
       var n = (j.ids || []).length;
@@ -1095,7 +1144,8 @@
     }).join('') + '</div>';
   }
   function renderTask(id) {
-    api('/tasks/' + id).then(function (j) {
+    Promise.all([api('/tasks/' + id), loadCampaigns()]).then(function (r) {
+      var j = r[0];
       var t = j.task, ups = j.updates, files = j.files, subs = j.subtasks || [], parent = j.parent;
       var filesByUpdate = {};
       files.forEach(function (f) { (filesByUpdate[f.updateId || '_'] = filesByUpdate[f.updateId || '_'] || []).push(f); });
@@ -1108,6 +1158,7 @@
       var h = '<div class="task-hero"><div class="crumbs"><a href="#/all">งานทั้งหมด</a><span>›</span>' +
         (parent ? '<a href="#/task/' + esc(parent.id) + '">' + esc(parent.title) + '</a><span>›</span><span class="pill repeat">งานย่อย</span><span>›</span>' : '') +
         (t.kpiId ? '<a href="#/all?kpi=' + esc(t.kpiId) + '">' + esc((kpiById(t.kpiId) || {}).code || '') + '</a><span>›</span>' : '') +
+        (t.campaignId && campaignById(t.campaignId) ? campaignChip(t.campaignId) + '<span>›</span>' : '') +
         '<span class="pill ' + (late ? 'late' : esc(es)) + '">' + (late ? 'เลยกำหนด' : STATUS_TH[es]) + '</span>' +
         (t.repeat ? '<span class="pill ' + (es === 'done' ? 'done' : 'repeat') + '">' +
           (t.repeat === 'daily'
@@ -1131,6 +1182,7 @@
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
           '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">KPI</label><select class="select" name="kpiId"><option value="">— ไม่ระบุ —</option>' + S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
+          '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด <small>คอนเทนต์ / แคมเปญ / โปรโมชั่นที่งานนี้ทำให้</small></label>' + campaignSelect('name="campaignId"', t.campaignId) + '</div>' +
           '<label class="label" style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" name="priority"' + (t.priority ? ' checked' : '') + '> งานด่วน (★)</label>' +
           '<div class="acts"><button type="submit" class="btn">บันทึกการแก้ไข</button><button type="button" class="btn-ghost" id="cancelEdit">ยกเลิก</button>' +
           (S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delBtn" style="margin-left:auto">ลบงานนี้</button>' : '') + '</div></form>' : '') +
@@ -1384,6 +1436,7 @@
         api('/tasks/' + t.id, 'PUT', {
           title: f.title.value, detail: f.detail.value, dueAt: fromLocalInput(f.dueAt.value), repeat: f.repeat.value,
           kpiId: f.kpiId.value || null, priority: f.priority.checked ? 1 : 0,
+          campaignId: f.campaignId.value || null,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
         }).then(function () {
           S.tasks = null;
@@ -1431,7 +1484,7 @@
   /* ---------- ตารางโพสต์ ----------
      พิซซ่ากรอกแผน · หัวหน้าเข้ามาดูว่า "วันนี้โพสต์ครบยัง มีลิงก์ไหม" แล้วติ๊กจบ
      เก็บแยกจาก task เพราะเดือนหนึ่งมีเป็นร้อยโพสต์ ถ้ายัดเป็น task งานจริงจะถูกกลบ */
-  var P = { page: '', range: 'month', status: '', view: 'cal', month: null, day: '' };
+  var P = { page: '', range: 'month', status: '', view: 'cal', month: null, day: '', campaign: '' };
   var POST_KIND = { content: 'คอนเทนต์', promo: 'โปรโมชัน', video: 'วิดีโอ', live: 'ไลฟ์' };
 
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -1466,11 +1519,16 @@
     var q = S.route.query || {};
     if (q.range) P.range = q.range;
     if (q.page) P.page = q.page;
+    if (q.view) P.view = q.view;
+    if (q.campaign !== undefined) P.campaign = q.campaign;
     var d = postRangeDates();
     /* ดึงทั้งช่วงโดยไม่กรองเพจที่เซิร์ฟเวอร์ เพื่อให้นับแยกรายเพจได้ในคราวเดียว */
     var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '');
-    Promise.all([loadPages(), api('/posts' + qs)]).then(function (r) {
-      var all = r[1].posts || [];
+    Promise.all([loadPages(), api('/posts' + qs), loadCampaigns()]).then(function (r) {
+      var activePages = {};
+      (S.pages || []).forEach(function (pg) { activePages[pg.id] = 1; });
+      var all = (r[1].posts || []).filter(function (x) { return activePages[x.pageId]; });
+      if (P.campaign) all = all.filter(function (x) { return x.campaignId === P.campaign; });
       var posts = P.page ? all.filter(function (x) { return x.pageId === P.page; }) : all;
       var shown = posts.filter(function (x) {
         if (P.status === 'left') return x.status !== 'done';
@@ -1513,6 +1571,8 @@
           : seg('range', [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']], P)) +
         (P.status ? '<button type="button" class="fchip" data-p="status" data-v="">' +
           ({ left: 'ยังไม่ได้โพสต์', nolink: 'ไม่มีลิงก์', done: 'โพสต์แล้ว' }[P.status] || '') + ' <span>✕</span></button>' : '') +
+        (P.campaign ? '<button type="button" class="fchip" data-p="campaign" data-v="">ปฏิทิน: ' +
+          esc((campaignById(P.campaign) || { name: P.campaign }).name) + ' <span>✕</span></button>' : '') +
         '<span class="tbar-n">' + shown.length + ' โพสต์</span></div>';
 
       /* แท็บเพจรายสาขา — ตัวเลขบนแท็บคือ "ยังไม่ได้โพสต์" ของเพจนั้นในช่วงที่เลือก */
@@ -1677,7 +1737,7 @@
       '<button type="button" class="ptime" data-post-edit="' + esc(x.id) + '" title="กดเพื่อแก้เวลา">' + esc(x.time || 'ใส่เวลา') + '</button>' +
       '<span class="pmain"><span class="pt">' + esc(x.topic || '(ยังไม่ใส่หัวข้อ)') + '</span>' +
       '<span class="pm"><span class="pill ' + (x.kind === 'live' ? 'blocked' : (x.kind === 'promo' ? 'repeat' : 'todo')) + '">' + esc(POST_KIND[x.kind] || x.kind) + '</span>' +
-      '<span>' + esc(pageName(x.pageId)) + '</span>' +
+      '<span>' + esc(pageName(x.pageId)) + '</span>' + campaignChip(x.campaignId) +
       (x.channels || []).map(function (c) { return '<span class="ch">' + esc(c) + '</span>'; }).join('') +
       (x.note ? '<span class="pnote" title="' + esc(x.note) + '">' + esc(x.note.slice(0, 40)) + '</span>' : '') + '</span></span>' +
       (x.url
@@ -1735,6 +1795,8 @@
         return '<button type="button" class="chip plain' + (on ? ' on' : '') + '" data-ch="' + esc(c) + '">' + esc(c) + '</button>';
       }).join('') + '</div></div>' +
       '<div class="field"><label class="label">หัวข้อ / เนื้อหา</label><textarea class="textarea" name="topic" data-rich placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ">' + esc(post ? post.topic : '') + '</textarea></div>' +
+      '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด <small>โพสต์นี้ทำให้คอนเทนต์/แคมเปญ/โปรโมชั่นไหน</small></label>' +
+      campaignSelect('name="campaignId"', post ? post.campaignId : (P.campaign || null)) + '</div>' +
       '<div class="grid2"><div class="field"><label class="label">ลิงก์โพสต์ <small>ใส่แล้วนับว่าโพสต์แล้ว</small></label><input class="input" name="url" value="' + esc(post ? post.url : '') + '" placeholder="https://..."></div>' +
       '<div class="field"><label class="label">หมายเหตุ</label><input class="input" name="note" value="' + esc(post ? post.note : '') + '"></div></div>' +
       '<div class="acts"><button type="submit" class="btn">' + (isNew ? 'เพิ่มโพสต์' : 'บันทึก') + '</button>' +
@@ -1778,6 +1840,7 @@
         pageId: f.pageId.value, kind: f.kind.value, date: f.date.value,
         time: buildTimeValue(f.t1.value, f.hasEnd.checked ? f.t2.value : ''),
         topic: f.topic.value, url: f.url.value.trim(), note: f.note.value,
+        campaignId: f.campaignId.value || null,
         channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
       };
       var req = isNew ? api('/posts', 'POST', { posts: [body] }) : api('/posts/' + post.id, 'PUT', body);
@@ -1918,11 +1981,11 @@
       var left = perPhoto > 0 ? Math.floor((lim - used) / (perPhoto * 4 / 3)) : null;
       $('#storageBox .sec-b').innerHTML =
         '<div class="cards" style="margin:0 0 14px"><article><span class="l">รูปในระบบงาน</span><b>' + st.taskFiles + '</b><small>รูปที่ทีมอัปเดตเข้ามา</small></article>' +
-        '<article><span class="l">รูปในปฏิทินแคมเปญ</span><b>' + st.campaignFiles + '</b><small>ของเดิมในฐานข้อมูลเดียวกัน</small></article>' +
+        '<article><span class="l">รูปในปฏิทินการตลาด</span><b>' + st.campaignFiles + '</b><small>ของเดิมในฐานข้อมูลเดียวกัน</small></article>' +
         '<article' + (pct > 70 ? ' class="warn"' : '') + '><span class="l">ใช้ไปแล้ว</span><b>' + mb(used) + '</b><small>จาก ' + mb(lim) + ' ของแพ็กฟรี</small></article>' +
         '<article><span class="l">เติมได้อีกราว</span><b>' + (left === null ? '—' : left.toLocaleString('th-TH')) + '</b><small>รูป ถ้าขนาดเฉลี่ยเท่าเดิม</small></article></div>' +
         '<div class="subbar"><i style="width:' + pct.toFixed(1) + '%"></i></div>' +
-        '<p class="hint" style="margin-top:10px">รูปเก็บใน Cloudflare D1 ฐานเดียวกับปฏิทินแคมเปญ ไม่ได้ฝากไว้ที่อื่น · ' +
+        '<p class="hint" style="margin-top:10px">รูปเก็บใน Cloudflare D1 ฐานเดียวกับปฏิทินการตลาด ไม่ได้ฝากไว้ที่อื่น · ' +
         'เบราว์เซอร์ย่อรูปให้ก่อนส่ง ด้านยาวไม่เกิน 1400px และไม่เกิน ' + (st.maxPerFileBytes / 1048576).toFixed(1) + ' MB ต่อรูป · ' +
         'แพ็กฟรีของ D1 จำกัด ' + mb(lim) + ' ต่อฐานข้อมูล ถ้าอัปเกรดเป็น Workers Paid จะได้ ' + (st.limitPaidBytes / 1073741824) + ' GB</p>';
     }).catch(function () {
@@ -2065,13 +2128,14 @@
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
         if (!location.hash) location.hash = S.me.role === 'owner' ? '#/all' : '#/me';
-        render();
+        loadCampaigns().then(render);
       }).catch(function (e) { renderSidebar(); renderLogin(e.message); });
   }
 
   /* ---------- global events ---------- */
   document.addEventListener('click', function (ev) {
     var b;
+    if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.href = CAL_URL + '#c=' + b.getAttribute('data-cc'); return; }
     if (ev.target.closest('[data-erp-toggle]')) { document.documentElement.classList.toggle('erp-open'); return; }
     if (ev.target.closest('[data-erp-close]')) { document.documentElement.classList.remove('erp-open'); return; }
     if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
@@ -2117,7 +2181,7 @@
     }
     if ((b = ev.target.closest('.cards article[data-go]'))) { F.status = b.getAttribute('data-go'); renderAll(); return; }
     if (ev.target.closest('[data-filter-toggle]')) { S.filterOpen = !S.filterOpen; renderAll(); return; }
-    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; renderAll(); return; }
+    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; F.campaign = ''; renderAll(); return; }
     if ((b = ev.target.closest('.tbar [data-f], .fpanel [data-f], .factive [data-f], .hidden-note [data-f]'))) {
       F[b.getAttribute('data-f')] = b.getAttribute('data-v'); renderAll(); return;
     }
@@ -2125,13 +2189,15 @@
       syncDraftsFromDom();
       var parsed = parseCommand($('#cmdText').value);
       if (!parsed.length) { toast('ยังไม่มีข้อความ หรืออ่านไม่ออก — ลองใส่ @ชื่อ', true); return; }
+      var preset = (S.route.query || {}).campaign || '';
+      if (preset) parsed.forEach(function (d) { d.campaignId = preset; });
       drafts = drafts.concat(parsed);
       $('#cmdText').value = '';
       renderDrafts();
       toast('แยกได้ ' + parsed.length + ' งาน ตรวจแล้วกดบันทึก');
       return;
     }
-    if (ev.target.id === 'blankBtn') { syncDraftsFromDom(); drafts.push({ title: '', detail: '', assignees: [], dueAt: null, repeat: '', kpiId: null, priority: 0 }); renderDrafts(); return; }
+    if (ev.target.id === 'blankBtn') { syncDraftsFromDom(); drafts.push({ title: '', detail: '', assignees: [], dueAt: null, repeat: '', kpiId: null, priority: 0, campaignId: (S.route.query || {}).campaign || null }); renderDrafts(); return; }
     if (ev.target.id === 'clearBtn') { drafts = []; renderDrafts(); return; }
     if (ev.target.id === 'saveBtn') { saveDrafts(); return; }
     if ((b = ev.target.closest('.draft [data-rm]'))) { syncDraftsFromDom(); drafts.splice(Number(b.getAttribute('data-rm')), 1); renderDrafts(); return; }

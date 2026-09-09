@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema } from "./worker-tasks.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -14,7 +14,7 @@ const CAMPAIGN_KINDS = ["content", "campaign", "promo"];
 /* ตารางปฏิทินมีข้อมูลจริงแล้ว CREATE IF NOT EXISTS ไม่เติมคอลัมน์ให้ → ALTER แล้วกลืน error "duplicate column"
    ทำครั้งเดียวต่อ isolate เหมือน worker-tasks.js */
 let campaignSchemaReady = null;
-function ensureCampaignSchema(db) {
+function ensureCampaignSchema(db, env) {
   if (!campaignSchemaReady) {
     campaignSchemaReady = (async () => {
       await db.batch([
@@ -29,6 +29,8 @@ function ensureCampaignSchema(db) {
           "value TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft', updated_at TEXT NOT NULL, PRIMARY KEY (year, month, code))"),
       ]);
       try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
+      /* ตาราง posts/tasks ต้องมีก่อน เพราะ LIST_SQL นับโพสต์และงานที่ผูกกับแต่ละรายการ */
+      await ensureTaskSchema(db, env);
     })().catch((e) => { campaignSchemaReady = null; throw e; });
   }
   return campaignSchemaReady;
@@ -73,6 +75,8 @@ function rowToCampaign(r) {
     note: r.note,
     color: r.color || "#3370FF",
     kind: CAMPAIGN_KINDS.indexOf(r.kind) !== -1 ? r.kind : "campaign",
+    posts: { total: r.n_posts || 0, done: r.n_posts_done || 0 },
+    tasks: { total: r.n_tasks || 0, open: r.n_tasks_open || 0 },
     attachments: attachments,
     updatedAt: r.updated_at,
   };
@@ -105,7 +109,11 @@ function clean(input) {
 }
 
 const LIST_SQL =
-  "SELECT c.*, GROUP_CONCAT(a.id || char(31) || a.file_name) AS attachment_ids " +
+  "SELECT c.*, GROUP_CONCAT(a.id || char(31) || a.file_name) AS attachment_ids, " +
+  "(SELECT COUNT(*) FROM posts p WHERE p.campaign_id = c.id) AS n_posts, " +
+  "(SELECT COUNT(*) FROM posts p WHERE p.campaign_id = c.id AND p.status = 'done') AS n_posts_done, " +
+  "(SELECT COUNT(*) FROM tasks t WHERE t.campaign_id = c.id AND t.parent_id IS NULL) AS n_tasks, " +
+  "(SELECT COUNT(*) FROM tasks t WHERE t.campaign_id = c.id AND t.parent_id IS NULL AND t.status != 'done') AS n_tasks_open " +
   "FROM campaigns c LEFT JOIN attachments a ON a.campaign_id = c.id " +
   "GROUP BY c.id ORDER BY c.start_date ASC";
 
@@ -120,7 +128,7 @@ async function handleApi(request, env, url) {
   if (path === "/t" || path.indexOf("/t/") === 0) {
     return handleTaskApi(request, env, url, path.slice(2) || "/", method);
   }
-  await ensureCampaignSchema(db);
+  await ensureCampaignSchema(db, env);
 
   // ---- รูปแนบ ----
   const fileMatch = path.match(/^\/attachments\/([A-Za-z0-9_-]{1,40})$/);
@@ -232,6 +240,9 @@ async function handleApi(request, env, url) {
     if (method === "DELETE") {
       await db.batch([
         db.prepare("DELETE FROM attachments WHERE campaign_id = ?").bind(id),
+        /* โพสต์และงานที่เคยผูกไว้ไม่ถูกลบตาม — แค่ปลดลิงก์ */
+        db.prepare("UPDATE posts SET campaign_id = NULL WHERE campaign_id = ?").bind(id),
+        db.prepare("UPDATE tasks SET campaign_id = NULL WHERE campaign_id = ?").bind(id),
         db.prepare("DELETE FROM campaigns WHERE id = ?").bind(id),
       ]);
       return json({ ok: true });

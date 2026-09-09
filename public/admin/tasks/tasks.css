@@ -653,3 +653,11 @@ button.ptime:hover{ color:var(--k-ink); border-bottom-color:var(--k-line); }
 .rlist{ margin:6px 0 10px; padding-left:22px; }
 .rlist li{ margin-bottom:4px; line-height:1.7; }
 .rlist li::marker{ color:var(--k-mut); font-weight:600; }
+
+/* ── ชิปรายการในปฏิทินการตลาด (บนแถวงาน แถวโพสต์ และหัวงาน) ── */
+.cchip{ display:inline-flex; align-items:center; gap:6px; max-width:220px; border:1px solid color-mix(in srgb, var(--cc) 45%, transparent);
+  border-radius:999px; padding:1px 9px 1px 6px; font-size:11px; color:var(--k-ink); text-decoration:none; background:color-mix(in srgb, var(--cc) 9%, transparent);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background .15s; }
+.cchip:hover{ background:color-mix(in srgb, var(--cc) 20%, transparent); }
+.cchip i{ width:7px; height:7px; border-radius:50%; background:var(--cc); flex:none; }
+.cchip.big{ font-size:12.5px; padding:3px 12px 3px 8px; }

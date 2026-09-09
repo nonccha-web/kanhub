@@ -1,5 +1,5 @@
 /* ============================================================
-   KAN ERP — ปฏิทินแคมเปญ
+   KAN ERP — ปฏิทินการตลาด (คอนเทนต์ / แคมเปญ / โปรโมชั่น)
    ข้อมูลเก็บที่ D1 ผ่าน /api/campaigns (ทีมเห็นชุดเดียวกัน)
    แนบรูปได้ ย่อฝั่งเบราว์เซอร์ก่อนส่ง เก็บใน D1 เสิร์ฟที่ /api/attachments/<id>
    เปิดแบบ file:// (ไม่มี API) จะถอยไปใช้ localStorage อัตโนมัติ + ขึ้นป้ายบอก
@@ -13,7 +13,10 @@
   var MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   var DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
   var CHANNELS = ["หน้าร้าน","Facebook","LINE","TikTok","Shopee/Lazada","ขายส่ง"];
-  var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","นคร","สุราษฎร์","Central","สหไทย"];
+  /* นคร ตัดออก 9 ก.ย. 69 — เลิกดูแลแล้ว รายการเก่าที่เคยติดสาขานี้ยังเปิดดูได้ แค่เลือกใหม่ไม่ได้ */
+  /* "อื่นๆ" = งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน — ต้องมีให้เลือก ไม่งั้นงานพวกนี้ตกหล่น */
+  var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","สุราษฎร์","Central","สหไทย","อื่นๆ"];
+  var NO_BRANCH = "-";   /* ค่าพิเศษของตัวกรอง = รายการที่ยังไม่ระบุสาขา */
   // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
   /* ประเภทรายการ — สีของประเภทคงที่ (ไม่ใช่สีที่ผู้ใช้เลือกให้แต่ละรายการ) จะได้กวาดตาแล้วรู้ทันที */
@@ -22,6 +25,15 @@
   var KIND_COLOR = { content:"#0E9BA8", campaign:"#7A5CF0", promo:"#F2565A" };
   function kindOf(it) { return KINDS.indexOf(it && it.kind) !== -1 ? it.kind : "campaign"; }
   function kindDot(it) { return '<i class="cc-kdot" style="background:' + KIND_COLOR[kindOf(it)] + '" title="' + KIND_LABEL[kindOf(it)] + '"></i>'; }
+  /* ลิงก์ไปหน้าที่ผูกกับรายการนี้ — ระบบงานทีมอยู่คนละโฟลเดอร์ */
+  var TASKS_BASE = "../tasks/";
+  function linkLine(it) {
+    var p = it.posts || { total:0, done:0 }, t = it.tasks || { total:0, open:0 };
+    if (!p.total && !t.total) return "";
+    return '<span class="cc-linkline">' +
+      (p.total ? '<span>โพสต์ <b>' + p.done + "/" + p.total + "</b></span>" : "") +
+      (t.total ? '<span>งาน <b>' + (t.open ? t.open + " ค้าง" : "ครบ") + "</b></span>" : "") + "</span>";
+  }
   function kindPill(it) { var k = kindOf(it); return '<span class="cc-kpill" style="color:' + KIND_COLOR[k] + ';border-color:' + KIND_COLOR[k] + '">' + KIND_LABEL[k] + "</span>"; }
   var COLORS = [
     { v:"#3370FF", n:"น้ำเงิน" }, { v:"#14C0FF", n:"ฟ้า" },   { v:"#00C7C7", n:"เขียวน้ำทะเล" },
@@ -35,10 +47,19 @@
 
   var items = [];
   var year = new Date().getFullYear();
-  var view = { mode:"year", month:null, kind:"" };
+  var view = { mode:"year", month:null, kind:"", branch:"" };
   try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
-  /* รายการที่ผ่านตัวกรองประเภท — ทุกมุมมองดึงจากตรงนี้ จะได้กรองพร้อมกันหมด */
-  function pool() { return view.kind ? items.filter(function (it) { return kindOf(it) === view.kind; }) : items; }
+  try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}
+  function inBranch(it, b) {
+    if (!b) return true;
+    if (b === NO_BRANCH) return !it.branches || !it.branches.length;
+    return (it.branches || []).indexOf(b) !== -1;
+  }
+  /* รายการที่ผ่านตัวกรองประเภท + สาขา — ทุกมุมมองดึงจากตรงนี้ จะได้กรองพร้อมกันหมด */
+  function pool() {
+    return items.filter(function (it) { return (!view.kind || kindOf(it) === view.kind) && inBranch(it, view.branch); });
+  }
+  function branchLabel() { return view.branch === NO_BRANCH ? "ยังไม่ระบุสาขา" : view.branch; }
   var editingId = null;
   var pendingFiles = [];   // รูปที่เลือกไว้ตอนแคมเปญยังไม่ถูกบันทึก
   var online = true;       // ต่อ API ได้หรือไม่
@@ -143,6 +164,7 @@
   /* ---------- render ---------- */
   function render() {
     renderKindBar();
+    renderBranchBar();
     renderSoon();
     $("ccYear").innerHTML = be(year) + "<small>ค.ศ. " + year + "</small>";
     renderStats();
@@ -239,7 +261,7 @@
   /* เดือนนี้ "สาขาไหนทำอะไร" */
   function renderBranchBoard(list) {
     if (!list.length) return "";
-    var cols = BRANCHES.map(function (b) {
+    var cols = (view.branch && view.branch !== NO_BRANCH ? [view.branch] : BRANCHES).map(function (b) {
       var mine = list.filter(function (it) { return (it.branches || []).indexOf(b) !== -1; });
       var body = mine.length
         ? mine.map(function (it) {
@@ -265,7 +287,8 @@
   function renderList() {
     var list = view.mode === "month" ? ofMonth(view.month) : ofYear();
     var what = view.kind ? KIND_LABEL[view.kind] : "รายการ";
-    var title = (view.mode === "month" ? what + "เดือน" + MONTHS[view.month] : what + "ทั้งปี " + be(year));
+    var title = (view.mode === "month" ? what + "เดือน" + MONTHS[view.month] : what + "ทั้งปี " + be(year)) +
+      (view.branch ? " · " + branchLabel() : "");
     if (!list.length) {
       $("ccList").innerHTML = "<h3>" + title + "</h3>" +
         '<div class="cc-empty"><p>ยังไม่มี' + what + 'ในช่วงนี้</p>' +
@@ -282,7 +305,7 @@
       return '<tr style="border-left:3px solid ' + colorOf(it) + '">' +
         '<td class="dt">' + fmtRange(it) + "</td>" +
         '<td>' + kindPill(it) + "</td>" +
-        '<td class="nm">' + esc(it.name) +
+        '<td class="nm">' + esc(it.name) + linkLine(it) +
           (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + thumbs + "</td>" +
         '<td><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></td>" +
         '<td><div class="cc-tags">' + (it.channels || []).map(function (c) { return '<span class="cc-tag">' + esc(c) + "</span>"; }).join("") + "</div></td>" +
@@ -316,6 +339,22 @@
       }).join("");
   }
 
+  /* แถวเลือกสาขา — บางงานอยู่ในสาขา บางงานไม่อยู่สาขาไหนเลย (on tour) เลยต้องแยกดูได้ */
+  function renderBranchBar() {
+    var el = $("ccBranchBar");
+    if (!el) return;
+    var base = view.kind ? items.filter(function (it) { return kindOf(it) === view.kind; }) : items;
+    var opts = [["", "ทุกสาขา", base.length]].concat(BRANCHES.map(function (b) {
+      return [b, b, base.filter(function (it) { return inBranch(it, b); }).length];
+    }));
+    var none = base.filter(function (it) { return inBranch(it, NO_BRANCH); }).length;
+    if (none || view.branch === NO_BRANCH) opts.push([NO_BRANCH, "ยังไม่ระบุสาขา", none]);
+    el.innerHTML = '<span class="cc-kindlbl">สาขา</span>' + opts.map(function (p) {
+      return '<button type="button" class="cc-kind' + (view.branch === p[0] ? " on" : "") + '" data-branch="' + esc(p[0]) + '">' +
+        esc(p[1]) + '<span class="cc-kn">' + p[2] + "</span></button>";
+    }).join("");
+  }
+
   /* ---------- วันนี้ / สัปดาห์นี้ ใต้ปฏิทิน — ตอบคำถาม "วันนี้ต้องทำอะไร" โดยไม่ต้องไล่ทั้งปี ---------- */
   function weekRange() {
     var t = new Date(); t.setHours(0, 0, 0, 0);
@@ -329,7 +368,7 @@
     return '<button type="button" class="cc-soon-item" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
       (a0 ? '<img src="' + API + "/attachments/" + a0.id + '" alt="">' : '<span class="cc-soon-noimg" style="background:' + tint(colorOf(it), 0.18) + '"></span>') +
       '<span class="cc-soon-text"><span class="cc-soon-top">' + kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></span>" +
-      "<b>" + esc(it.name) + "</b>" +
+      "<b>" + esc(it.name) + "</b>" + linkLine(it) +
       '<span class="cc-soon-meta">' + fmtRange(it) +
       (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(", ") : "") +
       (it.channels && it.channels.length ? " · " + it.channels.map(esc).join(", ") : "") + "</span></span></button>";
@@ -394,6 +433,7 @@
           (it.channels && it.channels.length ? '<div class="cc-hover-meta">ช่องทาง: ' + it.channels.map(esc).join(" · ") + "</div>" : "") +
           (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
           (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
+          (linkLine(it) ? '<div class="cc-hover-meta">' + linkLine(it) + "</div>" : "") +
           '<button type="button" class="cc-hover-btn" data-edit="' + it.id + '">เปิดดู / แก้ไขรายละเอียด</button>' +
         "</div>";
     } else {
@@ -568,9 +608,11 @@
     $("ccErr").textContent = "";
     setSeg("#cc-status", item ? item.status : "plan");
     setChoices("channel", item ? item.channels : []);
-    setChoices("branch", item ? item.branches : []);
+    /* เพิ่มรายการตอนกรองสาขาอยู่ → ติ๊กสาขานั้นให้เลย */
+    setChoices("branch", item ? item.branches : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : []));
     setColor(item ? colorOf(item) : COLORS[items.length % COLORS.length].v);
     renderAttachments(item);
+    renderLinks(item);
     $("ccDelete").style.visibility = item ? "visible" : "hidden";
     $("ccDrawer").classList.add("open");
     $("ccDrawer").setAttribute("aria-hidden", "false");
@@ -583,6 +625,22 @@
     $("ccScrim").classList.remove("open");
     editingId = null;
     pendingFiles = [];
+  }
+
+  /* โพสต์และงานที่ผูกกับรายการนี้ — กดไปดู/สั่งงานต่อได้เลย (มีเฉพาะตอนแก้ไข เพราะต้องมี id ก่อน) */
+  function renderLinks(item) {
+    var el = $("ccLinks");
+    if (!item) { el.className = "cc-links"; el.innerHTML = ""; return; }
+    var p = item.posts || { total:0, done:0 }, t = item.tasks || { total:0, open:0 };
+    var q = encodeURIComponent(item.id);
+    el.className = "cc-links show";
+    el.innerHTML = "<h4>เชื่อมโยงกับรายการนี้</h4><div class=\"cc-linkrow\">" +
+      '<a class="cc-linkbtn' + (p.total && p.done < p.total ? " warn" : "") + '" href="' + TASKS_BASE + "#/posts?campaign=" + q + '&range=all&view=list">' +
+        "โพสต์ <b>" + p.done + "/" + p.total + "</b></a>" +
+      '<a class="cc-linkbtn' + (t.open ? " warn" : "") + '" href="' + TASKS_BASE + "#/all?campaign=" + q + '&status=">' +
+        "งาน <b>" + (t.total ? (t.open ? t.open + " ค้าง" : "ครบ " + t.total) : "0") + "</b></a>" +
+      '<a class="cc-linkbtn" href="' + TASKS_BASE + "#/new?campaign=" + q + '">+ สั่งงานสำหรับรายการนี้</a>' +
+      "</div>";
   }
 
   function renderAttachments(item) {
@@ -838,6 +896,13 @@
       if (!editingId) $("ccDrawerTitle").textContent = "เพิ่ม" + KIND_LABEL[kseg.dataset.v];
       return;
     }
+    var bf = e.target.closest("[data-branch]");
+    if (bf) {
+      view.branch = bf.dataset.branch;
+      try { localStorage.setItem("kan-cc-branch", view.branch); } catch (err) {}
+      render();
+      return;
+    }
     var kf = e.target.closest("[data-kind]");
     if (kf) {
       view.kind = kf.dataset.kind;
@@ -867,8 +932,9 @@
     var ed = e.target.closest("[data-edit]");
     if (ed) { e.stopPropagation(); hideHover(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
     var mo = e.target.closest("[data-month]");
-    if (mo) { view = { mode:"month", month:+mo.dataset.month }; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
-    if (e.target.closest("#ccBack")) { view = { mode:"year", month:null }; render(); return; }
+    /* สลับปี/เดือนต้องไม่ล้างตัวกรองประเภทกับสาขา — เดิม view = {...} ทับทิ้งหมด ทำให้กรองสาขาหลุดพอกดเข้าเดือน */
+    if (mo) { view.mode = "month"; view.month = +mo.dataset.month; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
+    if (e.target.closest("#ccBack")) { view.mode = "year"; view.month = null; render(); return; }
     if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
     var day = e.target.closest("[data-day]");
     if (day) { openDrawer(null, day.dataset.day, "range"); return; }
@@ -881,5 +947,17 @@
   buildChoices();
   buildColors();
   render();
-  loadAll().then(render);
+  loadAll().then(function () {
+    render();
+    var m = String(location.hash || "").match(/^#c=([A-Za-z0-9_-]+)/);
+    if (m) {
+      var it = byId(m[1]);
+      if (it) {
+        year = parseISO(it.start).getFullYear();
+        view = { mode:"month", month: parseISO(it.start).getMonth(), kind: view.kind };
+        render();
+        openDrawer(it, null, null);
+      }
+    }
+  });
 })();

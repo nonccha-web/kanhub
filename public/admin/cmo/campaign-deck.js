@@ -11,8 +11,8 @@
   var MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
   var MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
-  var PLACES = ["Kan Hub","Kan Fashion","สุราษฎร์","ชุมพร","นคร","Central","สหไทย"];
-  var OUTSIDE = { "Central":1, "สหไทย":1 };
+  var PLACES = ["Kan Hub","Kan Fashion","สุราษฎร์","ชุมพร","Central","สหไทย","อื่นๆ"];
+  var OUTSIDE = { "Central":"ห้างข้างนอก", "สหไทย":"ห้างข้างนอก", "อื่นๆ":"on tour / นอกสาขา" };
   var DEFAULT_COLOR = "#3370FF";
 
   var all = [];
@@ -74,7 +74,7 @@
       var n = forPlace(p).length;
       return '<button class="pick-card" data-place="' + esc(p) + '">' +
              "<b>" + esc(p) + "</b>" +
-             "<span>" + (OUTSIDE[p] ? "ห้างข้างนอก" : "สาขาเรา") + "</span>" +
+             "<span>" + (OUTSIDE[p] || "สาขาเรา") + "</span>" +
              '<span class="n">' + (n ? n + " แคมเปญ" : "ยังไม่มีแผน") + "</span></button>";
     }).join("");
     cards += '<button class="pick-card all" data-place="all"><b>ดูทั้งหมด</b>' +

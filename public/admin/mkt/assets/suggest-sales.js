@@ -21,7 +21,6 @@
     { key: 'surat',    label: 'สุราษฎร์#3', model: 'Superstore — ตะกร้าครอบครัว (ไม่รวมโซน Fashion)' },
     { key: 'fashion',  label: 'KAN Fashion', model: 'ร้านเสื้อผ้า — ซื้อเป็นชุดบน-ล่าง (โซน FA ที่สุราษฎร์)' },
     { key: 'chumphon', label: 'ชุมพร#1',    model: 'ร้านเหมา/กิโล — ยอดกระจุกรอบเทเสาร์ต้นเดือน' },
-    { key: 'nakhon',   label: 'นคร#2',      model: 'ยังไม่มีไฟล์ใบเสร็จ — วิเคราะห์ได้แค่ระดับโซน' },
   ];
   var DOW_S = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
 
@@ -252,26 +251,6 @@
       '<div class="finept">เรียงจากหมวดที่ลูกค้า "เลือกหลายชิ้น + หลายแบบ" — เหมาะกับกลไกขั้นบันไดมากกว่าลดชิ้นเดี่ยว</div>';
   }
 
-  function nakhonBlock() {
-    var h = UI.banner('warn', 'นคร#2 ยังวิเคราะห์ระดับใบเสร็จไม่ได้', esc(PA.meta.nakhonNote));
-    if (SI && SI.scopes && SI.scopes.s2) {
-      var C = SI.scopes.s2;
-      var weak = C.zones.filter(function (z) { return z.avg3 >= 12000 && z.net < z.avg3 * 0.9; })
-        .sort(function (a, b) { return (b.avg3 - b.net) - (a.avg3 - a.net); }).slice(0, 5);
-      h += UI.sect({ id: 'nkZones', eyebrow: 'เท่าที่ข้อมูลมี', title: 'โซนที่หลุดฟอร์ม (ก.ค. เทียบเฉลี่ย 3 เดือน)',
-        body: weak.length ? '<div class="tablewrap"><table><thead><tr><th>โซน</th>' +
-          '<th class="num">ก.ค. 69</th><th class="num">เฉลี่ย 3 เดือน</th><th class="num">ส่วนต่าง</th></tr></thead><tbody>' +
-          weak.map(function (z) {
-            return '<tr><td><b>' + esc(z.name) + '</b></td><td class="num">' + fmt.bahtK(z.net) + '</td>' +
-              '<td class="num">' + fmt.bahtK(z.avg3) + '</td>' +
-              '<td class="num" style="color:var(--red)">' + pctTxt(z.net, z.avg3) + '</td></tr>';
-          }).join('') + '</tbody></table></div>' +
-          '<div class="finept">' + chipHTML('zt') + '</div>'
-          : UI.empty('โซนหลัก ๆ ของนครยังอยู่ในฟอร์มปกติ') });
-    }
-    return h;
-  }
-
   /* ── render ──────────────────────────────────────────────────────────── */
   var curScope = 'surat';
 
@@ -279,7 +258,6 @@
     var sc = SCOPES.filter(function (s) { return s.key === key; })[0];
     var head = '<div class="scope"><div>โมเดลธุรกิจ: <b>' + esc(sc.model) + '</b></div>' +
       '<div class="days">' + esc(PA.meta.focus) + '</div></div>';
-    if (key === 'nakhon') { return head + nakhonBlock(); }
     var A = PA.scopes[key];
     if (!A) { return head + UI.empty('ไม่มีข้อมูล'); }
     return head +

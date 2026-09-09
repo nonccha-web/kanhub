@@ -21,20 +21,17 @@
     /* ── ทำงาน: ของที่เปิดใช้ทุกวัน อยู่บนสุดเสมอ ───────────────────────────── */
     { id: 'work', label: 'ทำงาน', groups: [
 
+      /* ปฏิทินการตลาด (คอนเทนต์/แคมเปญ/โปรโมชั่น) เป็นแกนที่โพสต์และงานผูกอยู่ จึงอยู่กลุ่มเดียวกับงานทีม */
       { icon: 'clipboard', label: 'งานทีม', items: [
-        { icon: 'user',      label: 'งานของฉัน',  tasks: '#/me' },
-        { icon: 'bell',      label: 'แจ้งเตือน',   tasks: '#/inbox', badge: 'mentions' },
-        { icon: 'clipboard', label: 'งานทั้งหมด', tasks: '#/all' },
-        { icon: 'zap',       label: 'สั่งงาน',     tasks: '#/new' }
+        { icon: 'user',      label: 'งานของฉัน',      tasks: '#/me' },
+        { icon: 'bell',      label: 'แจ้งเตือน',       tasks: '#/inbox', badge: 'mentions' },
+        { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
+        { icon: 'zap',       label: 'สั่งงาน',         tasks: '#/new' },
+        { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' }
       ]},
       { icon: 'megaphone', label: 'ตารางโพสต์', items: [
         { icon: 'calendar',  label: 'โพสต์วันนี้',  tasks: '#/posts' },
         { icon: 'monitor',   label: 'ทั้งเดือน',    tasks: '#/posts?range=month' }
-      ]},
-      { icon: 'calendar', label: 'แคมเปญ', items: [
-        { icon: 'calendar',  label: 'ปฏิทินแคมเปญ',  cmo: 'campaign-calendar.html' },
-        { icon: 'monitor',   label: 'สไลด์แผนแคมเปญ', cmo: 'campaign-deck.html' },
-        { icon: 'clipboard', label: 'แผนลงมือ',      sales: '#/plan' }
       ]}
 
     ]},
@@ -57,7 +54,9 @@
         { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
         { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' },
-        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' }
+        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' },
+        { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html' },
+        { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan' }
       ]}
 
     ]},

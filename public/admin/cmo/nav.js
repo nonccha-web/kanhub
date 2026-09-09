@@ -39,7 +39,10 @@
 
   function currentFile() {
     var p = location.pathname.split("/").pop();
-    return p && p.length ? decodeURIComponent(p) : "index.html";
+    p = p && p.length ? decodeURIComponent(p) : "index.html";
+    /* โฮสต์จริงตัด .html ทิ้ง (/cmo/kpi) แต่เมนูจดชื่อไฟล์เต็ม — เติมกลับให้ตรงกัน ไม่งั้นไม่ไฮไลต์หน้าปัจจุบัน */
+    if (!/\.html$/.test(p)) p += ".html";
+    return p;
   }
 
   function esc(s) {

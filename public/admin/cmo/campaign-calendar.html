@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <link rel="icon" href="../assets/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ปฏิทินแคมเปญ — KAN ERP</title>
+<title>ปฏิทินการตลาด — KAN ERP</title>
 <link rel="stylesheet" href="styles.css?v=25">
 <style>
 /* ============================================================
-   ปฏิทินแคมเปญ — ธีม Lark (ฟ้า #3370FF, การ์ดทึบ, ขอบคม, เงาบาง)
+   ปฏิทินการตลาด — ธีม Lark (ฟ้า #3370FF, การ์ดทึบ, ขอบคม, เงาบาง)
    override ตัวแปรของ styles.css เฉพาะหน้านี้
    ============================================================ */
 :root{
@@ -382,6 +382,19 @@ body{ padding:24px 20px; }
 .cc-soon-text b{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cc-soon-meta{ font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cc-soon-empty{ padding:18px 16px; font-size:12.5px; color:var(--text-muted); }
+
+/* ── เชื่อมโยงกับโพสต์และงาน ── */
+.cc-links{ display:none; margin:12px 0 4px; padding:12px 14px; border:1px solid var(--bg-glass-border); border-radius:8px; background:var(--bg-card-subtle); }
+.cc-links.show{ display:block; }
+.cc-links h4{ font-size:11.5px; font-weight:600; color:var(--text-muted); margin:0 0 8px; }
+.cc-linkrow{ display:flex; flex-wrap:wrap; gap:8px; }
+.cc-linkbtn{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:7px 12px; border-radius:6px; text-decoration:none;
+  border:1px solid var(--bg-glass-border); background:var(--bg-input); color:var(--text-primary); }
+.cc-linkbtn:hover{ border-color:var(--accent); color:var(--accent); }
+.cc-linkbtn b{ font-variant-numeric:tabular-nums; }
+.cc-linkbtn.warn b{ color:var(--warn); }
+.cc-linkline{ display:inline-flex; gap:10px; font-size:11px; color:var(--text-muted); margin-top:3px; }
+.cc-linkline b{ font-weight:600; color:var(--text-secondary); }
 </style>
 </head>
 <body>
@@ -390,7 +403,7 @@ body{ padding:24px 20px; }
   <div class="cc-top">
     <div>
       <div class="cc-eyebrow">Marketing</div>
-      <h1>ปฏิทินแคมเปญ</h1>
+      <h1>ปฏิทินการตลาด</h1>
       <div class="cc-sub">คอนเทนต์ · แคมเปญ · โปรโมชั่น ทั้งปี ราย สาขา × ช่องทาง — คลิกวันไหนก็ได้เพื่อเพิ่ม</div>
     </div>
     <div class="cc-actions">
@@ -421,6 +434,7 @@ body{ padding:24px 20px; }
 
   <div class="cc-offline" id="ccOffline">กำลังเปิดจากไฟล์ในเครื่อง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น และแนบรูปไม่ได้ · เปิดที่ <b>admin.kan-hub.com/cmo/campaign-calendar</b> เพื่อบันทึกขึ้นเซิร์ฟเวอร์</div>
   <div class="cc-kindbar" id="ccKindBar"></div>
+  <div class="cc-kindbar" id="ccBranchBar" style="margin-top:-6px"></div>
   <div class="cc-stats" id="ccStats"></div>
   <div id="ccView"></div>
   <div class="cc-soon" id="ccSoon"></div>
@@ -428,7 +442,7 @@ body{ padding:24px 20px; }
 
   <div class="pager" style="margin-top:28px;"></div>
   <footer class="doc-foot" style="margin-top:18px;font-size:12px;color:var(--text-muted);">
-    KAN ERP · ปฏิทินแคมเปญ · ข้อมูลและรูปเก็บบนเซิร์ฟเวอร์ (Cloudflare D1) ทีมเห็นชุดเดียวกัน
+    KAN ERP · ปฏิทินการตลาด · ข้อมูลและรูปเก็บบนเซิร์ฟเวอร์ (Cloudflare D1) ทีมเห็นชุดเดียวกัน
   </footer>
 </div>
 
@@ -444,6 +458,7 @@ body{ padding:24px 20px; }
     <div class="cc-gallery" id="ccFiles"></div>
     <input type="file" id="ccImageInput" accept="image/*" multiple hidden>
     <div class="cc-hint" id="ccFileHint"></div>
+    <div class="cc-links" id="ccLinks"></div>
 
     <div class="cc-field">
       <label>ประเภท</label>
@@ -486,7 +501,8 @@ body{ padding:24px 20px; }
       <div class="cc-swatches" id="cc-colors"></div>
     </div>
     <div class="cc-field"><label>ช่องทาง</label><div class="cc-choices" id="cc-channels"></div></div>
-    <div class="cc-field"><label>สาขา</label><div class="cc-choices" id="cc-branches"></div></div>
+    <div class="cc-field"><label>สาขา</label><div class="cc-choices" id="cc-branches"></div>
+      <div class="cc-hint">งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน ให้เลือก "อื่นๆ"</div></div>
     <div class="cc-two">
       <div class="cc-field"><label for="cc-budget">งบ (บาท)</label><input type="number" id="cc-budget" min="0" step="100" placeholder="0"></div>
       <div class="cc-field"><label for="cc-owner">ผู้รับผิดชอบ</label><input type="text" id="cc-owner" placeholder="ชื่อคน/ทีม"></div>
@@ -505,8 +521,8 @@ body{ padding:24px 20px; }
 
 <div class="cc-toast" id="ccToast"></div>
 
-<script src="erp-menu.js?v=25"></script>
-<script src="nav.js?v=25"></script>
-<script src="campaign-calendar.js?v=2"></script>
+<script src="erp-menu.js?v=26"></script>
+<script src="nav.js?v=26"></script>
+<script src="campaign-calendar.js?v=4"></script>
 </body>
 </html>
