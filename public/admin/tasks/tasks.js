@@ -1534,9 +1534,9 @@
   /* ---------- ตารางโพสต์ ----------
      พิซซ่ากรอกแผน · หัวหน้าเข้ามาดูว่า "วันนี้โพสต์ครบยัง มีลิงก์ไหม" แล้วติ๊กจบ
      เก็บแยกจาก task เพราะเดือนหนึ่งมีเป็นร้อยโพสต์ ถ้ายัดเป็น task งานจริงจะถูกกลบ */
-  var P = { page: '', range: 'month', status: '', view: 'grid', month: null, day: '', campaign: '' };
-  /* จำมุมมองล่าสุดไว้ — ทีมคอนเทนต์อยู่กับ "ตาราง" ทั้งวัน ไม่ควรต้องกดใหม่ทุกครั้ง */
-  try { var _pv = localStorage.getItem('kan-posts-view'); if (['cal', 'grid', 'list'].indexOf(_pv) !== -1) P.view = _pv; } catch (e) {}
+  var P = { page: '', range: 'month', status: '', view: 'cal', month: null, day: '', campaign: '' };
+  /* จำมุมมองล่าสุดไว้ (ปฏิทิน/รายการ) — ส่วนตารางแบบ Excel อยู่ในหน้าต่าง "เพิ่มโพสต์" */
+  try { var _pv = localStorage.getItem('kan-posts-view'); if (['cal', 'list'].indexOf(_pv) !== -1) P.view = _pv; } catch (e) {}
   var POST_KIND = { content: 'คอนเทนต์', promo: 'โปรโมชัน', video: 'วิดีโอ', live: 'ไลฟ์' };
 
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -1615,7 +1615,7 @@
           return '<button type="button" class="' + (obj[name] === o[0] ? 'on' : '') + '" data-p="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
         }).join('') + '</div>';
       };
-      h += '<div class="tbar">' + seg('view', [['cal', 'ปฏิทิน'], ['grid', 'ตาราง'], ['list', 'รายการ']], P) +
+      h += '<div class="tbar">' + seg('view', [['cal', 'ปฏิทิน'], ['list', 'รายการ']], P) +
         (P.view === 'cal'
           ? '<div class="mnav"><button type="button" data-mon="-1" aria-label="เดือนก่อน">‹</button>' +
             '<b>' + esc(monthLabel) + '</b>' +
@@ -1688,9 +1688,6 @@
 
       if (P.view === 'cal') {
         /* โหมดปฏิทินจบที่ปฏิทิน + รายการของวันที่กด */
-      } else if (P.view === 'grid') {
-        /* ตารางแบบ Excel — ว่างก็ต้องขึ้น จะได้เริ่มพิมพ์ได้เลย */
-        h += '<div id="pgHost"></div>';
       } else if (!shown.length) {
         /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
            (ยิงจากเบราว์เซอร์ของหัวหน้า เพราะ API ต้องใช้สิทธิ์เจ้าของ) */
@@ -1714,9 +1711,9 @@
       }
       view.innerHTML = h;
 
-      $('#newPost').addEventListener('click', function () { openPostForm(null); });
+      $('#newPost').addEventListener('click', function () { openPostSheet(); });
       $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
-      if (P.view === 'grid') mountPostGrid($('#pgHost'), shown);
+
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
     }).catch(function (e) { showError(e); });
@@ -1827,6 +1824,9 @@
   }
 
   /* ---------- บันทึกอัตโนมัติรายแถว ---------- */
+  function postRowBlank(r) {
+    return !r.id && !r.topic && !r.time && !r.url && !r.note;
+  }
   function gridKey(row) {
     if (row.id) return row.id;
     if (!row._k) row._k = 'n' + (++G.seq);
@@ -1860,6 +1860,12 @@
   function gridSave(row) {
     var k = gridKey(row);
     clearTimeout(G.timers[k]);
+    if (postRowBlank(row)) {               /* ยังไม่ได้พิมพ์อะไร (มีแต่วันที่ที่เติมให้) ไม่ต้องบันทึก */
+      delete G.pending[k];
+      gridMark(row, '', '');
+      gridStatus();
+      return;
+    }
     if (!row.date) {                       /* ยังไม่มีวันที่ = ยังไม่ใช่โพสต์ ไม่บันทึก */
       delete G.pending[k];
       gridMark(row, row.id ? 'err' : '', row.id ? 'ต้องมีวันที่' : 'ใส่วันที่ก่อนถึงจะบันทึก');
@@ -1936,30 +1942,32 @@
     if (Object.keys(G.pending).length) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  function mountPostGrid(host, list) {
-    if (!host || !global.KAN_GRID) return;
+  function mountPostGrid(host, list, opts) {
+    if (!host || !global.KAN_GRID) return null;
+    opts = opts || {};
     var rows = list.slice().sort(function (a, b) {
       var x = (a.date || '') + ' ' + (a.time || '99'), y = (b.date || '') + ' ' + (b.time || '99');
       return x < y ? -1 : (x > y ? 1 : 0);
     });
     rows.forEach(function (r) { r._saved = gridSnap(r); r._st = ''; r._msg = ''; });
-    var firstPage = P.page || ((S.pages || [])[0] || {}).id || '';
+    var firstPage = opts.pageId || P.page || ((S.pages || [])[0] || {}).id || '';
+    var firstDate = opts.date || '';
     G.grid = global.KAN_GRID.create(host, {
       id: 'posts',
       columns: postColumns(),
       rows: rows,
       freeze: 1,
-      blankRows: 5,
-      isBlank: function (r) { return !r.date && !r.topic && !r.time && !r.url; },
+      isBlank: postRowBlank,
       blankRow: function (last) {
-        return { pageId: (last && last.pageId) || firstPage, date: '', time: '', channels: [],
+        return { pageId: (last && last.pageId) || firstPage, date: (last && last.date) || firstDate,
+                 time: '', channels: (last && last.channels ? last.channels.slice() : []),
                  topic: '', kind: 'content', status: 'plan', url: '', note: '' };
       },
       cloneRow: function (src) {
         return { pageId: src.pageId, date: src.date, time: src.time, channels: (src.channels || []).slice(),
                  topic: src.topic, kind: src.kind, status: 'plan', url: '', note: src.note };
       },
-      tone: function (r) { return r.date ? postTone(r) : ''; },
+      tone: function (r) { return (!postRowBlank(r) && r.date) ? postTone(r) : ''; },
       canDelete: function () { return S.me.role === 'owner'; },
       confirmDelete: function (n) { return confirm('ลบ ' + n + ' แถวออกจากตารางโพสต์? ย้อนกลับไม่ได้'); },
       onChange: gridSchedule,
@@ -1972,8 +1980,10 @@
         if (g.length > 1 && g[0].map(headerFieldOf).filter(Boolean).length >= 2) g = g.slice(1);
         return g;
       },
+      blankRows: opts.blankRows == null ? 5 : opts.blankRows,
     });
     gridStatus();
+    return G.grid;
   }
 
   /* สีเดียวใช้ทั้งปฏิทินและรายการ
@@ -2079,7 +2089,35 @@
     return y ? x + '-' + y : x;
   }
 
-  /* ฟอร์มเพิ่ม/แก้โพสต์ — พิซซ่าใช้กรอกแผน */
+  /* หน้าต่าง "เพิ่มโพสต์" = ตารางแบบ Excel กรอกทีเดียวหลายโพสต์
+     (นนท์: หน้าหลักให้เป็นปฏิทิน/รายการเหมือนเดิม ส่วนตารางเอามาไว้ตรงนี้) */
+  function openPostSheet() {
+    var host = document.createElement('div');
+    host.className = 'modal';
+    var today = P.day || ymd(new Date());
+    host.innerHTML = '<div class="modal-box sheet"><div class="sec-h"><h2>เพิ่มโพสต์</h2>' +
+      '<p>พิมพ์ในตารางได้เลยเหมือน Excel · วางจาก Excel ก็ได้ · ระบบบันทึกให้เองทีละแถว</p>' +
+      '<button type="button" class="btn-text" data-close>ปิด</button></div>' +
+      '<div class="sec-b tight"><div id="sheetHost"></div></div>' +
+      '<div class="sheet-foot"><span class="hint">แถวจะบันทึกเมื่อใส่วันที่แล้ว · Enter ลงแถวถัดไป · Tab ช่องถัดไป · Cmd/Ctrl+Z ย้อนกลับ</span>' +
+      '<button type="button" class="btn" data-close>เสร็จแล้ว</button></div></div>';
+    document.body.appendChild(host);
+    var close = function () {
+      gridFlush();
+      G.grid = null;
+      host.remove();
+      renderPosts();
+    };
+    $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
+    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
+    mountPostGrid($('#sheetHost', host), [], { date: today, pageId: P.page || '', blankRows: 10 });
+    setTimeout(function () {
+      var g = G.grid;
+      if (g) { g.setSel(0, g.colIdx('topic'), false); }
+    }, 60);
+  }
+
+  /* ฟอร์มแก้โพสต์ทีละอัน — ใช้ตอนกด "แก้" จากปฏิทิน/รายการ */
   function openPostForm(post) {
     var isNew = !post;
     var tv = parseTimeValue(post ? post.time : '');

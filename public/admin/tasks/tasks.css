@@ -816,3 +816,13 @@ tr.xl-new .xl-rh{ color:var(--k-hair); }
 .tl-i:hover .tl-del, .tl-del:focus{ opacity:1; }
 .tl-del:hover{ color:var(--k-bad); }
 @media (hover:none){ .tl-del{ opacity:1; color:var(--k-mut); } }
+
+/* หน้าต่าง "เพิ่มโพสต์" ที่เป็นตาราง — กว้างเกือบเต็มจอ ตารางเลื่อนในตัว */
+.modal-box.sheet{ max-width:min(1280px, 96vw); display:flex; flex-direction:column; max-height:92vh; }
+.modal-box.sheet .sec-b{ flex:1; min-height:0; overflow:hidden; }
+.modal-box.sheet .xl{ border:0; margin:0; }
+.modal-box.sheet .xl-scroll{ max-height:min(60vh, 520px); }
+.sheet-foot{ display:flex; align-items:center; gap:14px; padding:12px 22px; border-top:1px solid var(--k-line);
+  background:var(--k-paper); position:sticky; bottom:0; }
+.sheet-foot .hint{ flex:1; font-size:11.5px; color:var(--k-mut); margin:0; }
+@media (max-width:760px){ .sheet-foot{ flex-direction:column; align-items:stretch; } .sheet-foot .btn{ width:100%; } }
