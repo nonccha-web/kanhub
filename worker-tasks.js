@@ -963,6 +963,22 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ok: true, token });
   }
 
+  /* ลบความคืบหน้าทีละรายการ — หัวหน้าลบได้ทุกอัน สมาชิกลบได้เฉพาะของตัวเอง
+     ลบแล้วรูปที่แนบมากับอัปเดตนั้นหายตามไปด้วย (ไม่งั้นรูปลอยค้างในฐานข้อมูล)
+     ไม่ลบ "สร้างงาน" เพราะเป็นจุดตั้งต้นของไทม์ไลน์ */
+  const updMatch = path.match(/^\/updates\/([A-Za-z0-9_-]{1,40})$/);
+  if (updMatch && method === "DELETE") {
+    const row = await db.prepare("SELECT id, task_id, staff_id, kind FROM task_updates WHERE id = ?").bind(updMatch[1]).first();
+    if (!row) return json({ error: "ไม่พบรายการนี้" }, 404);
+    if (!isOwner && row.staff_id !== me.id) return json({ error: "ลบได้เฉพาะที่ตัวเองบันทึกไว้" }, 403);
+    if (row.kind === "create") return json({ error: "ลบรายการ 'สร้างงาน' ไม่ได้" }, 400);
+    await db.batch([
+      db.prepare("DELETE FROM task_files WHERE update_id = ?").bind(row.id),
+      db.prepare("DELETE FROM task_updates WHERE id = ?").bind(row.id),
+    ]);
+    return json({ ok: true });
+  }
+
   const staffMatch = path.match(/^\/staff\/([A-Za-z0-9_-]{1,40})$/);
   if (staffMatch && method === "PUT") {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);

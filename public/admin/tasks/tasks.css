@@ -695,42 +695,6 @@ button.ptime:hover{ color:var(--k-ink); border-bottom-color:var(--k-line); }
 .asview button{ border:0; background:transparent; color:var(--k-mut); font:inherit; font-size:11px; cursor:pointer; padding:0 0 0 2px; }
 .asview button:hover{ color:var(--k-bad); }
 
-/* ── ตารางกรอกโพสต์แบบสเปรดชีต ─────────────────────────────────────────── */
-.pgrid-wrap{ border:1px solid var(--k-line); background:var(--k-paper); overflow:auto; max-height:74vh; margin-bottom:20px; }
-.pgrid{ border-collapse:separate; border-spacing:0; min-width:1240px; width:100%; font-size:13px; }
-.pgrid th{ position:sticky; top:0; z-index:2; background:var(--k-ground); font-size:11.5px; font-weight:600; color:var(--k-mut);
-  text-align:left; padding:9px 10px; border-bottom:1px solid var(--k-line); border-right:1px solid var(--k-hair); white-space:nowrap; }
-.pgrid td{ padding:0; border-bottom:1px solid var(--k-hair); border-right:1px solid var(--k-hair); vertical-align:middle; height:38px; }
-.pgrid td:last-child, .pgrid th:last-child{ border-right:0; }
-.pgrid td input, .pgrid td select{ width:100%; height:38px; border:0; background:transparent; color:var(--k-ink); font:inherit; font-size:13px;
-  padding:0 10px; outline:none; border-radius:0; box-shadow:none; appearance:none; -webkit-appearance:none; }
-.pgrid td select{ padding-right:22px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B8A84' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:right 6px center; background-size:12px; }
-.pgrid td input:focus, .pgrid td select:focus{ box-shadow:inset 0 0 0 2px var(--k-ink); background:var(--k-paper); position:relative; z-index:1; }
-.pgrid td input::placeholder{ color:var(--k-mut); opacity:.7; }
-.pgrid .c-n{ width:52px; min-width:52px; text-align:center; color:var(--k-mut); font-size:11px; white-space:nowrap; }
-.pgrid td.c-n{ border-left:3px solid transparent; }
-.pgrid tr[data-tone="ok"] td.c-n{ border-left-color:var(--k-ok); }
-.pgrid tr[data-tone="nolink"] td.c-n{ border-left-color:var(--k-warn); }
-.pgrid tr[data-tone="miss"] td.c-n{ border-left-color:var(--k-bad); }
-.pgrid tr[data-tone="skip"] td{ color:var(--k-mut); }
-.pgrid tr.new td{ background:color-mix(in srgb, var(--k-warn) 7%, transparent); }
-.pgrid .c-date{ width:150px; min-width:150px; } .pgrid .c-time{ width:96px; min-width:96px; }
-.pgrid .c-pageId{ width:150px; min-width:150px; } .pgrid .c-kind{ width:110px; min-width:110px; }
-.pgrid .c-channels{ width:170px; min-width:170px; } .pgrid .c-topic{ min-width:300px; }
-.pgrid .c-status{ width:124px; min-width:124px; } .pgrid .c-url{ width:210px; min-width:210px; }
-.pgrid .c-note{ width:160px; min-width:160px; } .pgrid .c-act{ width:36px; min-width:36px; text-align:center; }
-.pg-url{ display:flex; align-items:center; }
-.pg-url a{ flex:none; padding:0 8px; color:var(--k-mut); text-decoration:none; font-size:14px; }
-.pg-url a:hover{ color:var(--k-ink); }
-.pg-st{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-left:5px; vertical-align:middle; background:transparent; }
-.pg-st.saving{ background:var(--k-warn); } .pg-st.ok{ background:var(--k-ok); } .pg-st.err{ background:var(--k-bad); }
-.pg-del{ border:0; background:transparent; color:var(--k-mut); cursor:pointer; font-size:12px; padding:8px; line-height:1; }
-.pg-del:hover{ color:var(--k-bad); }
-.pg-add td{ padding:8px 10px; background:var(--k-ground); border-right:0; }
-.pg-hint{ margin-left:12px; font-size:11.5px; color:var(--k-mut); }
-@media (max-width:760px){ .pgrid-wrap{ max-height:none; } .pg-hint{ display:none; } }
-
 /* ── MCP token (หน้าทีม) ───────────────────────────────────────────────── */
 .mcprow{ display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--k-hair); }
 .mcprow:first-of-type{ border-top:0; }
@@ -745,3 +709,110 @@ button.ptime:hover{ color:var(--k-ink); border-bottom-color:var(--k-line); }
 .mcphelp ol{ margin:10px 0 0; padding-left:20px; line-height:1.8; }
 .mcphelp code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; background:var(--k-ground); padding:1px 5px; }
 @media (max-width:760px){ .mcprow{ flex-direction:column; align-items:stretch; } }
+
+/* ── สเปรดชีตแบบ Excel (grid.js) ───────────────────────────────────────────
+   ช่องเป็นข้อความล้วน ตัวแก้ไขสร้างเฉพาะช่องที่กำลังพิมพ์ → 500 แถวก็ยังลื่น */
+.xl{ border:1px solid var(--k-line); background:var(--k-paper); margin-bottom:20px; position:relative; }
+.xl-bar{ display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--k-line);
+  background:var(--k-ground); font-size:12.5px; }
+.xl-bar-l{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.xl-bar-r{ margin-left:auto; }
+.xl-btn{ border:1px solid var(--k-line); background:var(--k-paper); color:var(--k-soft); font:inherit; font-size:12px;
+  padding:4px 10px; border-radius:4px; cursor:pointer; }
+.xl-btn:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+.xl-btn.warn{ border-color:var(--k-warn); color:var(--k-warn); }
+.xl-info{ color:var(--k-mut); font-size:12px; margin-left:4px; }
+.xl-save{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--k-mut); }
+.xl-save.ok{ color:var(--k-ok); } .xl-save.saving{ color:var(--k-warn); } .xl-save.err{ color:var(--k-bad); }
+.xl-dot{ width:7px; height:7px; border-radius:50%; background:var(--k-hair); }
+.xl-dot.ok{ background:var(--k-ok); } .xl-dot.saving{ background:var(--k-warn); } .xl-dot.err{ background:var(--k-bad); }
+.xl-scroll{ overflow:auto; max-height:calc(100vh - 300px); min-height:280px; scroll-behavior:auto; }
+/* width:max-content = คอลัมน์กว้างตามที่ตั้งไว้เป๊ะ ๆ ไม่ยืดหดตามจอ (ลากขยายแล้วคอลัมน์อื่นไม่ขยับตาม) */
+.xl-tb{ border-collapse:separate; border-spacing:0; table-layout:fixed; width:max-content; font-size:13px; }
+.xl-tb th, .xl-tb td{ border-right:1px solid var(--k-hair); border-bottom:1px solid var(--k-hair);
+  height:32px; padding:0; overflow:hidden; }
+/* หัวคอลัมน์ต้องเป็น table-cell ต่อไป (ถ้าใส่ display:flex ความกว้างจาก <col> จะไม่มีผลกับหัวตาราง)
+   ปุ่มกรองกับแถบลากขยายเลยใช้ absolute วางชิดขวา แล้วเว้น padding ขวาไว้ให้ */
+.xl-h{ position:sticky; top:0; z-index:4; background:var(--k-ground); color:var(--k-soft); font-size:11.5px;
+  font-weight:600; text-align:left; padding:0 26px 0 8px; white-space:nowrap; border-bottom:1px solid var(--k-line);
+  user-select:none; }
+.xl-h.xl-fz{ z-index:6; }
+.xl-hl{ display:block; overflow:hidden; text-overflow:ellipsis; line-height:31px; }
+.xl-fb{ position:absolute; right:8px; top:6px; width:17px; height:18px; border:0; background:transparent;
+  color:var(--k-mut); cursor:pointer; font-size:10px; padding:0; border-radius:3px; z-index:2; }
+.xl-fb:hover{ color:var(--k-ink); background:var(--k-hair); } .xl-fb.on{ color:var(--k-ink); background:var(--k-hair); }
+.xl-rz{ position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; z-index:1; }
+.xl-h{ position:sticky; }
+.xl-tb thead th{ position:sticky; top:0; }
+.xl-rh{ position:sticky; left:0; z-index:3; width:46px; background:var(--k-ground); color:var(--k-mut);
+  font-size:11px; font-weight:400; text-align:center; user-select:none; border-right:1px solid var(--k-line);
+  box-shadow:inset 3px 0 0 0 transparent; }
+.xl-rh[data-tone="ok"]{ box-shadow:inset 3px 0 0 0 var(--k-ok); }
+.xl-rh[data-tone="nolink"]{ box-shadow:inset 3px 0 0 0 var(--k-warn); }
+.xl-rh[data-tone="miss"]{ box-shadow:inset 3px 0 0 0 var(--k-bad); }
+.xl-rh:hover{ color:var(--k-ink); cursor:pointer; }
+.xl-st{ display:inline-block; width:5px; height:5px; border-radius:50%; margin-left:3px; vertical-align:middle; background:transparent; }
+.xl-st.ok{ background:var(--k-ok); } .xl-st.saving{ background:var(--k-warn); } .xl-st.err{ background:var(--k-bad); }
+.xl-c{ position:relative; background:var(--k-paper); padding:0 8px; white-space:nowrap; text-overflow:ellipsis;
+  cursor:cell; color:var(--k-ink); }
+.xl-fz{ position:sticky; z-index:2; background:var(--k-paper); }
+.xl-v{ display:block; overflow:hidden; text-overflow:ellipsis; line-height:31px; }
+.xl-link{ display:block; line-height:31px; color:var(--k-ink); text-decoration:underline; text-underline-offset:2px; overflow:hidden; text-overflow:ellipsis; }
+tr.xl-new .xl-c{ background:color-mix(in srgb, var(--k-warn) 5%, var(--k-paper)); }
+tr.xl-new .xl-rh{ color:var(--k-hair); }
+.xl-sel{ background:color-mix(in srgb, var(--k-ink) 8%, var(--k-paper)) !important; }
+.xl-act{ box-shadow:inset 0 0 0 2px var(--k-ink); background:var(--k-paper) !important; z-index:3; }
+.xl-fillmark{ box-shadow:inset 0 0 0 1px var(--k-mut); }
+.xl-bad{ animation:xlbad .7s ease; }
+@keyframes xlbad{ 0%,100%{ background:var(--k-paper); } 30%{ background:color-mix(in srgb, var(--k-bad) 22%, var(--k-paper)); } }
+.xl-fh{ position:absolute; right:-3px; bottom:-3px; width:7px; height:7px; background:var(--k-ink);
+  border:1px solid var(--k-paper); cursor:crosshair; z-index:5; }
+.xl-editing{ padding:0; box-shadow:inset 0 0 0 2px var(--k-ink); z-index:6; }
+.xl-ed{ width:100%; height:31px; border:0; outline:none; background:var(--k-paper); color:var(--k-ink);
+  font:inherit; font-size:13px; padding:0 7px; }
+.xl-catch{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+/* ชั้นลอย: เมนู ดรอปดาวน์ ปฏิทิน ตัวกรอง */
+.xl-pop{ position:fixed; z-index:400; background:var(--k-paper); border:1px solid var(--k-line);
+  box-shadow:0 8px 24px rgba(11,11,10,.16); font-size:13px; color:var(--k-ink); }
+.xl-list{ max-height:220px; overflow:auto; min-width:150px; }
+.xl-li{ padding:6px 12px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+.xl-li.on{ background:var(--k-ground); }
+.xl-ck{ width:13px; height:13px; border:1px solid var(--k-line); flex:none; border-radius:2px; }
+.xl-ck.on{ background:var(--k-ink); border-color:var(--k-ink); position:relative; }
+.xl-ck.on::after{ content:'✓'; position:absolute; inset:0; color:var(--k-paper); font-size:10px; text-align:center; line-height:13px; }
+.xl-menu{ min-width:190px; padding:4px 0; }
+.xl-menu button{ display:block; width:100%; text-align:left; border:0; background:transparent; color:var(--k-ink);
+  font:inherit; font-size:13px; padding:7px 14px; cursor:pointer; }
+.xl-menu button:hover{ background:var(--k-ground); }
+.xl-menu button.danger{ color:var(--k-bad); }
+.xl-menu hr{ border:0; border-top:1px solid var(--k-hair); margin:4px 0; }
+.xl-cal{ padding:8px; width:224px; }
+.xl-calh{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-size:12.5px; }
+.xl-calh button{ border:0; background:transparent; color:var(--k-soft); font-size:15px; cursor:pointer; padding:0 6px; }
+.xl-calg{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; }
+.xl-calg i{ font-style:normal; font-size:10px; color:var(--k-mut); padding:2px 0; }
+.xl-calg button{ border:0; background:transparent; color:var(--k-ink); font:inherit; font-size:12px;
+  padding:5px 0; cursor:pointer; border-radius:3px; }
+.xl-calg button:hover{ background:var(--k-ground); }
+.xl-calg button.on{ background:var(--k-ink); color:var(--k-paper); }
+.xl-filter{ width:230px; padding:8px; }
+.xl-fq{ width:100%; border:1px solid var(--k-line); background:var(--k-ground); color:var(--k-ink); font:inherit;
+  font-size:12.5px; padding:5px 8px; margin-bottom:6px; }
+.xl-fl{ max-height:210px; overflow:auto; }
+.xl-fi{ display:flex; align-items:center; gap:7px; padding:4px 2px; font-size:12.5px; cursor:pointer; }
+.xl-fa{ display:flex; gap:6px; margin-top:8px; border-top:1px solid var(--k-hair); padding-top:8px; }
+.xl-fa button{ flex:1; border:1px solid var(--k-line); background:var(--k-paper); color:var(--k-soft); font:inherit;
+  font-size:12px; padding:5px; cursor:pointer; border-radius:4px; }
+.xl-fa button.pri{ background:var(--k-ink); color:var(--k-paper); border-color:var(--k-ink); }
+@media (max-width:760px){
+  .xl-scroll{ max-height:none; }
+  .xl-info{ display:none; }
+}
+
+/* ปุ่มลบความคืบหน้า — โผล่ตอนชี้เมาส์ ไม่รบกวนตอนอ่าน */
+.tl-i .h{ position:relative; }
+.tl-del{ margin-left:auto; border:0; background:transparent; color:var(--k-hair); font-size:11px; cursor:pointer;
+  padding:2px 4px; line-height:1; opacity:0; transition:opacity .12s, color .12s; }
+.tl-i:hover .tl-del, .tl-del:focus{ opacity:1; }
+.tl-del:hover{ color:var(--k-bad); }
+@media (hover:none){ .tl-del{ opacity:1; color:var(--k-mut); } }

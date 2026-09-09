@@ -1262,7 +1262,10 @@
         (ups.length ? ups.map(function (u) {
           var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
           var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
-          return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) + '</time></div>' +
+          /* ลบได้: หัวหน้าลบได้ทุกอัน · สมาชิกลบเฉพาะของตัวเอง · ยกเว้นรายการ "สร้างงาน" */
+          var canDelUp = u.kind !== 'create' && (S.me.role === 'owner' || u.staffId === S.me.id);
+          return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) + '</time>' +
+            (canDelUp ? '<button type="button" class="tl-del" data-del-upd="' + esc(u.id) + '" title="ลบรายการนี้" aria-label="ลบความคืบหน้า">✕</button>' : '') + '</div>' +
             (u.note ? '<div class="n rich">' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
         }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
       h += '</div><div>';
@@ -1531,7 +1534,9 @@
   /* ---------- ตารางโพสต์ ----------
      พิซซ่ากรอกแผน · หัวหน้าเข้ามาดูว่า "วันนี้โพสต์ครบยัง มีลิงก์ไหม" แล้วติ๊กจบ
      เก็บแยกจาก task เพราะเดือนหนึ่งมีเป็นร้อยโพสต์ ถ้ายัดเป็น task งานจริงจะถูกกลบ */
-  var P = { page: '', range: 'month', status: '', view: 'cal', month: null, day: '', campaign: '' };
+  var P = { page: '', range: 'month', status: '', view: 'grid', month: null, day: '', campaign: '' };
+  /* จำมุมมองล่าสุดไว้ — ทีมคอนเทนต์อยู่กับ "ตาราง" ทั้งวัน ไม่ควรต้องกดใหม่ทุกครั้ง */
+  try { var _pv = localStorage.getItem('kan-posts-view'); if (['cal', 'grid', 'list'].indexOf(_pv) !== -1) P.view = _pv; } catch (e) {}
   var POST_KIND = { content: 'คอนเทนต์', promo: 'โปรโมชัน', video: 'วิดีโอ', live: 'ไลฟ์' };
 
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -1684,8 +1689,8 @@
       if (P.view === 'cal') {
         /* โหมดปฏิทินจบที่ปฏิทิน + รายการของวันที่กด */
       } else if (P.view === 'grid') {
-        /* ตารางกรอกแบบสเปรดชีต — ว่างก็ต้องขึ้น จะได้เริ่มพิมพ์ได้เลย */
-        h += postGridHtml(shown);
+        /* ตารางแบบ Excel — ว่างก็ต้องขึ้น จะได้เริ่มพิมพ์ได้เลย */
+        h += '<div id="pgHost"></div>';
       } else if (!shown.length) {
         /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
            (ยิงจากเบราว์เซอร์ของหัวหน้า เพราะ API ต้องใช้สิทธิ์เจ้าของ) */
@@ -1711,278 +1716,264 @@
 
       $('#newPost').addEventListener('click', function () { openPostForm(null); });
       $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
-      if (P.view === 'grid') wireGrid($('.pgrid-wrap'));
+      if (P.view === 'grid') mountPostGrid($('#pgHost'), shown);
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
     }).catch(function (e) { showError(e); });
   }
 
-  /* ---------- ตารางกรอกโพสต์แบบสเปรดชีต ------------------------------------
-     นนท์: ทีมถนัด Excel → ให้พิมพ์ในตารางนี้แทน Excel ได้เลย ไม่ต้องไปกรอกที่อื่นแล้วค่อยวาง
-     - ทุกช่องพิมพ์ได้ตรง ๆ บันทึกเองหลังหยุดพิมพ์ (จุดสีท้ายเลขแถวบอกสถานะ)
-     - Enter / ลูกศรลง = ลงแถวถัดไป · Tab = ช่องถัดไป · แถวสุดท้ายกด Enter = เพิ่มแถวใหม่
-     - วางจาก Excel ลงช่องไหนก็ได้ ระบบกระจายลงช่องข้าง ๆ และแถวถัดไปให้เอง */
-  var GRID_COLS = ['date', 'time', 'pageId', 'kind', 'channels', 'topic', 'status', 'url', 'note'];
-  var GRID_HEAD = { date: 'วันที่', time: 'เวลา', pageId: 'เพจ', kind: 'ชนิด', channels: 'ช่องทาง',
-                    topic: 'หัวข้อ / เนื้อหา', status: 'สถานะ', url: 'ลิงก์โพสต์', note: 'หมายเหตุ' };
-  var GRID_STATUS = { plan: 'ยังไม่โพสต์', done: 'โพสต์แล้ว', skip: 'ไม่โพสต์' };
-  var gridSaved = {};      /* id → ค่าที่บันทึกล่าสุด ไว้ส่งเฉพาะช่องที่เปลี่ยน */
-  var gridTimers = {};
+  /* ---------- ตารางโพสต์แบบสเปรดชีต (ตัวตารางอยู่ใน grid.js) ------------------
+     นนท์: ทีมถนัด Excel ให้พิมพ์ในนี้แทนไปเลย
+     หน้าที่ของไฟล์นี้คือ "นิยามคอลัมน์" กับ "บันทึกอัตโนมัติ" ส่วนพฤติกรรมแบบ Excel
+     (เลือกช่อง ช่วง ก็อป/วาง fill handle undo คลิกขวา กรอง) อยู่ใน grid.js */
+  var POST_STATUS_TH = { plan: 'ยังไม่โพสต์', done: 'โพสต์แล้ว', skip: 'ไม่โพสต์' };
+  var CHAN_ALL = ['Facebook', 'Line OA', 'TikTok', 'Instagram'];
+  var G = { grid: null, timers: {}, pending: {}, seq: 0, lastOk: '' };
 
-  function pgCell(f, x) {
-    var v = x ? x[f] : '';
-    if (f === 'date') return '<input type="date" data-f="date" value="' + esc(v || '') + '">';
-    if (f === 'pageId') {
-      return '<select data-f="pageId">' + (S.pages || []).map(function (pg) {
-        return '<option value="' + esc(pg.id) + '"' + (pg.id === v ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
-      }).join('') + '</select>';
-    }
-    if (f === 'kind') {
-      return '<select data-f="kind">' + Object.keys(POST_KIND).map(function (k) {
-        return '<option value="' + k + '"' + (k === (v || 'content') ? ' selected' : '') + '>' + POST_KIND[k] + '</option>';
-      }).join('') + '</select>';
-    }
-    if (f === 'status') {
-      return '<select data-f="status">' + Object.keys(GRID_STATUS).map(function (k) {
-        return '<option value="' + k + '"' + (k === (v || 'plan') ? ' selected' : '') + '>' + GRID_STATUS[k] + '</option>';
-      }).join('') + '</select>';
-    }
-    if (f === 'channels') return '<input data-f="channels" value="' + esc((v || []).join(', ')) + '" placeholder="FB, Line, TikTok, IG" autocomplete="off">';
-    if (f === 'time') return '<input data-f="time" value="' + esc(v || '') + '" placeholder="17.00" autocomplete="off">';
-    if (f === 'url') {
-      return '<span class="pg-url"><input data-f="url" value="' + esc(v || '') + '" placeholder="https://…" autocomplete="off">' +
-        (v ? '<a href="' + esc(v) + '" target="_blank" rel="noopener noreferrer" title="เปิดโพสต์">↗</a>' : '') + '</span>';
-    }
-    return '<input data-f="' + f + '" value="' + esc(v || '') + '" autocomplete="off"' +
-      (f === 'topic' ? ' placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ"' : '') + '>';
+  function thaiShort(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso || '';
+    return d.getDate() + ' ' + MON_TH[d.getMonth()] + ' ' + String(d.getFullYear() + 543).slice(-2);
   }
-  function pgRowHtml(x, n) {
-    var tone = x.id ? postTone(x) : 'new';
-    return '<tr' + (x.id ? ' data-pid="' + esc(x.id) + '"' : ' data-new="1" class="new"') + ' data-tone="' + tone + '">' +
-      '<td class="c-n"><span>' + n + '</span><i class="pg-st"></i></td>' +
-      GRID_COLS.map(function (f) { return '<td class="c-' + f + '">' + pgCell(f, x) + '</td>'; }).join('') +
-      '<td class="c-act">' + ((S.me.role === 'owner' || !x.id)
-        ? '<button type="button" class="pg-del" title="ลบแถว" aria-label="ลบแถว">✕</button>' : '') + '</td></tr>';
+  function addDaysIso(iso, n) {
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return ymd(d);
   }
-  function postGridHtml(list) {
-    var rows = list.slice().sort(function (a, b) {
-      return (a.date + ' ' + (a.time || '99')) < (b.date + ' ' + (b.time || '99')) ? -1 : 1;
+  function shortUrl(u) {
+    return String(u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 34);
+  }
+  function postColumns() {
+    return [
+      { key: 'date', label: 'วันที่', width: 106, type: 'date', noClear: true,
+        text: function (r) { return r.date ? thaiShort(r.date) : ''; },
+        edit: function (r) { return r.date ? thaiShort(r.date) : ''; },
+        iso: function (r) { return r.date || ''; },
+        fromIso: function (iso) { return thaiShort(iso); },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return '';
+          var b = curMonth();
+          return parsePostDate(s, b.getFullYear(), b.getMonth() + 1) || null;
+        },
+        copy: function (r) { return r.date || ''; },
+        fill: function (src, step) { return src.date ? addDaysIso(src.date, step) : ''; },
+        sortKey: function (r) { return r.date || '9999-99-99'; } },
+
+      { key: 'time', label: 'เวลา', width: 78,
+        parse: function (s) { s = String(s).trim(); return s ? (parsePasteTime(s) || null) : ''; },
+        sortKey: function (r) { return r.time || '99'; } },
+
+      { key: 'pageId', label: 'เพจ', width: 132, type: 'pick', noClear: true,
+        options: function () { return (S.pages || []).map(function (p) { return { v: p.id, label: p.name }; }); },
+        text: function (r) { return r.pageId ? pageName(r.pageId) : ''; },
+        parse: function (s) { s = String(s).trim(); return s ? (pageIdByText(s) || null) : null; } },
+
+      { key: 'kind', label: 'ชนิด', width: 92, type: 'pick', noClear: true,
+        options: function () {
+          return Object.keys(POST_KIND).map(function (k) { return { v: k, label: POST_KIND[k] }; });
+        },
+        text: function (r) { return POST_KIND[r.kind] || ''; },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return 'content';
+          var hit = null;
+          Object.keys(POST_KIND).forEach(function (k) { if (k === s || POST_KIND[k] === s) hit = k; });
+          return hit || parsePasteKind(s, '');
+        } },
+
+      { key: 'channels', label: 'ช่องทาง', width: 152, type: 'multi',
+        options: function () { return CHAN_ALL.map(function (c) { return { v: c, label: c }; }); },
+        get: function (r) { return r.channels || []; },
+        text: function (r) { return (r.channels || []).join(', '); },
+        parse: function (s) { return parsePasteChannels(s); },
+        filterValues: function (r) { return (r.channels || []).length ? r.channels : ['(ว่าง)']; } },
+
+      { key: 'topic', label: 'หัวข้อ / เนื้อหา', width: 330,
+        parse: function (s) { return String(s).trim(); } },
+
+      { key: 'status', label: 'สถานะ', width: 108, type: 'pick', noClear: true,
+        options: function () {
+          return Object.keys(POST_STATUS_TH).map(function (k) { return { v: k, label: POST_STATUS_TH[k] }; });
+        },
+        text: function (r) { return POST_STATUS_TH[r.status] || POST_STATUS_TH.plan; },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return 'plan';
+          var hit = null;
+          Object.keys(POST_STATUS_TH).forEach(function (k) { if (k === s || POST_STATUS_TH[k] === s) hit = k; });
+          return hit || parsePasteStatus(s, '');
+        } },
+
+      /* ใส่ลิงก์ = นับว่าโพสต์แล้ว (เซิร์ฟเวอร์ก็คิดแบบนี้) — affects บอก grid ให้เก็บสถานะไว้ใน undo ด้วย */
+      { key: 'url', label: 'ลิงก์โพสต์', width: 186, affects: ['status'],
+        html: function (r) {
+          return r.url
+            ? '<a class="xl-link" href="' + esc(r.url) + '" target="_blank" rel="noopener noreferrer" title="' + esc(r.url) + ' — Cmd/Ctrl+คลิกเพื่อเปิด">' + esc(shortUrl(r.url)) + '</a>'
+            : '<span class="xl-v"></span>';
+        },
+        text: function (r) { return r.url || ''; },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return '';
+          var m = s.match(/https?:\/\/\S+/);
+          return m ? m[0] : null;
+        },
+        after: function (r, v) { if (v) r.status = 'done'; } },
+
+      { key: 'note', label: 'หมายเหตุ', width: 150,
+        parse: function (s) { return String(s).trim(); } },
+    ];
+  }
+
+  /* ---------- บันทึกอัตโนมัติรายแถว ---------- */
+  function gridKey(row) {
+    if (row.id) return row.id;
+    if (!row._k) row._k = 'n' + (++G.seq);
+    return row._k;
+  }
+  function gridSnap(row) {
+    return JSON.stringify([row.date || '', row.time || '', row.pageId || '', row.kind || 'content',
+      (row.channels || []).join('|'), row.topic || '', row.url ? 'done' : (row.status || 'plan'),
+      row.url || '', row.note || '']);
+  }
+  function gridMark(row, st, msg) {
+    row._st = st; row._msg = msg || '';
+    if (G.grid) G.grid.markRow(row);
+  }
+  function gridSchedule(rows) {
+    (rows || []).forEach(function (row) {
+      if (!row || gridSnap(row) === row._saved) return;
+      var k = gridKey(row);
+      G.pending[k] = row;
+      gridMark(row, 'saving', 'กำลังบันทึก…');
+      clearTimeout(G.timers[k]);
+      G.timers[k] = setTimeout(function () { gridSave(row); }, 700);
     });
-    rows.forEach(function (x) { gridSaved[x.id] = pgSnapshot(x); });
-    return '<div class="pgrid-wrap"><table class="pgrid"><thead><tr><th class="c-n">#</th>' +
-      GRID_COLS.map(function (f) { return '<th class="c-' + f + '">' + GRID_HEAD[f] + '</th>'; }).join('') +
-      '<th class="c-act"></th></tr></thead><tbody>' +
-      rows.map(function (x, i) { return pgRowHtml(x, i + 1); }).join('') +
-      '<tr class="pg-add"><td colspan="' + (GRID_COLS.length + 2) + '">' +
-      '<button type="button" class="btn-ghost sm" data-pg-add="1">+ เพิ่มแถว</button> ' +
-      '<button type="button" class="btn-ghost sm" data-pg-add="5">+ 5 แถว</button>' +
-      '<span class="pg-hint">พิมพ์แล้วบันทึกเอง · Enter ลงแถวถัดไป · วางจาก Excel ลงช่องไหนก็ได้</span></td></tr>' +
-      '</tbody></table></div>';
+    gridStatus();
   }
-  function pgSnapshot(x) {
-    return { date: x.date || '', time: x.time || '', pageId: x.pageId || '', kind: x.kind || 'content',
-             channels: (x.channels || []).join('|'), topic: x.topic || '', status: x.status || 'plan',
-             url: x.url || '', note: x.note || '' };
+  function gridFlush() {
+    Object.keys(G.timers).forEach(function (k) {
+      if (G.pending[k]) { clearTimeout(G.timers[k]); gridSave(G.pending[k]); }
+    });
   }
-  /* อ่านค่าจากแถว แล้วจัดรูปแบบให้เหมือนที่ระบบเก็บ (เวลา 17.00 · ช่องทางชื่อมาตรฐาน) */
-  function pgCollect(tr) {
-    var g = function (f) { var el = tr.querySelector('[data-f="' + f + '"]'); return el ? el.value : ''; };
-    var timeEl = tr.querySelector('[data-f="time"]'), chEl = tr.querySelector('[data-f="channels"]');
-    var time = parsePasteTime(g('time'));
-    if (timeEl && time && time !== timeEl.value && document.activeElement !== timeEl) timeEl.value = time;
-    var ch = parsePasteChannels(g('channels'));
-    if (chEl && document.activeElement !== chEl) chEl.value = ch.join(', ');
-    var url = g('url').trim();
-    return { date: g('date'), time: time, pageId: g('pageId'), kind: g('kind'), channels: ch,
-             topic: g('topic').trim(), status: g('status'), url: url, note: g('note').trim() };
-  }
-  function pgMark(tr, st, msg) {
-    var dot = tr.querySelector('.pg-st');
-    if (!dot) return;
-    dot.className = 'pg-st ' + (st || '');
-    dot.title = msg || (st === 'ok' ? 'บันทึกแล้ว' : (st === 'saving' ? 'กำลังบันทึก…' : ''));
-  }
-  function pgSave(tr) {
-    var id = tr.getAttribute('data-pid');
-    var v = pgCollect(tr);
-    if (!v.date) { pgMark(tr, 'err', 'ใส่วันที่ก่อน ถึงจะบันทึก'); return Promise.resolve(); }
-    var timeEl = tr.querySelector('[data-f="time"]');
-    if (timeEl && timeEl.value.trim() && !v.time) { pgMark(tr, 'err', 'เวลาอ่านไม่ออก ใช้รูปแบบ 17.00 หรือ 15.00-20.00'); return Promise.resolve(); }
-    if (v.url && !/^https?:\/\//i.test(v.url)) { pgMark(tr, 'err', 'ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://'); return Promise.resolve(); }
-    pgMark(tr, 'saving');
-    var req;
-    if (!id) {
-      if (tr.getAttribute('data-busy')) return Promise.resolve();
-      tr.setAttribute('data-busy', '1');
-      req = api('/posts', 'POST', { posts: [{
-        pageId: v.pageId, date: v.date, time: v.time, channels: v.channels, topic: v.topic, kind: v.kind,
-        status: v.url ? 'done' : v.status, url: v.url, note: v.note,
-      }] }).then(function (j) {
-        var nid = (j.ids || [])[0];
-        tr.removeAttribute('data-busy');
-        if (nid) { tr.setAttribute('data-pid', nid); tr.removeAttribute('data-new'); tr.classList.remove('new'); id = nid; }
-      });
-    } else {
-      var prev = gridSaved[id] || {};
-      var body = {};
-      ['date', 'time', 'pageId', 'kind', 'topic', 'note', 'status', 'url'].forEach(function (f) {
-        if (String(v[f]) !== String(prev[f] == null ? '' : prev[f])) body[f] = v[f];
-      });
-      if (v.channels.join('|') !== (prev.channels || '')) body.channels = v.channels;
-      if (!Object.keys(body).length) { pgMark(tr, 'ok'); return Promise.resolve(); }
-      req = api('/posts/' + id, 'PUT', body);
+  function gridSave(row) {
+    var k = gridKey(row);
+    clearTimeout(G.timers[k]);
+    if (!row.date) {                       /* ยังไม่มีวันที่ = ยังไม่ใช่โพสต์ ไม่บันทึก */
+      delete G.pending[k];
+      gridMark(row, row.id ? 'err' : '', row.id ? 'ต้องมีวันที่' : 'ใส่วันที่ก่อนถึงจะบันทึก');
+      gridStatus();
+      return;
     }
-    return req.then(function () {
-      gridSaved[id] = pgSnapshot({ date: v.date, time: v.time, pageId: v.pageId, kind: v.kind, channels: v.channels,
-                                   topic: v.topic, status: v.url ? 'done' : v.status, url: v.url, note: v.note });
-      /* ใส่ลิงก์ = โพสต์แล้ว ให้ช่องสถานะบนจอตามไปด้วย */
-      var stEl = tr.querySelector('[data-f="status"]');
-      if (v.url && stEl && stEl.value !== 'done') stEl.value = 'done';
-      var urlWrap = tr.querySelector('.pg-url');
-      if (urlWrap) {
-        var a = urlWrap.querySelector('a');
-        if (v.url && !a) urlWrap.insertAdjacentHTML('beforeend', '<a href="' + esc(v.url) + '" target="_blank" rel="noopener noreferrer" title="เปิดโพสต์">↗</a>');
-        else if (v.url && a) a.setAttribute('href', v.url);
-        else if (!v.url && a) a.remove();
-      }
-      tr.setAttribute('data-tone', postTone({ status: v.url ? 'done' : v.status, url: v.url, date: v.date }));
-      pgMark(tr, 'ok');
-      S.posts = null;
+    if (row._busy) { G.timers[k] = setTimeout(function () { gridSave(row); }, 400); return; }
+    var snap = gridSnap(row);
+    var body = {
+      pageId: row.pageId || ((S.pages || [])[0] || {}).id || '',
+      date: row.date, time: row.time || '', channels: row.channels || [],
+      topic: row.topic || '', kind: row.kind || 'content',
+      status: row.url ? 'done' : (row.status || 'plan'),
+      url: row.url || '', note: row.note || '',
+    };
+    row._busy = 1;
+    var req = row.id ? api('/posts/' + row.id, 'PUT', body) : api('/posts', 'POST', { posts: [body] });
+    req.then(function (j) {
+      row._busy = 0;
+      var wasNew = !row.id;
+      if (wasNew && j && j.ids && j.ids[0]) row.id = j.ids[0];
+      row._saved = snap;
+      delete G.pending[k];
+      delete G.timers[k];
+      if (row.url) row.status = 'done';
+      G.lastOk = new Date();
+      gridMark(row, 'ok', 'บันทึกแล้ว');
+      if (gridSnap(row) !== snap) gridSchedule([row]);      /* พิมพ์ต่อระหว่างกำลังบันทึก */
+      gridStatus();
     }).catch(function (e) {
-      tr.removeAttribute('data-busy');
-      pgMark(tr, 'err', e.message);
-      toast(e.message, true);
+      row._busy = 0;
+      var msg = (e && e.message) || 'บันทึกไม่สำเร็จ';
+      var offline = !navigator.onLine || /failed to fetch|networkerror|load failed/i.test(msg);
+      if (offline) {                                        /* เน็ตหลุด: คิวไว้ ลองใหม่เอง ห้ามให้ข้อมูลหาย */
+        gridMark(row, 'saving', 'ยังไม่มีเน็ต — จะบันทึกให้เองเมื่อกลับมา');
+        G.timers[k] = setTimeout(function () { gridSave(row); }, 5000);
+      } else {
+        delete G.pending[k];
+        gridMark(row, 'err', msg);
+      }
+      gridStatus();
     });
   }
-  function pgQueue(tr, delay) {
-    var key = tr.getAttribute('data-pid') || ('new' + (tr.__k = tr.__k || Math.random()));
-    clearTimeout(gridTimers[key]);
-    gridTimers[key] = setTimeout(function () { pgSave(tr); }, delay == null ? 700 : delay);
-  }
-  function pgAddRows(host, n, after) {
-    var tb = host.querySelector('tbody'), addRow = host.querySelector('.pg-add');
-    var rows = Array.prototype.slice.call(tb.querySelectorAll('tr[data-pid], tr[data-new]'));
-    var ref = after || rows[rows.length - 1];
-    var refV = ref ? pgCollect(ref) : null;
-    var base = { date: refV && refV.date ? refV.date : (P.day || ymd(new Date())),
-                 pageId: refV ? refV.pageId : (P.page || ((S.pages || [])[0] || {}).id || ''),
-                 kind: 'content', status: 'plan', channels: refV ? refV.channels : [] };
-    var first = null;
-    for (var i = 0; i < n; i++) {
-      var tmp = document.createElement('tbody');
-      tmp.innerHTML = pgRowHtml(base, rows.length + i + 1);
-      var tr = tmp.firstElementChild;
-      if (after) after.insertAdjacentElement('afterend', tr); else tb.insertBefore(tr, addRow);
-      if (!first) first = tr;
-      after = after ? tr : null;
-    }
-    pgRenumber(host);
-    return first;
-  }
-  function pgRenumber(host) {
-    Array.prototype.forEach.call(host.querySelectorAll('tr[data-pid], tr[data-new]'), function (tr, i) {
-      var n = tr.querySelector('.c-n span'); if (n) n.textContent = i + 1;
-    });
-  }
-  function pgFocus(tr, f) {
-    if (!tr) return;
-    var el = tr.querySelector('[data-f="' + f + '"]');
-    if (el) { el.focus(); if (el.select && el.type !== 'date') el.select(); }
-  }
-  function pgSetCell(tr, f, text) {
-    var el = tr.querySelector('[data-f="' + f + '"]');
-    if (!el) return;
-    var t = normTxt(text);
-    if (f === 'date') { var b = curMonth(); el.value = parsePostDate(t, b.getFullYear(), b.getMonth() + 1) || el.value; }
-    else if (f === 'pageId') { var pid = pageIdByText(t); if (pid) el.value = pid; }
-    else if (f === 'kind') { el.value = parsePasteKind(t, ''); }
-    else if (f === 'status') {
-      var u = tr.querySelector('[data-f="url"]');
-      el.value = parsePasteStatus(t, u && u.value ? u.value : '');
-    }
-    else if (f === 'time') { el.value = parsePasteTime(t) || t; }
-    else if (f === 'channels') { el.value = parsePasteChannels(t).join(', '); }
-    else if (f === 'url') { var m = t.match(/https?:\/\/\S+/); el.value = m ? m[0] : t; }
-    else { el.value = t; }
-  }
-  /* วางหลายช่อง: กระจายจากช่องที่เคอร์เซอร์อยู่ ไปทางขวาแล้วลงล่าง */
-  function pgPaste(host, tr, f, rows) {
-    var startCol = GRID_COLS.indexOf(f);
-    var hasHead = rows[0] && rows[0].map(headerFieldOf).filter(Boolean).length >= 2;
-    var data = hasHead ? rows.slice(1) : rows;
-    var cur = tr;
-    data.forEach(function (r) {
-      if (!cur) cur = pgAddRows(host, 1);
-      r.forEach(function (cell, ci) {
-        var col = GRID_COLS[startCol + ci];
-        if (col) pgSetCell(cur, col, cell);
+  function gridRemove(rows) {
+    (rows || []).forEach(function (row) {
+      var k = gridKey(row);
+      clearTimeout(G.timers[k]);
+      delete G.pending[k];
+      delete G.timers[k];
+      var id = row.id;
+      /* เคลียร์ทันที ไม่รอผลลบ — ถ้าไม่เคลียร์ ตัวบันทึกอัตโนมัติจะไปแก้แถวที่กำลังจะหาย */
+      row.id = null; row._saved = undefined; row._st = ''; row._msg = '';
+      if (!id) return;
+      api('/posts/' + id, 'DELETE').catch(function (e) {
+        toast('ลบไม่สำเร็จ: ' + e.message, true);
       });
-      pgQueue(cur, 50);
-      var next = cur.nextElementSibling;
-      cur = next && (next.hasAttribute('data-pid') || next.hasAttribute('data-new')) ? next : null;
     });
+    gridStatus();
   }
-  function wireGrid(host) {
-    if (!host) return;
-    host.addEventListener('input', function (ev) {
-      var el = ev.target.closest('[data-f]'); if (!el) return;
-      var tr = el.closest('tr');
-      if (el.tagName === 'SELECT' || el.type === 'date') return;   /* พวกนี้รอ change */
-      pgQueue(tr);
+  function gridStatus() {
+    if (!G.grid) return;
+    var n = Object.keys(G.pending).length;
+    var bad = 0;
+    G.grid.rows.forEach(function (r) { if (r._st === 'err') bad++; });
+    if (n) G.grid.setSaveText('<i class="xl-dot saving"></i>กำลังบันทึก ' + n + ' แถว', 'saving');
+    else if (bad) G.grid.setSaveText('<i class="xl-dot err"></i>บันทึกไม่สำเร็จ ' + bad + ' แถว', 'err');
+    else if (G.lastOk) G.grid.setSaveText('<i class="xl-dot ok"></i>บันทึกแล้ว ' + fmtTime(new Date(G.lastOk)), 'ok');
+    else G.grid.setSaveText('<i class="xl-dot"></i>พิมพ์ได้เลย ระบบบันทึกให้เอง', '');
+  }
+  global.addEventListener('online', function () {
+    Object.keys(G.pending).forEach(function (k) { gridSave(G.pending[k]); });
+  });
+  global.addEventListener('beforeunload', function (e) {
+    if (Object.keys(G.pending).length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  function mountPostGrid(host, list) {
+    if (!host || !global.KAN_GRID) return;
+    var rows = list.slice().sort(function (a, b) {
+      var x = (a.date || '') + ' ' + (a.time || '99'), y = (b.date || '') + ' ' + (b.time || '99');
+      return x < y ? -1 : (x > y ? 1 : 0);
     });
-    host.addEventListener('change', function (ev) {
-      var el = ev.target.closest('[data-f]'); if (!el) return;
-      pgQueue(el.closest('tr'), 120);
+    rows.forEach(function (r) { r._saved = gridSnap(r); r._st = ''; r._msg = ''; });
+    var firstPage = P.page || ((S.pages || [])[0] || {}).id || '';
+    G.grid = global.KAN_GRID.create(host, {
+      id: 'posts',
+      columns: postColumns(),
+      rows: rows,
+      freeze: 1,
+      blankRows: 5,
+      isBlank: function (r) { return !r.date && !r.topic && !r.time && !r.url; },
+      blankRow: function (last) {
+        return { pageId: (last && last.pageId) || firstPage, date: '', time: '', channels: [],
+                 topic: '', kind: 'content', status: 'plan', url: '', note: '' };
+      },
+      cloneRow: function (src) {
+        return { pageId: src.pageId, date: src.date, time: src.time, channels: (src.channels || []).slice(),
+                 topic: src.topic, kind: src.kind, status: 'plan', url: '', note: src.note };
+      },
+      tone: function (r) { return r.date ? postTone(r) : ''; },
+      canDelete: function () { return S.me.role === 'owner'; },
+      confirmDelete: function (n) { return confirm('ลบ ' + n + ' แถวออกจากตารางโพสต์? ย้อนกลับไม่ได้'); },
+      onChange: gridSchedule,
+      onRemove: gridRemove,
+      onToast: function (m) { toast(m); },
+      parsePaste: function (html, text) {
+        var g = tableFromHtml(html) || tableFromText(text);
+        if (!g) return null;
+        /* ถ้าก็อปหัวตารางมาด้วย ตัดทิ้ง ไม่งั้นแถวแรกจะกลายเป็นข้อมูลผิด */
+        if (g.length > 1 && g[0].map(headerFieldOf).filter(Boolean).length >= 2) g = g.slice(1);
+        return g;
+      },
     });
-    host.addEventListener('focusout', function (ev) {
-      var el = ev.target.closest && ev.target.closest('[data-f]'); if (!el) return;
-      var tr = el.closest('tr');
-      var key = tr.getAttribute('data-pid') || ('new' + (tr.__k || ''));
-      if (gridTimers[key]) { clearTimeout(gridTimers[key]); pgSave(tr); }
-    });
-    host.addEventListener('keydown', function (ev) {
-      var el = ev.target.closest('[data-f]'); if (!el) return;
-      var tr = el.closest('tr'), f = el.getAttribute('data-f');
-      var isSel = el.tagName === 'SELECT';
-      if (ev.key === 'Enter' || (ev.key === 'ArrowDown' && !isSel)) {
-        ev.preventDefault();
-        var next = tr.nextElementSibling;
-        if (!next || !(next.hasAttribute('data-pid') || next.hasAttribute('data-new'))) next = pgAddRows(host, 1);
-        pgFocus(next, f);
-      } else if (ev.key === 'ArrowUp' && !isSel) {
-        ev.preventDefault();
-        var prev = tr.previousElementSibling;
-        if (prev && (prev.hasAttribute('data-pid') || prev.hasAttribute('data-new'))) pgFocus(prev, f);
-      }
-    });
-    host.addEventListener('paste', function (ev) {
-      var el = ev.target.closest('[data-f]'); if (!el || el.tagName === 'SELECT') return;
-      var cd = ev.clipboardData; if (!cd) return;
-      var html = cd.getData('text/html'), text = cd.getData('text/plain');
-      var multi = /[\t\n]/.test(text || '') || (html && /<t[rd]/i.test(html));
-      if (!multi) return;
-      var rows = tableFromHtml(html) || tableFromText(text);
-      if (!rows) return;
-      ev.preventDefault();
-      pgPaste(host, el.closest('tr'), el.getAttribute('data-f'), rows);
-      toast('วางลง ' + rows.length + ' แถวแล้ว กำลังบันทึก…');
-    });
-    host.addEventListener('click', function (ev) {
-      var b;
-      if ((b = ev.target.closest('[data-pg-add]'))) {
-        var tr = pgAddRows(host, Number(b.getAttribute('data-pg-add')) || 1);
-        pgFocus(tr, 'date');
-        return;
-      }
-      if ((b = ev.target.closest('.pg-del'))) {
-        var row = b.closest('tr'), pid = row.getAttribute('data-pid');
-        if (!pid) { row.remove(); pgRenumber(host); return; }
-        var v = pgCollect(row);
-        if (!confirm('ลบโพสต์ ' + v.date + (v.time ? ' ' + v.time : '') + (v.topic ? ' · ' + v.topic.slice(0, 40) : '') + ' ?')) return;
-        api('/posts/' + pid, 'DELETE').then(function () { row.remove(); pgRenumber(host); S.posts = null; toast('ลบแล้ว'); })
-          .catch(function (e) { toast(e.message, true); });
-      }
-    });
+    gridStatus();
   }
 
   /* สีเดียวใช้ทั้งปฏิทินและรายการ
@@ -2956,6 +2947,15 @@
     if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
     if ((b = ev.target.closest('[data-theme-pick]'))) { setTheme(b.getAttribute('data-theme-pick')); return; }
     if (ev.target.closest('[data-theme-toggle]')) { setTheme(isDark() ? 'light' : 'dark'); return; }
+    if ((b = ev.target.closest('[data-del-upd]'))) {
+      var uid = b.getAttribute('data-del-upd');
+      if (!confirm('ลบความคืบหน้ารายการนี้? รูปที่แนบมาด้วยจะหายไปด้วย')) return;
+      b.disabled = true;
+      api('/updates/' + uid, 'DELETE')
+        .then(function () { toast('ลบความคืบหน้าแล้ว'); S.tasks = null; render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
     if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; render(); return; }
     if (ev.target.closest('[data-logout]')) {
       fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { S.me = null; S.tasks = null; renderSidebar(); renderLogin(); });
@@ -2964,8 +2964,14 @@
     if (ev.target.closest('[data-toggle-done]')) { S.showDone = !S.showDone; renderMe(); return; }
     if ((b = ev.target.closest('.cards article[data-p]'))) { P.status = b.getAttribute('data-p'); renderPosts(); return; }
     if ((b = ev.target.closest('.tbar [data-p], .fchip[data-p], .ptab[data-p], tr.prow[data-p]'))) {
-      P[b.getAttribute('data-p')] = b.getAttribute('data-v');
-      if (b.getAttribute('data-p') === 'view') P.day = '';
+      var pk = b.getAttribute('data-p');
+      /* กำลังพิมพ์ในตารางอยู่แล้วสลับตัวกรอง — ต้องยิงที่ค้างให้เสร็จก่อน ไม่งั้นที่พิมพ์หาย */
+      if (typeof gridFlush === 'function') gridFlush();
+      P[pk] = b.getAttribute('data-v');
+      if (pk === 'view') {
+        P.day = '';
+        try { localStorage.setItem('kan-posts-view', P.view); } catch (e) {}
+      }
       renderPosts(); return;
     }
     if ((b = ev.target.closest('[data-mon]'))) {
