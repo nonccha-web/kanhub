@@ -661,3 +661,36 @@ button.ptime:hover{ color:var(--k-ink); border-bottom-color:var(--k-line); }
 .cchip:hover{ background:color-mix(in srgb, var(--cc) 20%, transparent); }
 .cchip i{ width:7px; height:7px; border-radius:50%; background:var(--cc); flex:none; }
 .cchip.big{ font-size:12.5px; padding:3px 12px 3px 8px; }
+
+/* ── วางตารางจาก Excel ─────────────────────────────────────────────────── */
+.modal-box.wide{ max-width:980px; }
+.pastebox{ min-height:150px; max-height:260px; overflow:auto; padding:12px 14px; font-size:13px; line-height:1.6;
+  border:1px dashed var(--k-line); background:var(--k-ground); color:var(--k-ink); white-space:pre-wrap; }
+.pastebox:focus{ outline:none; border-color:var(--k-ink); border-style:solid; background:var(--k-paper); }
+.pastebox:empty::before{ content:attr(data-ph); color:var(--k-mut); }
+.mapgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:8px; }
+.mapcol{ min-width:0; }
+.mapcol span{ display:block; font-size:11px; color:var(--k-mut); margin-bottom:4px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.mapcol .select{ font-size:12px; padding:6px 26px 6px 8px; }
+.pv-sum{ margin:14px 0 8px; font-size:13px; color:var(--k-soft); }
+.pv-sum b{ color:var(--k-ink); font-size:15px; }
+.pv-sum .bad{ color:var(--k-bad); }
+.pvwrap{ max-height:340px; overflow:auto; border:1px solid var(--k-line); }
+.pvtable{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.pvtable th{ position:sticky; top:0; background:var(--k-ground); text-align:left; font-weight:600; font-size:11.5px;
+  color:var(--k-mut); padding:8px 10px; border-bottom:1px solid var(--k-line); white-space:nowrap; }
+.pvtable td{ padding:7px 10px; border-bottom:1px solid var(--k-hair); vertical-align:top; }
+.pvtable tr:last-child td{ border-bottom:0; }
+.pvtable td.tp{ max-width:340px; }
+.pvtable .skiprow td{ color:var(--k-mut); background:var(--k-ground); }
+
+/* ── สิทธิ์ตามหมวด (หน้าทีม) ────────────────────────────────────────────── */
+.secchips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.secchips .chip{ font-size:11.5px; padding:3px 9px; }
+.secchips .chip[disabled]{ opacity:.55; cursor:default; }
+.asview{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--k-warn);
+  border-radius:999px; font-size:11.5px; color:var(--k-soft); background:color-mix(in srgb, var(--k-warn) 12%, transparent); }
+.asview b{ color:var(--k-ink); font-weight:600; }
+.asview button{ border:0; background:transparent; color:var(--k-mut); font:inherit; font-size:11px; cursor:pointer; padding:0 0 0 2px; }
+.asview button:hover{ color:var(--k-bad); }

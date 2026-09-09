@@ -7,7 +7,7 @@
   'use strict';
 
   var API = '/api/t';
-  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' } };
+  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' }, viewAs: null };
 
   /* ---------- KPI 2570 (จากเอกสาร Executive Offer CMO 2027 — ข้อความอ้างอิงในหน้า KPI) ---------- */
   var KPI_DOC = {
@@ -56,7 +56,8 @@
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function initials(name) {
-    var p = String(name || '').trim().split(/\s+/).filter(Boolean);
+    /* ตัดวงเล็บ/เครื่องหมายออกก่อน ไม่งั้นชื่อแบบ "Pizza (Julalak)" จะได้ตัวย่อ "P(" */
+    var p = String(name || '').replace(/[()[\]{}"'.,]/g, ' ').trim().split(/\s+/).filter(Boolean);
     if (!p.length) return '?';
     return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase();
   }
@@ -468,11 +469,44 @@
 
   /* ---------- sidebar / header ---------- */
   var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts' };
+  /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
+     เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
+  function effRights() {
+    if (!S.me) return { sections: [], owner: false, as: null };
+    if (S.viewAs) {
+      var v = staffById(S.viewAs);
+      if (v) return { sections: v.sections || [], owner: v.role === 'owner', as: v };
+    }
+    return { sections: S.me.sections || [], owner: S.me.role === 'owner', as: null };
+  }
+  function canSee(sec) {
+    var e = effRights();
+    if (!sec) return true;
+    if (sec === 'admin') return e.owner;
+    return (e.sections || []).indexOf(sec) !== -1;
+  }
+  function denyView(what) {
+    var view = $('#view');
+    view.className = 'page';
+    view.innerHTML = '<div class="top"><div><span class="kicker">ไม่มีสิทธิ์</span><h1>' + esc(what) + '</h1>' +
+      '<p>บัญชีของคุณยังไม่ได้เปิดสิทธิ์หมวดนี้ ถ้าต้องใช้ให้บอกหัวหน้าทีมเปิดให้ในหน้า “ทีม + สิทธิ์”</p></div>' +
+      '<div class="top-r"><a class="btn" href="#/me">ไปงานของฉัน</a></div></div>';
+    renderSidebar();
+  }
+  var SECTION_LIST = [
+    ['tasks', 'งานทีม + ตารางโพสต์ + ปฏิทินการตลาด'],
+    ['docs',  'เอกสารแผนงาน · B2B · รายงานการรับสาย'],
+    ['sales', 'ยอดขาย + การตลาด (ตัวเลขยอดขายทั้งหมด)'],
+    ['kpi',   'KPI 2570 + KPI Dashboard']
+  ];
+  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI' };
   function renderSidebar() {
     var host = $('#sideHost');
     if (!host || !global.ERP_MENU) return;
+    var eff = effRights();
     var h = global.ERP_MENU.render({ ctx: 'tasks', active: 'tasks:' + (ROUTE_KEY[S.route.name] || '#/me'),
       salesBase: '../mkt/index.html', cmoBase: '../cmo/', tasksBase: '',
+      sections: eff.sections, owner: eff.owner,
       badges: S.notif.unread ? { mentions: S.notif.unread } : {} });
     h += '<div class="erp-foot">' +
       '<button type="button" class="erp-theme" data-theme-toggle><span id="theme-icon"></span> <span id="theme-label"></span></button>' +
@@ -488,6 +522,9 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>' +
       (S.notif.unread ? '<i>' + (S.notif.unread > 9 ? '9+' : S.notif.unread) + '</i>' : '') + '</a>' +
+      (S.viewAs && staffById(S.viewAs)
+        ? '<span class="asview">ดูในมุมของ <b>' + esc(shortName(staffById(S.viewAs))) + '</b>' +
+          '<button type="button" data-viewas-off>เลิกดู</button></span>' : '') +
       '<span class="erp-user"><i>' + esc(initials(S.me.name)) + '</i><b>' + esc(S.me.name) + '</b>' +
       '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
     tb.textContent = shortName(S.me);
@@ -510,6 +547,13 @@
   /* ---------- ล็อกอิน: อีเมล + รหัสผ่านที่ทีมตั้งเอง ---------- */
   var loginMode = 'in';   // 'in' = เข้าสู่ระบบ · 'setup' = ตั้งรหัสครั้งแรก
 
+  /* ?next=/cmo/kpi — worker เด้งมาพร้อมปลายทาง รับเฉพาะ path ในบ้านเรา กัน open redirect */
+  function nextParam() {
+    var m = location.search.match(/[?&]next=([^&]*)/);
+    if (!m) return '';
+    var v = decodeURIComponent(m[1]);
+    return /^\/[A-Za-z0-9_\-./?=&#]*$/.test(v) && v.indexOf('//') !== 0 ? v : '';
+  }
   function renderLogin(err) {
     renderHeaderUser();
     var view = $('#view');
@@ -591,6 +635,9 @@
       }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
         .then(function () {
           try { localStorage.setItem('kan-task-last-email', f.email.value); } catch (e) {}
+          /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
+          var next = nextParam();
+          if (next) { location.href = next; return; }
           return boot();
         })
         .catch(function (e) { renderLogin(e.message); });
@@ -1549,7 +1596,8 @@
       var h = '<div class="top"><div><span class="kicker">ตารางโพสต์' + (P.page ? ' · ' + esc(pageName(P.page)) : '') + '</span>' +
         '<h1>คอนเทนต์ ' + esc(label) + '</h1>' +
         '<p>เขียวคือโพสต์แล้ว แดงคือเลยวันแล้วยังไม่โพสต์ เหลืองคือโพสต์แล้วแต่ยังไม่มีลิงก์ — กดวันในปฏิทินเพื่อดูและอัปเดตโพสต์ของวันนั้น</p></div>' +
-        '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
+        '<div class="top-r"><button type="button" class="btn-ghost" id="pastePosts">วางจาก Excel</button>' +
+        '<button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
 
       h += '<div class="cards">' +
         '<article class="hot"><span class="l">โพสต์ในช่วงนี้</span><b>' + posts.length + '</b><small>' + esc(d[0] ? d[0] + ' → ' + d[1] : 'ทุกวัน') + '</small></article>' +
@@ -1659,6 +1707,7 @@
       view.innerHTML = h;
 
       $('#newPost').addEventListener('click', function () { openPostForm(null); });
+      $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
     }).catch(function (e) { showError(e); });
@@ -1861,6 +1910,405 @@
     });
   }
 
+  /* ---------- วางตารางจาก Excel ----------------------------------------
+     ทีมทำแผนโพสต์ใน Excel อยู่แล้ว ให้ก็อปทั้งบล็อกมาวางในนี้ทีเดียว
+     ระบบอ่านเป็นตาราง → ให้เลือกว่าคอลัมน์ไหนคืออะไร → พรีวิว → บันทึก
+     แถวที่ตรงกับของเดิม (เพจ + วัน + เวลา) จะทับของเดิม ไม่สร้างซ้ำ */
+  var PASTE_COLS = [
+    ['skip', '— ไม่ใช้ —'], ['date', 'วันที่ (เต็ม)'], ['day', 'วันที่ (เลขวัน)'], ['month', 'เดือน'],
+    ['time', 'เวลา'], ['channels', 'ช่องทาง'], ['topic', 'หัวข้อ / เนื้อหา'], ['kind', 'ชนิด'],
+    ['status', 'สถานะ'], ['url', 'ลิงก์โพสต์'], ['note', 'หมายเหตุ'], ['page', 'เพจ']
+  ];
+  var PASTE_LABEL = {};
+  PASTE_COLS.forEach(function (p) { PASTE_LABEL[p[0]] = p[1]; });
+  var MON_FULL_TH = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  var MON_EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  function normTxt(s) { return String(s == null ? '' : s).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function monthIdx(v) {
+    var s = normTxt(v).toLowerCase().replace(/[.\s]/g, '');
+    if (!s) return null;
+    if (/^\d{1,2}$/.test(s)) { var n = Number(s); return n >= 1 && n <= 12 ? n - 1 : null; }
+    for (var i = 0; i < 12; i++) {
+      if (s === MON_TH[i].replace(/\./g, '') || s === MON_FULL_TH[i]) return i;
+      if (s.indexOf(MON_EN[i]) === 0) return i;
+      if (MON_FULL_TH[i].indexOf(s) === 0 && s.length >= 3) return i;
+    }
+    return null;
+  }
+  /* ปี: 2569 (พ.ศ.) → 2026 · 69 → 2569 → 2026 · 26 → 2026 */
+  function fixYear(y) {
+    y = Number(y);
+    if (y < 100) y = y >= 50 ? 2500 + y : 2000 + y;
+    if (y > 2400) y -= 543;
+    return y;
+  }
+  function isoOf(y, mo, d) {
+    y = fixYear(y); mo = Number(mo); d = Number(d);
+    if (!(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31) || !(y >= 2000 && y <= 2100)) return '';
+    var dt = new Date(y, mo - 1, d);
+    if (dt.getMonth() !== mo - 1 || dt.getDate() !== d) return '';
+    return y + '-' + pad(mo) + '-' + pad(d);
+  }
+  function parsePostDate(v, baseY, baseM) {
+    var s = normTxt(v);
+    if (!s) return '';
+    var m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return isoOf(m[1], m[2], m[3]);
+    m = s.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})\s*[\/\-]\s*(\d{2,4})/);
+    if (m) return isoOf(m[3], m[2], m[1]);
+    m = s.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})(?!\d)/);
+    if (m) return isoOf(baseY, m[2], m[1]);
+    m = s.match(/(\d{1,2})\s*([ก-ฮ][ก-ฮะ-๎.]*|[A-Za-z]{3,9})\.?\s*(\d{2,4})?/);
+    if (m && monthIdx(m[2]) !== null) return isoOf(m[3] || baseY, monthIdx(m[2]) + 1, m[1]);
+    m = s.match(/^(?:[ก-ฮ]{1,4}\.?\s*)?(\d{1,2})$/);
+    if (m) return isoOf(baseY, baseM, m[1]);
+    return '';
+  }
+  function parsePasteTime(v) {
+    var s = normTxt(v).replace(/น\.?$/, '').replace(/\s/g, '');
+    if (!s || /^[-–—]$/.test(s)) return '';
+    var m = s.match(/^(\d{1,2})[.:](\d{2})[-–—](\d{1,2})[.:](\d{2})$/);
+    if (m) return Number(m[1]) + '.' + m[2] + '-' + Number(m[3]) + '.' + m[4];
+    m = s.match(/^(\d{1,2})[.:](\d{2})/);
+    if (m) return Number(m[1]) + '.' + m[2];
+    m = s.match(/^(\d{1,2})$/);
+    if (m && Number(m[1]) <= 23) return Number(m[1]) + '.00';
+    return '';
+  }
+  var CH_MAP = [[/face|fb|เฟส/i, 'Facebook'], [/line|ไลน์/i, 'Line OA'],
+                [/tik|ติ๊ก|tt\b/i, 'TikTok'], [/insta|\big\b|ไอจี/i, 'Instagram']];
+  function parsePasteChannels(v) {
+    var s = normTxt(v);
+    if (!s) return [];
+    var out = [];
+    s.split(/[,\/&+·|]|และ|\s{2,}/).forEach(function (part) {
+      CH_MAP.forEach(function (p) {
+        if (p[0].test(part) && out.indexOf(p[1]) === -1) out.push(p[1]);
+      });
+    });
+    if (!out.length) CH_MAP.forEach(function (p) { if (p[0].test(s) && out.indexOf(p[1]) === -1) out.push(p[1]); });
+    return out;
+  }
+  function parsePasteKind(v, topic) {
+    var s = normTxt(v) + ' ' + normTxt(topic);
+    if (/live|ไลฟ์|ไลv/i.test(s)) return 'live';
+    if (/vdo|video|วิดี|วีดี|reel|รีล|คลิป/i.test(s)) return 'video';
+    if (/promo|โปรโม|^โปร|\sโปร|ส่วนลด|ลดราคา|ลด\s?\d|\d+\s?%|แจกฟรี|แถม|sale/i.test(s)) return 'promo';
+    return 'content';
+  }
+  function parsePasteStatus(v, url) {
+    var s = normTxt(v);
+    if (/skip|ข้าม|ไม่โพส|ยกเลิก|งด/i.test(s)) return 'skip';
+    if (url) return 'done';
+    if (/done|โพสแล้ว|โพสต์แล้ว|เสร็จ|ลงแล้ว|เรียบร้อย|✓|✔|yes|y\b/i.test(s)) return 'done';
+    return 'plan';
+  }
+  function pageIdByText(v) {
+    var s = normTxt(v).toLowerCase();
+    if (!s) return '';
+    var hit = (S.pages || []).filter(function (pg) {
+      var n = pg.name.toLowerCase();
+      return n === s || n.indexOf(s) !== -1 || s.indexOf(n) !== -1;
+    })[0];
+    return hit ? hit.id : '';
+  }
+
+  function tableFromHtml(html) {
+    if (!html || html.toLowerCase().indexOf('<t') === -1) return null;
+    var doc;
+    try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch (e) { return null; }
+    var tb = doc.querySelector('table');
+    if (!tb) return null;
+    var out = [];
+    Array.prototype.forEach.call(tb.rows, function (tr) {
+      out.push(Array.prototype.map.call(tr.cells, function (td) {
+        return normTxt((td.innerText || td.textContent || '').replace(/\n+/g, ' '));
+      }));
+    });
+    return out.length ? out : null;
+  }
+  function tableFromText(text) {
+    var s = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (!s.trim()) return null;
+    var sep = s.indexOf('\t') !== -1 ? '\t' : ',';
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charAt(i);
+      if (q) {
+        if (c === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else { q = false; } }
+        else { cell += c; }
+      } else if (c === '"') { q = true; }
+      else if (c === sep) { row.push(cell); cell = ''; }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else { cell += c; }
+    }
+    row.push(cell); rows.push(row);
+    rows = rows.map(function (r) { return r.map(normTxt); })
+      .filter(function (r) { return r.join('') !== ''; });
+    return rows.length ? rows : null;
+  }
+  var HEAD_HINT = [
+    [/^วัน(ที่)?$/i, 'day'], [/วันที่|^date$/i, 'date'], [/เดือน|^month$/i, 'month'],
+    [/เวลา|time/i, 'time'], [/ช่องทาง|chan|แพลตฟอร์ม|platform|ลงที่/i, 'channels'],
+    [/ชนิด|ประเภท|รูปแบบ|type|kind/i, 'kind'], [/สถานะ|status/i, 'status'],
+    [/ลิงก์|ลิงค์|link|url/i, 'url'], [/หมายเหตุ|note|remark|comment/i, 'note'],
+    [/เพจ|page|สาขา|ร้าน/i, 'page'],
+    [/หัวข้อ|เนื้อหา|คอนเทนต์|content|angle|แองเกิ|สินค้า|รายละเอียด|topic|caption|โปรโมชั่น|โปรโมชัน|งาน/i, 'topic']
+  ];
+  function headerFieldOf(cell) {
+    var s = normTxt(cell);
+    if (!s) return null;
+    for (var i = 0; i < HEAD_HINT.length; i++) { if (HEAD_HINT[i][0].test(s)) return HEAD_HINT[i][1]; }
+    return null;
+  }
+  /* เดาจากเนื้อในถ้าไม่มีหัวตาราง — ดูทีละคอลัมน์ว่าหน้าตาเป็นวัน เวลา ลิงก์ ฯลฯ */
+  function autoMapByContent(rows, baseY, baseM) {
+    var n = 0;
+    rows.forEach(function (r) { n = Math.max(n, r.length); });
+    var map = [], used = {};
+    for (var c = 0; c < n; c++) {
+      var vals = rows.map(function (r) { return normTxt(r[c] || ''); }).filter(Boolean);
+      var f = 'skip';
+      var hit = function (fn) { return vals.length && vals.filter(fn).length >= Math.ceil(vals.length * 0.6); };
+      if (!vals.length) { map.push('skip'); continue; }
+      if (hit(function (v) { return /^https?:\/\//i.test(v); })) f = 'url';
+      /* คอลัมน์วันที่: ต้องอ่านเป็นวันได้ และหน้าตาเป็นวันจริง ๆ (มีขีด ทับ หรือชื่อเดือนไทย) ไม่ใช่ประโยคยาว */
+      else if (!used.date && hit(function (v) {
+        return v.length <= 24 && !!parsePostDate(v, baseY, baseM) && /[\/\-]|[ก-ฮ]/.test(v);
+      })) f = 'date';
+      else if (!used.time && hit(function (v) { return !!parsePasteTime(v); })) f = 'time';
+      else if (!used.channels && hit(function (v) { return parsePasteChannels(v).length > 0; })) f = 'channels';
+      else if (!used.day && hit(function (v) { return /^\d{1,2}$/.test(v); })) f = 'day';
+      else if (!used.topic) f = 'topic';
+      else if (!used.note) f = 'note';
+      used[f] = 1;
+      map.push(f);
+    }
+    return map;
+  }
+
+  function buildPasteRows(rows, map, opt) {
+    var out = [];
+    rows.forEach(function (r, i) {
+      var g = {};
+      map.forEach(function (f, c) {
+        if (f === 'skip') return;
+        var v = normTxt(r[c] || '');
+        if (!v) return;
+        g[f] = g[f] ? g[f] + ' ' + v : v;
+      });
+      if (!Object.keys(g).length) return;
+      var mo = g.month ? monthIdx(g.month) : null;
+      var baseM = mo !== null ? mo + 1 : opt.baseM;
+      var date = g.date ? parsePostDate(g.date, opt.baseY, baseM) : '';
+      if (!date && g.day) date = parsePostDate(g.day, opt.baseY, baseM);
+      if (!date && g.date) date = parsePostDate(g.date, opt.baseY, opt.baseM);
+      var url = (g.url || '').match(/https?:\/\/\S+/);
+      url = url ? url[0] : '';
+      var topic = g.topic || '';
+      var rec = {
+        n: i + 1,
+        pageId: (g.page ? pageIdByText(g.page) : '') || opt.pageId,
+        date: date,
+        time: parsePasteTime(g.time || ''),
+        channels: parsePasteChannels(g.channels || ''),
+        topic: topic,
+        kind: parsePasteKind(g.kind || '', topic),
+        status: parsePasteStatus(g.status || '', url),
+        url: url,
+        note: g.note || '',
+        raw: r
+      };
+      if (!rec.date) rec.err = 'อ่านวันที่ไม่ได้';
+      else if (!rec.topic && !rec.time && !rec.channels.length) rec.err = 'แถวว่าง';
+      out.push(rec);
+    });
+    return out;
+  }
+  function topicKey(s) { return normTxt(s).toLowerCase().replace(/[\s\-_.·,"'"'()]/g, '').slice(0, 40); }
+
+  function openPasteImport() {
+    var host = document.createElement('div');
+    host.className = 'modal';
+    host.innerHTML = '<div class="modal-box wide"><div class="sec-h"><h2>วางตารางจาก Excel</h2>' +
+      '<button type="button" class="btn-text" data-close>ปิด</button></div>' +
+      '<div class="sec-b" id="pasteBody"></div></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); };
+    host.addEventListener('click', function (ev) {
+      if (ev.target === host || ev.target.closest('[data-close]')) close();
+    });
+    var body = $('#pasteBody', host);
+    var now = new Date();
+    var st = {
+      pageId: P.page || ((S.pages || [])[0] || {}).id || '',
+      month: (P.month || (now.getFullYear() + '-' + pad(now.getMonth() + 1))),
+      rows: null, map: null
+    };
+    function baseYM() {
+      var p = st.month.split('-');
+      return { baseY: Number(p[0]), baseM: Number(p[1]), pageId: st.pageId };
+    }
+    function pageOptions(sel) {
+      return (S.pages || []).map(function (pg) {
+        return '<option value="' + esc(pg.id) + '"' + (pg.id === sel ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
+      }).join('');
+    }
+
+    function stepPaste(msg) {
+      body.innerHTML =
+        '<div class="grid2"><div class="field"><label class="label">เพจ <small>ใช้กับแถวที่ไม่ได้ระบุเพจเอง</small></label>' +
+        '<select class="select" id="pgSel">' + pageOptions(st.pageId) + '</select></div>' +
+        '<div class="field"><label class="label">เดือนของตาราง <small>ใช้ตอนในไฟล์มีแต่เลขวัน</small></label>' +
+        '<input class="input" type="month" id="moSel" value="' + esc(st.month) + '"></div></div>' +
+        (msg ? '<p class="hint bad" style="margin-top:10px">' + esc(msg) + '</p>' : '') +
+        '<div class="field" style="margin-top:14px"><label class="label">วางตารางตรงนี้ <small>ก็อปจาก Excel / Google Sheet ทั้งบล็อก แล้ว Ctrl+V (Mac: ⌘V)</small></label>' +
+        '<div class="pastebox" id="pasteBox" contenteditable="true" spellcheck="false" data-ph="คลิกตรงนี้แล้ววางตารางได้เลย — เอาหัวตารางมาด้วยจะเดาคอลัมน์ให้ถูกขึ้น"></div></div>' +
+        '<div class="acts" style="margin-top:14px"><button type="button" class="btn" id="readBtn">อ่านตาราง</button>' +
+        '<button type="button" class="btn-ghost" data-close>ยกเลิก</button></div>' +
+        '<p class="hint" style="margin-top:10px">อ่านคอลัมน์ วัน · เดือน · เวลา · ช่องทาง · หัวข้อ · ชนิด · สถานะ · ลิงก์ · หมายเหตุ ได้เอง ' +
+        'แถวที่ตรงกับของเดิม (เพจ + วัน + เวลา) จะทับของเดิมให้ ไม่เพิ่มซ้ำ</p>';
+      var box = $('#pasteBox', body);
+      $('#pgSel', body).addEventListener('change', function () { st.pageId = this.value; });
+      $('#moSel', body).addEventListener('change', function () { st.month = this.value || st.month; });
+      box.addEventListener('paste', function (ev) {
+        var cd = ev.clipboardData;
+        if (!cd) return;
+        var html = cd.getData('text/html'), text = cd.getData('text/plain');
+        var rows = tableFromHtml(html) || tableFromText(text);
+        if (rows) { ev.preventDefault(); stepMap(rows); }
+      });
+      $('#readBtn', body).addEventListener('click', function () {
+        var rows = tableFromText(box.innerText);
+        if (!rows) { toast('ยังไม่มีตารางให้อ่าน — วางข้อมูลก่อน', true); return; }
+        stepMap(rows);
+      });
+      setTimeout(function () { box.focus(); }, 60);
+    }
+
+    function stepMap(rows) {
+      var b = baseYM();
+      var head = rows[0].map(headerFieldOf);
+      var hasHead = head.filter(Boolean).length >= 2;
+      var data = hasHead ? rows.slice(1) : rows;
+      if (!data.length) { stepPaste('มีแต่หัวตาราง ไม่มีข้อมูล'); return; }
+      var map = hasHead
+        ? head.map(function (f) { return f || 'skip'; })
+        : autoMapByContent(data, b.baseY, b.baseM);
+      while (map.length < rows[0].length) map.push('skip');
+      st.rows = data; st.map = map; st.head = hasHead ? rows[0] : null;
+      drawPreview();
+    }
+
+    function drawPreview() {
+      var b = baseYM();
+      var recs = buildPasteRows(st.rows, st.map, b);
+      var ok = recs.filter(function (r) { return !r.err; });
+      var bad = recs.filter(function (r) { return r.err; });
+      var cols = st.map.map(function (f, i) {
+        return '<div class="mapcol"><span>' + esc(st.head ? (st.head[i] || ('คอลัมน์ ' + (i + 1))) : ('คอลัมน์ ' + (i + 1))) + '</span>' +
+          '<select class="select" data-mapc="' + i + '">' +
+          PASTE_COLS.map(function (p) {
+            return '<option value="' + p[0] + '"' + (p[0] === f ? ' selected' : '') + '>' + esc(p[1]) + '</option>';
+          }).join('') + '</select></div>';
+      }).join('');
+      var rowsHtml = recs.slice(0, 60).map(function (r) {
+        if (r.err) {
+          return '<tr class="skiprow"><td>' + r.n + '</td><td colspan="6">' + esc(r.err) + ' — ' +
+            esc(r.raw.join(' · ').slice(0, 90)) + '</td></tr>';
+        }
+        return '<tr><td>' + r.n + '</td><td>' + esc(r.date) + (r.time ? ' <b>' + esc(r.time) + '</b>' : '') + '</td>' +
+          '<td>' + esc(pageName(r.pageId)) + '</td>' +
+          '<td>' + esc(POST_KIND[r.kind] || r.kind) + '</td>' +
+          '<td>' + esc(r.channels.join(', ') || '—') + '</td>' +
+          '<td class="tp">' + esc(r.topic.slice(0, 80) || '—') + '</td>' +
+          '<td>' + (r.status === 'done' ? 'โพสต์แล้ว' : (r.status === 'skip' ? 'ไม่โพสต์' : 'ยังไม่โพสต์')) +
+          (r.url ? ' · มีลิงก์' : '') + '</td></tr>';
+      }).join('');
+      body.innerHTML =
+        '<div class="grid2"><div class="field"><label class="label">เพจ</label>' +
+        '<select class="select" id="pgSel">' + pageOptions(st.pageId) + '</select></div>' +
+        '<div class="field"><label class="label">เดือนของตาราง</label>' +
+        '<input class="input" type="month" id="moSel" value="' + esc(st.month) + '"></div></div>' +
+        '<div class="field" style="margin-top:14px"><label class="label">คอลัมน์ในไฟล์คืออะไร <small>แก้ได้ถ้าเดาผิด</small></label>' +
+        '<div class="mapgrid">' + cols + '</div></div>' +
+        '<div class="pv-sum"><b>' + ok.length + '</b> แถวพร้อมบันทึก' +
+        (bad.length ? ' · <span class="bad">' + bad.length + ' แถวข้าม</span>' : '') +
+        (recs.length > 60 ? ' · แสดง 60 แถวแรก' : '') + '</div>' +
+        '<div class="pvwrap"><table class="pvtable"><thead><tr><th>#</th><th>วัน/เวลา</th><th>เพจ</th><th>ชนิด</th>' +
+        '<th>ช่องทาง</th><th>หัวข้อ</th><th>สถานะ</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
+        '<div class="acts" style="margin-top:14px"><button type="button" class="btn" id="saveBtn"' +
+        (ok.length ? '' : ' disabled') + '>บันทึกเข้าตาราง ' + ok.length + ' แถว</button>' +
+        '<button type="button" class="btn-ghost" id="backBtn">วางใหม่</button>' +
+        '<button type="button" class="btn-ghost" data-close>ยกเลิก</button></div>';
+      $('#pgSel', body).addEventListener('change', function () { st.pageId = this.value; drawPreview(); });
+      $('#moSel', body).addEventListener('change', function () { st.month = this.value || st.month; drawPreview(); });
+      $('#backBtn', body).addEventListener('click', function () { stepPaste(); });
+      $$('[data-mapc]', body).forEach(function (sel) {
+        sel.addEventListener('change', function () {
+          st.map[Number(this.getAttribute('data-mapc'))] = this.value;
+          drawPreview();
+        });
+      });
+      var save = $('#saveBtn', body);
+      if (save) save.addEventListener('click', function () { doSave(ok, this); });
+    }
+
+    /* เทียบกับของเดิมในช่วงวันเดียวกันก่อน แถวไหนซ้ำ (เพจ+วัน+เวลา) ให้ทับ ไม่เพิ่มใหม่ */
+    function doSave(recs, btn) {
+      btn.disabled = true;
+      var was = btn.textContent;
+      btn.textContent = 'กำลังบันทึก…';
+      var dates = recs.map(function (r) { return r.date; }).sort();
+      api('/posts?from=' + dates[0] + '&to=' + dates[dates.length - 1]).then(function (j) {
+        var byKey = {}, bySlot = {};
+        (j.posts || []).forEach(function (p) {
+          byKey[p.pageId + '|' + p.date + '|' + (p.time || '') + '|' + topicKey(p.topic)] = p.id;
+          var slot = p.pageId + '|' + p.date + '|' + (p.time || '');
+          bySlot[slot] = bySlot[slot] ? 'many' : p.id;
+        });
+        var taken = {}, nUp = 0;
+        var payload = recs.map(function (r) {
+          var k = r.pageId + '|' + r.date + '|' + (r.time || '') + '|' + topicKey(r.topic);
+          var slot = r.pageId + '|' + r.date + '|' + (r.time || '');
+          var id = byKey[k] || (bySlot[slot] && bySlot[slot] !== 'many' ? bySlot[slot] : null);
+          if (id && taken[id]) id = null;
+          if (id) { taken[id] = 1; nUp++; }
+          return {
+            id: id || undefined, pageId: r.pageId, date: r.date, time: r.time, channels: r.channels,
+            topic: r.topic, kind: r.kind, status: r.status, url: r.url, note: r.note,
+            postedAt: r.status === 'done' ? nowIsoLocal() : null
+          };
+        });
+        var chunks = [];
+        for (var i = 0; i < payload.length; i += 150) chunks.push(payload.slice(i, i + 150));
+        return chunks.reduce(function (pr, c) {
+          return pr.then(function () { return api('/posts', 'POST', { posts: c }); });
+        }, Promise.resolve()).then(function () { return { nUp: nUp, n: payload.length }; });
+      }).then(function (res) {
+        close();
+        S.posts = null;
+        okDialog({
+          title: 'อัปเดตตารางโพสต์แล้ว',
+          lines: [
+            'รับเข้า ' + res.n + ' แถว',
+            res.nUp ? 'ทับของเดิม ' + res.nUp + ' แถว · เพิ่มใหม่ ' + (res.n - res.nUp) + ' แถว' : 'เพิ่มใหม่ทั้งหมด',
+            'เพจ ' + pageName(st.pageId) + ' · เดือน ' + st.month
+          ],
+          note: 'แถวที่มีลิงก์ ระบบนับว่าโพสต์แล้วให้เลย',
+          onClose: renderPosts
+        });
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = was;
+        toast(e.message, true);
+      });
+    }
+
+    stepPaste();
+  }
+  function nowIsoLocal() { return new Date().toISOString(); }
+
   /* ดึงไฟล์ตั้งต้นแล้วยิงเข้า API ทีละ 150 แถว — ยิงทีเดียวทั้งก้อนจะเกินขนาดที่ D1 รับไหว */
   function seedPosts(btn) {
     btn.disabled = true;
@@ -1943,13 +2391,28 @@
     var view = $('#view');
     view.className = 'page';
     var owner = S.me.role === 'owner';
-    var h = '<div class="top"><div><span class="kicker">ทีม + รหัสผ่าน</span><h1>ทีมงาน</h1>' +
-      '<p>ทุกคนเข้าระบบด้วยอีเมลกับรหัสผ่านของตัวเอง ' + (owner ? 'หัวหน้าเพิ่มคน ตั้งรหัสผ่านให้ และปิดบัญชีได้ที่นี่ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : 'เปลี่ยนอีเมลกับรหัสผ่านของคุณได้ด้านล่าง') + '</p></div></div>';
+    var h = '<div class="top"><div><span class="kicker">ทีม + สิทธิ์</span><h1>ทีมงานและสิทธิ์เข้าถึง</h1>' +
+      '<p>ทุกคนเข้าระบบด้วยอีเมลกับรหัสผ่านของตัวเอง ' + (owner ? 'ติ๊กได้ว่าใครเห็นหมวดไหน · หัวหน้าเห็นทุกหมวดเสมอ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : 'เปลี่ยนอีเมลกับรหัสผ่านของคุณได้ด้านล่าง') + '</p></div>' +
+      (owner ? '<div class="top-r"><label class="label" style="margin:0 8px 0 0">ดูระบบในมุมของ</label>' +
+        '<select class="select" id="viewAsSel" style="width:auto;min-width:180px"><option value="">— ตัวเอง (หัวหน้า) —</option>' +
+        S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
+          return '<option value="' + esc(x.id) + '"' + (S.viewAs === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+        }).join('') + '</select></div>' : '') + '</div>' +
+      (S.viewAs ? '<div class="postbar warn">กำลังดูเมนูในมุมของ <b>' + esc((staffById(S.viewAs) || {}).name || '') +
+        '</b> — เห็นเฉพาะหมวดที่เขามีสิทธิ์ <button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '');
     h += '<div class="two"><div class="sec"><div class="sec-h"><h2>สมาชิก</h2><p>' + S.staff.filter(function (s) { return s.active; }).length + ' คนใช้งานอยู่</p></div><div class="sec-b tight">' +
       S.staff.map(function (s) {
         return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
           (s.hasPassword ? '' : ' <span class="pill late">ยังไม่ตั้งรหัส</span>') + '</b>' +
-          '<small>' + (s.email ? esc(s.email) : 'ยังไม่มีอีเมล') + ' · @' + esc(s.aliases || shortName(s)) + '</small></div>' +
+          '<small>' + (s.email ? esc(s.email) : 'ยังไม่มีอีเมล') + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
+          '<div class="secchips">' + (s.role === 'owner'
+            ? '<span class="pill doing">เห็นทุกหมวด</span>'
+            : SECTION_LIST.map(function (sc) {
+                var on = (s.sections || []).indexOf(sc[0]) !== -1;
+                return '<button type="button" class="chip plain' + (on ? ' on' : '') + '"' +
+                  (owner ? ' data-sec-staff="' + esc(s.id) + '" data-sec="' + sc[0] + '" data-to="' + (on ? '0' : '1') + '"' : ' disabled') +
+                  ' title="' + esc(sc[1]) + '">' + esc(SECTION_SHORT[sc[0]]) + '</button>';
+              }).join('')) + '</div></div>' +
           (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
             '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' +
             '<button type="button" class="btn-ghost sm" data-pin-staff="' + esc(s.id) + '">รหัสตั้งค่าใหม่</button>' +
@@ -1961,7 +2424,12 @@
         '<div class="field"><label class="label">ชื่อเรียกใน @ <small>(คั่นด้วยจุลภาค)</small></label><input class="input" name="aliases" placeholder="เช่น Somchai,สมชาย"></div>' +
         '<div class="field"><label class="label">อีเมล <small>(เว้นไว้ให้เจ้าตัวตั้งเองก็ได้)</small></label><input class="input" name="email" type="email" placeholder="you@example.com"></div>' +
         '<div class="grid2"><div class="field"><label class="label">รหัสตั้งค่า <small>ให้เจ้าตัวใช้ครั้งแรก</small></label><input class="input" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div>' +
-        '<div class="field"><label class="label">สิทธิ์</label><select class="select" name="role"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div></div>' +
+        '<div class="field"><label class="label">ระดับ</label><select class="select" name="role"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div></div>' +
+        '<div class="field"><label class="label">เห็นหมวดไหนได้บ้าง <small>หัวหน้าเห็นทุกหมวดอยู่แล้ว</small></label>' +
+        '<div class="chips" id="newSecs">' + SECTION_LIST.map(function (sc) {
+          var on = sc[0] === 'tasks' || sc[0] === 'docs';
+          return '<button type="button" class="chip plain' + (on ? ' on' : '') + '" data-newsec="' + sc[0] + '" title="' + esc(sc[1]) + '">' + esc(SECTION_SHORT[sc[0]]) + '</button>';
+        }).join('') + '</div></div>' +
         '<div class="acts"><button type="submit" class="btn">เพิ่มคน</button></div></form></div></div>';
     }
     h += '<div class="sec"><div class="sec-h"><h2>อีเมลและรหัสผ่านของฉัน</h2></div><div class="sec-b"><form id="myPw" style="display:grid;gap:12px">' +
@@ -2019,19 +2487,44 @@
       ev.preventDefault();
       var f = this;
       var who = f.name.value, code = f.pin.value;
-      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null })
+      var secs = $$('#newSecs .chip.on').map(function (b) { return b.getAttribute('data-newsec'); });
+      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null, sections: secs })
         .then(function () { return refreshMe(); })
         .then(function () {
           okDialog({
             title: 'เพิ่ม ' + who + ' เข้าทีมแล้ว',
-            lines: ['รหัสตั้งค่าของเขาคือ ' + code, 'ให้เขาเข้า admin.kan-hub.com/tasks/ แล้วกดแท็บ "ตั้งรหัสครั้งแรก"'],
+            lines: ['รหัสตั้งค่าของเขาคือ ' + code,
+                    'เห็นได้: ' + (f.role.value === 'owner' ? 'ทุกหมวด (หัวหน้า)' : (secs.map(function (k) { return SECTION_SHORT[k]; }).join(' · ') || 'ยังไม่เปิดหมวดไหนเลย')),
+                    'ให้เขาเข้า admin.kan-hub.com/tasks/ แล้วกดแท็บ "ตั้งรหัสครั้งแรก"'],
             note: 'รหัสนี้ใช้ได้ครั้งเดียว พอเขาตั้งรหัสผ่านเองแล้วจะใช้ไม่ได้อีก',
             onClose: renderTeam,
           });
         }).catch(function (e) { toast(e.message, true); });
     });
+    var vsel = $('#viewAsSel');
+    if (vsel) vsel.addEventListener('change', function () {
+      S.viewAs = this.value || null;
+      renderSidebar(); renderHeaderUser(); renderTeam();
+    });
     view.addEventListener('click', function (ev) {
       var b;
+      if ((b = ev.target.closest('[data-sec-staff]'))) {
+        var sid = b.getAttribute('data-sec-staff'), key = b.getAttribute('data-sec');
+        var who2 = staffById(sid);
+        var cur = (who2.sections || []).slice();
+        var idx = cur.indexOf(key);
+        if (idx === -1) cur.push(key); else cur.splice(idx, 1);
+        b.disabled = true;
+        api('/staff/' + sid, 'PUT', { sections: cur })
+          .then(refreshMe)
+          .then(function () {
+            toast((idx === -1 ? 'เปิด' : 'ปิด') + 'สิทธิ์ ' + SECTION_SHORT[key] + ' ให้ ' + shortName(who2) + ' แล้ว');
+            renderTeam();
+          })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
+        return;
+      }
+      if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; renderSidebar(); renderHeaderUser(); renderTeam(); return; }
       if ((b = ev.target.closest('[data-pin-staff]'))) {
         var s = staffById(b.getAttribute('data-pin-staff'));
         var pin = prompt('รหัสตั้งค่าใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)\nให้เจ้าตัวเอาไปใช้ที่แท็บ "ตั้งรหัสครั้งแรก"');
@@ -2112,10 +2605,10 @@
       case 'all': return renderAll();
       case 'new': return renderNew();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
-      case 'kpi': return renderKpi();
+      case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
-      case 'team': return renderTeam();
+      case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
       default: return renderMe();
     }
   }
@@ -2141,6 +2634,7 @@
     if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
     if ((b = ev.target.closest('[data-theme-pick]'))) { setTheme(b.getAttribute('data-theme-pick')); return; }
     if (ev.target.closest('[data-theme-toggle]')) { setTheme(isDark() ? 'light' : 'dark'); return; }
+    if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; render(); return; }
     if (ev.target.closest('[data-logout]')) {
       fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { S.me = null; S.tasks = null; renderSidebar(); renderLogin(); });
       return;

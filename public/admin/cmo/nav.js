@@ -49,11 +49,18 @@
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function initials(name) {
+    var p = String(name || "").replace(/[()[\]{}"'.,]/g, " ").trim().split(/\s+/).filter(Boolean);
+    return ((p[0] || "").charAt(0) + (p[1] || "").charAt(0)).toUpperCase() || "?";
+  }
+
   // ── สร้าง sidebar จากเมนูรวม (erp-menu.js) ──────────────────────────────
-  function buildSidebar(here) {
+  /* me = ผู้ใช้ที่ล็อกอินอยู่ (จาก /api/t/me) — เมนูโชว์เฉพาะหมวดที่มีสิทธิ์ */
+  function buildSidebar(here, me) {
     var menuHTML = global.ERP_MENU
       ? global.ERP_MENU.render({ ctx: "cmo", active: "cmo:" + here,
-          salesBase: ERP_BASE, cmoBase: "", tasksBase: "../tasks/" })
+          salesBase: ERP_BASE, cmoBase: "", tasksBase: "../tasks/",
+          sections: me ? me.sections : [], owner: !!me && me.role === "owner" })
       : "";
     var h = menuHTML +
       '<div class="erp-foot">' +
@@ -74,7 +81,10 @@
     var pageName = (document.title || "").replace(/\s*[—–-]\s*KAN.*$/, "").trim() || "ระบบหลังบ้าน";
     head.innerHTML =
       '<div class="erp-head-t"><b>KAN Admin</b><small>' + esc(pageName) + ' · Internal operations</small></div>' +
-      '<div class="erp-head-r"><div class="erp-seg" aria-label="ธีมของระบบ">' +
+      '<div class="erp-head-r">' +
+      (me ? '<span class="erp-user"><i>' + esc(initials(me.name)) + '</i><b>' + esc(me.name) + '</b>' +
+            '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>' : '') +
+      '<div class="erp-seg" aria-label="ธีมของระบบ">' +
         '<button type="button" data-theme-pick="light" title="โหมดสว่าง" aria-label="โหมดสว่าง">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>' +
@@ -99,6 +109,12 @@
     document.body.insertBefore(scrim, document.body.firstChild);
 
     document.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-logout]")) {
+        fetch("/api/t/logout", { method: "POST", credentials: "same-origin" })
+          .then(function () { location.href = "/tasks/"; })
+          .catch(function () { location.href = "/tasks/"; });
+        return;
+      }
       var pick = ev.target.closest("[data-theme-pick]");
       if (pick) { setTheme(pick.getAttribute("data-theme-pick")); return; }
       if (ev.target.closest("[data-erp-toggle]")) {
@@ -133,8 +149,17 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     var here = currentFile();
-    buildSidebar(here);
-    buildPager(here);
-    syncToggle();
+    /* รอรู้ก่อนว่าใครเข้ามา แล้วค่อยวาดเมนู — จะได้ไม่โชว์เมนูที่กดแล้วเจอ "ไม่มีสิทธิ์"
+       (ตัวจริงกันที่เซิร์ฟเวอร์อยู่แล้ว อันนี้แค่ให้เมนูตรงกับสิทธิ์) */
+    fetch("/api/t/me", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (j) {
+        var me = j && j.me ? j.me : null;
+        if (me && j.sections) { me.sections = j.sections; }
+        buildSidebar(here, me);
+        buildPager(here);
+        syncToggle();
+      });
   });
 })(window);

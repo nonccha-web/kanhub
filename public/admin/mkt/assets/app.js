@@ -18,9 +18,23 @@
       salesBase: '',
       cmoBase: '../cmo/',
       tasksBase: '../tasks/',
+      sections: global.KAN_ME ? global.KAN_ME.sections : null,
+      owner: !!(global.KAN_ME && global.KAN_ME.owner),
       badges: nErr ? { quality: nErr } : {}
     });
     global.ERP_MENU.wire(host);
+  }
+
+  /* รู้ว่าใครล็อกอินอยู่ → เมนูโชว์เฉพาะหมวดที่มีสิทธิ์ (ตัวจริงกันที่ worker) */
+  function loadMe() {
+    fetch('/api/t/me', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (j) {
+        if (!j || !j.me) { return; }
+        global.KAN_ME = { sections: j.sections || j.me.sections || [], owner: j.me.role === 'owner', name: j.me.name };
+        renderNav();
+      });
   }
 
   /* ── global filter bar ─────────────────────────────────────────────────── */
@@ -116,6 +130,7 @@
   function boot() {
     KAN.applyPreset('30');
     routeFromHash();
+    loadMe();
     var gb = document.getElementById('guideBtn');
     if (gb) { gb.addEventListener('click', KAN.openGuide); }
     var pb = document.getElementById('proBtn');

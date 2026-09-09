@@ -33,20 +33,33 @@ try {
     <iframe id="dash" src="dashboard.html" title="แดชบอร์ดยอดขายฝ่ายขาย"></iframe>
   </main>
 </div>
-<script src="../../cmo/erp-menu.js?v=29"></script>
+<script src="../../cmo/erp-menu.js?v=30"></script>
 <script>
 (function () {
   'use strict';
   var host = document.getElementById('sideHost');
-  if (window.ERP_MENU && host) {
+  function draw(me) {
+    if (!window.ERP_MENU || !host) { return; }
     host.innerHTML = window.ERP_MENU.render({
       ctx: 'cmo',                       /* ไม่ใช่แอป hash-router — ลิงก์ sales ต้องพาไป ../index.html */
       active: 'sales:sales/',
       salesBase: '../index.html',
       cmoBase: '../../cmo/',
+      tasksBase: '../../tasks/',
+      sections: me ? me.sections : null,
+      owner: !!me && me.role === 'owner'
     });
     window.ERP_MENU.wire(host);
   }
+  draw(null);
+  fetch('/api/t/me', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; })
+    .then(function (j) {
+      if (!j || !j.me) { return; }
+      j.me.sections = j.sections || j.me.sections || [];
+      draw(j.me);
+    });
   /* ส่ง #peek=... ต่อให้แดชบอร์ดใน iframe (ลิงก์ "เปิดหน้าเต็ม" จากหน้าโปรใช้ทางนี้) */
   var dash = document.getElementById('dash');
   if (location.hash) { dash.src = 'dashboard.html' + location.hash; }

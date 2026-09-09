@@ -39,24 +39,24 @@
     /* ── ตัวเลข: ของที่เปิดดูเวลาจะตัดสินใจหรือเอาไปโชว์ ───────────────────── */
     { id: 'ready', label: 'ตัวเลข', groups: [
 
-      { icon: 'trophy', label: 'KPI', items: [
+      { icon: 'trophy', label: 'KPI', sec: 'kpi', items: [
         { icon: 'trophy',   label: 'KPI 2570 (เป้า + งานที่ผูก)', tasks: '#/kpi' },
         { icon: 'chart',    label: 'KPI Dashboard 2026',        cmo: 'kpi.html' },
         { icon: 'filetext', label: 'กรอกผล KPI รายเดือน',        cmo: 'kpi.html?mode=edit' }
       ]},
-      { icon: 'chart', label: 'ยอดขาย', items: [
+      { icon: 'chart', label: 'ยอดขาย', sec: 'sales', items: [
         { icon: 'dashboard', label: 'แดชบอร์ดยอดขาย (หลัก)', sales: 'sales/' },
         { icon: 'chart',     label: 'ภาพรวมยอดขาย', sales: '#/overview' },
         { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
         { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
       ]},
       { icon: 'megaphone', label: 'การตลาด', items: [
-        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo' },
-        { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales' },
-        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads' },
+        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo', sec: 'sales' },
+        { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales', sec: 'sales' },
+        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads', sec: 'sales' },
         { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' },
         { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html' },
-        { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan' }
+        { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan', sec: 'sales' }
       ]}
 
     ]},
@@ -91,16 +91,16 @@
       ]},
       /* ข้อมูลชุดนี้หยุดอัปเดต/ลงผิด — ยังเปิดดูได้ แต่ต้องรู้ตัวก่อน */
       { icon: 'package', label: 'ข้อมูลที่ยังเชื่อไม่ได้', note: 'สต็อกหยุดอัปเดต · ชีตโซนลงผิดสาขา', pend: true, items: [
-        { icon: 'package',   label: 'สินค้าเข้า–ออก',   sales: '#/velocity' },
-        { icon: 'tag',       label: 'สินค้ารายตัว',     sales: '#/sku' },
-        { icon: 'store',     label: 'สาขาและแผนก',      sales: '#/branch' },
+        { icon: 'package',   label: 'สินค้าเข้า–ออก',   sales: '#/velocity', sec: 'sales' },
+        { icon: 'tag',       label: 'สินค้ารายตัว',     sales: '#/sku', sec: 'sales' },
+        { icon: 'store',     label: 'สาขาและแผนก',      sales: '#/branch', sec: 'sales' },
         { icon: 'linechart', label: 'ทราฟฟิกหน้าร้าน',  cmo: 'traffic.html' }
       ]},
       { icon: 'shield', label: 'ระบบ', items: [
-        { icon: 'users',       label: 'ทีม + รหัสผ่าน',  tasks: '#/team' },
-        { icon: 'shieldcheck', label: 'คุณภาพข้อมูล',    sales: '#/quality', badge: 'quality' },
-        { icon: 'folder',      label: 'แหล่งข้อมูล + log', sales: '#/data' },
-        { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',      sales: '#/rules' }
+        { icon: 'users',       label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' },
+        { icon: 'shieldcheck', label: 'คุณภาพข้อมูล',    sales: '#/quality', badge: 'quality', sec: 'sales' },
+        { icon: 'folder',      label: 'แหล่งข้อมูล + log', sales: '#/data', sec: 'sales' },
+        { icon: 'shieldcheck', label: 'กฎ & เกณฑ์',      sales: '#/rules', sec: 'sales' }
       ]}
 
     ]}
@@ -172,6 +172,14 @@
     }
     return opts.ctx === 'cmo' ? item.cmo : (opts.cmoBase + item.cmo);
   }
+  /* สิทธิ์: item.sec / group.sec = ต้องมีหมวดนั้นถึงเห็น · 'admin' = เฉพาะหัวหน้า
+     opts.sections ไม่ส่งมา = โชว์ทุกอย่าง (หน้าที่ยังไม่ได้ต่อระบบล็อกอิน) */
+  function visible(sec, opts) {
+    if (!sec) { return true; }
+    if (!opts || !opts.sections) { return true; }
+    if (sec === 'admin') { return opts.owner === true; }
+    return opts.sections.indexOf(sec) !== -1;
+  }
   function keyOf(item) {
     if (item.tasks != null) { return 'tasks:' + item.tasks; }
     return item.sales != null ? ('sales:' + item.sales) : ('cmo:' + item.cmo);
@@ -204,8 +212,15 @@
       var homeHref = opts.ctx === 'sales' ? '#/overview' : (opts.salesBase + '#/overview');
 
       /* หากลุ่มที่มีหน้าปัจจุบัน → เปิดค้างไว้ */
+      var shownGroups = [];
+      SECTIONS.forEach(function (sec) {
+        sec.groups.forEach(function (g) {
+          if (!visible(g.sec, opts)) { return; }
+          if (g.items.some(function (it) { return visible(it.sec || g.sec, opts); })) { shownGroups.push(g); }
+        });
+      });
       var openIdx = -1;
-      GROUPS.forEach(function (g, gi) {
+      shownGroups.forEach(function (g, gi) {
         g.items.forEach(function (it) { if (keyOf(it) === opts.active) { openIdx = gi; } });
       });
       if (openIdx < 0) { openIdx = 0; }
@@ -218,8 +233,14 @@
 
       var gi = -1;
       SECTIONS.forEach(function (sec) {
+        /* กลุ่มที่ไม่มีสิทธิ์ตัดทิ้งทั้งกลุ่ม ถ้าหมดทั้งหมวดก็ไม่ต้องขึ้นหัวหมวด */
+        var groups = sec.groups.filter(function (g) {
+          if (!visible(g.sec, opts)) { return false; }
+          return g.items.some(function (it) { return visible(it.sec || g.sec, opts); });
+        });
+        if (!groups.length) { return; }
         h += '<div class="erp-sec ' + sec.id + '">' + esc(sec.label) + '</div>';
-        sec.groups.forEach(function (g) {
+        groups.forEach(function (g) {
           gi++;
           var isOpen = gi === openIdx;
           h += '<div class="erp-acc' + (isOpen ? ' open' : '') +
@@ -230,7 +251,7 @@
                 (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</span>' +
               '<span class="erp-chev">▾</span></button>' +
             '<div class="erp-sub">';
-          g.items.forEach(function (it) {
+          g.items.filter(function (it) { return visible(it.sec || g.sec, opts); }).forEach(function (it) {
             var on = keyOf(it) === opts.active ? ' on' : '';
             var badge = (it.badge && badges[it.badge])
               ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';

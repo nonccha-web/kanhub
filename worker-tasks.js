@@ -78,6 +78,7 @@ const ALTERS = [
   "ALTER TABLE task_files ADD COLUMN url TEXT",
   "ALTER TABLE task_files ADD COLUMN title TEXT",
   /* เชื่อมโพสต์และงานเข้ากับรายการในปฏิทินการตลาด — "เรื่องเดียวกัน" ต้องชี้ไปที่เดียวกัน */
+  "ALTER TABLE staff ADD COLUMN sections TEXT",
   "ALTER TABLE posts ADD COLUMN campaign_id TEXT",
   "ALTER TABLE tasks ADD COLUMN campaign_id TEXT",
   "CREATE INDEX IF NOT EXISTS idx_posts_campaign ON posts(campaign_id)",
@@ -117,6 +118,46 @@ const KPI_SEED = [
 ];
 
 /* ทีมเริ่มต้น — PIN แรกคือ 1234 ทุกคน เปลี่ยนได้ในหน้า "ทีม + PIN" */
+/* ---------- สิทธิ์ตามหมวดเมนู ----------------------------------------
+   นนท์: "ทุกคนเห็นทุกอย่าง ยกเว้นรายงานยอดขายกับ KPI"
+     tasks = งานทีม + ตารางโพสต์ + ปฏิทินการตลาด
+     docs  = เอกสารแผนงาน B2B รายงานการรับสาย สไลด์แผน ทราฟฟิก
+     sales = แอปยอดขาย/การตลาด ทั้งชุด (/admin/mkt/*) — ตัวเลขยอดขายทั้งหมดอยู่ในนี้
+     kpi   = KPI 2570 + KPI Dashboard
+   หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi"];
+const DEFAULT_SECTIONS = ["tasks", "docs"];
+function sectionsOf(row) {
+  if (!row) return [];
+  if (row.role === "owner") return SECTION_KEYS.slice();
+  if (row.sections == null) return DEFAULT_SECTIONS.slice();
+  return String(row.sections).split(",").map((x) => x.trim()).filter((x) => SECTION_KEYS.indexOf(x) !== -1);
+}
+function cleanSections(v) {
+  const list = Array.isArray(v) ? v : String(v || "").split(",");
+  const out = [];
+  list.forEach((x) => {
+    const k = String(x).trim();
+    if (SECTION_KEYS.indexOf(k) !== -1 && out.indexOf(k) === -1) out.push(k);
+  });
+  return out.join(",");
+}
+export function canSee(staffRow, section) {
+  if (!staffRow) return false;
+  if (!section || section === "login") return true;
+  if (section === "admin") return staffRow.role === "owner";
+  return sectionsOf(staffRow).indexOf(section) !== -1;
+}
+/* อ่านคุกกี้แล้วคืนแถว staff — worker.js ใช้กันหน้าเว็บที่เป็นไฟล์นิ่ง */
+export async function authFor(request, env) {
+  const db = env.KAN_ERP;
+  if (!db) return null;
+  try {
+    await ensureSchema(db, env);
+    return await currentStaff(request, db);
+  } catch (e) { return null; }
+}
+
 const STAFF_SEED = [
   { id: "s_nont", name: "Nont Chawan", aliases: "Nont,นนท์,Chawan", role: "owner" },
   { id: "s_julalak", name: "Julalak Krongkheaw", aliases: "Julalak,Krongkheaw", role: "member" },
@@ -253,6 +294,7 @@ async function ensureSchema(db, env) {
         ).bind(r.id, r.sort, r.code, r.title, r.weight, r.target, r.keywords, r.color)));
       }
       await seedPostsOnce(db, env).catch(() => {});
+      await mergePizzaOnce(db).catch(() => {});
       /* สาขานคร (KST#2) เลิกดูแลแล้ว 9 ก.ย. 2569 — ปิดเพจทุกครั้งที่ isolate ตื่น จะได้ไม่ต้องพึ่ง owner กดเอง */
       await db.prepare("UPDATE post_pages SET active = 0 WHERE id = 'pg_kst2' AND active = 1").run().catch(() => {});
       const s = await db.prepare("SELECT COUNT(*) AS n FROM staff").first();
@@ -273,6 +315,38 @@ async function ensureSchema(db, env) {
 }
 
 let cachedSecret = null;
+/* จุลาลักษณ์ = พิซซ่า คนเดียวกัน แต่ในระบบเคยแยกเป็น 2 บัญชี (นนท์บอก 9 ก.ย. 2569)
+   ย้ายงาน/คอมเมนต์/แท็กของบัญชี "Pizza" มารวมที่ s_julalak แล้วลบบัญชีซ้ำทิ้ง
+   ทำครั้งเดียว จำด้วยธงใน task_settings */
+async function mergePizzaOnce(db) {
+  const flag = await db.prepare("SELECT value FROM task_settings WHERE key = 'merge_pizza_v1'").first();
+  if (flag && flag.value) return;
+  const keep = await db.prepare("SELECT id FROM staff WHERE id = 's_julalak'").first();
+  if (keep) {
+    const dups = await db.prepare(
+      "SELECT id FROM staff WHERE id != 's_julalak' AND (LOWER(name) LIKE '%pizza%' OR name LIKE '%พิซซ่า%')"
+    ).all();
+    for (const d of (dups.results || [])) {
+      await db.batch([
+        db.prepare("UPDATE OR IGNORE task_assignees SET staff_id = 's_julalak' WHERE staff_id = ?").bind(d.id),
+        db.prepare("DELETE FROM task_assignees WHERE staff_id = ?").bind(d.id),
+        db.prepare("UPDATE task_updates SET staff_id = 's_julalak' WHERE staff_id = ?").bind(d.id),
+        db.prepare("UPDATE task_mentions SET staff_id = 's_julalak' WHERE staff_id = ?").bind(d.id),
+        db.prepare("UPDATE task_mentions SET by_staff = 's_julalak' WHERE by_staff = ?").bind(d.id),
+        db.prepare("UPDATE tasks SET created_by = 's_julalak' WHERE created_by = ?").bind(d.id),
+        db.prepare("UPDATE posts SET updated_by = 's_julalak' WHERE updated_by = ?").bind(d.id),
+        db.prepare("DELETE FROM staff WHERE id = ?").bind(d.id),
+      ]);
+    }
+    await db.prepare(
+      "UPDATE staff SET name = 'Pizza (Julalak Krongkheaw)', " +
+      "aliases = 'Pizza,พิซซ่า,Julalak,Krongkheaw,จุลาลักษณ์,จุฬาลักษณ์' WHERE id = 's_julalak'"
+    ).run();
+  }
+  await db.prepare("INSERT OR REPLACE INTO task_settings (key,value) VALUES ('merge_pizza_v1', ?)")
+    .bind(nowIso()).run();
+}
+
 async function sessionSecret(db) {
   if (cachedSecret) return cachedSecret;
   const row = await db.prepare("SELECT value FROM task_settings WHERE key = 'session_secret'").first();
@@ -303,14 +377,14 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
 function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
-    email: r.email || null, hasPassword: !!r.pw_hash,
+    email: r.email || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
   };
 }
 
@@ -564,12 +638,19 @@ export async function handleTaskApi(request, env, url, path, method) {
   const isOwner = me.role === "owner";
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash,sections FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
+    /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
+       คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
+    const seeKpi = canSee(me, "kpi");
+    const kpiRows = (kpis.results || []).map((k) => (seeKpi ? k : {
+      id: k.id, sort: k.sort, code: k.code, title: k.title, color: k.color, keywords: k.keywords,
+    }));
     return json({
       me: publicStaff(me),
       staff: (staff.results || []).map(publicStaff),
-      kpis: (kpis.results || []),
+      kpis: kpiRows,
+      sections: sectionsOf(me),
     });
   }
 
@@ -848,10 +929,11 @@ export async function handleTaskApi(request, env, url, path, method) {
     const id = newId("s_");
     const salt = randHex(8);
     const hash = await sha256Hex(salt + ":" + body.pin);
+    const secs = body.sections != null ? cleanSections(body.sections) : DEFAULT_SECTIONS.join(",");
     await db.prepare(
-      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email) VALUES (?,?,?,?,?,?,1,?,?)"
-    ).bind(id, name, aliases, role, salt, hash, nowIso(), email).run();
-    return json({ id });
+      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email,sections) VALUES (?,?,?,?,?,?,1,?,?,?)"
+    ).bind(id, name, aliases, role, salt, hash, nowIso(), email, secs).run();
+    return json({ id, sections: secs.split(",").filter(Boolean) });
   }
 
   const staffMatch = path.match(/^\/staff\/([A-Za-z0-9_-]{1,40})$/);
@@ -869,6 +951,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       sets.push("name = ?"); vals.push(name);
     }
     if (body.aliases != null) { sets.push("aliases = ?"); vals.push(String(body.aliases).trim().slice(0, 200)); }
+    if (body.sections != null) { sets.push("sections = ?"); vals.push(cleanSections(body.sections)); }
     if (body.role != null) {
       if (id === me.id && body.role !== "owner") return json({ error: "ลดสิทธิ์ตัวเองไม่ได้" }, 400);
       sets.push("role = ?"); vals.push(body.role === "owner" ? "owner" : "member");

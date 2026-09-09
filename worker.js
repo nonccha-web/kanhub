@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi, ensureTaskSchema } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema, authFor, canSee } from "./worker-tasks.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -129,6 +129,11 @@ async function handleApi(request, env, url) {
     return handleTaskApi(request, env, url, path.slice(2) || "/", method);
   }
   await ensureCampaignSchema(db, env);
+
+  /* API ที่เหลือ (ปฏิทิน รูปแนบ KPI) ต้องเข้าสู่ระบบก่อน — เดิมเปิดให้ยิงตรงได้ */
+  const who = await authFor(request, env);
+  if (!who) return json({ error: "กรุณาเข้าสู่ระบบ", auth: false }, 401);
+  if (path === "/kpi" && !canSee(who, "kpi")) return json({ error: "ไม่มีสิทธิ์ดูข้อมูล KPI" }, 403);
 
   // ---- รูปแนบ ----
   const fileMatch = path.match(/^\/attachments\/([A-Za-z0-9_-]{1,40})$/);
@@ -279,6 +284,63 @@ async function handleApi(request, env, url) {
   return json({ error: "ไม่พบ endpoint นี้" }, 404);
 }
 
+/* ---------- ล็อกหน้าหลังบ้านตามสิทธิ์ --------------------------------
+   ทุกหน้าใต้ admin.kan-hub.com ต้องเข้าสู่ระบบก่อน (เดิมเปิดสาธารณะหมด ใครมีลิงก์ก็เข้าได้)
+   ยกเว้นหน้าเข้าสู่ระบบเองกับไฟล์ที่หน้านั้นต้องใช้ ไม่งั้นจะวนลูป
+   คืนค่า: null = เปิดได้เลย · "login" = แค่ต้องล็อกอิน · ชื่อหมวด = ต้องมีสิทธิ์หมวดนั้น */
+function pathGate(p) {
+  if (p.indexOf("/admin/tasks") === 0) return null;           // SPA งานทีม = หน้าเข้าสู่ระบบ
+  if (p.indexOf("/admin/assets/") === 0) return null;          // โลโก้ ฟอนต์ เปลือกหน้าตา
+  if (/^\/admin\/cmo\/(erp-menu|nav)\.js$/.test(p)) return null;
+  if (/^\/admin\/cmo\/styles\.css$/.test(p)) return null;
+  if (p.indexOf("/admin/mkt") === 0) return "sales";           // แอปยอดขาย/การตลาดทั้งชุด
+  if (/^\/admin\/cmo\/kpi(\.html|\.js)?$/.test(p)) return "kpi";
+  if (p.indexOf("/admin") === 0) return "login";
+  return null;
+}
+const NO_STORE = { "cache-control": "no-store", "content-type": "text/html; charset=utf-8" };
+function denyPage(title, msg, linkLabel, href) {
+  return new Response(
+    '<!doctype html><html lang="th"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + ' — KAN Admin</title>' +
+    '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F4F3EF;color:#1A1917;' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",sans-serif}' +
+    '.b{max-width:420px;padding:34px 30px;background:#fff;border:1px solid #E3E1DA;text-align:center}' +
+    'h1{margin:0 0 10px;font-size:19px}p{margin:0 0 20px;font-size:14px;line-height:1.7;color:#6B6A63}' +
+    'a{display:inline-block;padding:10px 20px;background:#1A1917;color:#fff;text-decoration:none;font-size:14px}' +
+    'small{display:block;margin-top:22px;font-size:11px;color:#9A988F}</style></head><body><div class="b">' +
+    '<h1>' + title + '</h1><p>' + msg + '</p><a href="' + href + '">' + linkLabel + '</a>' +
+    '<small>Powered by <b>M Creation</b></small></div></body></html>',
+    { status: title === "ไม่มีสิทธิ์เข้าหน้านี้" ? 403 : 401, headers: NO_STORE }
+  );
+}
+async function serveAdmin(request, env, url) {
+  const need = pathGate(url.pathname);
+  if (!need) return env.ASSETS.fetch(new Request(url, request));
+  const wantsHtml = (request.headers.get("accept") || "").indexOf("text/html") !== -1;
+  const me = await authFor(request, env);
+  if (!me) {
+    if (!wantsHtml) return new Response("ต้องเข้าสู่ระบบ", { status: 401, headers: { "cache-control": "no-store" } });
+    /* โฮสต์จริง (admin.kan-hub.com) ตัด /admin ออกจาก URL ให้แล้ว แต่ตอน dev/workers.dev ยังมีติดมา
+       ต้องเด้งกลับด้วยรูปแบบเดียวกับที่ผู้ใช้เห็น ไม่งั้นไปโผล่หน้าไม่มีอยู่จริง */
+    const origPath = new URL(request.url).pathname;
+    const prefix = origPath.indexOf("/admin") === 0 ? "/admin" : "";
+    const back = prefix + url.pathname.replace(/^\/admin/, "") + url.search;
+    return new Response(null, {
+      status: 302,
+      headers: { location: prefix + "/tasks/?next=" + encodeURIComponent(back), "cache-control": "no-store" },
+    });
+  }
+  if (!canSee(me, need)) {
+    if (!wantsHtml) return new Response("ไม่มีสิทธิ์", { status: 403, headers: { "cache-control": "no-store" } });
+    const home = (new URL(request.url).pathname.indexOf("/admin") === 0 ? "/admin" : "") + "/tasks/";
+    return denyPage("ไม่มีสิทธิ์เข้าหน้านี้",
+      "บัญชีของคุณยังไม่ได้เปิดสิทธิ์หมวดนี้ ถ้าต้องใช้ให้บอกหัวหน้าทีมเปิดให้ในหน้า “ทีม + สิทธิ์”",
+      "กลับไปหน้างานของฉัน", home);
+  }
+  return env.ASSETS.fetch(new Request(url, request));
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -301,7 +363,7 @@ export default {
       if (url.pathname.indexOf("/admin") !== 0) {
         url.pathname = url.pathname === "/" ? "/admin/" : "/admin" + url.pathname;
       }
-      return env.ASSETS.fetch(new Request(url, request));
+      return await serveAdmin(request, env, url);
     }
 
     // --- โดเมนหลักสาธารณะ: ซ่อน /admin (กันเข้าตรง) ---
@@ -311,7 +373,8 @@ export default {
       }
     }
 
-    // ที่เหลือ (รวม workers.dev) เสิร์ฟตามปกติ
+    // ที่เหลือ (รวม workers.dev + localhost ตอน dev) — /admin ต้องผ่านด่านสิทธิ์เหมือนกัน
+    if (url.pathname.indexOf("/admin") === 0) return await serveAdmin(request, env, url);
     return env.ASSETS.fetch(request);
   },
 };
