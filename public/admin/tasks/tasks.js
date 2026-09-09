@@ -1742,7 +1742,7 @@
   }
   function postColumns() {
     return [
-      { key: 'date', label: 'วันที่', width: 106, type: 'date', noClear: true,
+      { key: 'date', label: 'วันที่', width: 106, type: 'date',
         text: function (r) { return r.date ? thaiShort(r.date) : ''; },
         edit: function (r) { return r.date ? thaiShort(r.date) : ''; },
         iso: function (r) { return r.date || ''; },
@@ -1761,12 +1761,12 @@
         parse: function (s) { s = String(s).trim(); return s ? (parsePasteTime(s) || null) : ''; },
         sortKey: function (r) { return r.time || '99'; } },
 
-      { key: 'pageId', label: 'เพจ', width: 132, type: 'pick', noClear: true,
+      { key: 'pageId', label: 'เพจ', width: 132, type: 'pick',
         options: function () { return (S.pages || []).map(function (p) { return { v: p.id, label: p.name }; }); },
         text: function (r) { return r.pageId ? pageName(r.pageId) : ''; },
-        parse: function (s) { s = String(s).trim(); return s ? (pageIdByText(s) || null) : null; } },
+        parse: function (s) { s = String(s).trim(); return s ? (pageIdByText(s) || null) : ''; } },
 
-      { key: 'kind', label: 'ชนิด', width: 92, type: 'pick', noClear: true,
+      { key: 'kind', label: 'ชนิด', width: 92, type: 'pick',
         options: function () {
           return Object.keys(POST_KIND).map(function (k) { return { v: k, label: POST_KIND[k] }; });
         },
@@ -1789,7 +1789,7 @@
       { key: 'topic', label: 'หัวข้อ / เนื้อหา', width: 330,
         parse: function (s) { return String(s).trim(); } },
 
-      { key: 'status', label: 'สถานะ', width: 108, type: 'pick', noClear: true,
+      { key: 'status', label: 'สถานะ', width: 108, type: 'pick',
         options: function () {
           return Object.keys(POST_STATUS_TH).map(function (k) { return { v: k, label: POST_STATUS_TH[k] }; });
         },
@@ -2095,11 +2095,17 @@
     var host = document.createElement('div');
     host.className = 'modal';
     var today = P.day || ymd(new Date());
+    var pageId = P.page || ((S.pages || [])[0] || {}).id || '';
     host.innerHTML = '<div class="modal-box sheet"><div class="sec-h"><h2>เพิ่มโพสต์</h2>' +
       '<p>พิมพ์ในตารางได้เลยเหมือน Excel · วางจาก Excel ก็ได้ · ระบบบันทึกให้เองทีละแถว</p>' +
       '<button type="button" class="btn-text" data-close>ปิด</button></div>' +
+      '<div class="sheet-bar"><label class="label" for="sheetPage">ตารางนี้อัปเดตของเพจ</label>' +
+      '<select class="select" id="sheetPage">' + (S.pages || []).map(function (pg) {
+        return '<option value="' + esc(pg.id) + '"' + (pg.id === pageId ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
+      }).join('') + '</select>' +
+      '<span class="hint">ทุกแถวจะลงเพจนี้ · ถ้าแถวไหนต่างเพจ แก้ในคอลัมน์ “เพจ” ได้</span></div>' +
       '<div class="sec-b tight"><div id="sheetHost"></div></div>' +
-      '<div class="sheet-foot"><span class="hint">แถวจะบันทึกเมื่อใส่วันที่แล้ว · Enter ลงแถวถัดไป · Tab ช่องถัดไป · Cmd/Ctrl+Z ย้อนกลับ</span>' +
+      '<div class="sheet-foot"><span class="hint">คลุมทั้งแถวแล้วกด Delete = ลบแถว · Enter ลงแถวถัดไป · Tab ช่องถัดไป · Cmd/Ctrl+Z ย้อนกลับ</span>' +
       '<button type="button" class="btn" data-close>เสร็จแล้ว</button></div></div>';
     document.body.appendChild(host);
     var close = function () {
@@ -2110,7 +2116,25 @@
     };
     $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
     host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
-    mountPostGrid($('#sheetHost', host), [], { date: today, pageId: P.page || '', blankRows: 10 });
+    mountPostGrid($('#sheetHost', host), [], { date: today, pageId: pageId, blankRows: 10 });
+    /* เปลี่ยนเพจด้านบน = เปลี่ยนให้ทุกแถวในตารางนี้ (แถวที่บันทึกไปแล้วก็ย้ายเพจตาม) */
+    $('#sheetPage', host).addEventListener('change', function () {
+      var pid = this.value, g = G.grid;
+      if (!g) return;
+      var moved = [];
+      g.rows.forEach(function (r) {
+        if (r.pageId === pid) return;
+        r.pageId = pid;
+        if (!postRowBlank(r)) moved.push(r);
+      });
+      g.opt.blankRow = function (last) {
+        return { pageId: pid, date: (last && last.date) || today, time: '',
+                 channels: (last && last.channels ? last.channels.slice() : []),
+                 topic: '', kind: 'content', status: 'plan', url: '', note: '' };
+      };
+      g.refresh(true);
+      if (moved.length) { gridSchedule(moved); toast('ย้าย ' + moved.length + ' แถวไปเพจ ' + pageName(pid) + ' แล้ว'); }
+    });
     setTimeout(function () {
       var g = G.grid;
       if (g) { g.setSel(0, g.colIdx('topic'), false); }

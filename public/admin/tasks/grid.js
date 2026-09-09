@@ -694,6 +694,13 @@
     var g = this.range(), self = this;
     var cells = [], touched = [], added = [];
     var wasBlank = this.blankSet();
+    /* คลุมหลายแถวไว้แล้ววางของแถวเดียว = ใส่ให้ครบทุกแถวที่คลุม (พฤติกรรมเดียวกับ Excel) */
+    var selRows = g.r2 - g.r1 + 1;
+    if (grid.length === 1 && selRows > 1) {
+      var one = grid[0], rep = [];
+      for (var q = 0; q < selRows; q++) rep.push(one.slice());
+      grid = rep;
+    }
     /* ขยายแถวให้พอ ถ้าวางเกินท้ายตาราง */
     var need = g.r1 + grid.length - this.view.length;
     for (var n = 0; n < need; n++) added.push(this.appendRow(true));
@@ -719,7 +726,23 @@
     this.toast('วาง ' + grid.length + ' แถว');
   };
   Grid.prototype.clearRange = function () {
-    var g = this.range(), cells = [], touched = [];
+    var g = this.range(), cells = [], touched = [], self = this;
+    /* คลุมครบทั้งแถว (ซ้ายสุดถึงขวาสุด) แล้วกด Delete = ตั้งใจลบทั้งแถว ไม่ใช่แค่ล้างค่า */
+    var fullRows = g.c1 === 0 && g.c2 === this.cols.length - 1;
+    if (fullRows) {
+      var vrs = [];
+      for (var vr = g.r1; vr <= g.r2; vr++) vrs.push(vr);
+      var rows = vrs.map(function (v) { return self.rowAt(v); }).filter(Boolean);
+      var real = this.opt.isBlank ? rows.filter(function (r) { return !self.opt.isBlank(r); }) : rows;
+      var mayDelete = !this.opt.canDelete || this.opt.canDelete();
+      if (!real.length || mayDelete) {
+        if (real.length && this.opt.confirmDelete && !this.opt.confirmDelete(real.length)) return;
+        this.removeRows(vrs);
+        this.toast(real.length ? 'ลบ ' + real.length + ' แถวแล้ว' : 'ล้างแถวว่างแล้ว');
+        return;
+      }
+      this.toast('ลบทั้งแถวได้เฉพาะหัวหน้าทีม — ล้างเฉพาะข้อความให้แทน');
+    }
     for (var r = g.r1; r <= g.r2; r++) {
       var row = this.rowAt(r);
       if (!row) continue;
