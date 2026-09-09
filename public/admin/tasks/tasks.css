@@ -623,3 +623,33 @@ button.ptime{ border:0; background:transparent; font:inherit; font-family:var(--
   color:var(--k-soft); font-variant-numeric:tabular-nums; text-align:left; padding:2px 0; cursor:pointer;
   border-bottom:1px dashed transparent; white-space:nowrap; }
 button.ptime:hover{ color:var(--k-ink); border-bottom-color:var(--k-line); }
+
+/* ── กล่องเลือกชื่อตอนพิมพ์ @ ── */
+.mbox{ position:fixed; z-index:400; min-width:230px; max-width:280px; max-height:266px; overflow-y:auto;
+  border:1px solid var(--k-line); background:var(--k-paper); box-shadow:0 14px 40px rgba(11,11,10,.18); padding:4px; }
+.mrow{ display:flex; align-items:center; gap:9px; width:100%; border:0; background:transparent; font:inherit;
+  padding:7px 9px; border-radius:6px; cursor:pointer; text-align:left; color:var(--k-ink); }
+.mrow.on{ background:var(--k-ink); color:var(--k-paper); }
+.mrow.on .av{ background:rgba(255,255,255,.2); color:#fff; }
+.mn{ min-width:0; flex:1; }
+.mn b{ display:block; font-size:13px; font-weight:600; }
+.mn small{ display:block; font-size:10.5px; color:var(--k-mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mrow.on .mn small{ color:rgba(255,255,255,.65); }
+.mtick{ opacity:0; font-size:12px; }
+.mrow.on .mtick{ opacity:1; }
+.mhint{ padding:7px 9px 4px; border-top:1px solid var(--k-hair); margin-top:3px; font-size:10.5px; color:var(--k-mut); }
+
+/* ── บับเบิลชื่อคนในข้อความ ── */
+.mention{ display:inline-block; border-radius:999px; padding:1px 9px; margin:0 1px;
+  background:color-mix(in srgb, var(--k-purple) 15%, transparent); color:var(--k-purple);
+  font-weight:600; font-size:.94em; line-height:1.5; }
+[data-theme="dark"] .mention{ background:color-mix(in srgb, var(--k-purple) 26%, transparent); color:#D9CEFF; }
+
+/* ── รายการในข้อความ ── */
+.task-detail, .tl-i .n.rich{ white-space:normal; }
+.task-detail p, .tl-i .n.rich p{ margin:0 0 6px; }
+.task-detail p:last-child, .tl-i .n.rich p:last-child{ margin-bottom:0; }
+.rgap{ height:6px; }
+.rlist{ margin:6px 0 10px; padding-left:22px; }
+.rlist li{ margin-bottom:4px; line-height:1.7; }
+.rlist li::marker{ color:var(--k-mut); font-weight:600; }

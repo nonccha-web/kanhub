@@ -71,6 +71,29 @@
     h += '</span>' + esc(ids.map(function (id) { return shortName(staffById(id)); }).join(', ')) + '</span>';
     return h;
   }
+  /* ข้อความยาว ๆ ให้อ่านง่ายขึ้น: บรรทัดที่ขึ้นต้นด้วยเลขข้อหรือขีด แสดงเป็นรายการ · @ชื่อ เป็นบับเบิล */
+  function richText(text) {
+    var lines = String(text || '').split('\n');
+    var out = '', mode = '';
+    var closeList = function () { if (mode) { out += mode === 'ol' ? '</ol>' : '</ul>'; mode = ''; } };
+    lines.forEach(function (line) {
+      var num = line.match(/^\s*(\d+)\.\s+(.*)$/);
+      var bul = line.match(/^\s*[-•]\s+(.*)$/);
+      if (num) {
+        if (mode !== 'ol') { closeList(); out += '<ol class="rlist">'; mode = 'ol'; }
+        out += '<li>' + withMentions(num[2]) + '</li>';
+      } else if (bul) {
+        if (mode !== 'ul') { closeList(); out += '<ul class="rlist">'; mode = 'ul'; }
+        out += '<li>' + withMentions(bul[1]) + '</li>';
+      } else {
+        closeList();
+        out += line.trim() ? '<p>' + withMentions(line) + '</p>' : '<p class="rgap"></p>';
+      }
+    });
+    closeList();
+    return out;
+  }
+
   /* ทำ @ชื่อ ในคอมเมนต์ให้เด่น — ต้อง escape ก่อนแล้วค่อยแทรก markup ไม่งั้นเปิดช่อง XSS */
   function withMentions(text) {
     var h = esc(text);
@@ -196,6 +219,189 @@
     el.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.hidden = true; }, bad ? 4200 : 2600);
+  }
+
+  /* ============================================================
+     ตัวช่วยพิมพ์ในช่องข้อความ: แท็บคน (@) และรายการอัตโนมัติ (1. / -)
+     ============================================================ */
+
+  /* หาพิกัดของเคอร์เซอร์ในช่องข้อความ ด้วยการทำ div เงาที่หน้าตาเหมือนกันเป๊ะ
+     แล้ววัดตำแหน่งตัวอักษรตัวสุดท้าย — textarea ไม่มี API บอกพิกัดเคอร์เซอร์ */
+  function caretXY(ta) {
+    var cs = getComputedStyle(ta);
+    var div = document.createElement('div');
+    ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight',
+     'textTransform', 'wordSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+     'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'].forEach(function (k) {
+      div.style[k] = cs[k];
+    });
+    div.style.position = 'absolute';
+    div.style.visibility = 'hidden';
+    div.style.whiteSpace = 'pre-wrap';
+    div.style.overflowWrap = 'break-word';
+    div.style.width = ta.clientWidth + 'px';
+    div.style.boxSizing = 'border-box';
+    div.style.top = '0';
+    div.style.left = '-9999px';
+    div.textContent = ta.value.slice(0, ta.selectionStart);
+    var mark = document.createElement('span');
+    mark.textContent = '​';
+    div.appendChild(mark);
+    document.body.appendChild(div);
+    var r = ta.getBoundingClientRect();
+    var out = {
+      x: r.left + mark.offsetLeft - ta.scrollLeft,
+      y: r.top + mark.offsetTop - ta.scrollTop,
+      h: parseFloat(cs.lineHeight) || 20,
+    };
+    div.remove();
+    return out;
+  }
+
+  /* กล่องเลือกชื่อตอนพิมพ์ @ — เลื่อนด้วยลูกศร เลือกด้วย Enter/Tab หรือคลิก */
+  function attachMentions(ta) {
+    if (!ta || ta._mentionOn) return;
+    ta._mentionOn = true;
+    var box = null, items = [], sel = 0, start = -1;
+
+    function close() {
+      if (box) { box.remove(); box = null; }
+      items = []; start = -1;
+    }
+    function pick(i) {
+      var st = items[i];
+      if (!st) return;
+      var tag = '@' + shortName(st) + ' ';
+      var before = ta.value.slice(0, start);
+      var after = ta.value.slice(ta.selectionStart);
+      ta.value = before + tag + after;
+      var pos = before.length + tag.length;
+      ta.setSelectionRange(pos, pos);
+      close();
+      ta.focus();
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function draw() {
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'mbox';
+        document.body.appendChild(box);
+        box.addEventListener('mousedown', function (ev) {
+          var b = ev.target.closest('[data-mi]');
+          if (b) { ev.preventDefault(); pick(Number(b.getAttribute('data-mi'))); }
+        });
+        box.addEventListener('mousemove', function (ev) {
+          var b = ev.target.closest('[data-mi]');
+          if (b) { sel = Number(b.getAttribute('data-mi')); paint(); }
+        });
+      }
+      box.innerHTML = items.map(function (st, i) {
+        return '<button type="button" class="mrow' + (i === sel ? ' on' : '') + '" data-mi="' + i + '">' +
+          avatar(st) + '<span class="mn"><b>' + esc(shortName(st)) + '</b><small>' + esc(st.name) + '</small></span>' +
+          '<span class="mtick">✓</span></button>';
+      }).join('') + '<div class="mhint">↑↓ เลือก · Enter ใส่ชื่อ · Esc ปิด</div>';
+      var c = caretXY(ta);
+      var top = c.y + c.h + 4;
+      box.style.left = Math.min(c.x, window.innerWidth - 250) + 'px';
+      box.style.top = top + 'px';
+      /* ถ้าล้นขอบล่าง ให้พลิกขึ้นไปอยู่เหนือเคอร์เซอร์ */
+      var bh = box.offsetHeight;
+      if (top + bh > window.innerHeight - 8) box.style.top = Math.max(8, c.y - bh - 4) + 'px';
+      paint();
+    }
+    function paint() {
+      $$('[data-mi]', box).forEach(function (b, i) { b.classList.toggle('on', i === sel); });
+      var on = box.querySelector('.mrow.on');
+      if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+    }
+    function scan() {
+      var pos = ta.selectionStart;
+      var text = ta.value.slice(0, pos);
+      var m = text.match(/@([^\s@]*)$/);
+      if (!m) { close(); return; }
+      start = pos - m[0].length;
+      var q = m[1].toLowerCase();
+      items = S.staff.filter(function (st) {
+        if (!st.active) return false;
+        if (!q) return true;
+        var keys = [st.name].concat(String(st.aliases || '').split(','));
+        return keys.some(function (k) { return String(k).trim().toLowerCase().indexOf(q) === 0; });
+      }).slice(0, 8);
+      if (!items.length) { close(); return; }
+      sel = 0;
+      draw();
+    }
+
+    ta.addEventListener('input', scan);
+    ta.addEventListener('click', scan);
+    ta.addEventListener('blur', function () { setTimeout(close, 120); });
+    ta.addEventListener('keydown', function (ev) {
+      if (!box) return;
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); sel = (sel + 1) % items.length; paint(); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); sel = (sel - 1 + items.length) % items.length; paint(); }
+      else if (ev.key === 'Enter' || ev.key === 'Tab') { ev.preventDefault(); pick(sel); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); close(); }
+    });
+  }
+
+  /* พิมพ์รายการแบบ Lark: ขึ้นบรรทัดใหม่ต่อเลข/ขีดให้เอง แล้วไล่เลขใหม่เมื่อแทรกกลาง */
+  function renumber(ta) {
+    var lines = ta.value.split('\n');
+    var pos = ta.selectionStart;
+    var n = 0;
+    var out = lines.map(function (line) {
+      var m = line.match(/^(\s*)(\d+)\.\s(.*)$/);
+      if (m) { n++; return m[1] + n + '. ' + m[3]; }
+      if (!line.trim()) { n = 0; }        /* บรรทัดว่างคั่น = เริ่มนับใหม่ */
+      else if (!/^\s*[-•]\s/.test(line)) { n = 0; }
+      return line;
+    });
+    var next = out.join('\n');
+    if (next !== ta.value) {
+      var delta = next.length - ta.value.length;
+      ta.value = next;
+      ta.setSelectionRange(pos + delta, pos + delta);
+    }
+  }
+  function attachListEditing(ta) {
+    if (!ta || ta._listOn) return;
+    ta._listOn = true;
+    ta.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
+      if (ta._mentionOn && document.querySelector('.mbox')) return;   /* กล่องแท็บคนกำลังเปิด ปล่อยให้มันจัดการ */
+      var pos = ta.selectionStart;
+      if (pos !== ta.selectionEnd) return;
+      var before = ta.value.slice(0, pos);
+      var line = before.slice(before.lastIndexOf('\n') + 1);
+      var num = line.match(/^(\s*)(\d+)\.\s(.*)$/);
+      var bul = line.match(/^(\s*)([-•])\s(.*)$/);
+      if (!num && !bul) return;
+
+      /* กด Enter บนหัวข้อว่าง = เลิกทำรายการ */
+      if ((num && !num[3].trim()) || (bul && !bul[3].trim())) {
+        ev.preventDefault();
+        var cut = pos - line.length;
+        ta.value = ta.value.slice(0, cut) + ta.value.slice(pos);
+        ta.setSelectionRange(cut, cut);
+        return;
+      }
+      ev.preventDefault();
+      var lead = num ? (num[1] + (Number(num[2]) + 1) + '. ') : (bul[1] + bul[2] + ' ');
+      var ins = '\n' + lead;
+      ta.value = ta.value.slice(0, pos) + ins + ta.value.slice(pos);
+      var np = pos + ins.length;
+      ta.setSelectionRange(np, np);
+      if (num) renumber(ta);
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  /* เรียกครั้งเดียวหลังวาดหน้า — ผูกให้ทุกช่องที่ควรมี */
+  function wireTyping(root) {
+    $$('[data-rich]', root || document).forEach(function (ta) {
+      attachMentions(ta);
+      attachListEditing(ta);
+    });
   }
 
   /* ---------- API ---------- */
@@ -764,7 +970,7 @@
       [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label class="label">KPI ที่เกี่ยวข้อง</label><select class="select" data-k="kpiId"><option value="">— ไม่ระบุ —</option>' +
       S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
-      '<div class="field"><label class="label">รายละเอียด / เงื่อนไข</label><textarea class="textarea" data-k="detail" placeholder="ข้อความประกอบ เงื่อนไข ขนาด งบ ฯลฯ">' + esc(t.detail) + '</textarea></div>' +
+      '<div class="field"><label class="label">รายละเอียด / เงื่อนไข</label><textarea class="textarea" data-rich data-k="detail" placeholder="ข้อความประกอบ เงื่อนไข ขนาด งบ ฯลฯ">' + esc(t.detail) + '</textarea></div>' +
       '</div></div>';
     return h;
   }
@@ -776,7 +982,7 @@
       '<p>พิมพ์หรือวางแบบที่สั่งในแชตได้เลย — ระบบจะอ่าน <b>@ชื่อ</b> เป็นคนรับงาน อ่าน <b>วัน + เวลา</b> เป็นกำหนดส่ง และเดา KPI ให้ ตรวจแก้ในการ์ดก่อนกดบันทึก</p></div></div>';
     h += '<div class="compose"><div>' +
       '<div class="sec"><div class="sec-b"><label class="label">ข้อความสั่งงาน</label>' +
-      '<textarea class="textarea big" id="cmdText" placeholder="' + esc(sample) + '"></textarea>' +
+      '<textarea class="textarea big" id="cmdText" data-rich placeholder="' + esc(sample) + '"></textarea>' +
       '<div class="acts" style="margin-top:12px"><button type="button" class="btn" id="parseBtn">แยกเป็นงาน</button>' +
       '<button type="button" class="btn-ghost" id="blankBtn">+ เพิ่มงานเปล่า</button></div></div></div>' +
       '<div id="draftHost"></div></div>' +
@@ -790,6 +996,7 @@
     view.innerHTML = h;
     drafts = [];
     renderDrafts();
+    wireTyping(view);
   }
   function renderDrafts() {
     var host = $('#draftHost');
@@ -799,6 +1006,7 @@
       drafts.map(draftCard).join('') +
       '<div class="sticky-bar"><span>' + drafts.length + ' งาน · ' + drafts.filter(function (d) { return !d.assignees.length; }).length + ' งานยังไม่มีคนรับ</span>' +
       '<div class="acts"><button type="button" class="btn-ghost" id="clearBtn">ล้าง</button><button type="button" class="btn" id="saveBtn">บันทึกทั้งหมด</button></div></div>';
+    wireTyping(host);
   }
   function syncDraftsFromDom() {
     $$('.draft').forEach(function (card) {
@@ -913,10 +1121,10 @@
 
       h += '<div class="two"><div>';
       h += '<div class="sec"><div class="sec-h"><h2>รายละเอียด</h2>' + (canEdit ? '<button type="button" class="btn-text" id="editBtn">แก้ไขงาน</button>' : '') + '</div>' +
-        '<div class="sec-b"><div class="task-detail" id="detailText">' + esc(t.detail) + '</div>' +
+        '<div class="sec-b"><div class="task-detail" id="detailText">' + richText(t.detail) + '</div>' +
         (canEdit ? '<form id="editForm" hidden style="display:grid;gap:12px;margin-top:12px">' +
           '<div class="field"><label class="label">ชื่องาน</label><input class="input" name="title" value="' + esc(t.title) + '"></div>' +
-          '<div class="field"><label class="label">รายละเอียด</label><textarea class="textarea" name="detail">' + esc(t.detail) + '</textarea></div>' +
+          '<div class="field"><label class="label">รายละเอียด</label><textarea class="textarea" name="detail" data-rich>' + esc(t.detail) + '</textarea></div>' +
           '<div class="field"><label class="label">มอบหมายให้</label><div class="chips" id="editAs">' + S.staff.filter(function (s) { return s.active; }).map(function (s) {
             return '<button type="button" class="chip' + (t.assignees.indexOf(s.id) !== -1 ? ' on' : '') + '" data-as="' + esc(s.id) + '">' + avatar(s) + esc(shortName(s)) + '</button>';
           }).join('') + '</div></div>' +
@@ -956,7 +1164,7 @@
           var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
           var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
           return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) + '</time></div>' +
-            (u.note ? '<div class="n">' + withMentions(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
+            (u.note ? '<div class="n rich">' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
         }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
       h += '</div><div>';
 
@@ -964,7 +1172,7 @@
         (canStatus ? '<div><label class="label">สถานะ</label><div class="chips" id="stChips">' +
           ['todo', 'doing', 'blocked', 'done'].map(function (s) { return '<button type="button" class="chip plain' + (es === s ? ' on' : '') + '" data-st="' + s + '">' + STATUS_TH[s] + '</button>'; }).join('') + '</div></div>' : '') +
         '<div class="field"><label class="label">บันทึก / รายงานผล <small>พิมพ์ @ชื่อ เพื่อแท็กให้เขาเห็นในกระดิ่ง</small></label>' +
-        '<textarea class="textarea" name="note" placeholder="ทำอะไรไปแล้ว ติดอะไร ส่งอะไรให้ใคร"></textarea>' +
+        '<textarea class="textarea" name="note" data-rich placeholder="ทำอะไรไปแล้ว ติดอะไร ส่งอะไรให้ใคร"></textarea>' +
         '<div class="chips" style="margin-top:8px">' + S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
           return '<button type="button" class="chip" data-tag="' + esc(shortName(x)) + '">' + avatar(x) + '@' + esc(shortName(x)) + '</button>';
         }).join('') + '</div></div>' +
@@ -988,6 +1196,7 @@
       pendingFiles = [];
       pendingLinks = [];
       wireTask(t);
+      wireTyping(view);
     }).catch(function (e) { showError(e); });
   }
   function resizeImage(file, max, q) {
@@ -1163,7 +1372,10 @@
 
     var editBtn = $('#editBtn');
     if (editBtn) {
-      editBtn.addEventListener('click', function () { $('#editForm').hidden = false; $('#detailText').hidden = true; editBtn.hidden = true; });
+      editBtn.addEventListener('click', function () {
+        $('#editForm').hidden = false; $('#detailText').hidden = true; editBtn.hidden = true;
+        wireTyping($('#editForm'));
+      });
       $('#cancelEdit').addEventListener('click', function () { $('#editForm').hidden = true; $('#detailText').hidden = false; editBtn.hidden = false; });
       $('#editAs').addEventListener('click', function (ev) { var b = ev.target.closest('[data-as]'); if (b) b.classList.toggle('on'); });
       $('#editForm').addEventListener('submit', function (ev) {
@@ -1522,7 +1734,7 @@
         var on = post && (post.channels || []).indexOf(c) !== -1;
         return '<button type="button" class="chip plain' + (on ? ' on' : '') + '" data-ch="' + esc(c) + '">' + esc(c) + '</button>';
       }).join('') + '</div></div>' +
-      '<div class="field"><label class="label">หัวข้อ / เนื้อหา</label><textarea class="textarea" name="topic" placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ">' + esc(post ? post.topic : '') + '</textarea></div>' +
+      '<div class="field"><label class="label">หัวข้อ / เนื้อหา</label><textarea class="textarea" name="topic" data-rich placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ">' + esc(post ? post.topic : '') + '</textarea></div>' +
       '<div class="grid2"><div class="field"><label class="label">ลิงก์โพสต์ <small>ใส่แล้วนับว่าโพสต์แล้ว</small></label><input class="input" name="url" value="' + esc(post ? post.url : '') + '" placeholder="https://..."></div>' +
       '<div class="field"><label class="label">หมายเหตุ</label><input class="input" name="note" value="' + esc(post ? post.note : '') + '"></div></div>' +
       '<div class="acts"><button type="submit" class="btn">' + (isNew ? 'เพิ่มโพสต์' : 'บันทึก') + '</button>' +
@@ -1530,6 +1742,7 @@
       (!isNew && S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delPost" style="margin-left:auto">ลบ</button>' : '') +
       '</div></form></div></div>';
     document.body.appendChild(host);
+    wireTyping(host);
     var close = function () { host.remove(); };
     $$('[data-close]', host).forEach(function (b) { b.addEventListener('click', close); });
     host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
