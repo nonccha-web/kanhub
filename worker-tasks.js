@@ -79,6 +79,7 @@ const ALTERS = [
   "ALTER TABLE task_files ADD COLUMN title TEXT",
   /* เชื่อมโพสต์และงานเข้ากับรายการในปฏิทินการตลาด — "เรื่องเดียวกัน" ต้องชี้ไปที่เดียวกัน */
   "ALTER TABLE staff ADD COLUMN sections TEXT",
+  "ALTER TABLE staff ADD COLUMN api_token TEXT",
   "ALTER TABLE posts ADD COLUMN campaign_id TEXT",
   "ALTER TABLE tasks ADD COLUMN campaign_id TEXT",
   "CREATE INDEX IF NOT EXISTS idx_posts_campaign ON posts(campaign_id)",
@@ -369,6 +370,14 @@ function cookieHeader(value, maxAge) {
   return COOKIE + "=" + value + "; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=" + maxAge;
 }
 async function currentStaff(request, db) {
+  /* MCP / สคริปต์ภายนอก: Authorization: Bearer <token ประจำคน> — token สร้างจากหน้าทีม */
+  const auth = request.headers.get("authorization") || "";
+  const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
+  if (bm) {
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections FROM staff WHERE api_token = ? AND active = 1")
+      .bind(bm[1]).first();
+    return r || null;
+  }
   const tok = getCookie(request, COOKIE);
   if (!tok) return null;
   const parts = tok.split(".");
@@ -638,7 +647,7 @@ export async function handleTaskApi(request, env, url, path, method) {
   const isOwner = me.role === "owner";
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash,sections FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash,sections,api_token FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -648,7 +657,12 @@ export async function handleTaskApi(request, env, url, path, method) {
     }));
     return json({
       me: publicStaff(me),
-      staff: (staff.results || []).map(publicStaff),
+      staff: (staff.results || []).map((r) => {
+        const o = publicStaff(r);
+        o.hasToken = !!r.api_token;
+        if (isOwner || r.id === me.id) o.mcpToken = r.api_token || null;
+        return o;
+      }),
       kpis: kpiRows,
       sections: sectionsOf(me),
     });
@@ -934,6 +948,19 @@ export async function handleTaskApi(request, env, url, path, method) {
       "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email,sections) VALUES (?,?,?,?,?,?,1,?,?,?)"
     ).bind(id, name, aliases, role, salt, hash, nowIso(), email, secs).run();
     return json({ id, sections: secs.split(",").filter(Boolean) });
+  }
+
+  /* token สำหรับต่อ MCP (Claude / ChatGPT) — หัวหน้าสร้างให้รายคน หรือสร้างของตัวเอง
+     token ผูกกับสิทธิ์ของคนนั้น: หัวหน้าได้ทุกอย่าง ลูกทีมได้เท่าที่เห็นในระบบ */
+  const tokMatch = path.match(/^\/staff\/([A-Za-z0-9_-]{1,40})\/token$/);
+  if (tokMatch && (method === "POST" || method === "DELETE")) {
+    const sid = tokMatch[1];
+    if (!isOwner && sid !== me.id) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const row = await db.prepare("SELECT id, active FROM staff WHERE id = ?").bind(sid).first();
+    if (!row || !row.active) return json({ error: "ไม่พบคนนี้" }, 404);
+    const token = method === "POST" ? randHex(24) : null;
+    await db.prepare("UPDATE staff SET api_token = ? WHERE id = ?").bind(token, sid).run();
+    return json({ ok: true, token });
   }
 
   const staffMatch = path.match(/^\/staff\/([A-Za-z0-9_-]{1,40})$/);

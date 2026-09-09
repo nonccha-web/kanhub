@@ -4,6 +4,7 @@
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
 import { handleTaskApi, ensureTaskSchema, authFor, canSee } from "./worker-tasks.js";
+import { handleMcp } from "./worker-mcp.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -347,6 +348,17 @@ export default {
     const host = url.hostname;
     const isAdminHost = host.indexOf("admin.") === 0 || host.endsWith(".workers.dev") ||
                         host === "localhost" || host === "127.0.0.1"; // localhost = ตอน wrangler dev
+
+    // --- MCP ให้ Claude / ChatGPT ต่อเข้าระบบ: /mcp/<token> หรือ /mcp + Bearer ---
+    const mcp = url.pathname.match(/^\/mcp(?:\/([A-Za-z0-9]{32,80}))?\/?$/);
+    if (mcp) {
+      if (!isAdminHost) return new Response("Not found", { status: 404 });
+      try {
+        return await handleMcp(request, env, url, mcp[1] || "", handleApi);
+      } catch (err) {
+        return json({ error: "เซิร์ฟเวอร์ผิดพลาด: " + (err && err.message ? err.message : String(err)) }, 500);
+      }
+    }
 
     // --- API หลังบ้าน (เฉพาะ admin subdomain) ---
     if (url.pathname.indexOf("/api/") === 0) {

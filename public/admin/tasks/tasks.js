@@ -1610,7 +1610,7 @@
           return '<button type="button" class="' + (obj[name] === o[0] ? 'on' : '') + '" data-p="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
         }).join('') + '</div>';
       };
-      h += '<div class="tbar">' + seg('view', [['cal', 'ปฏิทิน'], ['list', 'รายการ']], P) +
+      h += '<div class="tbar">' + seg('view', [['cal', 'ปฏิทิน'], ['grid', 'ตาราง'], ['list', 'รายการ']], P) +
         (P.view === 'cal'
           ? '<div class="mnav"><button type="button" data-mon="-1" aria-label="เดือนก่อน">‹</button>' +
             '<b>' + esc(monthLabel) + '</b>' +
@@ -1683,6 +1683,9 @@
 
       if (P.view === 'cal') {
         /* โหมดปฏิทินจบที่ปฏิทิน + รายการของวันที่กด */
+      } else if (P.view === 'grid') {
+        /* ตารางกรอกแบบสเปรดชีต — ว่างก็ต้องขึ้น จะได้เริ่มพิมพ์ได้เลย */
+        h += postGridHtml(shown);
       } else if (!shown.length) {
         /* ตารางว่างทั้งใบ + เป็นหัวหน้า = เสนอให้ดึงไฟล์เดิมของพิซซ่าเข้ามาให้เลย
            (ยิงจากเบราว์เซอร์ของหัวหน้า เพราะ API ต้องใช้สิทธิ์เจ้าของ) */
@@ -1708,9 +1711,278 @@
 
       $('#newPost').addEventListener('click', function () { openPostForm(null); });
       $('#pastePosts').addEventListener('click', function () { openPasteImport(); });
+      if (P.view === 'grid') wireGrid($('.pgrid-wrap'));
       var sb = $('#seedPosts');
       if (sb) sb.addEventListener('click', function () { seedPosts(sb); });
     }).catch(function (e) { showError(e); });
+  }
+
+  /* ---------- ตารางกรอกโพสต์แบบสเปรดชีต ------------------------------------
+     นนท์: ทีมถนัด Excel → ให้พิมพ์ในตารางนี้แทน Excel ได้เลย ไม่ต้องไปกรอกที่อื่นแล้วค่อยวาง
+     - ทุกช่องพิมพ์ได้ตรง ๆ บันทึกเองหลังหยุดพิมพ์ (จุดสีท้ายเลขแถวบอกสถานะ)
+     - Enter / ลูกศรลง = ลงแถวถัดไป · Tab = ช่องถัดไป · แถวสุดท้ายกด Enter = เพิ่มแถวใหม่
+     - วางจาก Excel ลงช่องไหนก็ได้ ระบบกระจายลงช่องข้าง ๆ และแถวถัดไปให้เอง */
+  var GRID_COLS = ['date', 'time', 'pageId', 'kind', 'channels', 'topic', 'status', 'url', 'note'];
+  var GRID_HEAD = { date: 'วันที่', time: 'เวลา', pageId: 'เพจ', kind: 'ชนิด', channels: 'ช่องทาง',
+                    topic: 'หัวข้อ / เนื้อหา', status: 'สถานะ', url: 'ลิงก์โพสต์', note: 'หมายเหตุ' };
+  var GRID_STATUS = { plan: 'ยังไม่โพสต์', done: 'โพสต์แล้ว', skip: 'ไม่โพสต์' };
+  var gridSaved = {};      /* id → ค่าที่บันทึกล่าสุด ไว้ส่งเฉพาะช่องที่เปลี่ยน */
+  var gridTimers = {};
+
+  function pgCell(f, x) {
+    var v = x ? x[f] : '';
+    if (f === 'date') return '<input type="date" data-f="date" value="' + esc(v || '') + '">';
+    if (f === 'pageId') {
+      return '<select data-f="pageId">' + (S.pages || []).map(function (pg) {
+        return '<option value="' + esc(pg.id) + '"' + (pg.id === v ? ' selected' : '') + '>' + esc(pg.name) + '</option>';
+      }).join('') + '</select>';
+    }
+    if (f === 'kind') {
+      return '<select data-f="kind">' + Object.keys(POST_KIND).map(function (k) {
+        return '<option value="' + k + '"' + (k === (v || 'content') ? ' selected' : '') + '>' + POST_KIND[k] + '</option>';
+      }).join('') + '</select>';
+    }
+    if (f === 'status') {
+      return '<select data-f="status">' + Object.keys(GRID_STATUS).map(function (k) {
+        return '<option value="' + k + '"' + (k === (v || 'plan') ? ' selected' : '') + '>' + GRID_STATUS[k] + '</option>';
+      }).join('') + '</select>';
+    }
+    if (f === 'channels') return '<input data-f="channels" value="' + esc((v || []).join(', ')) + '" placeholder="FB, Line, TikTok, IG" autocomplete="off">';
+    if (f === 'time') return '<input data-f="time" value="' + esc(v || '') + '" placeholder="17.00" autocomplete="off">';
+    if (f === 'url') {
+      return '<span class="pg-url"><input data-f="url" value="' + esc(v || '') + '" placeholder="https://…" autocomplete="off">' +
+        (v ? '<a href="' + esc(v) + '" target="_blank" rel="noopener noreferrer" title="เปิดโพสต์">↗</a>' : '') + '</span>';
+    }
+    return '<input data-f="' + f + '" value="' + esc(v || '') + '" autocomplete="off"' +
+      (f === 'topic' ? ' placeholder="เช่น aw โปร 10 20 30 + โซนที่ร่วมรายการ"' : '') + '>';
+  }
+  function pgRowHtml(x, n) {
+    var tone = x.id ? postTone(x) : 'new';
+    return '<tr' + (x.id ? ' data-pid="' + esc(x.id) + '"' : ' data-new="1" class="new"') + ' data-tone="' + tone + '">' +
+      '<td class="c-n"><span>' + n + '</span><i class="pg-st"></i></td>' +
+      GRID_COLS.map(function (f) { return '<td class="c-' + f + '">' + pgCell(f, x) + '</td>'; }).join('') +
+      '<td class="c-act">' + ((S.me.role === 'owner' || !x.id)
+        ? '<button type="button" class="pg-del" title="ลบแถว" aria-label="ลบแถว">✕</button>' : '') + '</td></tr>';
+  }
+  function postGridHtml(list) {
+    var rows = list.slice().sort(function (a, b) {
+      return (a.date + ' ' + (a.time || '99')) < (b.date + ' ' + (b.time || '99')) ? -1 : 1;
+    });
+    rows.forEach(function (x) { gridSaved[x.id] = pgSnapshot(x); });
+    return '<div class="pgrid-wrap"><table class="pgrid"><thead><tr><th class="c-n">#</th>' +
+      GRID_COLS.map(function (f) { return '<th class="c-' + f + '">' + GRID_HEAD[f] + '</th>'; }).join('') +
+      '<th class="c-act"></th></tr></thead><tbody>' +
+      rows.map(function (x, i) { return pgRowHtml(x, i + 1); }).join('') +
+      '<tr class="pg-add"><td colspan="' + (GRID_COLS.length + 2) + '">' +
+      '<button type="button" class="btn-ghost sm" data-pg-add="1">+ เพิ่มแถว</button> ' +
+      '<button type="button" class="btn-ghost sm" data-pg-add="5">+ 5 แถว</button>' +
+      '<span class="pg-hint">พิมพ์แล้วบันทึกเอง · Enter ลงแถวถัดไป · วางจาก Excel ลงช่องไหนก็ได้</span></td></tr>' +
+      '</tbody></table></div>';
+  }
+  function pgSnapshot(x) {
+    return { date: x.date || '', time: x.time || '', pageId: x.pageId || '', kind: x.kind || 'content',
+             channels: (x.channels || []).join('|'), topic: x.topic || '', status: x.status || 'plan',
+             url: x.url || '', note: x.note || '' };
+  }
+  /* อ่านค่าจากแถว แล้วจัดรูปแบบให้เหมือนที่ระบบเก็บ (เวลา 17.00 · ช่องทางชื่อมาตรฐาน) */
+  function pgCollect(tr) {
+    var g = function (f) { var el = tr.querySelector('[data-f="' + f + '"]'); return el ? el.value : ''; };
+    var timeEl = tr.querySelector('[data-f="time"]'), chEl = tr.querySelector('[data-f="channels"]');
+    var time = parsePasteTime(g('time'));
+    if (timeEl && time && time !== timeEl.value && document.activeElement !== timeEl) timeEl.value = time;
+    var ch = parsePasteChannels(g('channels'));
+    if (chEl && document.activeElement !== chEl) chEl.value = ch.join(', ');
+    var url = g('url').trim();
+    return { date: g('date'), time: time, pageId: g('pageId'), kind: g('kind'), channels: ch,
+             topic: g('topic').trim(), status: g('status'), url: url, note: g('note').trim() };
+  }
+  function pgMark(tr, st, msg) {
+    var dot = tr.querySelector('.pg-st');
+    if (!dot) return;
+    dot.className = 'pg-st ' + (st || '');
+    dot.title = msg || (st === 'ok' ? 'บันทึกแล้ว' : (st === 'saving' ? 'กำลังบันทึก…' : ''));
+  }
+  function pgSave(tr) {
+    var id = tr.getAttribute('data-pid');
+    var v = pgCollect(tr);
+    if (!v.date) { pgMark(tr, 'err', 'ใส่วันที่ก่อน ถึงจะบันทึก'); return Promise.resolve(); }
+    var timeEl = tr.querySelector('[data-f="time"]');
+    if (timeEl && timeEl.value.trim() && !v.time) { pgMark(tr, 'err', 'เวลาอ่านไม่ออก ใช้รูปแบบ 17.00 หรือ 15.00-20.00'); return Promise.resolve(); }
+    if (v.url && !/^https?:\/\//i.test(v.url)) { pgMark(tr, 'err', 'ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://'); return Promise.resolve(); }
+    pgMark(tr, 'saving');
+    var req;
+    if (!id) {
+      if (tr.getAttribute('data-busy')) return Promise.resolve();
+      tr.setAttribute('data-busy', '1');
+      req = api('/posts', 'POST', { posts: [{
+        pageId: v.pageId, date: v.date, time: v.time, channels: v.channels, topic: v.topic, kind: v.kind,
+        status: v.url ? 'done' : v.status, url: v.url, note: v.note,
+      }] }).then(function (j) {
+        var nid = (j.ids || [])[0];
+        tr.removeAttribute('data-busy');
+        if (nid) { tr.setAttribute('data-pid', nid); tr.removeAttribute('data-new'); tr.classList.remove('new'); id = nid; }
+      });
+    } else {
+      var prev = gridSaved[id] || {};
+      var body = {};
+      ['date', 'time', 'pageId', 'kind', 'topic', 'note', 'status', 'url'].forEach(function (f) {
+        if (String(v[f]) !== String(prev[f] == null ? '' : prev[f])) body[f] = v[f];
+      });
+      if (v.channels.join('|') !== (prev.channels || '')) body.channels = v.channels;
+      if (!Object.keys(body).length) { pgMark(tr, 'ok'); return Promise.resolve(); }
+      req = api('/posts/' + id, 'PUT', body);
+    }
+    return req.then(function () {
+      gridSaved[id] = pgSnapshot({ date: v.date, time: v.time, pageId: v.pageId, kind: v.kind, channels: v.channels,
+                                   topic: v.topic, status: v.url ? 'done' : v.status, url: v.url, note: v.note });
+      /* ใส่ลิงก์ = โพสต์แล้ว ให้ช่องสถานะบนจอตามไปด้วย */
+      var stEl = tr.querySelector('[data-f="status"]');
+      if (v.url && stEl && stEl.value !== 'done') stEl.value = 'done';
+      var urlWrap = tr.querySelector('.pg-url');
+      if (urlWrap) {
+        var a = urlWrap.querySelector('a');
+        if (v.url && !a) urlWrap.insertAdjacentHTML('beforeend', '<a href="' + esc(v.url) + '" target="_blank" rel="noopener noreferrer" title="เปิดโพสต์">↗</a>');
+        else if (v.url && a) a.setAttribute('href', v.url);
+        else if (!v.url && a) a.remove();
+      }
+      tr.setAttribute('data-tone', postTone({ status: v.url ? 'done' : v.status, url: v.url, date: v.date }));
+      pgMark(tr, 'ok');
+      S.posts = null;
+    }).catch(function (e) {
+      tr.removeAttribute('data-busy');
+      pgMark(tr, 'err', e.message);
+      toast(e.message, true);
+    });
+  }
+  function pgQueue(tr, delay) {
+    var key = tr.getAttribute('data-pid') || ('new' + (tr.__k = tr.__k || Math.random()));
+    clearTimeout(gridTimers[key]);
+    gridTimers[key] = setTimeout(function () { pgSave(tr); }, delay == null ? 700 : delay);
+  }
+  function pgAddRows(host, n, after) {
+    var tb = host.querySelector('tbody'), addRow = host.querySelector('.pg-add');
+    var rows = Array.prototype.slice.call(tb.querySelectorAll('tr[data-pid], tr[data-new]'));
+    var ref = after || rows[rows.length - 1];
+    var refV = ref ? pgCollect(ref) : null;
+    var base = { date: refV && refV.date ? refV.date : (P.day || ymd(new Date())),
+                 pageId: refV ? refV.pageId : (P.page || ((S.pages || [])[0] || {}).id || ''),
+                 kind: 'content', status: 'plan', channels: refV ? refV.channels : [] };
+    var first = null;
+    for (var i = 0; i < n; i++) {
+      var tmp = document.createElement('tbody');
+      tmp.innerHTML = pgRowHtml(base, rows.length + i + 1);
+      var tr = tmp.firstElementChild;
+      if (after) after.insertAdjacentElement('afterend', tr); else tb.insertBefore(tr, addRow);
+      if (!first) first = tr;
+      after = after ? tr : null;
+    }
+    pgRenumber(host);
+    return first;
+  }
+  function pgRenumber(host) {
+    Array.prototype.forEach.call(host.querySelectorAll('tr[data-pid], tr[data-new]'), function (tr, i) {
+      var n = tr.querySelector('.c-n span'); if (n) n.textContent = i + 1;
+    });
+  }
+  function pgFocus(tr, f) {
+    if (!tr) return;
+    var el = tr.querySelector('[data-f="' + f + '"]');
+    if (el) { el.focus(); if (el.select && el.type !== 'date') el.select(); }
+  }
+  function pgSetCell(tr, f, text) {
+    var el = tr.querySelector('[data-f="' + f + '"]');
+    if (!el) return;
+    var t = normTxt(text);
+    if (f === 'date') { var b = curMonth(); el.value = parsePostDate(t, b.getFullYear(), b.getMonth() + 1) || el.value; }
+    else if (f === 'pageId') { var pid = pageIdByText(t); if (pid) el.value = pid; }
+    else if (f === 'kind') { el.value = parsePasteKind(t, ''); }
+    else if (f === 'status') {
+      var u = tr.querySelector('[data-f="url"]');
+      el.value = parsePasteStatus(t, u && u.value ? u.value : '');
+    }
+    else if (f === 'time') { el.value = parsePasteTime(t) || t; }
+    else if (f === 'channels') { el.value = parsePasteChannels(t).join(', '); }
+    else if (f === 'url') { var m = t.match(/https?:\/\/\S+/); el.value = m ? m[0] : t; }
+    else { el.value = t; }
+  }
+  /* วางหลายช่อง: กระจายจากช่องที่เคอร์เซอร์อยู่ ไปทางขวาแล้วลงล่าง */
+  function pgPaste(host, tr, f, rows) {
+    var startCol = GRID_COLS.indexOf(f);
+    var hasHead = rows[0] && rows[0].map(headerFieldOf).filter(Boolean).length >= 2;
+    var data = hasHead ? rows.slice(1) : rows;
+    var cur = tr;
+    data.forEach(function (r) {
+      if (!cur) cur = pgAddRows(host, 1);
+      r.forEach(function (cell, ci) {
+        var col = GRID_COLS[startCol + ci];
+        if (col) pgSetCell(cur, col, cell);
+      });
+      pgQueue(cur, 50);
+      var next = cur.nextElementSibling;
+      cur = next && (next.hasAttribute('data-pid') || next.hasAttribute('data-new')) ? next : null;
+    });
+  }
+  function wireGrid(host) {
+    if (!host) return;
+    host.addEventListener('input', function (ev) {
+      var el = ev.target.closest('[data-f]'); if (!el) return;
+      var tr = el.closest('tr');
+      if (el.tagName === 'SELECT' || el.type === 'date') return;   /* พวกนี้รอ change */
+      pgQueue(tr);
+    });
+    host.addEventListener('change', function (ev) {
+      var el = ev.target.closest('[data-f]'); if (!el) return;
+      pgQueue(el.closest('tr'), 120);
+    });
+    host.addEventListener('focusout', function (ev) {
+      var el = ev.target.closest && ev.target.closest('[data-f]'); if (!el) return;
+      var tr = el.closest('tr');
+      var key = tr.getAttribute('data-pid') || ('new' + (tr.__k || ''));
+      if (gridTimers[key]) { clearTimeout(gridTimers[key]); pgSave(tr); }
+    });
+    host.addEventListener('keydown', function (ev) {
+      var el = ev.target.closest('[data-f]'); if (!el) return;
+      var tr = el.closest('tr'), f = el.getAttribute('data-f');
+      var isSel = el.tagName === 'SELECT';
+      if (ev.key === 'Enter' || (ev.key === 'ArrowDown' && !isSel)) {
+        ev.preventDefault();
+        var next = tr.nextElementSibling;
+        if (!next || !(next.hasAttribute('data-pid') || next.hasAttribute('data-new'))) next = pgAddRows(host, 1);
+        pgFocus(next, f);
+      } else if (ev.key === 'ArrowUp' && !isSel) {
+        ev.preventDefault();
+        var prev = tr.previousElementSibling;
+        if (prev && (prev.hasAttribute('data-pid') || prev.hasAttribute('data-new'))) pgFocus(prev, f);
+      }
+    });
+    host.addEventListener('paste', function (ev) {
+      var el = ev.target.closest('[data-f]'); if (!el || el.tagName === 'SELECT') return;
+      var cd = ev.clipboardData; if (!cd) return;
+      var html = cd.getData('text/html'), text = cd.getData('text/plain');
+      var multi = /[\t\n]/.test(text || '') || (html && /<t[rd]/i.test(html));
+      if (!multi) return;
+      var rows = tableFromHtml(html) || tableFromText(text);
+      if (!rows) return;
+      ev.preventDefault();
+      pgPaste(host, el.closest('tr'), el.getAttribute('data-f'), rows);
+      toast('วางลง ' + rows.length + ' แถวแล้ว กำลังบันทึก…');
+    });
+    host.addEventListener('click', function (ev) {
+      var b;
+      if ((b = ev.target.closest('[data-pg-add]'))) {
+        var tr = pgAddRows(host, Number(b.getAttribute('data-pg-add')) || 1);
+        pgFocus(tr, 'date');
+        return;
+      }
+      if ((b = ev.target.closest('.pg-del'))) {
+        var row = b.closest('tr'), pid = row.getAttribute('data-pid');
+        if (!pid) { row.remove(); pgRenumber(host); return; }
+        var v = pgCollect(row);
+        if (!confirm('ลบโพสต์ ' + v.date + (v.time ? ' ' + v.time : '') + (v.topic ? ' · ' + v.topic.slice(0, 40) : '') + ' ?')) return;
+        api('/posts/' + pid, 'DELETE').then(function () { row.remove(); pgRenumber(host); S.posts = null; toast('ลบแล้ว'); })
+          .catch(function (e) { toast(e.message, true); });
+      }
+    });
   }
 
   /* สีเดียวใช้ทั้งปฏิทินและรายการ
@@ -2437,6 +2709,27 @@
       '<div class="grid2"><div class="field"><label class="label">อีเมล <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="email" type="email" placeholder="' + esc(S.me.email || 'you@example.com') + '"></div>' +
       '<div class="field"><label class="label">รหัสผ่านใหม่ <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="newPassword" type="password" autocomplete="new-password" minlength="8"></div></div>' +
       '<div class="acts"><button type="submit" class="btn-ghost">บันทึก</button></div></form></div></div>';
+    /* MCP: ให้ AI (Claude / ChatGPT) สั่งงาน-สรุปงานผ่านระบบนี้ได้ · token รายคน ผูกกับสิทธิ์ของคนนั้น */
+    var tokenRows = S.staff.filter(function (x) { return x.active && (owner || x.id === S.me.id); });
+    h += '<div class="sec" id="mcpBox"><div class="sec-h"><h2>ต่อกับ Claude / ChatGPT (MCP)</h2><p>ให้ AI สรุปงานวันนี้ สั่งงานจากโน้ต หรืออัปเดตตารางโพสต์แทนได้</p></div><div class="sec-b">' +
+      '<p class="hint" style="margin:0 0 12px">สร้าง token แล้วก็อป URL ไปใส่ใน Claude (Settings → Connectors → Add custom connector) หรือ ChatGPT (Settings → Connectors → Create) · ' +
+      'ใครใช้ token ของใคร AI ก็ทำได้เท่าที่คนนั้นเห็นในระบบ · token ใช้ได้จนกว่าจะกดยกเลิก</p>' +
+      tokenRows.map(function (x) {
+        var url = x.mcpToken ? (location.origin + '/mcp/' + x.mcpToken) : '';
+        return '<div class="mcprow"><div class="n"><b>' + esc(x.name) + '</b>' +
+          (url ? '<code class="mcpurl" title="กดเพื่อก็อป" data-copy="' + esc(url) + '">' + esc(url) + '</code>' : '<small>ยังไม่มี token</small>') + '</div>' +
+          '<div class="acts">' + (url
+            ? '<button type="button" class="btn-ghost sm" data-copy="' + esc(url) + '">ก็อป URL</button>' +
+              '<button type="button" class="btn-ghost sm" data-token-new="' + esc(x.id) + '">ออกใหม่</button>' +
+              '<button type="button" class="btn-ghost sm danger" data-token-del="' + esc(x.id) + '">ยกเลิก</button>'
+            : '<button type="button" class="btn-ghost sm" data-token-new="' + esc(x.id) + '">สร้าง token</button>') + '</div></div>';
+      }).join('') +
+      '<details class="mcphelp"><summary>วิธีเอาไปใส่</summary><ol>' +
+      '<li><b>Claude (claude.ai)</b> Settings → Connectors → Add custom connector → วาง URL → Add · ไม่ต้องใส่ OAuth</li>' +
+      '<li><b>ChatGPT</b> Settings → Connectors → Create → วาง URL → Authentication เลือก No authentication</li>' +
+      '<li><b>Claude Code</b> พิมพ์ในเทอร์มินัล <code>claude mcp add --transport http kan URL</code></li>' +
+      '</ol><p class="hint">ลองพิมพ์ว่า "สรุปงานวันนี้ของทีม" หรือวางโน้ตแล้วบอกว่า "แตกเป็นงานให้ทีม" AI จะเรียก get_context ก่อนแล้วค่อยสร้างงาน</p></details>' +
+      '</div></div>';
     h += '<div class="sec" id="storageBox"><div class="sec-h"><h2>พื้นที่เก็บรูป</h2></div><div class="sec-b"><p class="hint">กำลังอ่าน…</p></div></div>';
     h += '</div></div>';
     view.innerHTML = h;
@@ -2525,6 +2818,35 @@
         return;
       }
       if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; renderSidebar(); renderHeaderUser(); renderTeam(); return; }
+      if ((b = ev.target.closest('[data-copy]'))) {
+        var txt = b.getAttribute('data-copy');
+        var done = function () { toast('ก็อป URL แล้ว เอาไปวางใน Claude / ChatGPT ได้เลย'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { prompt('ก็อป URL นี้', txt); });
+        else prompt('ก็อป URL นี้', txt);
+        return;
+      }
+      if ((b = ev.target.closest('[data-token-new]'))) {
+        var tsid = b.getAttribute('data-token-new'), tst = staffById(tsid);
+        if (tst.mcpToken && !confirm('ออก token ใหม่ให้ ' + tst.name + '? URL เดิมจะใช้ไม่ได้ทันที')) return;
+        api('/staff/' + tsid + '/token', 'POST').then(function (j) {
+          return refreshMe().then(function () {
+            okDialog({
+              title: 'สร้าง token ให้ ' + tst.name + ' แล้ว',
+              lines: [location.origin + '/mcp/' + j.token],
+              note: 'ก็อป URL นี้ไปใส่ใน Claude หรือ ChatGPT · AI จะทำได้เท่าที่ ' + shortName(tst) + ' เห็นในระบบ',
+              onClose: renderTeam,
+            });
+          });
+        }).catch(function (e) { toast(e.message, true); });
+        return;
+      }
+      if ((b = ev.target.closest('[data-token-del]'))) {
+        var dsid = b.getAttribute('data-token-del'), dst = staffById(dsid);
+        if (!confirm('ยกเลิก token ของ ' + dst.name + '? Claude/ChatGPT ที่ต่ออยู่จะใช้ไม่ได้ทันที')) return;
+        api('/staff/' + dsid + '/token', 'DELETE').then(refreshMe).then(function () { toast('ยกเลิก token ของ ' + shortName(dst) + ' แล้ว'); renderTeam(); })
+          .catch(function (e) { toast(e.message, true); });
+        return;
+      }
       if ((b = ev.target.closest('[data-pin-staff]'))) {
         var s = staffById(b.getAttribute('data-pin-staff'));
         var pin = prompt('รหัสตั้งค่าใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)\nให้เจ้าตัวเอาไปใช้ที่แท็บ "ตั้งรหัสครั้งแรก"');
