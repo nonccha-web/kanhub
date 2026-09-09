@@ -1462,7 +1462,7 @@
     var mark = st === 'done' ? '✓' : (st === 'skip' ? '–' : '');
     return '<div class="postrow ' + esc(st) + ' t-' + tone + '" data-post="' + esc(x.id) + '" title="' + esc(TONE_TH[tone]) + '">' +
       '<button type="button" class="subcheck tone-' + tone + '" data-post-toggle="' + esc(x.id) + '" aria-label="ติ๊กว่าโพสต์แล้ว">' + mark + '</button>' +
-      '<span class="ptime">' + esc(x.time || '—') + '</span>' +
+      '<button type="button" class="ptime" data-post-edit="' + esc(x.id) + '" title="กดเพื่อแก้เวลา">' + esc(x.time || 'ใส่เวลา') + '</button>' +
       '<span class="pmain"><span class="pt">' + esc(x.topic || '(ยังไม่ใส่หัวข้อ)') + '</span>' +
       '<span class="pm"><span class="pill ' + (x.kind === 'live' ? 'blocked' : (x.kind === 'promo' ? 'repeat' : 'todo')) + '">' + esc(POST_KIND[x.kind] || x.kind) + '</span>' +
       '<span>' + esc(pageName(x.pageId)) + '</span>' +
@@ -1474,9 +1474,31 @@
       '<button type="button" class="btn-text pedit" data-post-edit="' + esc(x.id) + '">แก้</button></div>';
   }
 
+  /* เวลาโพสต์เก็บเป็นข้อความอย่าง "17.00" หรือช่วง "15.00-20.00" (ตามที่ทีมเขียนกันมาแต่เดิม)
+     แต่ตอนกรอกให้เลือกจากนาฬิกาจริง จะได้ไม่ต้องพิมพ์เองให้ผิดรูปแบบ */
+  var TIME_QUICK = ['10.00', '12.00', '14.00', '15.00', '17.00', '18.00', '19.00', '20.00'];
+  function timeToInput(t) {
+    var m = String(t || '').match(/^(\d{1,2})[.:](\d{2})$/);
+    return m ? pad(Number(m[1])) + ':' + m[2] : '';
+  }
+  function parseTimeValue(v) {
+    var parts = String(v || '').split('-');
+    return { a: timeToInput(parts[0]), b: timeToInput(parts[1]) };
+  }
+  function inputToTime(v) {
+    var m = String(v || '').match(/^(\d{2}):(\d{2})$/);
+    return m ? Number(m[1]) + '.' + m[2] : '';
+  }
+  function buildTimeValue(a, b) {
+    var x = inputToTime(a), y = inputToTime(b);
+    if (!x) return '';
+    return y ? x + '-' + y : x;
+  }
+
   /* ฟอร์มเพิ่ม/แก้โพสต์ — พิซซ่าใช้กรอกแผน */
   function openPostForm(post) {
     var isNew = !post;
+    var tv = parseTimeValue(post ? post.time : '');
     var host = document.createElement('div');
     host.className = 'modal';
     var chAll = ['Facebook', 'Line OA', 'TikTok', 'Instagram'];
@@ -1488,7 +1510,13 @@
       Object.keys(POST_KIND).map(function (k) { return '<option value="' + k + '"' + (post && post.kind === k ? ' selected' : '') + '>' + POST_KIND[k] + '</option>'; }).join('') +
       '</select></div></div>' +
       '<div class="grid2"><div class="field"><label class="label">วันที่</label><input class="input" type="date" name="date" value="' + esc(post ? post.date : ymd(new Date())) + '" required></div>' +
-      '<div class="field"><label class="label">เวลาโพสต์</label><input class="input" name="time" value="' + esc(post ? post.time : '') + '" placeholder="เช่น 17.00"></div></div>' +
+      '<div class="field"><label class="label">เวลาโพสต์</label>' +
+      '<div class="timepick"><input class="input" type="time" name="t1" value="' + esc(tv.a) + '">' +
+      '<label class="tspan"><input type="checkbox" name="hasEnd"' + (tv.b ? ' checked' : '') + '> ถึง</label>' +
+      '<input class="input" type="time" name="t2" value="' + esc(tv.b) + '"' + (tv.b ? '' : ' disabled') + '></div>' +
+      '<div class="chips tquick">' + TIME_QUICK.map(function (q) {
+        return '<button type="button" class="chip plain" data-qt="' + q + '">' + q + '</button>';
+      }).join('') + '<button type="button" class="chip plain" data-qt="">ไม่ระบุ</button></div></div></div>' +
       '<div class="field"><label class="label">ช่องทาง</label><div class="chips" id="chSel">' +
       chAll.map(function (c) {
         var on = post && (post.channels || []).indexOf(c) !== -1;
@@ -1508,6 +1536,23 @@
     $('#chSel', host).addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-ch]'); if (b) b.classList.toggle('on');
     });
+    var f0 = $('#postForm', host);
+    /* ติ๊ก "ถึง" = เปิดช่องเวลาสิ้นสุด · ไม่ติ๊ก = เวลาเดียว */
+    f0.hasEnd.addEventListener('change', function () {
+      f0.t2.disabled = !this.checked;
+      if (this.checked && !f0.t2.value && f0.t1.value) {
+        var h = Number(f0.t1.value.slice(0, 2)) + 3;
+        f0.t2.value = pad(Math.min(h, 23)) + f0.t1.value.slice(2);
+      }
+      if (!this.checked) f0.t2.value = '';
+    });
+    $('.tquick', host).addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-qt]'); if (!b) return;
+      var q = b.getAttribute('data-qt');
+      f0.t1.value = timeToInput(q);
+      if (!q) { f0.hasEnd.checked = false; f0.t2.value = ''; f0.t2.disabled = true; }
+      $$('[data-qt]', host).forEach(function (x) { x.classList.toggle('on', x === b); });
+    });
     var del = $('#delPost', host);
     if (del) del.addEventListener('click', function () {
       if (!confirm('ลบโพสต์นี้?')) return;
@@ -1517,7 +1562,8 @@
       ev.preventDefault();
       var f = this;
       var body = {
-        pageId: f.pageId.value, kind: f.kind.value, date: f.date.value, time: f.time.value,
+        pageId: f.pageId.value, kind: f.kind.value, date: f.date.value,
+        time: buildTimeValue(f.t1.value, f.hasEnd.checked ? f.t2.value : ''),
         topic: f.topic.value, url: f.url.value.trim(), note: f.note.value,
         channels: $$('.chip.on[data-ch]', host).map(function (b) { return b.getAttribute('data-ch'); }),
       };
