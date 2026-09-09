@@ -131,10 +131,27 @@ const TOOLS = [
   },
   {
     name: "today_summary",
-    description: "สรุปงานของทีมวันนี้: งานเลยกำหนด งานครบกำหนดวันนี้ งานประจำที่ยังไม่อัปเดต แยกรายคน + โพสต์วันนี้ของแต่ละเพจ (โพสต์แล้ว/ยังไม่โพสต์/ไม่มีลิงก์) + รายการในปฏิทินการตลาดที่กำลังวิ่ง",
+    description: "สรุปประจำวันของทีม (ใช้ตอบ 'วันนี้เป็นยังไง / ใครอัปเดตอะไรไปบ้าง / พรุ่งนี้หรือสัปดาห์นี้มีอะไร'): " +
+      "activityToday = ใครอัปเดตงานไหน คอมเมนต์ว่าอะไร เปลี่ยนสถานะเป็นอะไร และแก้ตารางโพสต์อะไรบ้างวันนี้ · " +
+      "byPerson = งานเลยกำหนด/ครบกำหนดวันนี้/งานประจำ แยกรายคน · doneToday = งานที่ปิดวันนี้ · " +
+      "postsToday = โพสต์วันนี้ของแต่ละเพจ (โพสต์แล้ว/ยังไม่โพสต์/ไม่มีลิงก์) · " +
+      "tomorrow และ thisWeek = งานครบกำหนดและโพสต์ที่วางไว้ล่วงหน้า แยกรายวัน · campaignsRunning = รายการปฏิทินการตลาดที่กำลังวิ่ง",
     inputSchema: {
       type: "object",
       properties: { date: { type: "string", description: "YYYY-MM-DD (เวลาไทย) ไม่ใส่ = วันนี้" } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "team_activity",
+    description: "ความเคลื่อนไหวของทีมในช่วงวันที่กำหนด: ใครอัปเดตงานไหน คอมเมนต์อะไร เปลี่ยนสถานะอะไร และแก้/เพิ่ม/ลบโพสต์อะไร (ใช้ตอบ 'เมื่อวาน/สัปดาห์ที่แล้ว ใครทำอะไรไปบ้าง' หรือดูรายคน)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "YYYY-MM-DD ไม่ใส่ = วันนี้" },
+        to: { type: "string", description: "YYYY-MM-DD ไม่ใส่ = เท่ากับ from" },
+        who: { type: "string", description: "ชื่อคน ถ้าอยากดูเฉพาะคนเดียว" },
+      },
       additionalProperties: false,
     },
   },
@@ -293,6 +310,29 @@ function fmtTask(t, ctx, now) {
   };
 }
 
+const STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", blocked: "ติดปัญหา", done: "เสร็จ" };
+const LOG_ACT_TH = { create: "เพิ่มโพสต์", update: "แก้โพสต์", delete: "ลบโพสต์" };
+const LOG_FIELD_TH = { date: "วันที่", time: "เวลา", pageId: "เพจ", kind: "ชนิด", channels: "ช่องทาง", topic: "หัวข้อ", status: "สถานะ", url: "ลิงก์", note: "หมายเหตุ" };
+function nameOf(ctx, id) { const s = ctx.staff.find((x) => x.id === id); return s ? s.name : (id || "?"); }
+function fmtActivity(act, ctx) {
+  const ups = (act.updates || []).map((u) => ({
+    at: bkkDate(Date.parse(u.createdAt)) + " " + bkkTime(Date.parse(u.createdAt)),
+    who: nameOf(ctx, u.staffId), task: u.taskTitle, taskId: u.taskId,
+    what: u.kind === "create" ? "สร้างงาน" : (u.statusTo ? "เปลี่ยนสถานะเป็น " + (STATUS_TH[u.statusTo] || u.statusTo) : "อัปเดต/คอมเมนต์"),
+    note: u.note || "", link: u.taskId ? taskLink(u.taskId) : null,
+  }));
+  const posts = (act.posts || []).map((r) => ({
+    at: bkkDate(Date.parse(r.createdAt)) + " " + bkkTime(Date.parse(r.createdAt)),
+    who: nameOf(ctx, r.staffId), what: LOG_ACT_TH[r.action] || r.action,
+    post: (r.date || "") + (r.time ? " " + r.time : "") + " · " + ((ctx.pages.find((p) => p.id === r.pageId) || {}).name || r.pageId) + " · " + (r.topic || "(ไม่มีหัวข้อ)"),
+    changes: (r.changes || []).map((c) => (LOG_FIELD_TH[c[0]] || c[0]) + ": " + (c[1] || "(ว่าง)") + " → " + (c[2] || "(ว่าง)")),
+  }));
+  const byWho = {};
+  ups.forEach((u) => { byWho[u.who] = byWho[u.who] || { taskUpdates: 0, postChanges: 0 }; byWho[u.who].taskUpdates++; });
+  posts.forEach((p) => { byWho[p.who] = byWho[p.who] || { taskUpdates: 0, postChanges: 0 }; byWho[p.who].postChanges++; });
+  return { taskUpdates: ups, postChanges: posts, byPerson: byWho, total: ups.length + posts.length };
+}
+
 async function runTool(name, args, env, token, handleApi) {
   args = args || {};
   const now = Date.now();
@@ -350,13 +390,50 @@ async function runTool(name, args, env, token, handleApi) {
       .map((c) => ({ name: c.name, kind: c.kind, status: c.status, start: c.start, end: c.end }));
     const done = all.filter((t) => t.status === "done" && t.doneAt && bkkDate(Date.parse(t.doneAt)) === day)
       .map((t) => ({ title: t.title, by: t.assignees.map((id) => (ctx.staff.find((x) => x.id === id) || { name: id }).name) }));
+    /* ใครทำอะไรไปบ้างวันนี้ (คอมเมนต์ เปลี่ยนสถานะ แก้ตารางโพสต์) */
+    const activity = fmtActivity(await tApi(env, token, "GET", "/activity?from=" + day + "&to=" + day).catch(() => ({})), ctx);
+    /* ล่วงหน้า: พรุ่งนี้ + 7 วันข้างหน้า แยกรายวัน */
+    const dayN = (n) => bkkDate(Date.parse(day + "T12:00:00+07:00") + n * 86400000);
+    const tmr = dayN(1), weekEnd = dayN(7);
+    const ahead = (await tApi(env, token, "GET", "/posts?from=" + tmr + "&to=" + weekEnd)).posts || [];
+    const perDay = {};
+    for (let n = 1; n <= 7; n++) perDay[dayN(n)] = { dateThai: thaiDate(dayN(n)), tasksDue: [], posts: [] };
+    open.forEach((t) => {
+      const d = dueTs(t, ref);
+      if (d == null) return;
+      const k = bkkDate(d);
+      if (perDay[k]) perDay[k].tasksDue.push(fmtTask(t, ctx, ref));
+    });
+    ahead.forEach((p) => {
+      if (!perDay[p.date]) return;
+      perDay[p.date].posts.push({ time: p.time, page: (ctx.pages.find((x) => x.id === p.pageId) || { name: p.pageId }).name, topic: p.topic, kind: p.kind, status: p.status });
+    });
+    const tomorrow = perDay[tmr];
     return {
       date: day, dateThai: thaiDate(day),
       totals: { open: open.length, late: open.filter((t) => isLate(t, ref)).length,
-                dueToday: open.filter((t) => bucket(t) === "today").length, doneToday: done.length },
+                dueToday: open.filter((t) => bucket(t) === "today").length, doneToday: done.length,
+                activityToday: activity.total, postsTomorrow: tomorrow.posts.length, tasksDueTomorrow: tomorrow.tasksDue.length },
+      activityToday: activity,
       byPerson: per, doneToday: done, postsToday: byPage, campaignsRunning: running,
+      tomorrow: Object.assign({ date: tmr }, tomorrow),
+      thisWeek: Object.keys(perDay).map((k) => Object.assign({ date: k }, perDay[k])).filter((d) => d.tasksDue.length || d.posts.length),
       links: { tasks: SITE + "/tasks/#/all", posts: SITE + "/tasks/#/posts", calendar: SITE + "/cmo/campaign-calendar" },
     };
+  }
+
+  if (name === "team_activity") {
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(args.from || "") ? args.from : bkkDate(now);
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(args.to || "") ? args.to : from;
+    const who = args.who ? findStaff(ctx.staff, args.who) : null;
+    if (args.who && !who) throw new Error("ไม่พบคนชื่อ \"" + args.who + "\" (ดูรายชื่อจาก get_context)");
+    const raw = await tApi(env, token, "GET", "/activity?from=" + from + "&to=" + to);
+    if (who) {
+      raw.updates = (raw.updates || []).filter((u) => u.staffId === who.id);
+      raw.posts = (raw.posts || []).filter((p) => p.staffId === who.id);
+    }
+    const out = fmtActivity(raw, ctx);
+    return Object.assign({ from, to, fromThai: thaiDate(from), toThai: thaiDate(to) }, out);
   }
 
   if (name === "list_tasks") {
@@ -551,7 +628,9 @@ function guessKpi(kpis, text) {
 const INSTRUCTIONS =
   "นี่คือระบบหลังบ้านของ KAN (admin.kan-hub.com): งานทีม ตารางโพสต์ ปฏิทินการตลาด KPI\n" +
   "ลำดับที่ควรทำ: เรียก get_context ก่อนเพื่อรู้วันที่วันนี้ รายชื่อทีม (ใช้ชื่อเล่นได้ เช่น Pizza, Title) รายการ KPI และเพจ\n" +
-  "สรุปงานประจำวัน → today_summary · สั่งงานจากโน้ต → แตกเป็นงานละหนึ่งเรื่อง ชื่อสั้นชัด แล้ว create_tasks ทีเดียว\n" +
+  "สรุปงานประจำวัน / ใครอัปเดตอะไรไปบ้าง / พรุ่งนี้หรือสัปดาห์นี้มีอะไร → today_summary (มี activityToday, tomorrow, thisWeek ในคำตอบเดียว) · " +
+  "ย้อนดูช่วงอื่นหรือรายคน → team_activity · สั่งงานจากโน้ต → แตกเป็นงานละหนึ่งเรื่อง ชื่อสั้นชัด แล้ว create_tasks ทีเดียว\n" +
+  "ถ้าเครื่องมือคืนรายการว่าง ให้บอกว่า 'ไม่มีรายการในระบบ' ไม่ใช่ 'ไม่มี MCP' และอย่าเดาข้อมูลเอง\n" +
   "เวลาทั้งหมดเป็นเวลาไทย (UTC+7) รูปแบบ YYYY-MM-DD HH:mm · ตอบผู้ใช้เป็นภาษาไทย แนบลิงก์ที่ได้จากเครื่องมือ";
 
 function rpcError(id, code, message) { return { jsonrpc: "2.0", id: id == null ? null : id, error: { code, message } }; }
@@ -632,5 +711,16 @@ export async function handleMcp(request, env, url, pathToken, handleApi) {
     if (r) out.push(r);
   }
   if (!out.length) return new Response(null, { status: 202, headers: cors });
-  return json(batch ? out : out[0], 200, Object.assign({ "mcp-protocol-version": PROTOCOLS[0] }, cors));
+  const payload = batch ? out : out[0];
+  const extra = Object.assign({ "mcp-protocol-version": PROTOCOLS[0] }, cors);
+  /* บางตัว (เช่น ChatGPT) ขอเป็น text/event-stream — ตอบเป็น SSE ก้อนเดียวจบให้ตามที่ขอ
+     ถ้าขอ JSON ธรรมดา (Claude, Claude Code) ก็ตอบ JSON เหมือนเดิม */
+  const accept = request.headers.get("accept") || "";
+  if (accept.indexOf("text/event-stream") !== -1 && accept.indexOf("application/json") === -1) {
+    return new Response("event: message\ndata: " + JSON.stringify(payload) + "\n\n", {
+      status: 200,
+      headers: Object.assign({ "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store" }, extra),
+    });
+  }
+  return json(payload, 200, extra);
 }

@@ -845,6 +845,33 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ids, blank });
   }
 
+  /* ความเคลื่อนไหวของทีมในช่วงวัน (เวลาไทย): ใครอัปเดตงานไหน คอมเมนต์ว่าอะไร เปลี่ยนสถานะเป็นอะไร + แก้ตารางโพสต์อะไร
+     ใช้ตอบคำถาม "วันนี้ใครทำอะไรไปบ้าง" ผ่าน MCP และหน้าเว็บ */
+  if (path === "/activity" && method === "GET") {
+    const from = url.searchParams.get("from") || "", to = url.searchParams.get("to") || from;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return json({ error: "ต้องระบุ from/to เป็น YYYY-MM-DD" }, 400);
+    /* เก็บเป็น UTC → ช่วงวันไทย = ลบ 7 ชม. */
+    const a = new Date(from + "T00:00:00+07:00").toISOString(), b = new Date(to + "T23:59:59.999+07:00").toISOString();
+    const ups = await db.prepare(
+      "SELECT u.id, u.task_id, u.staff_id, u.kind, u.note, u.status_to, u.created_at, t.title, t.status AS task_status " +
+      "FROM task_updates u LEFT JOIN tasks t ON t.id = u.task_id WHERE u.created_at BETWEEN ? AND ? ORDER BY u.created_at DESC LIMIT 400"
+    ).bind(a, b).all();
+    const pl = await db.prepare(
+      "SELECT * FROM post_log WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 400"
+    ).bind(a, b).all();
+    return json({
+      from, to,
+      updates: (ups.results || []).map((u) => ({
+        id: u.id, taskId: u.task_id, taskTitle: u.title || "(งานถูกลบแล้ว)", staffId: u.staff_id, kind: u.kind,
+        note: u.note || "", statusTo: u.status_to || null, createdAt: u.created_at,
+      })),
+      posts: (pl.results || []).map((r) => ({
+        id: r.id, postId: r.post_id, staffId: r.staff_id, action: r.action, pageId: r.page_id, date: r.post_date,
+        time: r.post_time, topic: r.topic || "", changes: r.changes ? JSON.parse(r.changes) : null, createdAt: r.created_at,
+      })),
+    });
+  }
+
   /* ประวัติการแก้ตารางโพสต์ — ล่าสุดอยู่บนสุด */
   if (path === "/posts/log" && method === "GET") {
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 40));
