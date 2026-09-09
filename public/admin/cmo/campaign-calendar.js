@@ -16,6 +16,13 @@
   var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","นคร","สุราษฎร์","Central","สหไทย"];
   // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
+  /* ประเภทรายการ — สีของประเภทคงที่ (ไม่ใช่สีที่ผู้ใช้เลือกให้แต่ละรายการ) จะได้กวาดตาแล้วรู้ทันที */
+  var KINDS = ["content", "campaign", "promo"];
+  var KIND_LABEL = { content:"คอนเทนต์", campaign:"แคมเปญ", promo:"โปรโมชั่น" };
+  var KIND_COLOR = { content:"#0E9BA8", campaign:"#7A5CF0", promo:"#F2565A" };
+  function kindOf(it) { return KINDS.indexOf(it && it.kind) !== -1 ? it.kind : "campaign"; }
+  function kindDot(it) { return '<i class="cc-kdot" style="background:' + KIND_COLOR[kindOf(it)] + '" title="' + KIND_LABEL[kindOf(it)] + '"></i>'; }
+  function kindPill(it) { var k = kindOf(it); return '<span class="cc-kpill" style="color:' + KIND_COLOR[k] + ';border-color:' + KIND_COLOR[k] + '">' + KIND_LABEL[k] + "</span>"; }
   var COLORS = [
     { v:"#3370FF", n:"น้ำเงิน" }, { v:"#14C0FF", n:"ฟ้า" },   { v:"#00C7C7", n:"เขียวน้ำทะเล" },
     { v:"#34C724", n:"เขียว" },   { v:"#8FC31F", n:"เขียวมะนาว" }, { v:"#FFC60A", n:"เหลือง" },
@@ -28,7 +35,10 @@
 
   var items = [];
   var year = new Date().getFullYear();
-  var view = { mode:"year", month:null };
+  var view = { mode:"year", month:null, kind:"" };
+  try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
+  /* รายการที่ผ่านตัวกรองประเภท — ทุกมุมมองดึงจากตรงนี้ จะได้กรองพร้อมกันหมด */
+  function pool() { return view.kind ? items.filter(function (it) { return kindOf(it) === view.kind; }) : items; }
   var editingId = null;
   var pendingFiles = [];   // รูปที่เลือกไว้ตอนแคมเปญยังไม่ถูกบันทึก
   var online = true;       // ต่อ API ได้หรือไม่
@@ -118,7 +128,7 @@
 
   function ofYear() {
     var y = String(year);
-    return items.filter(function (it) {
+    return pool().filter(function (it) {
       return it.start.slice(0, 4) === y || (it.end || it.start).slice(0, 4) === y;
     }).sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   }
@@ -132,6 +142,8 @@
 
   /* ---------- render ---------- */
   function render() {
+    renderKindBar();
+    renderSoon();
     $("ccYear").innerHTML = be(year) + "<small>ค.ศ. " + year + "</small>";
     renderStats();
     if (view.mode === "year") renderYear(); else renderMonth();
@@ -144,7 +156,7 @@
     var plan = list.filter(function (i) { return i.status === "plan"; }).length;
     var budget = list.reduce(function (s, i) { return s + (Number(i.budget) || 0); }, 0);
     $("ccStats").innerHTML =
-      card("แคมเปญทั้งปี", list.length, "รายการ") +
+      card("รายการทั้งปี", list.length, "รายการ") +
       card("กำลังทำอยู่วันนี้", running, "รายการ", running > 0) +
       card("ยังไม่เริ่ม", plan, "รายการ") +
       card("งบรวมทั้งปี", '<span class="cur">฿</span>' + baht(budget), "");
@@ -176,7 +188,7 @@
       }
       out += '<button class="cc-month' + (cur ? " cur" : "") + '" data-month="' + m + '">' +
              "<h3>" + MONTHS[m] + '<span class="cnt' + (list.length ? " has" : "") + '">' +
-             (list.length ? list.length + " แคมเปญ" : "—") + "</span></h3>" +
+             (list.length ? list.length + " รายการ" : "—") + "</span></h3>" +
              '<div class="cc-mini">' + DOW.map(function (x) { return "<span>" + x + "</span>"; }).join("") + cells + "</div></button>";
     }
     $("ccView").innerHTML = out + "</div>";
@@ -192,7 +204,7 @@
       var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
       var todays = list.filter(function (it) { return covers(it, dISO) && !isMonthPlan(it); });
       var chips = todays.slice(0, 3).map(function (it) {
-        return '<button class="cc-chip" data-edit="' + it.id + '"' + chipStyle(it) + ' title="' + esc(it.name) + '"><b>' + esc(shortName(it.name)) + "</b></button>";
+        return '<button class="cc-chip" data-edit="' + it.id + '"' + chipStyle(it) + ' title="' + esc(it.name) + '">' + kindDot(it) + '<b>' + esc(shortName(it.name)) + "</b></button>";
       }).join("");
       if (todays.length > 3) chips += '<span class="cc-more">+ อีก ' + (todays.length - 3) + "</span>";
       // เซลล์ต้องไม่เป็น <button> เพราะ chip ข้างในก็เป็นปุ่ม — ปุ่มซ้อนปุ่มทำให้เบราว์เซอร์ตัดโครงทิ้ง
@@ -206,7 +218,7 @@
     var banner = monthPlans.length
       ? '<div class="cc-monthplans">' + monthPlans.map(function (it) {
           return '<button class="cc-mplan" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
-                 '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+                 kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
                  "<b>" + esc(shortName(it.name)) + "</b>" +
                  (it.branches && it.branches.length ? '<span class="cc-mplan-br">' + it.branches.map(esc).join(" · ") + "</span>" : "") +
                  "</button>";
@@ -252,11 +264,12 @@
 
   function renderList() {
     var list = view.mode === "month" ? ofMonth(view.month) : ofYear();
-    var title = view.mode === "month" ? "แคมเปญเดือน" + MONTHS[view.month] : "แคมเปญทั้งปี " + be(year);
+    var what = view.kind ? KIND_LABEL[view.kind] : "รายการ";
+    var title = (view.mode === "month" ? what + "เดือน" + MONTHS[view.month] : what + "ทั้งปี " + be(year));
     if (!list.length) {
       $("ccList").innerHTML = "<h3>" + title + "</h3>" +
-        '<div class="cc-empty"><p>ยังไม่มีแคมเปญในช่วงนี้</p>' +
-        '<button class="cc-btn primary" data-new="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแคมเปญแรก</button></div>';
+        '<div class="cc-empty"><p>ยังไม่มี' + what + 'ในช่วงนี้</p>' +
+        '<button class="cc-btn primary" data-new="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>เพิ่ม' + what + "</button></div>";
       return;
     }
     var rows = list.map(function (it) {
@@ -268,6 +281,7 @@
         : "";
       return '<tr style="border-left:3px solid ' + colorOf(it) + '">' +
         '<td class="dt">' + fmtRange(it) + "</td>" +
+        '<td>' + kindPill(it) + "</td>" +
         '<td class="nm">' + esc(it.name) +
           (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + thumbs + "</td>" +
         '<td><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></td>" +
@@ -281,10 +295,64 @@
     }).join("");
     $("ccList").innerHTML = "<h3>" + title + "</h3>" +
       '<div class="cc-tablewrap"><table class="cc-table"><thead><tr>' +
-      "<th>ช่วงวัน</th><th>แคมเปญ</th><th>สถานะ</th><th>ช่องทาง</th><th>สาขา</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th></th>" +
+      "<th>ช่วงวัน</th><th>ประเภท</th><th>ชื่อ</th><th>สถานะ</th><th>ช่องทาง</th><th>สาขา</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th></th>" +
       "</tr></thead><tbody>" + rows + "</tbody></table></div>";
   }
 
+
+  /* ---------- แถบเลือกประเภท (กรองทุกมุมมองพร้อมกัน) ---------- */
+  function renderKindBar() {
+    var el = $("ccKindBar");
+    if (!el) return;
+    var counts = { "": items.length };
+    KINDS.forEach(function (k) { counts[k] = items.filter(function (it) { return kindOf(it) === k; }).length; });
+    el.innerHTML = '<span class="cc-kindlbl">ดูเฉพาะ</span>' +
+      [["", "ทั้งหมด"]].concat(KINDS.map(function (k) { return [k, KIND_LABEL[k]]; })).map(function (p) {
+        var on = view.kind === p[0];
+        var c = p[0] ? KIND_COLOR[p[0]] : "";
+        return '<button type="button" class="cc-kind' + (on ? " on" : "") + '" data-kind="' + p[0] + '"' +
+          (c ? ' style="--kc:' + c + '"' : "") + ">" + (c ? '<i class="cc-kdot" style="background:' + c + '"></i>' : "") +
+          p[1] + '<span class="cc-kn">' + (counts[p[0]] || 0) + "</span></button>";
+      }).join("");
+  }
+
+  /* ---------- วันนี้ / สัปดาห์นี้ ใต้ปฏิทิน — ตอบคำถาม "วันนี้ต้องทำอะไร" โดยไม่ต้องไล่ทั้งปี ---------- */
+  function weekRange() {
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    var mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return [iso(mon.getFullYear(), mon.getMonth(), mon.getDate()), iso(sun.getFullYear(), sun.getMonth(), sun.getDate())];
+  }
+  function overlaps(it, a, b) { return it.start <= b && (it.end || it.start) >= a; }
+  function soonRow(it) {
+    var a0 = (it.attachments || [])[0];
+    return '<button type="button" class="cc-soon-item" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
+      (a0 ? '<img src="' + API + "/attachments/" + a0.id + '" alt="">' : '<span class="cc-soon-noimg" style="background:' + tint(colorOf(it), 0.18) + '"></span>') +
+      '<span class="cc-soon-text"><span class="cc-soon-top">' + kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></span>" +
+      "<b>" + esc(it.name) + "</b>" +
+      '<span class="cc-soon-meta">' + fmtRange(it) +
+      (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(", ") : "") +
+      (it.channels && it.channels.length ? " · " + it.channels.map(esc).join(", ") : "") + "</span></span></button>";
+  }
+  function renderSoon() {
+    var el = $("ccSoon");
+    if (!el) return;
+    var t = todayISO(), wk = weekRange(), list = pool();
+    var today = list.filter(function (it) { return covers(it, t); });
+    var week = list.filter(function (it) { return overlaps(it, wk[0], wk[1]) && !covers(it, t); });
+    var what = view.kind ? KIND_LABEL[view.kind] : "รายการ";
+    var block = function (title, sub, arr, emptyMsg) {
+      return '<div class="cc-soon-block"><div class="cc-soon-head"><h3>' + title + "</h3><span>" + sub + "</span>" +
+        '<b class="cc-soon-n">' + arr.length + "</b></div>" +
+        (arr.length ? '<div class="cc-soon-list">' + arr.map(soonRow).join("") + "</div>"
+                    : '<div class="cc-soon-empty">' + emptyMsg + "</div>") + "</div>";
+    };
+    var td = parseISO(t), wa = parseISO(wk[0]), wb = parseISO(wk[1]);
+    el.innerHTML = '<div class="cc-soon-grid">' +
+      block("วันนี้", td.getDate() + " " + MONTHS[td.getMonth()], today, "ไม่มี" + what + "ที่วิ่งอยู่วันนี้") +
+      block("สัปดาห์นี้", wa.getDate() + " – " + wb.getDate() + " " + MONTHS[wb.getMonth()], week, "ไม่มี" + what + "อื่นในสัปดาห์นี้") +
+      "</div>";
+  }
 
   /* ---------- การ์ดลอยตอนเอาเมาส์ค้าง ---------- */
   var hoverEl = null, hoverTimer = null, touchTimer = null;
@@ -304,7 +372,7 @@
     if (dayISO) {
       var dt = parseISO(dayISO);
       head = '<div class="cc-hover-day">' + dt.getDate() + " " + MONTHS[dt.getMonth()] + " " + be(dt.getFullYear()) +
-             (list.length > 1 ? '<span>' + list.length + " แคมเปญ</span>" : "") + "</div>";
+             (list.length > 1 ? '<span>' + list.length + " รายการ</span>" : "") + "</div>";
     }
 
     var body;
@@ -339,7 +407,7 @@
                  '<span class="cc-hover-itemtext"><b>' + esc(shortName(it.name)) + "</b>" +
                  '<span class="cc-hover-meta">' + fmtRange(it) +
                  (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span></span>" +
-                 '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+                 kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
                  "</button>";
         }).join("") + "</div>";
     }
@@ -480,7 +548,9 @@
   function openDrawer(item, presetDate, presetScope) {
     editingId = item ? item.id : null;
     pendingFiles = [];
-    $("ccDrawerTitle").textContent = item ? "แก้ไขแคมเปญ" : "เพิ่มแคมเปญ";
+    var k0 = item ? kindOf(item) : (view.kind || "campaign");
+    setSeg("#cc-kind", k0);
+    $("ccDrawerTitle").textContent = item ? "แก้ไข" + KIND_LABEL[k0] : "เพิ่มรายการใหม่";
     $("cc-name").value = item ? item.name : "";
 
     var scope = item ? (item.scope || "range") : (presetScope || "range");
@@ -541,7 +611,7 @@
     $("ccFileHint").textContent = !online
       ? "โหมดออฟไลน์: แนบรูปไม่ได้ ต้องเปิดผ่าน admin.kan-hub.com"
       : (total ? "เลื่อนดูรูปได้ · สูงสุด 6 รูปต่อแคมเปญ (เก็บบนเซิร์ฟเวอร์ ทีมเห็นเหมือนกัน)"
-               : "ใส่รูปไว้จะได้เห็นทันทีว่าแคมเปญนี้คืออะไร");
+               : "ใส่รูปไว้จะได้เห็นทันทีว่ารายการนี้คืออะไร");
   }
 
   /* ย่อรูปก่อนส่ง ไม่งั้นไฟล์จากกล้องมือถือใหญ่เกินลิมิต */
@@ -612,9 +682,10 @@
       if (!start) return { error: "เลือกวันเริ่ม" };
       if (end < start) return { error: "วันสิ้นสุดต้องไม่มาก่อนวันเริ่ม" };
     }
-    if (!name) return { error: "ใส่ชื่อแคมเปญก่อน" };
+    if (!name) return { error: "ใส่ชื่อก่อน" };
 
     return { value: {
+      kind: getSeg("#cc-kind", "campaign"),
       name: name, start: start, end: end, scope: scope,
       status: getSeg("#cc-status", "plan"),
       channels: getChoices("channel"), branches: getChoices("branch"),
@@ -715,7 +786,8 @@
               name: valid[i].name, start: valid[i].start, end: valid[i].end || valid[i].start,
               scope: valid[i].scope || "range", status: valid[i].status || "plan",
               channels: valid[i].channels || [], branches: valid[i].branches || [],
-              budget: valid[i].budget || 0, owner: valid[i].owner || "", note: valid[i].note || ""
+              budget: valid[i].budget || 0, owner: valid[i].owner || "", note: valid[i].note || "",
+              kind: valid[i].kind || "campaign"
             }) });
           }
           await loadAll();
@@ -760,6 +832,19 @@
     if (scopeBtn) { setSeg("#cc-scope", scopeBtn.dataset.v); applyScopeUI(); return; }
     var seg = e.target.closest("#cc-status button");
     if (seg) { setSeg("#cc-status", seg.dataset.v); return; }
+    var kseg = e.target.closest("#cc-kind button");
+    if (kseg) {
+      setSeg("#cc-kind", kseg.dataset.v);
+      if (!editingId) $("ccDrawerTitle").textContent = "เพิ่ม" + KIND_LABEL[kseg.dataset.v];
+      return;
+    }
+    var kf = e.target.closest("[data-kind]");
+    if (kf) {
+      view.kind = kf.dataset.kind;
+      try { localStorage.setItem("kan-cc-kind", view.kind); } catch (err) {}
+      render();
+      return;
+    }
     if (e.target.closest("#ccAddFile")) { $("ccImageInput").click(); return; }
     var sw = e.target.closest("[data-color]");
     if (sw) { setColor(sw.dataset.color); return; }

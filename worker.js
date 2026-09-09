@@ -8,6 +8,31 @@ import { handleTaskApi } from "./worker-tasks.js";
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
 const SEP = String.fromCharCode(31); // คั่น id กับชื่อไฟล์ใน GROUP_CONCAT
+/* ประเภทรายการในปฏิทิน — เดิมมีแต่ "แคมเปญ" นนท์ขอให้ติ๊กได้ว่าเป็นคอนเทนต์/แคมเปญ/โปรโมชั่น */
+const CAMPAIGN_KINDS = ["content", "campaign", "promo"];
+
+/* ตารางปฏิทินมีข้อมูลจริงแล้ว CREATE IF NOT EXISTS ไม่เติมคอลัมน์ให้ → ALTER แล้วกลืน error "duplicate column"
+   ทำครั้งเดียวต่อ isolate เหมือน worker-tasks.js */
+let campaignSchemaReady = null;
+function ensureCampaignSchema(db) {
+  if (!campaignSchemaReady) {
+    campaignSchemaReady = (async () => {
+      await db.batch([
+        db.prepare("CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, name TEXT NOT NULL, start_date TEXT NOT NULL, " +
+          "end_date TEXT NOT NULL, scope TEXT NOT NULL DEFAULT 'range', status TEXT NOT NULL DEFAULT 'plan', " +
+          "channels TEXT NOT NULL DEFAULT '[]', branches TEXT NOT NULL DEFAULT '[]', budget INTEGER NOT NULL DEFAULT 0, " +
+          "owner TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, " +
+          "color TEXT NOT NULL DEFAULT '#3370FF')"),
+        db.prepare("CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, file_name TEXT NOT NULL, " +
+          "mime TEXT NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)"),
+        db.prepare("CREATE TABLE IF NOT EXISTS kpi_entries (year INTEGER NOT NULL, month INTEGER NOT NULL, code TEXT NOT NULL, " +
+          "value TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft', updated_at TEXT NOT NULL, PRIMARY KEY (year, month, code))"),
+      ]);
+      try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
+    })().catch((e) => { campaignSchemaReady = null; throw e; });
+  }
+  return campaignSchemaReady;
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -47,6 +72,7 @@ function rowToCampaign(r) {
     owner: r.owner,
     note: r.note,
     color: r.color || "#3370FF",
+    kind: CAMPAIGN_KINDS.indexOf(r.kind) !== -1 ? r.kind : "campaign",
     attachments: attachments,
     updatedAt: r.updated_at,
   };
@@ -73,6 +99,7 @@ function clean(input) {
       owner: String(input.owner || "").trim().slice(0, 120),
       note: String(input.note || "").trim().slice(0, 4000),
       color: /^#[0-9a-fA-F]{6}$/.test(String(input.color || "")) ? input.color : "#3370FF",
+      kind: CAMPAIGN_KINDS.indexOf(input.kind) !== -1 ? input.kind : "campaign",
     },
   };
 }
@@ -93,6 +120,7 @@ async function handleApi(request, env, url) {
   if (path === "/t" || path.indexOf("/t/") === 0) {
     return handleTaskApi(request, env, url, path.slice(2) || "/", method);
   }
+  await ensureCampaignSchema(db);
 
   // ---- รูปแนบ ----
   const fileMatch = path.match(/^\/attachments\/([A-Za-z0-9_-]{1,40})$/);
@@ -176,10 +204,10 @@ async function handleApi(request, env, url) {
     const id = "c" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const now = new Date().toISOString();
     await db.prepare(
-      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-           v.owner, v.note, v.color, now, now).run();
+           v.owner, v.note, v.color, now, now, v.kind).run();
     return json({ id: id });
   }
 
@@ -194,9 +222,9 @@ async function handleApi(request, env, url) {
       const v = parsed.value;
       const res = await db.prepare(
         "UPDATE campaigns SET name=?,start_date=?,end_date=?,scope=?,status=?,channels=?,branches=?," +
-        "budget=?,owner=?,note=?,color=?,updated_at=? WHERE id=?"
+        "budget=?,owner=?,note=?,color=?,updated_at=?,kind=? WHERE id=?"
       ).bind(v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-             v.owner, v.note, v.color, new Date().toISOString(), id).run();
+             v.owner, v.note, v.color, new Date().toISOString(), v.kind, id).run();
       if (!res.meta.changes) return json({ error: "ไม่พบแคมเปญนี้" }, 404);
       return json({ ok: true });
     }
