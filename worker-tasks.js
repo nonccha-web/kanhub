@@ -55,6 +55,11 @@ const SCHEMA = [
     "channels TEXT NOT NULL DEFAULT '[]', topic TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'content', " +
     "status TEXT NOT NULL DEFAULT 'plan', url TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', " +
     "posted_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT)",
+  /* บันทึกทุกการเพิ่ม/แก้/ลบโพสต์ — ไว้ให้ย้อนดูว่าใครทำอะไรตอนไหน และกดลบของที่พลาดได้ */
+  "CREATE TABLE IF NOT EXISTS post_log (" +
+    "id TEXT PRIMARY KEY, post_id TEXT, staff_id TEXT NOT NULL, action TEXT NOT NULL, " +
+    "page_id TEXT, post_date TEXT, post_time TEXT, topic TEXT, changes TEXT, created_at TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_post_log_time ON post_log(created_at)",
   "CREATE INDEX IF NOT EXISTS idx_posts_date ON posts(post_date)",
   "CREATE INDEX IF NOT EXISTS idx_posts_page ON posts(page_id, post_date)",
   /* แท็กคนในคอมเมนต์ → กระดิ่งแจ้งเตือนของคนนั้น */
@@ -80,6 +85,8 @@ const ALTERS = [
   /* เชื่อมโพสต์และงานเข้ากับรายการในปฏิทินการตลาด — "เรื่องเดียวกัน" ต้องชี้ไปที่เดียวกัน */
   "ALTER TABLE staff ADD COLUMN sections TEXT",
   "ALTER TABLE staff ADD COLUMN api_token TEXT",
+  "ALTER TABLE posts ADD COLUMN created_by TEXT",
+  "ALTER TABLE task_updates ADD COLUMN edited_at TEXT",
   "ALTER TABLE posts ADD COLUMN campaign_id TEXT",
   "ALTER TABLE tasks ADD COLUMN campaign_id TEXT",
   "CREATE INDEX IF NOT EXISTS idx_posts_campaign ON posts(campaign_id)",
@@ -395,6 +402,33 @@ function publicStaff(r) {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
   };
+}
+
+/* ---------- บันทึกประวัติโพสต์ ---------- */
+const LOG_FIELDS = ["date", "time", "pageId", "kind", "channels", "topic", "status", "url", "note"];
+function postSnapshot(row) {
+  return {
+    date: row.post_date || "", time: row.post_time || "", pageId: row.page_id || "",
+    kind: row.kind || "content", channels: row.channels || "[]", topic: row.topic || "",
+    status: row.status || "plan", url: row.url || "", note: row.note || "",
+  };
+}
+function diffPost(before, after) {
+  const out = [];
+  LOG_FIELDS.forEach((f) => {
+    const a = before ? String(before[f] == null ? "" : before[f]) : "";
+    const b = String(after[f] == null ? "" : after[f]);
+    if (a !== b) out.push([f, a, b]);
+  });
+  return out;
+}
+function logStmt(db, me, action, info, changes) {
+  return db.prepare(
+    "INSERT INTO post_log (id,post_id,staff_id,action,page_id,post_date,post_time,topic,changes,created_at) " +
+    "VALUES (?,?,?,?,?,?,?,?,?,?)"
+  ).bind(newId("pl_"), info.id || null, me.id, action, info.pageId || "", info.date || "",
+         info.time || "", String(info.topic || "").slice(0, 200),
+         changes && changes.length ? JSON.stringify(changes).slice(0, 2000) : null, nowIso());
 }
 
 /* ---------- rows → JSON ---------- */
@@ -766,25 +800,85 @@ export async function handleTaskApi(request, env, url, path, method) {
     const now = nowIso();
     const stmts = [];
     const ids = [];
+    /* ดูก่อนว่าแถวไหนมีอยู่แล้ว จะได้แยกได้ว่า "เพิ่มใหม่" หรือ "ทับของเดิม" ตอนเขียนประวัติ */
+    const given = list.map((p) => (p && p.id ? String(p.id).slice(0, 40) : null)).filter(Boolean);
+    const before = {};
+    if (given.length) {
+      const q = await db.prepare(
+        "SELECT * FROM posts WHERE id IN (" + given.map(() => "?").join(",") + ")"
+      ).bind(...given).all();
+      (q.results || []).forEach((r) => { before[r.id] = r; });
+    }
     for (const p of list) {
       const date = String((p && p.date) || "");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "วันที่ไม่ถูกต้อง: " + date }, 400);
       const id = String((p && p.id) || newId("po_")).slice(0, 40);
       ids.push(id);
+      const old = before[id] || null;
+      const after = {
+        date, time: String(p.time || "").slice(0, 40), pageId: String(p.pageId || "").slice(0, 40),
+        kind: String(p.kind || "content").slice(0, 40),
+        channels: JSON.stringify(Array.isArray(p.channels) ? p.channels.slice(0, 10) : []),
+        topic: String(p.topic || "").slice(0, 1000),
+        status: POST_STATUS.indexOf(p.status) !== -1 ? p.status : "plan",
+        url: String(p.url || "").slice(0, 1000), note: String(p.note || "").slice(0, 500),
+      };
       stmts.push(db.prepare(
-        "INSERT OR REPLACE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by,campaign_id) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT OR REPLACE INTO posts (id,page_id,post_date,post_time,channels,topic,kind,status,url,note,posted_at,created_at,updated_at,updated_by,campaign_id,created_by) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(
-        id, String(p.pageId || "").slice(0, 40), date, String(p.time || "").slice(0, 40),
-        JSON.stringify(Array.isArray(p.channels) ? p.channels.slice(0, 10) : []),
-        String(p.topic || "").slice(0, 1000), String(p.kind || "content").slice(0, 40),
-        POST_STATUS.indexOf(p.status) !== -1 ? p.status : "plan",
-        String(p.url || "").slice(0, 1000), String(p.note || "").slice(0, 500),
-        p.postedAt || null, now, now, me.id, p.campaignId ? String(p.campaignId).slice(0, 40) : null
+        id, after.pageId, date, after.time, after.channels, after.topic, after.kind, after.status,
+        after.url, after.note, p.postedAt || null, old ? old.created_at : now, now, me.id,
+        p.campaignId ? String(p.campaignId).slice(0, 40) : null,
+        old ? (old.created_by || me.id) : me.id
       ));
+      const changes = diffPost(old ? postSnapshot(old) : null, after);
+      if (!old || changes.length) {
+        stmts.push(logStmt(db, me, old ? "update" : "create",
+          { id, pageId: after.pageId, date, time: after.time, topic: after.topic }, old ? changes : null));
+      }
     }
     await db.batch(stmts);
     return json({ ids });
+  }
+
+  /* ประวัติการแก้ตารางโพสต์ — ล่าสุดอยู่บนสุด */
+  if (path === "/posts/log" && method === "GET") {
+    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 40));
+    const res = await db.prepare(
+      "SELECT l.*, (SELECT 1 FROM posts p WHERE p.id = l.post_id) AS alive, " +
+      "(SELECT p.created_by FROM posts p WHERE p.id = l.post_id) AS post_owner " +
+      "FROM post_log l ORDER BY l.created_at DESC LIMIT ?"
+    ).bind(limit).all();
+    return json({
+      log: (res.results || []).map((r) => ({
+        id: r.id, postId: r.post_id, staffId: r.staff_id, action: r.action, pageId: r.page_id,
+        date: r.post_date, time: r.post_time, topic: r.topic || "", createdAt: r.created_at,
+        changes: r.changes ? JSON.parse(r.changes) : null,
+        alive: !!r.alive, canEdit: !!r.alive && (isOwner || r.post_owner === me.id),
+      })),
+    });
+  }
+
+  /* ลบโพสต์ที่ยังไม่ได้ใส่หัวข้อ (เผลอกด Enter รัวจนได้แถวเปล่า) */
+  if (path === "/posts/blank" && (method === "GET" || method === "DELETE")) {
+    const where = "(topic IS NULL OR TRIM(topic) = '') AND (url IS NULL OR url = '')" +
+      (isOwner ? "" : " AND created_by = ?");
+    const binds = isOwner ? [] : [me.id];
+    if (method === "GET") {
+      const c = await db.prepare("SELECT COUNT(*) AS n FROM posts WHERE " + where).bind(...binds).first();
+      return json({ count: (c && c.n) || 0 });
+    }
+    const rows = await db.prepare("SELECT * FROM posts WHERE " + where).bind(...binds).all();
+    const list = rows.results || [];
+    if (list.length) {
+      const stmts = [db.prepare("DELETE FROM posts WHERE " + where).bind(...binds)];
+      list.slice(0, 100).forEach((r) => stmts.push(logStmt(db, me, "delete", {
+        id: r.id, pageId: r.page_id, date: r.post_date, time: r.post_time, topic: r.topic,
+      }, null)));
+      await db.batch(stmts);
+    }
+    return json({ ok: true, deleted: list.length });
   }
 
   const postMatch = path.match(/^\/posts\/([A-Za-z0-9_-]{1,40})$/);
@@ -825,11 +919,27 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (body.campaignId !== undefined) { sets.push("campaign_id = ?"); vals.push(body.campaignId ? String(body.campaignId).slice(0, 40) : null); }
     vals.push(row.id);
     await db.prepare("UPDATE posts SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+    const after = await db.prepare("SELECT * FROM posts WHERE id = ?").bind(row.id).first();
+    const changes = diffPost(postSnapshot(row), postSnapshot(after || row));
+    if (changes.length) {
+      await logStmt(db, me, "update", {
+        id: row.id, pageId: (after || row).page_id, date: (after || row).post_date,
+        time: (after || row).post_time, topic: (after || row).topic,
+      }, changes).run();
+    }
     return json({ ok: true });
   }
   if (postMatch && method === "DELETE") {
-    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
-    await db.prepare("DELETE FROM posts WHERE id = ?").bind(postMatch[1]).run();
+    const row = await db.prepare("SELECT * FROM posts WHERE id = ?").bind(postMatch[1]).first();
+    if (!row) return json({ ok: true });
+    /* หัวหน้าลบได้ทุกอัน · คนอื่นลบได้เฉพาะโพสต์ที่ตัวเองสร้าง (ของเก่าที่ยังไม่มีคนสร้าง = หัวหน้าเท่านั้น) */
+    if (!isOwner && row.created_by !== me.id) return json({ error: "ลบได้เฉพาะโพสต์ที่ตัวเองเพิ่มไว้" }, 403);
+    await db.batch([
+      db.prepare("DELETE FROM posts WHERE id = ?").bind(row.id),
+      logStmt(db, me, "delete", {
+        id: row.id, pageId: row.page_id, date: row.post_date, time: row.post_time, topic: row.topic,
+      }, null),
+    ]);
     return json({ ok: true });
   }
 
@@ -967,6 +1077,17 @@ export async function handleTaskApi(request, env, url, path, method) {
      ลบแล้วรูปที่แนบมากับอัปเดตนั้นหายตามไปด้วย (ไม่งั้นรูปลอยค้างในฐานข้อมูล)
      ไม่ลบ "สร้างงาน" เพราะเป็นจุดตั้งต้นของไทม์ไลน์ */
   const updMatch = path.match(/^\/updates\/([A-Za-z0-9_-]{1,40})$/);
+  if (updMatch && method === "PUT") {
+    if (!isOwner) return json({ error: "แก้ข้อความได้เฉพาะหัวหน้าทีม — ถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่" }, 403);
+    const row = await db.prepare("SELECT id, kind FROM task_updates WHERE id = ?").bind(updMatch[1]).first();
+    if (!row) return json({ error: "ไม่พบรายการนี้" }, 404);
+    if (row.kind === "create") return json({ error: "แก้รายการ 'สร้างงาน' ไม่ได้" }, 400);
+    const body = await readBody(request);
+    const note = String(body.note == null ? "" : body.note).slice(0, 4000);
+    await db.prepare("UPDATE task_updates SET note = ?, edited_at = ? WHERE id = ?")
+      .bind(note, nowIso(), row.id).run();
+    return json({ ok: true });
+  }
   if (updMatch && method === "DELETE") {
     const row = await db.prepare("SELECT id, task_id, staff_id, kind FROM task_updates WHERE id = ?").bind(updMatch[1]).first();
     if (!row) return json({ error: "ไม่พบรายการนี้" }, 404);
@@ -1122,7 +1243,7 @@ export async function handleTaskApi(request, env, url, path, method) {
 
     if (!sub && method === "GET") {
       const ups = await db.prepare(
-        "SELECT id,staff_id,kind,note,status_to,created_at FROM task_updates WHERE task_id = ? ORDER BY created_at DESC"
+        "SELECT id,staff_id,kind,note,status_to,created_at,edited_at FROM task_updates WHERE task_id = ? ORDER BY created_at DESC"
       ).bind(id).all();
       const files = await db.prepare(
         "SELECT id,update_id,file_name,mime,bytes,created_at,kind,url,title FROM task_files WHERE task_id = ? ORDER BY created_at ASC"
@@ -1138,7 +1259,8 @@ export async function handleTaskApi(request, env, url, path, method) {
         parent,
         subtasks: (subs.results || []).map(rowToTask),
         updates: (ups.results || []).map((u) => ({
-          id: u.id, staffId: u.staff_id, kind: u.kind, note: u.note || "", statusTo: u.status_to || null, createdAt: u.created_at,
+          id: u.id, staffId: u.staff_id, kind: u.kind, note: u.note || "", statusTo: u.status_to || null,
+          createdAt: u.created_at, editedAt: u.edited_at || null,
         })),
         files: (files.results || []).map((f) => ({
           id: f.id, updateId: f.update_id || null, fileName: f.file_name, mime: f.mime, bytes: f.bytes,

@@ -1194,6 +1194,9 @@
     Promise.all([api('/tasks/' + id), loadCampaigns()]).then(function (r) {
       var j = r[0];
       var t = j.task, ups = j.updates, files = j.files, subs = j.subtasks || [], parent = j.parent;
+      /* เก็บข้อความดิบไว้ให้ตอนกดแก้ (ที่แสดงผลผ่าน richText แล้วเอากลับมาแก้ไม่ได้) */
+      S.taskUpdRaw = {};
+      ups.forEach(function (u) { S.taskUpdRaw[u.id] = u.note || ''; });
       var filesByUpdate = {};
       files.forEach(function (f) { (filesByUpdate[f.updateId || '_'] = filesByUpdate[f.updateId || '_'] || []).push(f); });
       var es = effStatus(t), late = isLate(t), canEdit = S.me.role === 'owner' || t.createdBy === S.me.id;
@@ -1264,9 +1267,13 @@
           var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
           /* ลบได้: หัวหน้าลบได้ทุกอัน · สมาชิกลบเฉพาะของตัวเอง · ยกเว้นรายการ "สร้างงาน" */
           var canDelUp = u.kind !== 'create' && (S.me.role === 'owner' || u.staffId === S.me.id);
-          return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) + '</time>' +
+          /* แก้ข้อความได้เฉพาะหัวหน้า (นนท์สั่ง) · คนอื่นถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่ */
+          var canEditUp = u.kind !== 'create' && S.me.role === 'owner' && u.note;
+          return '<div class="tl-i" data-upd="' + esc(u.id) + '">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) +
+            (u.editedAt ? ' · แก้ไขแล้ว' : '') + '</time>' +
+            (canEditUp ? '<button type="button" class="tl-edit" data-edit-upd="' + esc(u.id) + '" title="แก้ข้อความ">แก้</button>' : '') +
             (canDelUp ? '<button type="button" class="tl-del" data-del-upd="' + esc(u.id) + '" title="ลบรายการนี้" aria-label="ลบความคืบหน้า">✕</button>' : '') + '</div>' +
-            (u.note ? '<div class="n rich">' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
+            (u.note ? '<div class="n rich" data-note>' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
         }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
       h += '</div><div>';
 
@@ -1893,6 +1900,7 @@
       if (row.url) row.status = 'done';
       G.lastOk = new Date();
       gridMark(row, 'ok', 'บันทึกแล้ว');
+      if (G.onSaved) { clearTimeout(G.logTimer); G.logTimer = setTimeout(G.onSaved, 900); }
       if (gridSnap(row) !== snap) gridSchedule([row]);      /* พิมพ์ต่อระหว่างกำลังบันทึก */
       gridStatus();
     }).catch(function (e) {
@@ -2089,6 +2097,65 @@
     return y ? x + '-' + y : x;
   }
 
+  /* ---------- ประวัติการแก้ตารางโพสต์ (ใต้ตารางในหน้าต่างเพิ่มโพสต์) ----------
+     นนท์: "ถ้าผมบันทึกผิด ผมจะได้รู้ว่าผมแก้อะไรไปเมื่อไหร่ แล้วจะลบยังไง" */
+  var LOG_ACT = { create: 'เพิ่ม', update: 'แก้', delete: 'ลบ' };
+  var LOG_FIELD_TH = { date: 'วันที่', time: 'เวลา', pageId: 'เพจ', kind: 'ชนิด', channels: 'ช่องทาง',
+                       topic: 'หัวข้อ', status: 'สถานะ', url: 'ลิงก์', note: 'หมายเหตุ' };
+  function logValue(field, v) {
+    if (!v) return '(ว่าง)';
+    if (field === 'date') return thaiShort(v);
+    if (field === 'pageId') return pageName(v);
+    if (field === 'kind') return POST_KIND[v] || v;
+    if (field === 'status') return POST_STATUS_TH[v] || v;
+    if (field === 'channels') { try { return (JSON.parse(v) || []).join(', ') || '(ว่าง)'; } catch (e) { return v; } }
+    return String(v).length > 26 ? String(v).slice(0, 26) + '…' : String(v);
+  }
+  function logRowHtml(e) {
+    var who = staffById(e.staffId);
+    var d = new Date(e.createdAt);
+    var when = sameDay(d, new Date()) ? fmtTime(d) : (fmtDate(d) + ' ' + fmtTime(d));
+    var head = (e.date ? thaiShort(e.date) : '—') + (e.time ? ' ' + e.time : '') + ' · ' + esc(pageName(e.pageId));
+    var topic = e.topic ? esc(e.topic.slice(0, 46)) : '<i class="mut">(ยังไม่มีหัวข้อ)</i>';
+    var detail = e.changes && e.changes.length
+      ? e.changes.map(function (c) {
+          return esc(LOG_FIELD_TH[c[0]] || c[0]) + ': ' + esc(logValue(c[0], c[1])) + ' → <b>' + esc(logValue(c[0], c[2])) + '</b>';
+        }).join(' · ')
+      : '';
+    return '<div class="lg-i ' + esc(e.action) + '">' +
+      '<span class="lg-t">' + esc(when) + '</span>' +
+      '<span class="lg-w">' + esc(who ? shortName(who) : '?') + '</span>' +
+      '<span class="lg-a">' + esc(LOG_ACT[e.action] || e.action) + '</span>' +
+      '<span class="lg-m"><b>' + topic + '</b><small>' + head + (detail ? ' · ' + detail : '') + '</small></span>' +
+      '<span class="lg-b">' + (e.canEdit
+        ? '<button type="button" class="btn-ghost sm" data-log-edit="' + esc(e.postId) + '">แก้ในตาราง</button>' +
+          '<button type="button" class="btn-ghost sm danger" data-log-del="' + esc(e.postId) + '">ลบโพสต์</button>'
+        : (e.alive ? '<span class="mut">ของคนอื่น</span>' : '<span class="mut">ลบไปแล้ว</span>')) + '</span></div>';
+  }
+  function renderSheetLog(host) {
+    if (!host) return;
+    Promise.all([api('/posts/log?limit=40'), api('/posts/blank').catch(function () { return { count: 0 }; })])
+      .then(function (r) {
+        var list = r[0].log || [], nBlank = r[1].count || 0;
+        host.innerHTML = '<div class="lg-h"><h3>ประวัติการแก้ล่าสุด</h3>' +
+          '<span class="hint">กดดูได้ว่าใครแก้อะไรตอนไหน · ของที่ตัวเองเพิ่มไว้ลบเองได้</span>' +
+          (nBlank ? '<button type="button" class="btn-ghost sm danger" id="purgeBlank">ลบโพสต์ที่ไม่มีหัวข้อ (' + nBlank + ')</button>' : '') +
+          '</div>' +
+          (list.length ? '<div class="lg-list">' + list.map(logRowHtml).join('') + '</div>'
+                       : '<div class="lg-empty">ยังไม่มีการแก้ในตารางนี้</div>');
+        var pb = $('#purgeBlank', host);
+        if (pb) pb.addEventListener('click', function () {
+          if (!confirm('ลบโพสต์ที่ยังไม่มีหัวข้อทั้งหมด ' + nBlank + ' รายการ?')) return;
+          pb.disabled = true;
+          api('/posts/blank', 'DELETE').then(function (j) {
+            toast('ลบโพสต์เปล่า ' + j.deleted + ' รายการแล้ว');
+            renderSheetLog(host);
+          }).catch(function (e) { pb.disabled = false; toast(e.message, true); });
+        });
+      })
+      .catch(function (e) { host.innerHTML = '<div class="lg-empty">อ่านประวัติไม่ได้: ' + esc(e.message) + '</div>'; });
+  }
+
   /* หน้าต่าง "เพิ่มโพสต์" = ตารางแบบ Excel กรอกทีเดียวหลายโพสต์
      (นนท์: หน้าหลักให้เป็นปฏิทิน/รายการเหมือนเดิม ส่วนตารางเอามาไว้ตรงนี้) */
   function openPostSheet() {
@@ -2105,12 +2172,15 @@
       }).join('') + '</select>' +
       '<span class="hint">ทุกแถวจะลงเพจนี้ · ถ้าแถวไหนต่างเพจ แก้ในคอลัมน์ “เพจ” ได้</span></div>' +
       '<div class="sec-b tight"><div id="sheetHost"></div></div>' +
+      '<div class="sheet-log" id="sheetLog"><div class="lg-empty">กำลังอ่านประวัติ…</div></div>' +
       '<div class="sheet-foot"><span class="hint">คลุมทั้งแถวแล้วกด Delete = ลบแถว · Enter ลงแถวถัดไป · Tab ช่องถัดไป · Cmd/Ctrl+Z ย้อนกลับ</span>' +
       '<button type="button" class="btn" data-close>เสร็จแล้ว</button></div></div>';
     document.body.appendChild(host);
     var close = function () {
       gridFlush();
       G.grid = null;
+      G.onSaved = null;
+      clearTimeout(G.logTimer);
       host.remove();
       renderPosts();
     };
@@ -2135,10 +2205,53 @@
       g.refresh(true);
       if (moved.length) { gridSchedule(moved); toast('ย้าย ' + moved.length + ' แถวไปเพจ ' + pageName(pid) + ' แล้ว'); }
     });
+    var logHost = $('#sheetLog', host);
+    renderSheetLog(logHost);
+    G.onSaved = function () { renderSheetLog(logHost); };
+    host.addEventListener('click', function (ev) {
+      var b;
+      if ((b = ev.target.closest('[data-log-del]'))) {
+        var pid = b.getAttribute('data-log-del');
+        if (!confirm('ลบโพสต์นี้ออกจากตารางโพสต์?')) return;
+        b.disabled = true;
+        api('/posts/' + pid, 'DELETE').then(function () {
+          var g = G.grid;
+          if (g) {
+            var hit = g.rows.filter(function (r) { return r.id === pid; })[0];
+            if (hit) { g.rows.splice(g.rows.indexOf(hit), 1); g.ensureBlank(); g.refresh(true); }
+          }
+          toast('ลบโพสต์แล้ว');
+          renderSheetLog(logHost);
+        }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+        return;
+      }
+      if ((b = ev.target.closest('[data-log-edit]'))) {
+        var eid = b.getAttribute('data-log-edit'), g2 = G.grid;
+        if (!g2) return;
+        var found = g2.rows.filter(function (r) { return r.id === eid; })[0];
+        if (found) { selectSheetRow(g2, found); return; }
+        b.disabled = true;
+        api('/posts?from=1900-01-01&to=2999-12-31').then(function (j) {
+          var pst = (j.posts || []).filter(function (x) { return x.id === eid; })[0];
+          b.disabled = false;
+          if (!pst) { toast('ไม่พบโพสต์นี้แล้ว', true); return; }
+          pst._saved = gridSnap(pst);
+          g2.rows.unshift(pst);
+          g2.refresh(true);
+          selectSheetRow(g2, pst);
+          toast('ดึงโพสต์ขึ้นมาแก้ในตารางแล้ว (แถวบนสุด)');
+        }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      }
+    });
     setTimeout(function () {
       var g = G.grid;
       if (g) { g.setSel(0, g.colIdx('topic'), false); }
     }, 60);
+  }
+  function selectSheetRow(g, row) {
+    var ri = g.rows.indexOf(row), vr = g.view.indexOf(ri);
+    if (vr < 0) { g.refresh(true); vr = g.view.indexOf(ri); }
+    if (vr >= 0) g.setSel(vr, g.colIdx('topic'), false);
   }
 
   /* ฟอร์มแก้โพสต์ทีละอัน — ใช้ตอนกด "แก้" จากปฏิทิน/รายการ */
@@ -3009,6 +3122,34 @@
     if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
     if ((b = ev.target.closest('[data-theme-pick]'))) { setTheme(b.getAttribute('data-theme-pick')); return; }
     if (ev.target.closest('[data-theme-toggle]')) { setTheme(isDark() ? 'light' : 'dark'); return; }
+    if ((b = ev.target.closest('[data-edit-upd]'))) {
+      var eu = b.getAttribute('data-edit-upd');
+      var box = document.querySelector('.tl-i[data-upd="' + eu + '"]');
+      if (!box || box.querySelector('.tl-ed')) return;
+      var noteEl = box.querySelector('[data-note]');
+      var raw = (S.taskUpdRaw && S.taskUpdRaw[eu]) || (noteEl ? noteEl.textContent : '');
+      var ed = document.createElement('div');
+      ed.className = 'tl-ed';
+      ed.innerHTML = '<textarea class="textarea" data-rich rows="3"></textarea>' +
+        '<div class="acts"><button type="button" class="btn sm" data-upd-save>บันทึก</button>' +
+        '<button type="button" class="btn-ghost sm" data-upd-cancel>ยกเลิก</button></div>';
+      if (noteEl) { noteEl.style.display = 'none'; noteEl.parentNode.insertBefore(ed, noteEl.nextSibling); }
+      else { box.querySelector('div:last-child').appendChild(ed); }
+      var ta = ed.querySelector('textarea');
+      ta.value = raw;
+      wireTyping(ed);
+      ta.focus();
+      ed.querySelector('[data-upd-cancel]').addEventListener('click', function () {
+        ed.remove(); if (noteEl) noteEl.style.display = '';
+      });
+      ed.querySelector('[data-upd-save]').addEventListener('click', function () {
+        var btn = this; btn.disabled = true;
+        api('/updates/' + eu, 'PUT', { note: ta.value })
+          .then(function () { toast('แก้ข้อความแล้ว'); S.tasks = null; render(); })
+          .catch(function (e) { btn.disabled = false; toast(e.message, true); });
+      });
+      return;
+    }
     if ((b = ev.target.closest('[data-del-upd]'))) {
       var uid = b.getAttribute('data-del-upd');
       if (!confirm('ลบความคืบหน้ารายการนี้? รูปที่แนบมาด้วยจะหายไปด้วย')) return;
