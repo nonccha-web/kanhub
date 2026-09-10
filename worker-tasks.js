@@ -890,6 +890,31 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ table: name, offset, limit: lim, rows, done: rows.length < lim });
   }
 
+  /* คืนรูป/ไฟล์แนบจากไฟล์สำรอง — ทำได้เฉพาะหัวหน้า และแตะได้แค่ 2 ตารางนี้
+     ต้องมีเส้นทางนี้เพราะแถวรูปเป็น base64 ยาวเกินกว่าจะ import กลับด้วยไฟล์ .sql ได้
+     ใส่ค่าแบบ bound parameter จึงไม่ติดเพดานความยาวคำสั่ง */
+  if (path === "/backup/restore-files" && method === "POST") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const body = await readBody(request);
+    const table = body.table === "attachments" ? "attachments" : (body.table === "task_files" ? "task_files" : "");
+    if (!table) return json({ error: "ระบุ table เป็น task_files หรือ attachments" }, 400);
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (!rows.length) return json({ error: "ไม่มีแถวให้คืน" }, 400);
+    if (rows.length > 10) return json({ error: "ครั้งละไม่เกิน 10 แถว" }, 413);
+    const cols = table === "task_files"
+      ? ["id", "task_id", "update_id", "file_name", "mime", "bytes", "data", "created_at", "kind", "url", "title"]
+      : ["id", "campaign_id", "file_name", "mime", "bytes", "data", "created_at"];
+    const stmts = [];
+    for (const r of rows) {
+      if (!r || !r.id) return json({ error: "ทุกแถวต้องมี id" }, 400);
+      stmts.push(db.prepare(
+        "INSERT OR REPLACE INTO " + table + " (" + cols.join(",") + ") VALUES (" + cols.map(() => "?").join(",") + ")"
+      ).bind(...cols.map((c) => (r[c] === undefined ? null : r[c]))));
+    }
+    await db.batch(stmts);
+    return json({ ok: true, restored: rows.length, table });
+  }
+
   /* ความเคลื่อนไหวของทีมในช่วงวัน (เวลาไทย): ใครอัปเดตงานไหน คอมเมนต์ว่าอะไร เปลี่ยนสถานะเป็นอะไร + แก้ตารางโพสต์อะไร
      ใช้ตอบคำถาม "วันนี้ใครทำอะไรไปบ้าง" ผ่าน MCP และหน้าเว็บ */
   if (path === "/activity" && method === "GET") {

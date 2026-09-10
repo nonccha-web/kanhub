@@ -74,3 +74,75 @@ public/admin/
 - [ ] วางระบบ sync ข้อมูล (ETL → kan-data.js) ให้อัปเดตอัตโนมัติ
 - [ ] ฝั่งโฆษณา: ต่อ **Page Access Token** เพื่อดึงยอดออร์แกนิกของ 5 เพจ
       (ผู้ติดตาม · คนเห็นโพสต์ที่ไม่ได้บูสต์ · คนทักแชทเอง) — ตอนนี้ `#/ads` มีแต่ฝั่งที่จ่ายเงิน
+
+---
+
+## สำรองข้อมูลและกู้คืน (สำคัญที่สุด อ่านก่อนแก้อะไรใหญ่)
+
+ข้อมูลทั้งระบบอยู่ใน D1 ฐานเดียวชื่อ `kan-erp` (งาน โพสต์ ปฏิทิน ทีม รูปแนบ)
+**ทดสอบกู้จริงแล้ว 10 ก.ย. 2569** — กู้เข้าฐานทดสอบได้ครบ 469 โพสต์ / 60 งาน / 125 อัปเดต / 9 แคมเปญ
+และซ้อมลบรูปทั้งหมดแล้วคืนกลับมาเปิดดูได้ปกติ
+
+### ชั้นที่ 1 — Time Travel ของ Cloudflare (ย้อนได้ 30 วัน ไม่ต้องมีไฟล์)
+ใช้ตอน "เผลอลบ" หรือ "migration พัง" ย้อนทั้งฐานกลับไปเวลาใดก็ได้ใน 30 วัน
+
+```
+cd ~/kanhub-web
+npx -y wrangler@4.129.0 d1 time-travel info kan-erp
+npx -y wrangler@4.129.0 d1 time-travel restore kan-erp --timestamp=2026-09-10T02:00:00Z
+```
+
+`--timestamp` เป็นเวลา UTC (เวลาไทย ลบ 7 ชั่วโมง) · ของที่ทำหลังจุดนั้นจะหาย ให้สำรองก่อนเสมอ
+
+### ชั้นที่ 2 — ไฟล์สำรองในเครื่อง (อัตโนมัติทุกวัน 03:00)
+อยู่ที่ `~/kanhub-backups/` เก็บ 30 ชุดล่าสุด รอบละ 2 ไฟล์
+
+| ไฟล์ | มีอะไร | ใช้ตอนไหน |
+|---|---|---|
+| `kan-erp-<เวลา>.sql.gz` | ทั้งฐาน **ยกเว้นรูป** | กู้งาน โพสต์ ปฏิทิน ทีม |
+| `kan-files-<เวลา>.json.gz` | เฉพาะรูปและไฟล์แนบ | กู้รูปคืนหลังกู้ฐาน |
+
+> ทำไมต้องแยก: แถวรูปเก็บเป็น base64 ยาว 500–700 KB ต่อแถว เกินเพดานความยาวคำสั่งของ D1
+> ถ้า import ไฟล์ .sql ตรง ๆ จะขึ้น `SQLITE_TOOBIG` เลยต้องคืนรูปด้วยสคริปต์ที่ส่งค่าแบบ parameter
+
+```
+~/kanhub-backups/backup-kan.sh          # สำรองเดี๋ยวนี้
+tail -6 ~/kanhub-backups/backup.log     # ดูว่ารอบล่าสุดสำเร็จไหม
+ls -lht ~/kanhub-backups/*.gz | head    # ไฟล์ที่มี
+```
+
+**ขั้นตอนกู้คืนจากไฟล์ (ทดสอบแล้ว)**
+
+```
+cd ~/kanhub-backups
+gunzip -k kan-erp-2026-09-10-1030.sql.gz
+
+# 1) ตัดแถวรูปที่ยาวเกินออกก่อน (ไม่งั้น import ไม่ผ่าน)
+python3 -c "import io;src='kan-erp-2026-09-10-1030.sql';io.open('restore.sql','w',encoding='utf-8').writelines([l for l in io.open(src,encoding='utf-8',errors='replace') if len(l)<90000])"
+
+# 2) ลองกับฐานทดสอบก่อนเสมอ
+cd ~/kanhub-web
+npx -y wrangler@4.129.0 d1 create kan-erp-restore-test
+npx -y wrangler@4.129.0 d1 execute kan-erp-restore-test --remote --file=~/kanhub-backups/restore.sql --yes
+npx -y wrangler@4.129.0 d1 execute kan-erp-restore-test --remote --command "SELECT COUNT(*) FROM posts"
+
+# 3) พอใจแล้วค่อยลงของจริง (เปลี่ยนชื่อฐานเป็น kan-erp)
+npx -y wrangler@4.129.0 d1 execute kan-erp --remote --file=~/kanhub-backups/restore.sql --yes
+
+# 4) คืนรูป (ต้องมี token ของหัวหน้าจากหน้า "ทีม + สิทธิ์")
+node ~/kanhub-web/scripts/restore-files.js ~/kanhub-backups/kan-files-2026-09-10-1030.json.gz \
+  --url https://admin.kan-hub.com --token <token>
+```
+
+ปิดสำรองอัตโนมัติ: `launchctl unload ~/Library/LaunchAgents/com.kan.backup.plist`
+
+### ชั้นที่ 3 — ปุ่มในเว็บ (ทำได้จากทุกที่ ไม่ต้องมีเครื่องนี้)
+หน้า **ทีม + สิทธิ์** → กล่อง **สำรองข้อมูล** → ปุ่ม "ดาวน์โหลดไฟล์สำรอง"
+ได้ไฟล์ `kan-backup-YYYY-MM-DD.json` ครบทุกตารางรวมรูป เอาไปเก็บใน Google Drive ได้
+กดก่อนทุกครั้งที่จะแก้อะไรเสี่ยง ๆ · ไฟล์นี้ใช้กับ `scripts/restore-files.js` ได้เหมือนกัน
+
+### ยังขาดอยู่ (งานถัดไป)
+- สำรองอัตโนมัติแบบไม่ต้องเปิดเครื่อง Mac — เปิด R2 ในแดชบอร์ด Cloudflare (ฟรี 10 GB ต้องผูกบัตร)
+  แล้วให้ Worker cron เขียนขึ้น R2 ทุกคืน หรือทำ GitHub Action รายวันโดยใส่ `CLOUDFLARE_API_TOKEN` เป็น secret
+- ย้ายรูปออกจาก D1 ไปเก็บที่ R2 จะทำให้ backup เล็กลงมากและ import กลับได้ตรง ๆ
+- ฐานทดสอบ (staging) แยกจากของจริง
