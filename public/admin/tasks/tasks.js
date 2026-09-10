@@ -45,6 +45,28 @@
   };
 
   var STATUS_TH = { todo: 'รอทำ', doing: 'กำลังทำ', done: 'เสร็จแล้ว', blocked: 'ติดปัญหา' };
+
+  /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
+     งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
+  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'other'];
+  var TASK_TYPE_TH = { signage: 'ป้ายโปรโมชัน', content: 'คอนเทนต์', campaign: 'แคมเปญ', other: 'อื่น ๆ' };
+  /* เดาประเภทจากข้อความตอนวางจากแชต — เดาผิดก็แก้ในตารางได้ ไม่ได้บังคับ
+     เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่ */
+  var TASK_TYPE_HINT = [
+    ['signage', /ป้าย|signage|signmate|บิลบอร์ด|billboard|โปสเตอร์|standee|สแตนดี|แบนเนอร์|banner|บูธ|booth|จอ(?!ง)|ตกแต่งร้าน|วิชวล/i],
+    ['content', /คอนเทนต์|content|โพสต์|โพส|post|คลิป|วิดีโอ|video|reel|tiktok|ถ่ายภาพ|ถ่ายรูป|กราฟิก|อาร์ตเวิร์ก|artwork|แคปชัน|เพจ/i],
+    ['campaign', /แคมเปญ|campaign|โปรโมชั่น|โปรโมชัน|promotion|promo|ลดราคา|เซล|sale|อีเวนต์|event|ออกบูธ|เปิดตัว|launch|ontour|on tour/i]
+  ];
+  function guessTaskType(text) {
+    var t = String(text || '');
+    for (var i = 0; i < TASK_TYPE_HINT.length; i++) if (TASK_TYPE_HINT[i][1].test(t)) return TASK_TYPE_HINT[i][0];
+    return '';
+  }
+  var REPEAT_OPTS = [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']];
+  function repeatLabel(v) {
+    for (var i = 0; i < REPEAT_OPTS.length; i++) if (REPEAT_OPTS[i][0] === (v || '')) return REPEAT_OPTS[i][1];
+    return '';
+  }
   var DAY_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
   var MON_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -151,6 +173,11 @@
     var k = kpiById(id);
     if (!k) return '';
     return '<span class="kpi-chip" title="' + esc(k.title) + '"><i style="background:' + esc(k.color) + '"></i>' + esc(k.code) + '</span>';
+  }
+  /* ป้ายประเภทงาน — งานเก่าที่สั่งไว้ก่อนมีช่องนี้เป็น other ไม่ต้องโชว์ ไม่งั้นรกทั้งหน้า */
+  function typeChip(v) {
+    if (!v || v === 'other') return '';
+    return '<span class="ttype" data-t="' + esc(v) + '">' + esc(TASK_TYPE_TH[v] || v) + '</span>';
   }
   function startOfDay(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function sameDay(a, b) { return startOfDay(a).getTime() === startOfDay(b).getTime(); }
@@ -663,7 +690,7 @@
     return '<a class="trow ' + esc(es) + '" href="#/task/' + esc(t.id) + '">' +
       '<span class="st ' + esc(st) + '">' + mark + '</span>' +
       '<span class="main"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
-      '<span class="m">' + avatars(t.assignees) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
+      '<span class="m">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
       (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
       (t.parentId ? '<span class="pill sub">งานย่อย</span>' : '') +
@@ -748,7 +775,7 @@
   }
 
   /* ---------- งานทั้งหมด ---------- */
-  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all', campaign: '' };
+  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all', campaign: '', ttype: '' };
   var RANGES = [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']];
 
   /* ช่วงเวลาที่เลือกครอบงานนี้ไหม
@@ -789,6 +816,7 @@
         if (F.kpi === 'none' && t.kpiId) return false;
         if (F.kpi && F.kpi !== 'none' && t.kpiId !== F.kpi) return false;
         if (F.campaign && t.campaignId !== F.campaign) return false;
+        if (F.ttype && (t.taskType || 'other') !== F.ttype) return false;
         return true;
       }
       var matched = all.filter(passFilters);
@@ -811,7 +839,7 @@
 
       /* แถบเดียวจบ: ช่วงเวลา · ปุ่มตัวกรอง (กางเมื่อกด) · จัดกลุ่ม
          ของเดิมเป็นชิป 3 แถวเต็มจอ ทั้งที่ส่วนใหญ่ไม่ได้แตะ */
-      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0);
+      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0) + (F.ttype ? 1 : 0);
       var seg = function (name, opts) {
         return '<div class="seg">' + opts.map(function (o) {
           return '<button type="button" class="' + (F[name] === o[0] ? 'on' : '') + '" data-f="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
@@ -835,6 +863,11 @@
           S.kpis.map(function (k) {
             return '<button type="button" class="chip plain' + (F.kpi === k.id ? ' on' : '') + '" data-f="kpi" data-v="' + esc(k.id) + '" title="' + esc(k.title) + '"><span class="dot" style="background:' + esc(k.color) + '"></span>' + esc(k.code) + '</button>';
           }).join('') + '<button type="button" class="chip plain' + (F.kpi === 'none' ? ' on' : '') + '" data-f="kpi" data-v="none">ไม่ระบุ</button></div></div>' +
+          '<div class="frow"><span class="lbl">ประเภทงาน</span><div class="chips">' +
+          '<button type="button" class="chip plain' + (!F.ttype ? ' on' : '') + '" data-f="ttype" data-v="">ทุกประเภท</button>' +
+          TASK_TYPE_KEYS.map(function (k) {
+            return '<button type="button" class="chip plain' + (F.ttype === k ? ' on' : '') + '" data-f="ttype" data-v="' + k + '">' + esc(TASK_TYPE_TH[k]) + '</button>';
+          }).join('') + '</div></div>' +
           '<div class="frow"><span class="lbl">สถานะ</span><div class="chips">' +
           [['open', 'ค้างอยู่'], ['late', 'เลยกำหนด'], ['done', 'เสร็จแล้ว'], ['', 'ทั้งหมด']].map(function (p) {
             return '<button type="button" class="chip plain' + (F.status === p[0] ? ' on' : '') + '" data-f="status" data-v="' + p[0] + '">' + esc(p[1]) + '</button>';
@@ -847,6 +880,7 @@
       if (F.kpi) act.push(['kpi', '', 'KPI: ' + (F.kpi === 'none' ? 'ไม่ระบุ' : ((kpiById(F.kpi) || {}).code || ''))]);
       if (F.status !== 'open') act.push(['status', 'open', 'สถานะ: ' + ({ '': 'ทั้งหมด', late: 'เลยกำหนด', done: 'เสร็จแล้ว' }[F.status] || F.status)]);
       if (F.campaign) { var cc0 = campaignById(F.campaign); act.push(['campaign', '', 'ปฏิทิน: ' + (cc0 ? cc0.name : F.campaign)]); }
+      if (F.ttype) act.push(['ttype', '', 'ประเภท: ' + (TASK_TYPE_TH[F.ttype] || F.ttype)]);
       if (act.length) {
         h += '<div class="factive">' + act.map(function (a) {
           return '<button type="button" class="fchip" data-f="' + a[0] + '" data-v="' + a[1] + '">' + esc(a[2]) + ' <span>✕</span></button>';
@@ -1046,104 +1080,289 @@
     return tasks;
   }
 
-  /* ---------- สั่งงาน: หน้า ---------- */
+  /* ---------- สั่งงาน: ตารางแบบสเปรดชีต ---------- */
+  /* ของเดิมเป็นการ์ดทีละใบ — สั่งทีนึงหลายงานเลยกรอกช้าและมองไม่เห็นภาพรวมว่าใครโดนกี่งาน
+     ตารางนี้ใช้ตัวเดียวกับ "ตารางโพสต์" (KAN_GRID) จึงได้ก็อป/วางจาก Excel ลากมุมคัดลอกลง
+     Cmd+Z คลิกขวาแทรกแถว มาฟรีทั้งชุด
+     ต่างกันตรงตารางนี้ไม่บันทึกอัตโนมัติ — เป็นฉบับร่างจนกว่าจะกดบันทึกทั้งหมด */
   var drafts = [];
-  function draftCard(t, i) {
-    var h = '<div class="draft" data-i="' + i + '"><div class="draft-h"><span class="n">' + (i + 1) + '</span>' +
-      '<input class="input" data-k="title" value="' + esc(t.title) + '" placeholder="ชื่องาน">' +
-      '<button type="button" class="btn-text rm" data-rm="' + i + '">ลบ</button></div><div class="draft-b">' +
-      '<div><label class="label">มอบหมายให้ <small>(กดเลือกได้หลายคน)</small></label><div class="chips">' +
-      S.staff.filter(function (s) { return s.active; }).map(function (s) {
-        return '<button type="button" class="chip' + (t.assignees.indexOf(s.id) !== -1 ? ' on' : '') + '" data-as="' + esc(s.id) + '">' + avatar(s) + esc(shortName(s)) + '</button>';
-      }).join('') + '</div></div>' +
-      '<div class="row"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" data-k="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
-      '<div class="field"><label class="label">ความถี่</label><select class="select" data-k="repeat">' +
-      [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field"><label class="label">KPI ที่เกี่ยวข้อง</label><select class="select" data-k="kpiId"><option value="">— ไม่ระบุ —</option>' +
-      S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
-      '<div class="field"><label class="label">รายละเอียด / เงื่อนไข</label><textarea class="textarea" data-rich data-k="detail" placeholder="ข้อความประกอบ เงื่อนไข ขนาด งบ ฯลฯ">' + esc(t.detail) + '</textarea></div>' +
-      '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด</label>' + campaignSelect('data-k="campaignId"', t.campaignId || null) + '</div>' +
-      '</div></div>';
-    return h;
+  var dgrid = null;
+
+  function blankDraft(last) {
+    return { title: '', taskType: '', assignees: [], date: '', time: '', detail: '', repeat: '', kpiId: '',
+             campaignId: (last && last.campaignId) || (S.route.query || {}).campaign || '' };
   }
+  function draftBlank(r) {
+    return !String(r.title || '').trim() && !(r.assignees || []).length && !r.date && !String(r.detail || '').trim();
+  }
+  /* บังคับ 4 ช่อง — เวลาปล่อยว่างได้ ระบบใส่ 18:00 ให้ (กติกาเดียวกับตอนพิมพ์สั่งในแชต) */
+  function draftMissing(r) {
+    var m = [];
+    if (!String(r.title || '').trim()) m.push('ชื่องาน');
+    if (!r.taskType) m.push('ประเภทงาน');
+    if (!(r.assignees || []).length) m.push('สั่งใคร');
+    if (!r.date) m.push('กำหนดส่ง');
+    return m;
+  }
+  function draftList() {
+    return (dgrid ? dgrid.rows : drafts).filter(function (r) { return !draftBlank(r); });
+  }
+  function draftDue(r) { return r.date ? fromLocalInput(r.date + 'T' + (r.time || '18:00')) : null; }
+  /* เวลาเก็บเป็น HH:MM 24 ชม. แต่โชว์แบบไทย 17.00 */
+  function parseDueTime(v) {
+    var s = String(v == null ? '' : v).trim().replace(/\s*น\.?$/, '').replace(/\s/g, '');
+    if (!s) return '';
+    var hh, mm, m = s.match(/^(\d{1,2})[.:](\d{1,2})$/);
+    if (m) { hh = Number(m[1]); mm = Number(m[2]); }
+    else if (/^\d{1,2}$/.test(s)) { hh = Number(s); mm = 0; }
+    else return null;
+    if (hh > 23 || mm > 59) return null;
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  function showDueTime(v) { return v ? String(v).replace(':', '.') : ''; }
+  function activeStaff() { return S.staff.filter(function (s) { return s.active; }); }
+
+  function draftColumns() {
+    var base = new Date();
+    return [
+      { key: 'title', label: 'ชื่องาน *', width: 290,
+        parse: function (s) { return String(s).trim().slice(0, 300); } },
+
+      { key: 'taskType', label: 'ประเภทงาน *', width: 130, type: 'pick',
+        options: function () { return TASK_TYPE_KEYS.map(function (k) { return { v: k, label: TASK_TYPE_TH[k] }; }); },
+        text: function (r) { return TASK_TYPE_TH[r.taskType] || ''; },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return '';
+          var hit = '';
+          TASK_TYPE_KEYS.forEach(function (k) { if (k === s || TASK_TYPE_TH[k] === s) hit = k; });
+          return hit || guessTaskType(s) || null;
+        },
+        filterValues: function (r) { return [TASK_TYPE_TH[r.taskType] || '(ยังไม่เลือก)']; } },
+
+      { key: 'assignees', label: 'สั่งใคร *', width: 168, type: 'multi',
+        options: function () { return activeStaff().map(function (s) { return { v: s.id, label: shortName(s) }; }); },
+        get: function (r) { return r.assignees || []; },
+        text: function (r) { return (r.assignees || []).map(function (id) { return shortName(staffById(id)); }).join(', '); },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return [];
+          var ids = [];
+          s.split(/[,\/·|]+|\s+/).forEach(function (tok) {
+            var st = findStaffByToken(String(tok).replace(/^@/, ''));
+            if (st && ids.indexOf(st.id) === -1) ids.push(st.id);
+          });
+          return ids.length ? ids : null;
+        },
+        copy: function (r) { return (r.assignees || []).map(function (id) { return shortName(staffById(id)); }).join(', '); },
+        filterValues: function (r) {
+          return (r.assignees || []).length
+            ? r.assignees.map(function (id) { return shortName(staffById(id)); })
+            : ['(ยังไม่มอบหมาย)'];
+        } },
+
+      { key: 'date', label: 'กำหนดส่ง *', width: 110, type: 'date',
+        text: function (r) { return r.date ? thaiShort(r.date) : ''; },
+        edit: function (r) { return r.date ? thaiShort(r.date) : ''; },
+        iso: function (r) { return r.date || ''; },
+        fromIso: function (iso) { return thaiShort(iso); },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return '';
+          return parsePostDate(s, base.getFullYear(), base.getMonth() + 1) || null;
+        },
+        copy: function (r) { return r.date || ''; },
+        fill: function (src, step) { return src.date ? addDaysIso(src.date, step) : ''; },
+        sortKey: function (r) { return r.date || '9999-99-99'; } },
+
+      { key: 'time', label: 'เวลา', width: 76,
+        text: function (r) { return showDueTime(r.time); },
+        edit: function (r) { return showDueTime(r.time); },
+        parse: function (s) { return parseDueTime(s); },
+        copy: function (r) { return showDueTime(r.time); },
+        sortKey: function (r) { return r.time || '99:99'; } },
+
+      { key: 'detail', label: 'รายละเอียด', width: 290,
+        parse: function (s) { return String(s).trim().slice(0, 4000); } },
+
+      { key: 'repeat', label: 'ความถี่', width: 100, type: 'pick',
+        options: function () { return REPEAT_OPTS.map(function (p) { return { v: p[0], label: p[1] }; }); },
+        text: function (r) { return r.repeat ? repeatLabel(r.repeat) : ''; },
+        parse: function (s) {
+          s = String(s).trim();
+          if (!s) return '';
+          var hit = null;
+          REPEAT_OPTS.forEach(function (p) { if (p[0] === s || p[1] === s) hit = p[0]; });
+          if (hit === null && /ทุกวัน|daily/i.test(s)) hit = 'daily';
+          if (hit === null && /ทุกสัปดาห์|ทุกอาทิตย์|weekly/i.test(s)) hit = 'weekly';
+          return hit === null ? null : hit;
+        } },
+
+      { key: 'kpiId', label: 'KPI ที่เกี่ยวข้อง', width: 200, type: 'pick',
+        options: function () {
+          return [{ v: '', label: '— ไม่ระบุ —' }].concat(S.kpis.map(function (k) {
+            return { v: k.id, label: k.code + ' · ' + k.title };
+          }));
+        },
+        text: function (r) { var k = kpiById(r.kpiId); return k ? k.code + ' · ' + k.title : ''; },
+        parse: function (s) {
+          s = String(s).trim().toLowerCase();
+          if (!s || s.indexOf('ไม่ระบุ') !== -1) return '';
+          var hit = S.kpis.filter(function (k) { return (k.code + ' · ' + k.title).toLowerCase() === s; })[0] ||
+                    S.kpis.filter(function (k) { return k.code.toLowerCase() === s; })[0] ||
+                    S.kpis.filter(function (k) { return (k.code + ' ' + k.title).toLowerCase().indexOf(s) !== -1; })[0];
+          return hit ? hit.id : null;
+        } },
+
+      { key: 'campaignId', label: 'ปฏิทินการตลาด', width: 170, type: 'pick',
+        options: function () {
+          return [{ v: '', label: '— ไม่ผูก —' }].concat((S.campaigns || []).map(function (c) {
+            return { v: c.id, label: c.name };
+          }));
+        },
+        text: function (r) { var c = campaignById(r.campaignId); return c ? c.name : ''; },
+        parse: function (s) {
+          s = String(s).trim().toLowerCase();
+          if (!s || s.indexOf('ไม่ผูก') !== -1) return '';
+          var hit = (S.campaigns || []).filter(function (c) { return c.name.toLowerCase() === s; })[0] ||
+                    (S.campaigns || []).filter(function (c) { return c.name.toLowerCase().indexOf(s) !== -1; })[0];
+          return hit ? hit.id : null;
+        } }
+    ];
+  }
+
   function renderNew() {
     if (!S.campaigns) { loadCampaigns().then(renderNew); return; }
     var view = $('#view');
     view.className = 'page';
     var sample = 'ระบบจอ signmate > kan บขส + fashion : Deadline - พุธ 17.00 น. @Julalak\nออกแบบ บูธขายเสื้อหนาว ที่ Central - อังคาร 16.00 @Title\nขนาดพื้นที่ 8*7 เมตร เลือกได้ 7 / 14 วัน\n\nupdate ontour จังหวัดอื่น @Nont @Title @Julalak ทุกวัน 17.30';
     var pc = campaignById((S.route.query || {}).campaign || '');
-    var h = '<div class="top"><div><span class="kicker">สั่งงาน' + (pc ? ' · สำหรับ ' + esc(pc.name) : '') + '</span><h1>วางข้อความสั่งงาน แล้วให้ระบบแยกเป็นงาน</h1>' +
+    view.innerHTML =
+      '<div class="top"><div><span class="kicker">สั่งงาน' + (pc ? ' · สำหรับ ' + esc(pc.name) : '') + '</span>' +
+      '<h1>กรอกงานลงตาราง แถวละหนึ่งงาน</h1>' +
       (pc ? '<p>ทุกงานที่บันทึกจากหน้านี้จะผูกกับ ' + campaignChip(pc.id) + ' ในปฏิทินการตลาดให้เอง</p>' : '') +
-      '<p>พิมพ์หรือวางแบบที่สั่งในแชตได้เลย — ระบบจะอ่าน <b>@ชื่อ</b> เป็นคนรับงาน อ่าน <b>วัน + เวลา</b> เป็นกำหนดส่ง และเดา KPI ให้ ตรวจแก้ในการ์ดก่อนกดบันทึก</p></div></div>';
-    h += '<div class="compose"><div>' +
-      '<div class="sec"><div class="sec-b"><label class="label">ข้อความสั่งงาน</label>' +
-      '<textarea class="textarea big" id="cmdText" data-rich placeholder="' + esc(sample) + '"></textarea>' +
-      '<div class="acts" style="margin-top:12px"><button type="button" class="btn" id="parseBtn">แยกเป็นงาน</button>' +
-      '<button type="button" class="btn-ghost" id="blankBtn">+ เพิ่มงานเปล่า</button></div></div></div>' +
-      '<div id="draftHost"></div></div>' +
-      '<div class="sec help-sec"><div class="sec-h"><h2>วิธีเขียนให้ระบบอ่านออก</h2></div><div class="sec-b help">' +
-      '<ul><li><b>@ชื่อ</b> = คนรับงาน ใส่ได้หลายคนในบรรทัดเดียว (' + S.staff.filter(function (s) { return s.active; }).map(function (s) { return '@' + shortName(s); }).join(' · ') + ')</li>' +
-      '<li><b>วัน + เวลา</b> เช่น <i>พุธ 17.00</i> · <i>พรุ่งนี้ 16.30</i> · <i>12/10 18.00</i> — ไม่ใส่เวลา = 18:00</li>' +
-      '<li><b>ทุกวัน 17.30</b> = งานประจำ อัปเดตทุกวัน · <b>ทุกศุกร์</b> = ทุกสัปดาห์</li>' +
-      '<li>บรรทัดถัดไปที่ไม่มี @ = รายละเอียดของงานก่อนหน้า · เว้นบรรทัดว่างเพื่อขึ้นเรื่องใหม่</li>' +
-      '<li>ขึ้นต้น <b>&gt;&gt;</b> = งานนี้ใช้ข้อความก่อนหน้าเป็นรายละเอียด</li></ul>' +
-      '<code>' + esc(sample) + '</code></div></div></div>';
-    view.innerHTML = h;
+      '<p>พิมพ์ในตารางได้เลยเหมือน Excel · ก็อปจาก Excel มาวางทั้งก้อนก็ได้ · ' +
+      'ช่องที่มี <b class="req-mark">*</b> ต้องกรอกให้ครบก่อนถึงจะบันทึกได้</p></div>' +
+      '<div class="top-r"><button type="button" class="btn-ghost" id="pasteToggle">วางจากแชต</button></div></div>' +
+
+      '<div class="sec" id="pasteBox" hidden><div class="sec-h"><h2>วางข้อความสั่งงานจากแชต</h2>' +
+      '<span class="hint">ระบบจะอ่าน @ชื่อ เป็นคนรับงาน · วัน+เวลา เป็นกำหนดส่ง · เดาประเภทงานกับ KPI ให้ แล้วเทลงตารางให้ตรวจแก้</span></div>' +
+      '<div class="sec-b"><textarea class="textarea big" id="cmdText" data-rich placeholder="' + esc(sample) + '"></textarea>' +
+      '<div class="acts" style="margin-top:12px"><button type="button" class="btn" id="parseBtn">แยกเป็นงานลงตาราง</button>' +
+      '<button type="button" class="btn-ghost" id="pasteClose">ปิด</button></div></div></div>' +
+
+      '<div class="sec"><div class="sec-b tight"><div id="draftHost"></div></div></div>' +
+      '<div id="draftBar"></div>';
+
     drafts = [];
-    renderDrafts();
+    dgrid = global.KAN_GRID.create($('#draftHost'), {
+      id: 'newtasks',
+      columns: draftColumns(),
+      rows: drafts,
+      freeze: 1,
+      isBlank: draftBlank,
+      blankRow: blankDraft,
+      cloneRow: function (src) {
+        return { title: src.title, taskType: src.taskType, assignees: (src.assignees || []).slice(),
+                 date: src.date, time: src.time, detail: src.detail, repeat: src.repeat,
+                 kpiId: src.kpiId, campaignId: src.campaignId };
+      },
+      /* ขีดแดงหน้าแถวที่กรอกไม่ครบ — เห็นตั้งแต่ยังไม่กดบันทึก */
+      tone: function (r) { return (!draftBlank(r) && draftMissing(r).length) ? 'miss' : ''; },
+      canDelete: function () { return true; },
+      onChange: function (rows) {
+        (rows || []).forEach(function (r) { if (dgrid) dgrid.markRow(r); });
+        renderDraftBar();
+      },
+      onRemove: function () { renderDraftBar(); },
+      onToast: function (m) { toast(m); },
+      blankRows: 5
+    });
+    renderDraftBar();
     wireTyping(view);
   }
-  function renderDrafts() {
-    var host = $('#draftHost');
+
+  /* แถบล่าง — บอกว่าเหลืออะไรต้องกรอก แล้วค่อยให้กดบันทึก */
+  function renderDraftBar() {
+    var host = $('#draftBar');
     if (!host) return;
-    if (!drafts.length) { host.innerHTML = ''; return; }
-    host.innerHTML = '<div class="group-h"><h3>ตรวจก่อนบันทึก</h3><span>' + drafts.length + ' งาน</span></div>' +
-      drafts.map(draftCard).join('') +
-      '<div class="sticky-bar"><span>' + drafts.length + ' งาน · ' + drafts.filter(function (d) { return !d.assignees.length; }).length + ' งานยังไม่มีคนรับ</span>' +
-      '<div class="acts"><button type="button" class="btn-ghost" id="clearBtn">ล้าง</button><button type="button" class="btn" id="saveBtn">บันทึกทั้งหมด</button></div></div>';
-    wireTyping(host);
+    var list = draftList();
+    if (!list.length) {
+      host.innerHTML = '<div class="draft-hint">เริ่มพิมพ์ในแถวแรกได้เลย — Tab ไปช่องถัดไป · Enter ลงแถวใหม่ · ' +
+        'คลุมทั้งแถวแล้วกด Delete = ลบแถว · Cmd/Ctrl+Z ย้อนกลับ</div>';
+      return;
+    }
+    var bad = list.filter(function (r) { return draftMissing(r).length; });
+    var need = {};
+    bad.forEach(function (r) { draftMissing(r).forEach(function (k) { need[k] = (need[k] || 0) + 1; }); });
+    var needTxt = Object.keys(need).map(function (k) { return k + ' ' + need[k] + ' แถว'; }).join(' · ');
+    host.innerHTML = '<div class="sticky-bar' + (bad.length ? ' warn' : '') + '">' +
+      '<span>' + list.length + ' งาน' + (bad.length ? ' · <b>ยังกรอกไม่ครบ ' + bad.length + ' แถว</b> — ขาด ' + esc(needTxt) : ' · กรอกครบทุกแถวแล้ว') + '</span>' +
+      '<div class="acts"><button type="button" class="btn-ghost" id="clearBtn">ล้างตาราง</button>' +
+      '<button type="button" class="btn" id="saveBtn"' + (bad.length ? ' disabled' : '') + '>บันทึกทั้งหมด</button></div></div>';
   }
-  function syncDraftsFromDom() {
-    $$('.draft').forEach(function (card) {
-      var i = Number(card.getAttribute('data-i')), d = drafts[i];
-      if (!d) return;
-      $$('[data-k]', card).forEach(function (el) {
-        var k = el.getAttribute('data-k');
-        if (k === 'dueAt') d.dueAt = fromLocalInput(el.value);
-        else if (k === 'kpiId') d.kpiId = el.value || null;
-        else if (k === 'campaignId') d.campaignId = el.value || null;
-        else d[k] = el.value;
-      });
-      d.assignees = $$('.chip.on[data-as]', card).map(function (b) { return b.getAttribute('data-as'); });
-    });
+
+  /* แปลงงานที่แยกจากข้อความแชต → แถวในตาราง (dueAt ก้อนเดียวถูกผ่าเป็นวัน/เวลา + เดาประเภทให้) */
+  function draftFromParsed(t) {
+    var d = t.dueAt ? new Date(t.dueAt) : null;
+    var ok = d && !isNaN(d.getTime());
+    return {
+      title: t.title || '',
+      taskType: guessTaskType((t.title || '') + ' ' + (t.detail || '')),
+      assignees: t.assignees || [],
+      date: ok ? ymd(d) : '',
+      time: ok ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '',
+      detail: t.detail || '',
+      repeat: t.repeat || '',
+      kpiId: t.kpiId || '',
+      campaignId: (S.route.query || {}).campaign || ''
+    };
   }
+  /* เทแถวใหม่ลงตาราง — ตัดแถวเปล่าท้ายทิ้งก่อน ไม่งั้นงานใหม่จะไปต่อท้ายแถวว่าง */
+  function pushDrafts(rows) {
+    if (!dgrid) return;
+    var keep = dgrid.rows.filter(function (r) { return !draftBlank(r); }).concat(rows);
+    dgrid.rows.length = 0;
+    keep.forEach(function (r) { dgrid.rows.push(r); });
+    dgrid.ensureBlank();
+    dgrid.refresh();
+    renderDraftBar();
+  }
+
   function saveDrafts() {
-    syncDraftsFromDom();
-    var bad = drafts.filter(function (d) { return !String(d.title).trim(); });
-    if (bad.length) { toast('มีงานที่ยังไม่มีชื่อ', true); return; }
+    var list = draftList();
+    if (!list.length) { toast('ยังไม่มีงานในตาราง', true); return; }
+    var bad = list.filter(function (r) { return draftMissing(r).length; });
+    if (bad.length) {
+      toast('ยังกรอกไม่ครบ ' + bad.length + ' แถว — ขาด ' + draftMissing(bad[0]).join(', '), true);
+      return;
+    }
     var btn = $('#saveBtn');
-    btn.disabled = true;
-    var payload = drafts.map(function (d) {
-      return { title: d.title, detail: d.detail, assignees: d.assignees, dueAt: d.dueAt, repeat: d.repeat, kpiId: d.kpiId, priority: d.priority ? 1 : 0, campaignId: d.campaignId || null };
+    if (btn) btn.disabled = true;
+    var payload = list.map(function (r) {
+      return { title: r.title, detail: r.detail || '', assignees: r.assignees, dueAt: draftDue(r),
+               repeat: r.repeat || '', kpiId: r.kpiId || null, taskType: r.taskType, priority: 0,
+               campaignId: r.campaignId || null };
     });
     api('/tasks', 'POST', { tasks: payload }).then(function (j) {
       var n = (j.ids || []).length;
-      var noOwner = payload.filter(function (d) { return !d.assignees.length; }).length;
-      var noDate = payload.filter(function (d) { return !d.dueAt; }).length;
       S.tasks = null;
       drafts = [];
+      dgrid = null;
+      var byType = {};
+      payload.forEach(function (d) { byType[d.taskType] = (byType[d.taskType] || 0) + 1; });
       okDialog({
         title: 'บันทึกเข้าระบบแล้ว ' + n + ' งาน',
         lines: payload.slice(0, 6).map(function (d) {
-          return d.title + (d.assignees.length ? ' → ' + d.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ') : ' → ยังไม่มอบหมาย');
+          return d.title + ' → ' + d.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ');
         }).concat(n > 6 ? ['และอีก ' + (n - 6) + ' งาน'] : []),
-        note: (noOwner ? noOwner + ' งานยังไม่มีคนรับ · ' : '') + (noDate ? noDate + ' งานยังไม่กำหนดวัน' : '') || 'มอบหมายและกำหนดวันครบทุกงาน',
+        note: TASK_TYPE_KEYS.filter(function (k) { return byType[k]; })
+          .map(function (k) { return TASK_TYPE_TH[k] + ' ' + byType[k]; }).join(' · '),
         link: { href: '#/all', label: 'ดูงานทั้งหมด' },
-        onClose: function () { location.hash = '#/all'; },
+        onClose: function () { location.hash = '#/all'; }
       });
-    }).catch(function (e) { btn.disabled = false; toast(e.message, true); });
+    }).catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
   }
-
   /* ---------- รายละเอียดงาน ---------- */
   var pendingFiles = [];
   var pendingLinks = [];
@@ -1229,6 +1448,8 @@
           '<div class="field"><label class="label">มอบหมายให้</label><div class="chips" id="editAs">' + S.staff.filter(function (s) { return s.active; }).map(function (s) {
             return '<button type="button" class="chip' + (t.assignees.indexOf(s.id) !== -1 ? ' on' : '') + '" data-as="' + esc(s.id) + '">' + avatar(s) + esc(shortName(s)) + '</button>';
           }).join('') + '</div></div>' +
+          '<div class="field"><label class="label">ประเภทงาน</label><select class="select" name="taskType">' +
+          TASK_TYPE_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskType || 'other') === k ? ' selected' : '') + '>' + esc(TASK_TYPE_TH[k]) + '</option>'; }).join('') + '</select></div>' +
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
           '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">KPI</label><select class="select" name="kpiId"><option value="">— ไม่ระบุ —</option>' + S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
@@ -1493,6 +1714,7 @@
         api('/tasks/' + t.id, 'PUT', {
           title: f.title.value, detail: f.detail.value, dueAt: fromLocalInput(f.dueAt.value), repeat: f.repeat.value,
           kpiId: f.kpiId.value || null, priority: f.priority.checked ? 1 : 0,
+          taskType: f.taskType.value,
           campaignId: f.campaignId.value || null,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
         }).then(function () {
@@ -3023,27 +3245,34 @@
     }
     if ((b = ev.target.closest('.cards article[data-go]'))) { F.status = b.getAttribute('data-go'); renderAll(); return; }
     if (ev.target.closest('[data-filter-toggle]')) { S.filterOpen = !S.filterOpen; renderAll(); return; }
-    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; F.campaign = ''; renderAll(); return; }
+    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; F.campaign = ''; F.ttype = ''; renderAll(); return; }
     if ((b = ev.target.closest('.tbar [data-f], .fpanel [data-f], .factive [data-f], .hidden-note [data-f]'))) {
       F[b.getAttribute('data-f')] = b.getAttribute('data-v'); renderAll(); return;
     }
-    if (ev.target.id === 'parseBtn') {
-      syncDraftsFromDom();
-      var parsed = parseCommand($('#cmdText').value);
-      if (!parsed.length) { toast('ยังไม่มีข้อความ หรืออ่านไม่ออก — ลองใส่ @ชื่อ', true); return; }
-      var preset = (S.route.query || {}).campaign || '';
-      if (preset) parsed.forEach(function (d) { d.campaignId = preset; });
-      drafts = drafts.concat(parsed);
-      $('#cmdText').value = '';
-      renderDrafts();
-      toast('แยกได้ ' + parsed.length + ' งาน ตรวจแล้วกดบันทึก');
+    if (ev.target.id === 'pasteToggle' || ev.target.id === 'pasteClose') {
+      var box = $('#pasteBox');
+      if (!box) return;
+      box.hidden = ev.target.id === 'pasteClose' ? true : !box.hidden;
+      if (!box.hidden) $('#cmdText').focus();
       return;
     }
-    if (ev.target.id === 'blankBtn') { syncDraftsFromDom(); drafts.push({ title: '', detail: '', assignees: [], dueAt: null, repeat: '', kpiId: null, priority: 0, campaignId: (S.route.query || {}).campaign || null }); renderDrafts(); return; }
-    if (ev.target.id === 'clearBtn') { drafts = []; renderDrafts(); return; }
+    if (ev.target.id === 'parseBtn') {
+      var parsed = parseCommand($('#cmdText').value);
+      if (!parsed.length) { toast('ยังไม่มีข้อความ หรืออ่านไม่ออก — ลองใส่ @ชื่อ', true); return; }
+      pushDrafts(parsed.map(draftFromParsed));
+      $('#cmdText').value = '';
+      $('#pasteBox').hidden = true;
+      var miss = parsed.map(draftFromParsed).filter(function (r) { return draftMissing(r).length; }).length;
+      toast('เทลงตาราง ' + parsed.length + ' งาน' + (miss ? ' — ' + miss + ' แถวยังกรอกไม่ครบ' : ' — ตรวจแล้วกดบันทึกได้เลย'));
+      return;
+    }
+    if (ev.target.id === 'clearBtn') {
+      if (!confirm('ล้างทุกแถวในตาราง? งานที่ยังไม่บันทึกจะหายหมด')) return;
+      drafts = [];
+      renderNew();
+      return;
+    }
     if (ev.target.id === 'saveBtn') { saveDrafts(); return; }
-    if ((b = ev.target.closest('.draft [data-rm]'))) { syncDraftsFromDom(); drafts.splice(Number(b.getAttribute('data-rm')), 1); renderDrafts(); return; }
-    if ((b = ev.target.closest('.draft [data-as]'))) { b.classList.toggle('on'); return; }
     if ((b = ev.target.closest('.att.img')) && !ev.target.closest('button')) {
       var lb = $('#lightbox'); lb.querySelector('img').src = b.getAttribute('data-src'); lb.hidden = false; return;
     }

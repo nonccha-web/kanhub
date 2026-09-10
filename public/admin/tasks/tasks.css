@@ -216,6 +216,21 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .sticky-bar{ position:sticky; bottom:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px;
   margin:0 -8px; border:1px solid var(--k-line); background:color-mix(in srgb, var(--k-paper) 96%, transparent); backdrop-filter:blur(8px); }
 .sticky-bar span{ font-size:13px; color:var(--k-soft); }
+/* กรอกไม่ครบ — ขีดกรอบแดง ไม่ระบายพื้นหลังหลังตัวหนังสือ */
+.sticky-bar.warn{ border-color:var(--k-bad); }
+.sticky-bar.warn span b{ color:var(--k-bad); font-weight:600; }
+.req-mark{ color:var(--k-bad); font-weight:600; }
+.draft-hint{ padding:12px 2px 0; font-size:12.5px; color:var(--k-mut); line-height:1.7; }
+#draftHost .xl{ margin-bottom:0; border:0; }
+#draftHost .xl-scroll{ max-height:calc(100vh - 400px); min-height:320px; }
+/* ป้ายประเภทงาน — เส้นขอบบาง ๆ ไม่ใช่พื้นสี */
+.ttype{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--k-soft);
+  border:1px solid var(--k-line); border-radius:3px; padding:1px 7px; white-space:nowrap; }
+.ttype::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--k-mut); }
+.ttype[data-t="signage"]::before{ background:#e2574c; }
+.ttype[data-t="content"]::before{ background:#4c86e2; }
+.ttype[data-t="campaign"]::before{ background:#d99a1e; }
+.ttype[data-t="other"]::before{ background:var(--k-mut); }
 
 /* ── KPI ── */
 .kpi-hero{ position:relative; overflow:hidden; border:1px solid var(--k-line); background:var(--k-paper); padding:28px 30px 26px; margin-bottom:22px;

@@ -6,6 +6,8 @@
 const COOKIE = "kan_tsess";
 const SESSION_DAYS = 30;
 const STATUSES = ["todo", "doing", "done", "blocked"];
+/* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
+const TASK_TYPES = ["signage", "content", "campaign", "other"];
 const REPEATS = ["", "daily", "weekly"];
 /* D1 เก็บ 1 แถวได้ไม่เกิน 2MB และเราเก็บเป็น base64 (โต 4/3) → ไฟล์จริงจึงได้ราว 1.4MB
    1.35MB คือเพดานที่เหลือที่ว่างให้คอลัมน์อื่น · ไฟล์ใหญ่กว่านี้ (วิดีโอ) ให้แนบเป็นลิงก์แทน */
@@ -94,6 +96,8 @@ const ALTERS = [
   "ALTER TABLE tasks ADD COLUMN campaign_id TEXT",
   "CREATE INDEX IF NOT EXISTS idx_posts_campaign ON posts(campaign_id)",
   "CREATE INDEX IF NOT EXISTS idx_tasks_campaign ON tasks(campaign_id)",
+  /* ประเภทงาน — งานเก่าที่ไม่มีค่าจะถูกอ่านเป็น "อื่น ๆ" */
+  "ALTER TABLE tasks ADD COLUMN task_type TEXT",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -451,6 +455,7 @@ function rowToTask(r) {
     status: r.status,
     dueAt: r.due_at || null,
     repeat: r.repeat || "",
+    taskType: r.task_type || "other",
     priority: r.priority || 0,
     createdBy: r.created_by,
     createdAt: r.created_at,
@@ -494,13 +499,14 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     dueAt = new Date(input.dueAt).toISOString();
   }
   const repeat = REPEATS.indexOf(input.repeat) !== -1 ? input.repeat : "";
+  const taskType = TASK_TYPES.indexOf(input.taskType) !== -1 ? input.taskType : "other";
   const priority = input.priority ? 1 : 0;
   const assignees = Array.isArray(input.assignees)
     ? Array.from(new Set(input.assignees.filter((id) => staffIds.has(id)))).slice(0, 20)
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType } };
 }
 
 async function loadIdSets(db) {
@@ -1338,10 +1344,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
-             v.status === "done" ? now : null, v.parentId, v.campaignId));
+             v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType));
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -1406,15 +1412,16 @@ export async function handleTaskApi(request, env, url, path, method) {
           assignees: body.assignees != null ? body.assignees : task.assignees,
           parentId: task.parentId,
           campaignId: body.campaignId !== undefined ? body.campaignId : task.campaignId,
+          taskType: body.taskType != null ? body.taskType : task.taskType,
         };
         const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds, sets.campaignIds);
         if (parsed.error) return json({ error: parsed.error }, 400);
         const v = parsed.value;
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=? WHERE id=?"
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=? WHERE id=?"
           ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
-                 v.status === "done" ? (task.doneAt || now) : null, v.campaignId, id),
+                 v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType, id),
           db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
         ];
         for (const sid of v.assignees) {
