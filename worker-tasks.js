@@ -78,6 +78,9 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN pw_salt TEXT",
   "ALTER TABLE staff ADD COLUMN pw_hash TEXT",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_email ON staff(email) WHERE email IS NOT NULL",
+  /* ชื่อผู้ใช้สั้น ๆ สำหรับคนที่ไม่มีอีเมลบริษัท — ใช้เข้าระบบแทนอีเมลได้ */
+  "ALTER TABLE staff ADD COLUMN username TEXT",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_username ON staff(username) WHERE username IS NOT NULL",
   /* แนบได้ทั้งไฟล์และลิงก์ — ของเดิมรับแต่รูป */
   "ALTER TABLE task_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'file'",
   "ALTER TABLE task_files ADD COLUMN url TEXT",
@@ -209,6 +212,13 @@ function normEmail(v) {
 }
 function validEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normEmail(v)) && normEmail(v).length <= 160;
+}
+function normUser(v) {
+  return String(v || "").trim().toLowerCase();
+}
+/* ชื่อผู้ใช้: a-z 0-9 . _ - ยาว 3–32 · ห้ามมี @ จะได้แยกออกจากอีเมลตอนล็อกอิน */
+function validUsername(v) {
+  return /^[a-z0-9._-]{3,32}$/.test(normUser(v));
 }
 function validPassword(v) {
   return typeof v === "string" && v.length >= 8 && v.length <= 200;
@@ -393,14 +403,14 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
 function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
-    email: r.email || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
+    email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
   };
 }
 
@@ -612,11 +622,13 @@ export async function handleTaskApi(request, env, url, path, method) {
     const staffId = String(body.staffId || "");
     const pin = String(body.pin || "");
 
-    /* ทางหลัก: อีเมล + รหัสผ่านที่ทีมตั้งเอง */
-    if (body.email) {
-      const email = normEmail(body.email);
-      const row = await db.prepare("SELECT * FROM staff WHERE email = ? AND active = 1").bind(email).first();
-      const fail = json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" }, 401);
+    /* ทางหลัก: อีเมล (หรือชื่อผู้ใช้) + รหัสผ่านที่ทีมตั้งเอง */
+    const who = normEmail(body.email || body.username);
+    if (who) {
+      const row = await db.prepare(
+        "SELECT * FROM staff WHERE (email = ? OR username = ?) AND active = 1"
+      ).bind(who, who).first();
+      const fail = json({ error: "อีเมล/ชื่อผู้ใช้ หรือรหัสผ่านไม่ถูกต้อง" }, 401);
       if (!row || !row.pw_hash) return fail;
 
       const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
@@ -681,7 +693,7 @@ export async function handleTaskApi(request, env, url, path, method) {
   const isOwner = me.role === "owner";
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,pw_hash,sections,api_token FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -843,6 +855,39 @@ export async function handleTaskApi(request, env, url, path, method) {
     }
     if (stmts.length) await db.batch(stmts);
     return json({ ids, blank });
+  }
+
+  /* ---------- สำรองข้อมูล (หัวหน้าเท่านั้น) ----------------------------------
+     ดึงทีละตารางทีละหน้า แล้วให้เบราว์เซอร์ประกอบเป็นไฟล์เดียว
+     ทำแบบนี้เพราะฐานข้อมูลมีรูปฝังอยู่ ถ้ายัดทั้งก้อนในรีเควสต์เดียวจะหนักเกินขีดของ Worker */
+  const BACKUP_TABLES = [
+    "staff", "kpis", "tasks", "task_assignees", "task_updates", "task_files", "task_mentions",
+    "task_settings", "post_pages", "posts", "post_log", "campaigns", "attachments", "kpi_entries",
+  ];
+  if (path === "/backup/manifest" && method === "GET") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const out = [];
+    for (const t of BACKUP_TABLES) {
+      try {
+        const r = await db.prepare("SELECT COUNT(*) AS n FROM " + t).first();
+        out.push({ table: t, rows: (r && r.n) || 0 });
+      } catch (e) { out.push({ table: t, rows: 0, missing: true }); }
+    }
+    return json({ at: nowIso(), db: "kan-erp", tables: out, total: out.reduce((a, b) => a + b.rows, 0) });
+  }
+  const bkTable = path === "/backup/table" && method === "GET";
+  if (bkTable) {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const name = url.searchParams.get("table") || "";
+    if (BACKUP_TABLES.indexOf(name) === -1) return json({ error: "ไม่รู้จักตาราง " + name }, 400);
+    const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 200));
+    const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
+    /* ตารางที่มีรูป base64 ดึงทีละน้อยกว่า ไม่งั้นก้อนใหญ่เกิน */
+    const heavy = name === "task_files" || name === "attachments";
+    const lim = heavy ? Math.min(limit, 5) : limit;
+    const res = await db.prepare("SELECT * FROM " + name + " LIMIT ? OFFSET ?").bind(lim, offset).all();
+    const rows = res.results || [];
+    return json({ table: name, offset, limit: lim, rows, done: rows.length < lim });
   }
 
   /* ความเคลื่อนไหวของทีมในช่วงวัน (เวลาไทย): ใครอัปเดตงานไหน คอมเมนต์ว่าอะไร เปลี่ยนสถานะเป็นอะไร + แก้ตารางโพสต์อะไร
@@ -1080,13 +1125,25 @@ export async function handleTaskApi(request, env, url, path, method) {
       const taken = await db.prepare("SELECT id FROM staff WHERE email = ?").bind(email).first();
       if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
     }
+    const username = body.username ? normUser(body.username) : null;
+    if (username) {
+      if (!validUsername(username)) return json({ error: "ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ - ยาว 3–32 ตัว" }, 400);
+      const takenU = await db.prepare("SELECT id FROM staff WHERE username = ?").bind(username).first();
+      if (takenU) return json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, 409);
+    }
     const id = newId("s_");
     const salt = randHex(8);
     const hash = await sha256Hex(salt + ":" + body.pin);
     const secs = body.sections != null ? cleanSections(body.sections) : DEFAULT_SECTIONS.join(",");
     await db.prepare(
-      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email,sections) VALUES (?,?,?,?,?,?,1,?,?,?)"
-    ).bind(id, name, aliases, role, salt, hash, nowIso(), email, secs).run();
+      "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email,username,sections) VALUES (?,?,?,?,?,?,1,?,?,?,?)"
+    ).bind(id, name, aliases, role, salt, hash, nowIso(), email, username, secs).run();
+    if (body.password != null) {
+      if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
+      const psalt = randHex(16);
+      await db.prepare("UPDATE staff SET pw_salt = ?, pw_hash = ? WHERE id = ?")
+        .bind(psalt, await pbkdf2Hex(body.password, psalt), id).run();
+    }
     return json({ id, sections: secs.split(",").filter(Boolean) });
   }
 
@@ -1168,6 +1225,15 @@ export async function handleTaskApi(request, env, url, path, method) {
         if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
       }
       sets.push("email = ?"); vals.push(email || null);
+    }
+    if (body.username != null) {
+      const username = normUser(body.username);
+      if (username && !validUsername(username)) return json({ error: "ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ - ยาว 3–32 ตัว" }, 400);
+      if (username) {
+        const takenU = await db.prepare("SELECT id FROM staff WHERE username = ? AND id != ?").bind(username, id).first();
+        if (takenU) return json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, 409);
+      }
+      sets.push("username = ?"); vals.push(username || null);
     }
     /* หัวหน้าตั้งรหัสผ่านให้เลย — ใช้ตอนลืมรหัส */
     if (body.password != null) {

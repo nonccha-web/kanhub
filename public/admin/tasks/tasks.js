@@ -562,13 +562,13 @@
       return '<button type="button" class="ltab' + (loginMode === k ? ' on' : '') + '" data-lmode="' + k + '">' + label + '</button>';
     };
     var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
-      '<p>' + (loginMode === 'in' ? 'เข้าด้วยอีเมลกับรหัสผ่านของคุณ' : 'เลือกชื่อตัวเอง ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่าน') + '</p>' +
+      '<p>' + (loginMode === 'in' ? 'เข้าด้วยอีเมลหรือชื่อผู้ใช้ กับรหัสผ่านของคุณ' : 'เลือกชื่อตัวเอง ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่าน') + '</p>' +
       '<div class="ltabs">' + tab('in', 'เข้าสู่ระบบ') + tab('setup', 'ตั้งรหัสครั้งแรก') + '</div>' +
       (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
 
     if (loginMode === 'in') {
       h += '<form id="loginForm">' +
-        '<div class="field"><label class="label">อีเมล</label><input class="input" name="email" type="email" autocomplete="username" placeholder="you@example.com" required></div>' +
+        '<div class="field"><label class="label">อีเมลหรือชื่อผู้ใช้</label><input class="input" name="email" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@example.com หรือ pizza" required></div>' +
         '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" required></div>' +
         '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button></form>' +
         '<p class="foot">ยังไม่เคยตั้งรหัส กดแท็บ “ตั้งรหัสครั้งแรก” · ลืมรหัสผ่านให้หัวหน้าตั้งใหม่ให้ในหน้า “ทีม”</p>';
@@ -2595,7 +2595,7 @@
       S.staff.map(function (s) {
         return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
           (s.hasPassword ? '' : ' <span class="pill late">ยังไม่ตั้งรหัส</span>') + '</b>' +
-          '<small>' + (s.email ? esc(s.email) : 'ยังไม่มีอีเมล') + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
+          '<small>' + (s.username ? 'ผู้ใช้ ' + esc(s.username) + ' · ' : '') + (s.email ? esc(s.email) : (s.username ? 'ไม่มีอีเมล' : 'ยังไม่มีอีเมล')) + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
           '<div class="secchips">' + (s.role === 'owner'
             ? '<span class="pill doing">เห็นทุกหมวด</span>'
             : SECTION_LIST.map(function (sc) {
@@ -2613,7 +2613,8 @@
       h += '<div class="sec"><div class="sec-h"><h2>เพิ่มคนในทีม</h2></div><div class="sec-b"><form id="addStaff" style="display:grid;gap:12px">' +
         '<div class="field"><label class="label">ชื่อ-นามสกุล</label><input class="input" name="name" required placeholder="เช่น Somchai Dee"></div>' +
         '<div class="field"><label class="label">ชื่อเรียกใน @ <small>(คั่นด้วยจุลภาค)</small></label><input class="input" name="aliases" placeholder="เช่น Somchai,สมชาย"></div>' +
-        '<div class="field"><label class="label">อีเมล <small>(เว้นไว้ให้เจ้าตัวตั้งเองก็ได้)</small></label><input class="input" name="email" type="email" placeholder="you@example.com"></div>' +
+        '<div class="grid2"><div class="field"><label class="label">อีเมล <small>(เว้นไว้ให้เจ้าตัวตั้งเองก็ได้)</small></label><input class="input" name="email" type="email" placeholder="you@example.com"></div>' +
+        '<div class="field"><label class="label">ชื่อผู้ใช้ <small>ใช้แทนอีเมลตอนเข้าระบบ</small></label><input class="input" name="username" autocapitalize="off" spellcheck="false" placeholder="เช่น pizza"></div></div>' +
         '<div class="grid2"><div class="field"><label class="label">รหัสตั้งค่า <small>ให้เจ้าตัวใช้ครั้งแรก</small></label><input class="input" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div>' +
         '<div class="field"><label class="label">ระดับ</label><select class="select" name="role"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div></div>' +
         '<div class="field"><label class="label">เห็นหมวดไหนได้บ้าง <small>หัวหน้าเห็นทุกหมวดอยู่แล้ว</small></label>' +
@@ -2649,9 +2650,68 @@
       '<li><b>Claude Code</b> พิมพ์ในเทอร์มินัล <code>claude mcp add --transport http kan URL</code></li>' +
       '</ol><p class="hint">ลองพิมพ์ว่า "สรุปงานวันนี้ของทีม" หรือวางโน้ตแล้วบอกว่า "แตกเป็นงานให้ทีม" AI จะเรียก get_context ก่อนแล้วค่อยสร้างงาน</p></details>' +
       '</div></div>';
+    if (owner) {
+      h += '<div class="sec" id="backupBox"><div class="sec-h"><h2>สำรองข้อมูล</h2>' +
+        '<p>ดาวน์โหลดข้อมูลทั้งระบบเก็บไว้เอง · ทำก่อนแก้อะไรใหญ่ ๆ ทุกครั้ง</p></div><div class="sec-b">' +
+        '<div class="acts" style="margin-bottom:12px"><button type="button" class="btn" id="bkRun">ดาวน์โหลดไฟล์สำรอง</button>' +
+        '<span class="hint" id="bkMsg" style="margin:0 0 0 12px">ได้ไฟล์ .json เก็บไว้ในเครื่องหรือ Google Drive</span></div>' +
+        '<div class="subbar" id="bkBar" hidden><i style="width:0%"></i></div>' +
+        '<p class="hint" style="margin-top:12px">ข้อมูลชุดนี้กู้คืนได้ 3 ทาง: ไฟล์ที่ดาวน์โหลดนี้ · สำเนารายวันในเครื่องของนนท์ (~/kanhub-backups) · ' +
+        'และ Time Travel ของ Cloudflare ที่ย้อนได้ 30 วันโดยไม่ต้องมีไฟล์ · วิธีกู้อยู่ใน ADMIN.md</p></div></div>';
+    }
     h += '<div class="sec" id="storageBox"><div class="sec-h"><h2>พื้นที่เก็บรูป</h2></div><div class="sec-b"><p class="hint">กำลังอ่าน…</p></div></div>';
     h += '</div></div>';
     view.innerHTML = h;
+
+    var bkBtn = $('#bkRun');
+    if (bkBtn) bkBtn.addEventListener('click', function () {
+      var msg = $('#bkMsg'), bar = $('#bkBar'), fill = bar.querySelector('i');
+      bkBtn.disabled = true;
+      bar.hidden = false;
+      msg.textContent = 'กำลังอ่านข้อมูล…';
+      api('/backup/manifest').then(function (man) {
+        var out = { app: 'kan-admin', db: man.db, at: man.at, tables: {} };
+        var total = man.total || 1, done = 0;
+        var seq = man.tables.filter(function (t) { return !t.missing; });
+        var step = function (i) {
+          if (i >= seq.length) return Promise.resolve();
+          var t = seq[i].table;
+          out.tables[t] = [];
+          var page = function (off) {
+            return api('/backup/table?table=' + t + '&offset=' + off + '&limit=200').then(function (r) {
+              out.tables[t] = out.tables[t].concat(r.rows);
+              done += r.rows.length;
+              fill.style.width = Math.min(100, Math.round(done / total * 100)) + '%';
+              msg.textContent = 'อ่าน ' + t + ' · ' + done.toLocaleString('th-TH') + ' แถว';
+              return r.done ? null : page(off + r.limit);
+            });
+          };
+          return page(0).then(function () { return step(i + 1); });
+        };
+        return step(0).then(function () { return out; });
+      }).then(function (out) {
+        var blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'kan-backup-' + ymd(new Date()) + '.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        var mb = (blob.size / 1048576).toFixed(1);
+        bkBtn.disabled = false;
+        bar.hidden = true;
+        msg.textContent = 'ได้ไฟล์แล้ว ' + mb + ' MB · เก็บไว้ให้ดี';
+        okDialog({
+          title: 'สำรองข้อมูลเรียบร้อย',
+          lines: ['ไฟล์ kan-backup-' + ymd(new Date()) + '.json · ' + mb + ' MB',
+                  Object.keys(out.tables).length + ' ตาราง · ' + Object.keys(out.tables).reduce(function (a, k) { return a + out.tables[k].length; }, 0).toLocaleString('th-TH') + ' แถว'],
+          note: 'เอาไปเก็บใน Google Drive หรือที่อื่นนอกเครื่องด้วย จะปลอดภัยที่สุด',
+        });
+      }).catch(function (e) {
+        bkBtn.disabled = false; bar.hidden = true;
+        msg.textContent = '';
+        toast('สำรองไม่สำเร็จ: ' + e.message, true);
+      });
+    });
 
     api('/storage').then(function (st) {
       var used = st.storedBytes, lim = st.limitFreeBytes;
@@ -2700,12 +2760,14 @@
       var f = this;
       var who = f.name.value, code = f.pin.value;
       var secs = $$('#newSecs .chip.on').map(function (b) { return b.getAttribute('data-newsec'); });
-      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null, sections: secs })
+      var uname = (f.username.value || '').trim().toLowerCase();
+      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null, username: uname || null, sections: secs })
         .then(function () { return refreshMe(); })
         .then(function () {
           okDialog({
             title: 'เพิ่ม ' + who + ' เข้าทีมแล้ว',
             lines: ['รหัสตั้งค่าของเขาคือ ' + code,
+                    (uname ? 'ชื่อผู้ใช้: ' + uname : 'ยังไม่ได้ตั้งชื่อผู้ใช้'),
                     'เห็นได้: ' + (f.role.value === 'owner' ? 'ทุกหมวด (หัวหน้า)' : (secs.map(function (k) { return SECTION_SHORT[k]; }).join(' · ') || 'ยังไม่เปิดหมวดไหนเลย')),
                     'ให้เขาเข้า admin.kan-hub.com/tasks/ แล้วกดแท็บ "ตั้งรหัสครั้งแรก"'],
             note: 'รหัสนี้ใช้ได้ครั้งเดียว พอเขาตั้งรหัสผ่านเองแล้วจะใช้ไม่ได้อีก',
@@ -2783,15 +2845,16 @@
           .catch(function (e) { toast(e.message, true); });
       } else if ((b = ev.target.closest('[data-pw-staff]'))) {
         var st2 = staffById(b.getAttribute('data-pw-staff'));
-        if (!st2.email) { toast('คนนี้ยังไม่มีอีเมล กด "แก้ไข" ใส่อีเมลก่อน', true); return; }
-        var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเข้าระบบด้วยอีเมล ' + st2.email);
+        var who2 = st2.email || st2.username;
+        if (!who2) { toast('คนนี้ยังไม่มีอีเมลหรือชื่อผู้ใช้ กด "แก้ไข" ใส่ก่อน', true); return; }
+        var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเข้าระบบด้วย ' + who2);
         if (pw == null) return;
         api('/staff/' + st2.id, 'PUT', { password: pw })
           .then(refreshMe)
           .then(function () {
             okDialog({
               title: 'ตั้งรหัสผ่านให้ ' + st2.name + ' แล้ว',
-              lines: ['อีเมล: ' + st2.email, 'รหัสผ่าน: ' + pw],
+              lines: [(st2.email ? 'อีเมล: ' + st2.email : 'ชื่อผู้ใช้: ' + st2.username), 'รหัสผ่าน: ' + pw],
               note: 'ส่งให้เขาแล้วบอกให้เปลี่ยนเองในหน้า "ทีม + รหัสผ่าน"',
               onClose: renderTeam,
             });
@@ -2805,11 +2868,12 @@
         var name = prompt('ชื่อ', st.name); if (name == null) return;
         var aliases = prompt('ชื่อเรียกใน @ (คั่นด้วยจุลภาค)', st.aliases || ''); if (aliases == null) return;
         var email = prompt('อีเมลสำหรับเข้าระบบ (เว้นว่างได้)', st.email || ''); if (email == null) return;
-        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases, email: email.trim() })
+        var uname = prompt('ชื่อผู้ใช้สำหรับเข้าระบบ (a-z 0-9 . _ - เว้นว่างได้)', st.username || ''); if (uname == null) return;
+        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases, email: email.trim(), username: uname.trim() })
           .then(refreshMe)
           .then(function () {
             okDialog({ title: 'บันทึกข้อมูล ' + name + ' แล้ว',
-              lines: ['อีเมล: ' + (email.trim() || 'ยังไม่มี'), 'ชื่อเรียกใน @: ' + (aliases || '—')],
+              lines: ['อีเมล: ' + (email.trim() || 'ยังไม่มี'), 'ชื่อผู้ใช้: ' + (uname.trim() || 'ยังไม่มี'), 'ชื่อเรียกใน @: ' + (aliases || '—')],
               onClose: renderTeam });
           }).catch(function (e) { toast(e.message, true); });
       }
