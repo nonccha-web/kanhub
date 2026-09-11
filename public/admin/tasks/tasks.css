@@ -232,6 +232,50 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="campaign"]::before{ background:#d99a1e; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
+/* ── พาทัวร์ระบบ — ปุ่มมุมขวาบน + กล่องลอยชี้ทีละจุด ── */
+.tour-wrap{ position:relative; display:inline-flex; }
+.tour-btn{ display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border:1px solid var(--k-line); border-radius:999px;
+  background:var(--k-paper); color:var(--k-soft); font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+.tour-btn:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+.tour-btn svg{ width:14px; height:14px; }
+.tour-menu{ position:absolute; top:calc(100% + 6px); right:0; z-index:60; min-width:230px; border:1px solid var(--k-line);
+  background:var(--k-paper); box-shadow:0 10px 30px rgba(0,0,0,.14); padding:6px; }
+.tour-menu button{ display:flex; width:100%; align-items:baseline; justify-content:space-between; gap:12px; border:0; background:none;
+  font:inherit; font-size:13px; color:var(--k-ink); padding:8px 10px; cursor:pointer; text-align:left; }
+.tour-menu button:hover{ background:var(--k-hair); }
+.tour-menu button small{ color:var(--k-mut); font-size:11px; white-space:nowrap; }
+.tour-menu[hidden]{ display:none; }
+
+/* ช่องสว่างเจาะทับของที่ชี้ — เงาใหญ่รอบ ๆ ทำหน้าที่เป็นม่านมืดทั้งจอ */
+.tour-hole{ position:fixed; z-index:1000; border-radius:6px; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(11,11,10,.55), 0 0 0 2px var(--k-paper);
+  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease; }
+html.tour-on .erp-scrim{ pointer-events:none; }
+.tour-card{ position:fixed; z-index:1001; width:min(360px, calc(100vw - 24px)); border:1px solid var(--k-line); background:var(--k-paper);
+  color:var(--k-ink); box-shadow:0 18px 50px rgba(0,0,0,.24); padding:14px 16px 14px; font-size:13.5px; line-height:1.6; }
+.tour-card.tour-center{ left:50%!important; top:50%!important; transform:translate(-50%,-50%); width:min(420px, calc(100vw - 24px)); }
+.tour-card.tour-sheet{ left:12px!important; right:12px; top:auto!important; bottom:12px; width:auto; }
+.tour-h{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.tour-n{ font-family:var(--k-display); font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--k-mut); font-variant-numeric:tabular-nums; }
+.tour-name{ font-size:11px; color:var(--k-mut); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tour-x{ border:0; background:none; color:var(--k-mut); font:inherit; font-size:14px; cursor:pointer; padding:2px 4px; }
+.tour-x:hover{ color:var(--k-ink); }
+.tour-card h3{ margin:0 0 4px; font-size:15px; font-weight:600; line-height:1.35; }
+.tour-card p{ margin:0; color:var(--k-soft); }
+.tour-card p b{ color:var(--k-ink); font-weight:600; }
+.tour-miss{ color:var(--k-warn); }
+.tour-f{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.tour-dots{ display:flex; gap:4px; flex-wrap:wrap; }
+.tour-dots i{ width:6px; height:6px; border-radius:50%; background:var(--k-line); }
+.tour-dots i.on{ background:var(--k-ink); }
+.tour-btns{ display:flex; gap:6px; }
+.tour-b{ border:1px solid var(--k-ink); background:var(--k-ink); color:var(--k-paper); font:inherit; font-size:12.5px; font-weight:500;
+  padding:6px 14px; border-radius:999px; cursor:pointer; }
+.tour-b.ghost{ background:none; color:var(--k-ink); border-color:var(--k-line); }
+.tour-b:focus-visible, .tour-x:focus-visible{ outline:2px solid var(--k-bad); outline-offset:2px; }
+@media (max-width:760px){ .tour-btn span{ display:none; } .tour-btn{ padding:0 9px; } }
+@media (prefers-reduced-motion:reduce){ .tour-hole{ transition:none; } }
+
 /* ── KPI ── */
 .kpi-hero{ position:relative; overflow:hidden; border:1px solid var(--k-line); background:var(--k-paper); padding:28px 30px 26px; margin-bottom:22px;
   display:flex; align-items:flex-end; justify-content:space-between; gap:24px; }

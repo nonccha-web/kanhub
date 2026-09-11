@@ -545,7 +545,11 @@
   function renderHeaderUser() {
     var el = $('#headUser'), tb = $('#topbarUser');
     if (!S.me) { el.innerHTML = ''; tb.textContent = ''; return; }
-    el.innerHTML = '<a class="bell' + (S.notif.unread ? ' on' : '') + '" href="#/inbox" title="คนแท็กถึงคุณ">' +
+    el.innerHTML = '<span class="tour-wrap"><button type="button" class="tour-btn" data-tour title="พาทัวร์ระบบ">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg><span>พาทัวร์</span></button>' +
+      '<div class="tour-menu" id="tourMenu" hidden></div></span>' +
+      '<a class="bell' + (S.notif.unread ? ' on' : '') + '" href="#/inbox" title="คนแท็กถึงคุณ">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>' +
       (S.notif.unread ? '<i>' + (S.notif.unread > 9 ? '9+' : S.notif.unread) + '</i>' : '') + '</a>' +
@@ -555,6 +559,22 @@
       '<span class="erp-user"><i>' + esc(initials(S.me.name)) + '</i><b>' + esc(S.me.name) + '</b>' +
       '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
     tb.textContent = shortName(S.me);
+  }
+  /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
+  var PAGE_TOUR = { me: 'me', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team' };
+  function toggleTourMenu() {
+    var m = $('#tourMenu'), T = global.KAN_TOUR;
+    if (!m || !T) return;
+    if (!m.hidden) { m.hidden = true; return; }
+    var ids = [];
+    var page = PAGE_TOUR[S.route.name];
+    if (page && T.has(page)) ids.push(page);
+    ids.push('overview');
+    m.innerHTML = ids.map(function (id) {
+      var t = T.tours[id];
+      return '<button type="button" data-tour-go="' + id + '"><span>' + esc(t.title) + '</span><small>' + esc(t.mins || '') + '</small></button>';
+    }).join('');
+    m.hidden = false;
   }
   function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
   function setTheme(next) {
@@ -3148,7 +3168,11 @@
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
         if (!location.hash) location.hash = S.me.role === 'owner' ? '#/all' : '#/me';
-        loadCampaigns().then(render);
+        loadCampaigns().then(render).then(function () {
+          var T = global.KAN_TOUR;
+          /* เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง) ไม่ต้องพาทัวร์ตอนนั้น */
+          if (T && !T.seen() && location.hash.indexOf('#/task/') !== 0) setTimeout(function () { if (S.me && !T.active()) T.start('overview'); }, 900);
+        });
       }).catch(function (e) { renderSidebar(); renderLogin(e.message); });
   }
 
@@ -3156,6 +3180,9 @@
   document.addEventListener('click', function (ev) {
     var b;
     if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.href = CAL_URL + '#c=' + b.getAttribute('data-cc'); return; }
+    if ((b = ev.target.closest('[data-tour-go]'))) { $('#tourMenu').hidden = true; global.KAN_TOUR.start(b.getAttribute('data-tour-go')); return; }
+    if (ev.target.closest('[data-tour]')) { toggleTourMenu(); return; }
+    if (!ev.target.closest('#tourMenu')) { var tmenu = $('#tourMenu'); if (tmenu && !tmenu.hidden) tmenu.hidden = true; }
     if (ev.target.closest('[data-erp-toggle]')) { document.documentElement.classList.toggle('erp-open'); return; }
     if (ev.target.closest('[data-erp-close]')) { document.documentElement.classList.remove('erp-open'); return; }
     if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
