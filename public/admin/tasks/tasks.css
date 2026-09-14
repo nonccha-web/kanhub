@@ -232,6 +232,32 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="campaign"]::before{ background:#d99a1e; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
+/* ── รอตรวจ · ติ๊กจากหน้ารายการ · รายงาน ── */
+.pill.review{ border-color:var(--k-info); color:var(--k-info); }
+.pill.kind{ border-color:var(--k-line); color:var(--k-mut); }
+.trow .st.review{ border-color:var(--k-info); background:color-mix(in srgb, var(--k-info) 16%, transparent); color:var(--k-info); font-weight:600; }
+/* วงกลมหน้าแถวที่กดติ๊กได้ — ต้องรู้สึกว่ากดได้ แต่ไม่แย่งสายตาจากชื่องาน */
+button.st.tick{ padding:0; cursor:pointer; font:inherit; font-size:10px; line-height:1; transition:transform .12s ease, border-color .12s ease; }
+button.st.tick:hover{ border-color:var(--k-ink); transform:scale(1.15); }
+button.st.tick:focus-visible{ outline:2px solid var(--k-info); outline-offset:2px; }
+button.st.tick.busy{ opacity:.45; pointer-events:none; }
+.group-h.review h3{ color:var(--k-info); }
+.sec.reviewbox{ border-color:var(--k-info); }
+.sec.reviewbox .sec-h h2{ color:var(--k-info); }
+.wdays{ font-size:11.5px; color:var(--k-mut); align-self:center; }
+
+/* ตารางรายงาน */
+.scrollx{ overflow-x:auto; }
+.rpt{ width:100%; min-width:640px; border-collapse:separate; border-spacing:0; font-size:13px; }
+.rpt th{ text-align:left; font-weight:500; font-size:11.5px; color:var(--k-mut); padding:9px 12px;
+  border-bottom:1px solid var(--k-line); white-space:nowrap; }
+.rpt td{ padding:10px 12px; border-bottom:1px solid var(--k-hair); color:var(--k-soft); white-space:nowrap; }
+.rpt tbody tr:last-child td{ border-bottom:0; }
+.rpt td:first-child{ color:var(--k-ink); font-weight:500; }
+.rpt .n{ text-align:right; font-variant-numeric:tabular-nums; }
+.pctnum{ font-weight:600; font-variant-numeric:tabular-nums; }
+.pctnum.ok{ color:var(--k-ok); } .pctnum.warn{ color:var(--k-warn); } .pctnum.bad{ color:var(--k-bad); }
+
 /* ── พาทัวร์ระบบ — ปุ่มมุมขวาบน + กล่องลอยชี้ทีละจุด ── */
 .tour-wrap{ position:relative; display:inline-flex; }
 .tour-btn{ display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border:1px solid var(--k-line); border-radius:999px;

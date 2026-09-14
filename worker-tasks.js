@@ -5,7 +5,12 @@
 
 const COOKIE = "kan_tsess";
 const SESSION_DAYS = 30;
-const STATUSES = ["todo", "doing", "done", "blocked"];
+/* review = น้องส่งงานแล้วรอหัวหน้าตรวจ · done = หัวหน้าตรวจผ่านแล้ว
+   เวลานับ "ตรงเวลา" ใช้ตอนส่งรอตรวจ (submitted_at) ไม่ใช่ตอนหัวหน้ากดผ่าน
+   ไม่งั้นหัวหน้าตรวจช้าแล้วน้องโดนนับว่าส่งช้า */
+const STATUSES = ["todo", "doing", "review", "done", "blocked"];
+/* งานรูทีน = ทำซ้ำประจำ · งานตามสั่ง = สั่งเพิ่มเป็นครั้ง ๆ (ค่าเริ่มต้น) */
+const TASK_KINDS = ["ondemand", "routine"];
 /* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
 const TASK_TYPES = ["signage", "content", "campaign", "other"];
 const REPEATS = ["", "daily", "weekly"];
@@ -98,6 +103,21 @@ const ALTERS = [
   "CREATE INDEX IF NOT EXISTS idx_tasks_campaign ON tasks(campaign_id)",
   /* ประเภทงาน — งานเก่าที่ไม่มีค่าจะถูกอ่านเป็น "อื่น ๆ" */
   "ALTER TABLE tasks ADD COLUMN task_type TEXT",
+  /* รอบ ก+ข (ก.ย. 2569) — ตรวจงาน · ชนิดงาน · ชั่วโมง · งบเวลา · สิทธิ์รายคน */
+  "ALTER TABLE tasks ADD COLUMN task_kind TEXT",
+  "ALTER TABLE tasks ADD COLUMN hours REAL",
+  "ALTER TABLE tasks ADD COLUMN support INTEGER NOT NULL DEFAULT 0",
+  /* วันเดิมก่อนถูกเลื่อน — ใช้นับตรงเวลา ไม่งั้นเลื่อนแล้วตัวเลขสวยเสมอ */
+  "ALTER TABLE tasks ADD COLUMN due_original TEXT",
+  "ALTER TABLE tasks ADD COLUMN submitted_at TEXT",
+  "ALTER TABLE tasks ADD COLUMN approved_at TEXT",
+  "ALTER TABLE tasks ADD COLUMN approved_by TEXT",
+  "ALTER TABLE tasks ADD COLUMN postpones INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE staff ADD COLUMN work_days TEXT",
+  "ALTER TABLE staff ADD COLUMN hours_per_day REAL",
+  /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้ เพื่ออัปเดตงานแทนเติ้ล */
+  "ALTER TABLE staff ADD COLUMN can_update_others INTEGER NOT NULL DEFAULT 0",
+  "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -234,6 +254,34 @@ async function hmacHex(secret, msg) {
 }
 function newId(prefix) {
   return prefix + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+}
+/* วันเวลาแบบไทยสำหรับข้อความในไทม์ไลน์ — worker ไม่มี timezone ให้ใช้ บวก 7 ชม.เอง */
+function thDate(iso) {
+  if (!iso) return "ยังไม่กำหนด";
+  const d = new Date(new Date(iso).getTime() + 7 * 3600000);
+  if (isNaN(d.getTime())) return "ยังไม่กำหนด";
+  const M = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const p = (n) => (n < 10 ? "0" : "") + n;
+  return d.getUTCDate() + " " + M[d.getUTCMonth()] + " " + String(d.getUTCFullYear() + 543).slice(-2) +
+         " " + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes());
+}
+/* กติกาเดียวที่ใช้ทั้งสองทางเข้า (PUT /tasks/:id และ POST /updates)
+   คนที่ไม่ใช่หัวหน้าและไม่ใช่คนสั่งงาน กด "เสร็จแล้ว" = ส่งรอตรวจ ไม่ใช่ปิดงานเอง
+   งานประจำ (รูทีน) ไม่ต้องตรวจ — ตอบแชททุกวันแล้วให้หัวหน้ามานั่งกดผ่านทุกวันคือทรมาน */
+function needsReview(task, canApprove) {
+  return !canApprove && !task.repeat;
+}
+function statusFor(want, task, canApprove) {
+  return want === "done" && needsReview(task, canApprove) ? "review" : want;
+}
+/* คอลัมน์เวลาที่ต้องเขียนตามสถานะใหม่ — ส่งรอตรวจจับเวลาไว้ที่ submitted_at
+   เพราะ "ตรงเวลา" นับตอนน้องส่ง ไม่ใช่ตอนหัวหน้าตรวจ */
+function stampsFor(status, task, now, meId) {
+  const submitted = status === "review" ? now : (status === "done" ? (task.submittedAt || now) : null);
+  const doneAt = status === "done" ? (task.repeat || task.status !== "done" ? now : task.doneAt) : null;
+  const approvedAt = status === "done" ? now : null;
+  const approvedBy = status === "done" ? meId : null;
+  return { submitted, doneAt, approvedAt, approvedBy };
 }
 function nowIso() {
   return new Date().toISOString();
@@ -395,7 +443,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,work_days,hours_per_day FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -407,7 +455,7 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,work_days,hours_per_day FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
@@ -415,6 +463,9 @@ function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
+    canUpdateOthers: r.role === "owner" || !!r.can_update_others,
+    workDays: r.work_days == null ? null : String(r.work_days),
+    hoursPerDay: r.hours_per_day == null ? null : Number(r.hours_per_day),
   };
 }
 
@@ -446,6 +497,16 @@ function logStmt(db, me, action, info, changes) {
 }
 
 /* ---------- rows → JSON ---------- */
+function rowToPost(r) {
+  let channels = [];
+  try { channels = JSON.parse(r.channels || "[]"); } catch (e) { channels = []; }
+  return {
+    id: r.id, pageId: r.page_id, date: r.post_date, time: r.post_time,
+    channels, topic: r.topic, kind: r.kind,
+    status: r.status, url: r.url, note: r.note, postedAt: r.posted_at,
+    updatedAt: r.updated_at, updatedBy: r.updated_by, campaignId: r.campaign_id || null,
+  };
+}
 function rowToTask(r) {
   return {
     id: r.id,
@@ -456,6 +517,14 @@ function rowToTask(r) {
     dueAt: r.due_at || null,
     repeat: r.repeat || "",
     taskType: r.task_type || "other",
+    taskKind: r.task_kind || (r.repeat ? "routine" : "ondemand"),
+    hours: r.hours == null ? null : Number(r.hours),
+    support: r.support ? 1 : 0,
+    dueOriginal: r.due_original || r.due_at || null,
+    submittedAt: r.submitted_at || null,
+    approvedAt: r.approved_at || null,
+    approvedBy: r.approved_by || null,
+    postpones: r.postpones || 0,
     priority: r.priority || 0,
     createdBy: r.created_by,
     createdAt: r.created_at,
@@ -500,13 +569,22 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
   }
   const repeat = REPEATS.indexOf(input.repeat) !== -1 ? input.repeat : "";
   const taskType = TASK_TYPES.indexOf(input.taskType) !== -1 ? input.taskType : "other";
+  /* ไม่ได้เลือกชนิดงาน: มีความถี่ = รูทีน ไม่มี = ตามสั่ง */
+  const taskKind = TASK_KINDS.indexOf(input.taskKind) !== -1 ? input.taskKind : (repeat ? "routine" : "ondemand");
+  const support = input.support ? 1 : 0;
+  let hours = null;
+  if (input.hours != null && input.hours !== "") {
+    const h = Number(input.hours);
+    if (!isFinite(h) || h < 0 || h > 200) return { error: "ชั่วโมงที่ใช้ต้องเป็นตัวเลข 0–200: " + title };
+    hours = Math.round(h * 4) / 4;   /* ปัดเป็นทีละ 15 นาที */
+  }
   const priority = input.priority ? 1 : 0;
   const assignees = Array.isArray(input.assignees)
     ? Array.from(new Set(input.assignees.filter((id) => staffIds.has(id)))).slice(0, 20)
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours } };
 }
 
 async function loadIdSets(db) {
@@ -697,9 +775,11 @@ export async function handleTaskApi(request, env, url, path, method) {
   const me = await currentStaff(request, db);
   if (!me) return json({ error: "กรุณาเข้าสู่ระบบ", auth: false }, 401);
   const isOwner = me.role === "owner";
+  /* พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล — หัวหน้าเปิดให้รายคนในหน้า "ทีม + สิทธิ์" */
+  const canUpdateOthers = isOwner || !!me.can_update_others;
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,work_days,hours_per_day FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -801,12 +881,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       " ORDER BY post_date ASC, post_time ASC LIMIT 1000";
     const res = await db.prepare(sql).bind(...binds).all();
     return json({
-      posts: (res.results || []).map((r) => ({
-        id: r.id, pageId: r.page_id, date: r.post_date, time: r.post_time,
-        channels: JSON.parse(r.channels || "[]"), topic: r.topic, kind: r.kind,
-        status: r.status, url: r.url, note: r.note, postedAt: r.posted_at,
-        updatedAt: r.updated_at, updatedBy: r.updated_by, campaignId: r.campaign_id || null,
-      })),
+      posts: (res.results || []).map(rowToPost),
     });
   }
 
@@ -1050,6 +1125,82 @@ export async function handleTaskApi(request, env, url, path, method) {
   }
 
   /* รายการในปฏิทินการตลาด สำหรับช่องเลือก "เชื่อมกับ…" ในโพสต์และงาน */
+  /* ---- สรุปผลงานรายเดือน (ข้อ 03 ของคุณออน) ----
+     "ตรงเวลา" นับจาก submitted_at เทียบ due_original — คือตอนน้อง "ส่งรอตรวจ"
+     เทียบกับ "วันเดิมก่อนถูกเลื่อน" ตามที่นนท์ตัดสิน 11 ก.ย. 69
+     ให้ 2 ตัวเลข: ontime = ถึงเวลาเป๊ะ · ontimeDay = ขอแค่ภายในวันนั้น (ตัวที่ใช้กับ KPI) */
+  if (path === "/report/monthly" && method === "GET") {
+    const m = String(url.searchParams.get("month") || "").match(/^(\d{4})-(\d{2})$/);
+    const now = new Date();
+    const y = m ? Number(m[1]) : now.getUTCFullYear();
+    const mo = m ? Number(m[2]) : now.getUTCMonth() + 1;
+    /* ขอบเดือนแบบเวลาไทย: 1 ของเดือน 00:00 +07 = วันก่อนหน้า 17:00 UTC */
+    const from = new Date(Date.UTC(y, mo - 1, 1, -7, 0, 0)).toISOString();
+    const to = new Date(Date.UTC(y, mo, 1, -7, 0, 0)).toISOString();
+
+    const res = await db.prepare(
+      TASK_SELECT + "WHERE t.due_at IS NOT NULL AND t.due_at >= ? AND t.due_at < ?" + TASK_ORDER
+    ).bind(from, to).all();
+    const tasks = (res.results || []).map(rowToTask);
+
+    const dayOf = (iso) => new Date(new Date(iso).getTime() + 7 * 3600000).toISOString().slice(0, 10);
+    const blank = () => ({ assigned: 0, finished: 0, ontime: 0, ontimeDay: 0, late: 0, open: 0,
+                           hours: 0, kpiHours: 0, supportHours: 0, postpones: 0 });
+    const byStaff = {}, byType = {}, byKind = {};
+    const team = blank();
+    const bucket = (map, key) => (map[key] = map[key] || blank());
+
+    for (const t of tasks) {
+      /* งานถือว่า "ส่งแล้ว" เมื่อส่งรอตรวจหรือปิดงาน — ไม่รอหัวหน้าตรวจ */
+      const sent = t.submittedAt || (t.status === "done" ? t.doneAt : null);
+      const due = t.dueOriginal || t.dueAt;
+      const onTime = sent && due ? new Date(sent) <= new Date(due) : false;
+      const onTimeDay = sent && due ? dayOf(sent) <= dayOf(due) : false;
+      const rows = [team, bucket(byType, t.taskType || "other"), bucket(byKind, t.taskKind || "ondemand")]
+        .concat(t.assignees.map((sid) => bucket(byStaff, sid)));
+      for (const b of rows) {
+        b.assigned++;
+        b.postpones += t.postpones || 0;
+        if (t.hours) {
+          b.hours += t.hours;
+          if (t.support) b.supportHours += t.hours; else b.kpiHours += t.hours;
+        }
+        if (sent) { b.finished++; if (onTime) b.ontime++; if (onTimeDay) b.ontimeDay++; if (!onTime) b.late++; }
+        else b.open++;
+      }
+    }
+    const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+    const shape = (b) => Object.assign({}, b, {
+      hours: Math.round(b.hours * 100) / 100,
+      kpiHours: Math.round(b.kpiHours * 100) / 100,
+      supportHours: Math.round(b.supportHours * 100) / 100,
+      ontimePct: pct(b.ontime, b.finished),
+      ontimeDayPct: pct(b.ontimeDay, b.finished),
+      kpiSharePct: pct(b.kpiHours, b.hours),
+    });
+    const mapOut = (m2) => Object.keys(m2).reduce((o, k) => { o[k] = shape(m2[k]); return o; }, {});
+    return json({
+      month: y + "-" + String(mo).padStart(2, "0"),
+      team: shape(team), byStaff: mapOut(byStaff), byType: mapOut(byType), byKind: mapOut(byKind),
+      note: "ตรงเวลา = ตอนส่งรอตรวจ เทียบกับวันเดิมก่อนถูกเลื่อน",
+    });
+  }
+
+  /* ---- หน้าแคมเปญ: งานกับโพสต์ที่ผูกไว้ในที่เดียว (ข้อ 05 ของคุณออน) ---- */
+  const campRel = path.match(/^\/campaigns\/([A-Za-z0-9_-]{1,40})\/related$/);
+  if (campRel && method === "GET") {
+    const cid = campRel[1];
+    const tr = await db.prepare(TASK_SELECT + "WHERE t.campaign_id = ?" + TASK_ORDER).bind(cid).all();
+    let posts = [];
+    try {
+      const pr = await db.prepare(
+        "SELECT * FROM posts WHERE campaign_id = ? ORDER BY post_date, post_time LIMIT 400"
+      ).bind(cid).all();
+      posts = (pr.results || []).map(rowToPost);
+    } catch (e) { posts = []; }
+    return json({ tasks: (tr.results || []).map(rowToTask), posts });
+  }
+
   if (path === "/campaigns" && method === "GET") {
     let rows = [];
     try {
@@ -1234,6 +1385,19 @@ export async function handleTaskApi(request, env, url, path, method) {
     }
     if (body.aliases != null) { sets.push("aliases = ?"); vals.push(String(body.aliases).trim().slice(0, 200)); }
     if (body.sections != null) { sets.push("sections = ?"); vals.push(cleanSections(body.sections)); }
+    /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้เพื่ออัปเดตงานแทนเติ้ล */
+    if (body.canUpdateOthers != null) { sets.push("can_update_others = ?"); vals.push(body.canUpdateOthers ? 1 : 0); }
+    /* วันทำงานรายคน "0,1,2,..." (0 = อาทิตย์) — พิซซ่าหยุดพฤหัส เติ้ลหยุดเสาร์อาทิตย์ */
+    if (body.workDays != null) {
+      const wd = String(body.workDays).split(",").map((x) => Number(String(x).trim()))
+        .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+      sets.push("work_days = ?"); vals.push(wd.length ? Array.from(new Set(wd)).sort().join(",") : null);
+    }
+    if (body.hoursPerDay != null) {
+      const h = Number(body.hoursPerDay);
+      if (!isFinite(h) || h < 0 || h > 24) return json({ error: "ชั่วโมงต่อวันต้องอยู่ระหว่าง 0–24" }, 400);
+      sets.push("hours_per_day = ?"); vals.push(h || null);
+    }
     if (body.role != null) {
       if (id === me.id && body.role !== "owner") return json({ error: "ลดสิทธิ์ตัวเองไม่ได้" }, 400);
       sets.push("role = ?"); vals.push(body.role === "owner" ? "owner" : "member");
@@ -1344,10 +1508,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
-             v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType));
+             v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt));
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -1359,7 +1523,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ids });
   }
 
-  const taskMatch = path.match(/^\/tasks\/([A-Za-z0-9_-]{1,40})(\/updates)?$/);
+  const taskMatch = path.match(/^\/tasks\/([A-Za-z0-9_-]{1,40})(\/updates|\/review|\/postpone-request)?$/);
   if (taskMatch) {
     const id = taskMatch[1];
     const sub = taskMatch[2] || "";
@@ -1413,17 +1577,31 @@ export async function handleTaskApi(request, env, url, path, method) {
           parentId: task.parentId,
           campaignId: body.campaignId !== undefined ? body.campaignId : task.campaignId,
           taskType: body.taskType != null ? body.taskType : task.taskType,
+          taskKind: body.taskKind != null ? body.taskKind : task.taskKind,
+          hours: body.hours !== undefined ? body.hours : task.hours,
+          support: body.support != null ? body.support : task.support,
         };
         const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds, sets.campaignIds);
         if (parsed.error) return json({ error: parsed.error }, 400);
         const v = parsed.value;
+        /* เลื่อนกำหนดส่ง = เรื่องใหญ่ ต้องมีร่องรอยว่าใครเลื่อน จากวันไหนไปวันไหน เพราะอะไร
+           (งานที่ยังไม่เคยมีวันแล้วเพิ่งใส่ ไม่นับว่าเลื่อน) */
+        const moved = !!(task.dueAt && v.dueAt && new Date(task.dueAt).getTime() !== new Date(v.dueAt).getTime());
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=? WHERE id=?"
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=? WHERE id=?"
           ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
-                 v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType, id),
+                 v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType,
+                 v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0), id),
           db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
         ];
+        if (moved) {
+          stmts.push(db.prepare(
+            "INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)"
+          ).bind(newId("u_"), id, me.id, "note",
+                 "เลื่อนกำหนดส่ง " + thDate(task.dueAt) + " → " + thDate(v.dueAt) +
+                 (body.reason ? " · " + String(body.reason).trim().slice(0, 300) : ""), null, now));
+        }
         for (const sid of v.assignees) {
           stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
         }
@@ -1431,21 +1609,49 @@ export async function handleTaskApi(request, env, url, path, method) {
           stmts.push(db.prepare(
             "INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)"
           ).bind(newId("u_"), id, me.id, "status", "", v.status, now));
+          /* หัวหน้ากดเสร็จเอง = ตรวจผ่านในตัว · ส่งรอตรวจก็จับเวลาไว้ */
+          const st = stampsFor(v.status, task, now, me.id);
+          stmts.push(db.prepare("UPDATE tasks SET submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
+            .bind(st.submitted, st.approvedAt, st.approvedBy, id));
         }
         await db.batch(stmts);
         return json({ ok: true });
       }
-      /* ผู้รับงาน: เปลี่ยนได้แค่สถานะ */
-      if (!mine) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
-      const status = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
-      if (!status) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
-      await db.batch([
-        db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=? WHERE id=?")
-          .bind(status, now, status === "done" ? (task.repeat || task.status !== "done" ? now : task.doneAt) : null, id),
-        db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
-          .bind(newId("u_"), id, me.id, "status", "", status, now),
-      ]);
-      return json({ ok: true });
+      /* ผู้รับงาน (หรือคนที่ได้สิทธิ์ติ๊กแทนคนอื่น): เปลี่ยนได้แค่สถานะ
+         กับ "ใส่กำหนดส่งให้งานที่ยังไม่เคยมีวัน" ซึ่งพิซซ่าขอไว้ —
+         งานที่มีวันแล้วยังเลื่อนเองไม่ได้ ต้องให้หัวหน้าเลื่อน */
+      if (!mine && !canUpdateOthers) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
+      const backfill = body.dueAt !== undefined && !task.dueAt && body.dueAt;
+      if (backfill && !isIsoDateTime(body.dueAt)) return json({ error: "กำหนดส่งไม่ถูกต้อง" }, 400);
+      const want = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
+      if (!want && !backfill) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      const stmts2 = [];
+      if (backfill) {
+        const iso = new Date(body.dueAt).toISOString();
+        stmts2.push(db.prepare("UPDATE tasks SET due_at=?, due_original=?, updated_at=? WHERE id=?").bind(iso, iso, now, id));
+        stmts2.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(newId("u_"), id, me.id, "note", "ใส่กำหนดส่ง " + thDate(iso), null, now));
+      }
+      if (want) {
+        const status = statusFor(want, task, false);
+        const st = stampsFor(status, task, now, me.id);
+        stmts2.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
+          .bind(status, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, id));
+        stmts2.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(newId("u_"), id, me.id, "status", mine ? "" : "อัปเดตแทน", status, now));
+        /* ส่งรอตรวจ = เด้งเข้ากระดิ่งหัวหน้าทุกคน ให้รู้ว่ามีของรอตรวจ */
+        if (status === "review") {
+          const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
+          for (const o of (owners.results || [])) {
+            if (o.id === me.id) continue;
+            stmts2.push(db.prepare(
+              "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+            ).bind(newId("m_"), id, "", o.id, me.id, "ส่งงานให้ตรวจ: " + String(task.title).slice(0, 200), now));
+          }
+        }
+      }
+      await db.batch(stmts2);
+      return json({ ok: true, status: want ? statusFor(want, task, false) : task.status });
     }
 
     if (!sub && method === "DELETE") {
@@ -1472,14 +1678,17 @@ export async function handleTaskApi(request, env, url, path, method) {
       const files = Array.isArray(body.files) ? body.files.slice(0, MAX_FILES_PER_UPDATE) : [];
       const links = Array.isArray(body.links) ? body.links.slice(0, MAX_LINKS_PER_UPDATE) : [];
       if (!note && !status && !files.length && !links.length) return json({ error: "ยังไม่ได้ใส่อะไรเลย" }, 400);
-      if (status && !(isOwner || mine || task.createdBy === me.id)) {
+      const canApprove = isOwner || task.createdBy === me.id;
+      if (status && !(canApprove || mine || canUpdateOthers)) {
         return json({ error: "เปลี่ยนสถานะได้เฉพาะคนที่รับงานหรือหัวหน้า" }, 403);
       }
+      /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ (งานประจำไม่ต้องตรวจ) */
+      const newStatus = status ? statusFor(status, task, canApprove) : null;
       const now = nowIso();
       const uid = newId("u_");
       const stmts = [
         db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
-          .bind(uid, id, me.id, (files.length || links.length) ? "photo" : (status ? "status" : "note"), note, status, now),
+          .bind(uid, id, me.id, (files.length || links.length) ? "photo" : (status ? "status" : "note"), note, newStatus, now),
       ];
       const fileIds = [];
       for (const f of files) {
@@ -1512,14 +1721,80 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
 
       /* งานประจำกดเสร็จซ้ำได้ทุกวัน — ต้องเขียน done_at ใหม่ ไม่งั้นหน้าเว็บนึกว่ายังเป็นรอบเก่า */
-      if (status && (status !== task.status || (task.repeat && status === "done"))) {
-        stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=? WHERE id=?")
-          .bind(status, now, status === "done" ? (task.repeat || task.status !== "done" ? now : task.doneAt) : null, id));
+      if (newStatus && (newStatus !== task.status || (task.repeat && newStatus === "done"))) {
+        const st = stampsFor(newStatus, task, now, me.id);
+        stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
+          .bind(newStatus, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, id));
+        if (newStatus === "review") {
+          const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
+          for (const o of (owners.results || [])) {
+            if (o.id === me.id) continue;
+            stmts.push(db.prepare(
+              "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+            ).bind(newId("m_"), id, uid, o.id, me.id, "ส่งงานให้ตรวจ: " + String(task.title).slice(0, 200), now));
+          }
+        }
       } else {
         stmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id));
       }
       await db.batch(stmts);
-      return json({ id: uid, fileIds });
+      return json({ id: uid, fileIds, status: newStatus || task.status });
+    }
+
+    /* ---- ตรวจงาน: หัวหน้า (หรือคนสั่งงาน) กดผ่าน / ส่งกลับแก้ ---- */
+    if (sub === "/review" && method === "POST") {
+      if (!(isOwner || task.createdBy === me.id)) return json({ error: "ตรวจงานได้เฉพาะหัวหน้าหรือคนสั่งงาน" }, 403);
+      const body = await readBody(request);
+      const pass = body.pass !== false;
+      const note = String(body.note || "").trim().slice(0, 2000);
+      if (!pass && !note) return json({ error: "ส่งกลับแก้ต้องบอกด้วยว่าให้แก้อะไร" }, 400);
+      const now = nowIso();
+      const uid = newId("u_");
+      const status = pass ? "done" : "doing";
+      const stmts = [
+        db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(uid, id, me.id, "status", note || (pass ? "ตรวจผ่านแล้ว" : ""), status, now),
+        db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, approved_at=?, approved_by=? WHERE id=?")
+          .bind(status, now, pass ? now : null, pass ? now : null, pass ? me.id : null, id),
+      ];
+      /* บอกคนรับงานทุกคนว่าผ่านแล้วหรือต้องแก้ */
+      for (const sid of task.assignees) {
+        if (sid === me.id) continue;
+        stmts.push(db.prepare(
+          "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+        ).bind(newId("m_"), id, uid, sid, me.id,
+               (pass ? "ตรวจผ่านแล้ว: " : "ส่งกลับแก้: ") + (note || String(task.title)).slice(0, 200), now));
+      }
+      await db.batch(stmts);
+      return json({ ok: true, status });
+    }
+
+    /* ---- ขอเลื่อนกำหนดส่ง: น้องขอ → เด้งหาหัวหน้า (เลื่อนจริงได้เฉพาะหัวหน้า) ---- */
+    if (sub === "/postpone-request" && method === "POST") {
+      if (!mine && !canUpdateOthers) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
+      const body = await readBody(request);
+      const reason = String(body.reason || "").trim().slice(0, 1000);
+      if (!reason) return json({ error: "บอกเหตุผลที่ขอเลื่อนด้วย" }, 400);
+      const want = body.wantDate && isIsoDateTime(body.wantDate) ? new Date(body.wantDate).toISOString() : null;
+      const now = nowIso();
+      const uid = newId("u_");
+      const msg = "ขอเลื่อนกำหนดส่ง" + (want ? " เป็น " + thDate(want) : "") + " · " + reason;
+      const stmts = [
+        db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(uid, id, me.id, "note", msg, null, now),
+        db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id),
+      ];
+      const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
+      const tell = new Set((owners.results || []).map((o) => o.id));
+      if (task.createdBy) tell.add(task.createdBy);
+      for (const sid of tell) {
+        if (sid === me.id) continue;
+        stmts.push(db.prepare(
+          "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+        ).bind(newId("m_"), id, uid, sid, me.id, msg.slice(0, 300), now));
+      }
+      await db.batch(stmts);
+      return json({ ok: true });
     }
   }
 

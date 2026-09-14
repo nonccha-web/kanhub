@@ -44,7 +44,10 @@
     ]
   };
 
-  var STATUS_TH = { todo: 'รอทำ', doing: 'กำลังทำ', done: 'เสร็จแล้ว', blocked: 'ติดปัญหา' };
+  var STATUS_TH = { todo: 'รอทำ', doing: 'กำลังทำ', review: 'รอตรวจ', done: 'เสร็จแล้ว', blocked: 'ติดปัญหา' };
+  /* งานรูทีน = ทำประจำ · งานตามสั่ง = สั่งเพิ่มเป็นครั้ง ๆ (ค่าเริ่มต้น) */
+  var KIND_KEYS = ['ondemand', 'routine'];
+  var KIND_TH = { ondemand: 'ตามสั่ง', routine: 'รูทีน' };
 
   /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
      งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
@@ -82,6 +85,21 @@
     var p = String(name || '').replace(/[()[\]{}"'.,]/g, ' ').trim().split(/\s+/).filter(Boolean);
     if (!p.length) return '?';
     return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase();
+  }
+  /* ตัวตนที่ใช้ตัดสินสิทธิ์ — โหมด "ดูในมุมของ" จะกลายเป็นอ่านอย่างเดียว */
+  function amOwner() { return !S.viewAs && S.me && S.me.role === 'owner'; }
+  function readOnly() { return !!S.viewAs; }
+  function canApprove(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
+  function mineTask(t) { return S.me && t.assignees.indexOf(S.me.id) !== -1; }
+  function canTick(t) {
+    if (readOnly()) return false;
+    return canApprove(t) || mineTask(t) || (S.me && S.me.canUpdateOthers);
+  }
+  var DOW_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  function workDaysLabel(s2) {
+    if (!s2.workDays) return 'ยังไม่ตั้งวันทำงาน';
+    var d = String(s2.workDays).split(',').filter(function (x) { return x !== ''; }).map(Number);
+    return d.map(function (n) { return DOW_TH[n]; }).join(' ') + (s2.hoursPerDay ? ' · ' + s2.hoursPerDay + ' ชม./วัน' : '');
   }
   function staffById(id) { for (var i = 0; i < S.staff.length; i++) if (S.staff[i].id === id) return S.staff[i]; return null; }
   function kpiById(id) { for (var i = 0; i < S.kpis.length; i++) if (S.kpis[i].id === id) return S.kpis[i]; return null; }
@@ -495,7 +513,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts' };
+  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -561,7 +579,7 @@
     tb.textContent = shortName(S.me);
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
-  var PAGE_TOUR = { me: 'me', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team' };
+  var PAGE_TOUR = { me: 'me', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', report: 'report' };
   function toggleTourMenu() {
     var m = $('#tourMenu'), T = global.KAN_TOUR;
     if (!m || !T) return;
@@ -699,7 +717,7 @@
   function taskRow(t) {
     var es = effStatus(t), late = isLate(t), st = late ? 'late' : es;
     var dueCls = late ? 'late' : (isToday(t) && es !== 'done' ? 'today' : '');
-    var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : '');
+    var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : (es === 'review' ? '?' : ''));
     var sub = t.nUpdates > 1 ? ('อัปเดต ' + fmtAgo(t.lastUpdate)) : (t.nFiles ? t.nFiles + ' รูป' : '');
     var cycle = t.repeat
       ? (es === 'done'
@@ -707,12 +725,22 @@
           : '<span class="pill ' + (late ? 'late' : 'repeat') + '">' +
             (t.repeat === 'daily' ? (late ? 'ยังไม่อัปเดตวันนี้' : 'ประจำวัน') : 'ประจำสัปดาห์') + '</span>')
       : '';
+    /* วงกลมหน้าแถวกดติ๊กได้เลย ไม่ต้องเข้าไปในงาน — พิซซ่าขอไว้ว่าหาไม่เจอ
+       งานรอตรวจ: หัวหน้ากดตรงนี้ = ตรวจผ่าน · คนอื่นกดไม่ได้ */
+    var tick = canTick(t);
+    var act = es === 'review' ? (canApprove(t) ? 'approve' : '') : (es === 'done' ? 'undone' : 'done');
+    var tip = act === 'approve' ? 'ตรวจผ่าน' : (act === 'undone' ? 'เอากลับมาเป็นยังไม่เสร็จ'
+      : (canApprove(t) ? 'ปิดงานนี้' : 'ส่งให้หัวหน้าตรวจ'));
     return '<a class="trow ' + esc(es) + '" href="#/task/' + esc(t.id) + '">' +
-      '<span class="st ' + esc(st) + '">' + mark + '</span>' +
+      (tick && act
+        ? '<button type="button" class="st ' + esc(st) + ' tick" data-tick="' + esc(t.id) + '" data-act="' + act + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + mark + '</button>'
+        : '<span class="st ' + esc(st) + '">' + mark + '</span>') +
       '<span class="main"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
       '<span class="m">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
+      (es === 'review' ? '<span class="pill review">รอตรวจ</span>' : '') +
       (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
+      (t.taskKind === 'routine' ? '<span class="pill kind">รูทีน</span>' : '') +
       (t.parentId ? '<span class="pill sub">งานย่อย</span>' : '') +
       (t.nSub ? '<span title="งานย่อย">☑ ' + t.nSubDone + '/' + t.nSub + '</span>' : '') +
       (t.nFiles ? '<span>📷 ' + t.nFiles + '</span>' : '') + '</span></span>' +
@@ -726,9 +754,11 @@
   }
   function bucketize(tasks) {
     var now = new Date(), week = new Date(startOfDay(now).getTime() + 7 * 86400000);
-    var b = { late: [], today: [], week: [], later: [], nodate: [], repeat: [], done: [] };
+    var b = { review: [], late: [], today: [], week: [], later: [], nodate: [], repeat: [], done: [] };
     tasks.forEach(function (t) {
       if (effStatus(t) === 'done') { b.done.push(t); return; }
+      /* รอตรวจอยู่บนสุดเสมอ — ของที่ค้างที่หัวหน้า ไม่ใช่ค้างที่น้อง */
+      if (effStatus(t) === 'review') { b.review.push(t); return; }
       /* งานประจำที่เลยเวลาของวันนี้แล้วยังไม่อัปเดต ขึ้นกลุ่ม "เลยกำหนด" เหมือนงานอื่น
          ตัวเลขบนการ์ดกับกลุ่มข้างล่างจะได้ตรงกัน */
       if (isLate(t)) { b.late.push(t); return; }
@@ -745,26 +775,41 @@
   function renderMe() {
     Promise.all([loadTasks(), loadCampaigns()]).then(function (r) {
       var all = r[0];
-      var mine = all.filter(function (t) { return t.assignees.indexOf(S.me.id) !== -1; });
+      var who = S.viewAs || S.me.id;
+      var mine = all.filter(function (t) { return t.assignees.indexOf(who) !== -1; });
       var b = bucketize(mine);
       var open = mine.length - b.done.length;   /* b.done ใช้ effStatus แล้ว งานประจำของวันใหม่จึงกลับมานับเป็นค้าง */
       var view = $('#view');
       view.className = 'page';
-      var h = '<div class="top"><div><span class="kicker">งานของฉัน</span><h1>สวัสดี ' + esc(shortName(S.me)) + '</h1>' +
+      var whoS = staffById(who) || S.me;
+      var h = (S.viewAs ? '<div class="postbar warn">กำลังดูในมุมของ <b>' + esc(whoS.name) + '</b> — อ่านอย่างเดียว ' +
+          '<button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '') +
+        '<div class="top"><div><span class="kicker">' + (S.viewAs ? 'งานของ ' + esc(shortName(whoS)) : 'งานของฉัน') + '</span>' +
+        '<h1>' + (S.viewAs ? esc(whoS.name) : 'สวัสดี ' + esc(shortName(S.me))) + '</h1>' +
         '<p>' + (open ? 'มีงานค้าง ' + open + ' รายการ' + (b.late.length ? ' · เลยกำหนด ' + b.late.length : '') + (b.today.length ? ' · ครบกำหนดวันนี้ ' + b.today.length : '') : 'ไม่มีงานค้าง เยี่ยม') +
-        '</p></div><div class="top-r"><a class="btn-ghost" href="#/all">ดูงานทั้งหมด</a><a class="btn" href="#/new">+ สั่งงาน</a></div></div>';
+        '</p></div><div class="top-r"><a class="btn-ghost" href="#/all">ดูงานทั้งหมด</a>' +
+        (readOnly() ? '' : '<a class="btn" href="#/new">+ สั่งงาน</a>') + '</div></div>';
       h += '<div class="cards">' +
-        '<article class="hot"><span class="l">งานค้างของฉัน</span><b>' + open + '</b><small>ยังไม่เสร็จ รวมงานประจำ</small></article>' +
+        '<article class="hot"><span class="l">' + (S.viewAs ? 'งานค้างของเขา' : 'งานค้างของฉัน') + '</span><b>' + open + '</b><small>ยังไม่เสร็จ รวมงานประจำ</small></article>' +
         '<article' + (b.late.length ? ' class="bad"' : '') + '><span class="l">เลยกำหนด</span><b>' + b.late.length + '</b><small>ต้องเคลียร์ก่อน</small></article>' +
         '<article' + (b.today.length ? ' class="warn"' : '') + '><span class="l">ครบกำหนดวันนี้</span><b>' + b.today.length + '</b><small>' + esc(DAY_TH[new Date().getDay()] + ' ' + fmtDate(new Date())) + '</small></article>' +
         '<article><span class="l">เสร็จแล้ว</span><b>' + b.done.length + '</b><small>ทั้งหมดที่เคยทำ</small></article></div>';
+      /* งานที่คนอื่นส่งมาให้เราตรวจ — ขึ้นก่อนงานของตัวเอง เพราะมันค้างที่เรา ไม่ใช่ค้างที่เขา */
+      var toReview = readOnly() ? [] : all.filter(function (t) {
+        return effStatus(t) === 'review' && canApprove(t) && t.assignees.indexOf(S.me.id) === -1;
+      });
+      if (toReview.length) {
+        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span></div>' +
+          '<div class="tlist">' + toReview.map(taskRow).join('') + '</div></div>';
+      }
       /* แถบตรวจโพสต์ของวันนี้ — งาน routine ที่หัวหน้าทำทุกวัน ไม่ต้องสร้างเป็น task รายโพสต์ */
       h += '<div class="postbar" id="postBar"><span class="pbi">กำลังอ่านตารางโพสต์…</span></div>';
 
       if (!mine.length) {
-        h += '<div class="sec"><div class="empty"><b>ยังไม่มีงานที่มอบหมายให้คุณ</b>เมื่อหัวหน้าสั่งงาน รายการจะขึ้นที่นี่</div></div>';
+        h += '<div class="sec"><div class="empty"><b>' + (S.viewAs ? 'ยังไม่มีงานที่มอบหมายให้ ' + esc(shortName(whoS)) : 'ยังไม่มีงานที่มอบหมายให้คุณ') + '</b>เมื่อหัวหน้าสั่งงาน รายการจะขึ้นที่นี่</div></div>';
       } else {
-        h += groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
+        h += groupList('ส่งแล้ว รอหัวหน้าตรวจ', b.review) +
+          groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat);
         if (b.done.length) {
           h += '<div class="group"><div class="group-h"><h3>เสร็จแล้ว</h3><span>' + b.done.length + '</span>' +
@@ -795,7 +840,7 @@
   }
 
   /* ---------- งานทั้งหมด ---------- */
-  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all', campaign: '', ttype: '' };
+  var F = { who: '', kpi: '', status: 'open', group: 'due', range: 'all', campaign: '', ttype: '', kind: '' };
   var RANGES = [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['all', 'ทั้งหมด']];
 
   /* ช่วงเวลาที่เลือกครอบงานนี้ไหม
@@ -837,6 +882,8 @@
         if (F.kpi && F.kpi !== 'none' && t.kpiId !== F.kpi) return false;
         if (F.campaign && t.campaignId !== F.campaign) return false;
         if (F.ttype && (t.taskType || 'other') !== F.ttype) return false;
+        if (F.kind && (t.taskKind || 'ondemand') !== F.kind) return false;
+        if (F.status === 'review' && effStatus(t) !== 'review') return false;
         return true;
       }
       var matched = all.filter(passFilters);
@@ -859,7 +906,7 @@
 
       /* แถบเดียวจบ: ช่วงเวลา · ปุ่มตัวกรอง (กางเมื่อกด) · จัดกลุ่ม
          ของเดิมเป็นชิป 3 แถวเต็มจอ ทั้งที่ส่วนใหญ่ไม่ได้แตะ */
-      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0) + (F.ttype ? 1 : 0);
+      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0) + (F.ttype ? 1 : 0) + (F.kind ? 1 : 0);
       var seg = function (name, opts) {
         return '<div class="seg">' + opts.map(function (o) {
           return '<button type="button" class="' + (F[name] === o[0] ? 'on' : '') + '" data-f="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
@@ -883,13 +930,18 @@
           S.kpis.map(function (k) {
             return '<button type="button" class="chip plain' + (F.kpi === k.id ? ' on' : '') + '" data-f="kpi" data-v="' + esc(k.id) + '" title="' + esc(k.title) + '"><span class="dot" style="background:' + esc(k.color) + '"></span>' + esc(k.code) + '</button>';
           }).join('') + '<button type="button" class="chip plain' + (F.kpi === 'none' ? ' on' : '') + '" data-f="kpi" data-v="none">ไม่ระบุ</button></div></div>' +
+          '<div class="frow"><span class="lbl">ชนิดงาน</span><div class="chips">' +
+          '<button type="button" class="chip plain' + (!F.kind ? ' on' : '') + '" data-f="kind" data-v="">ทั้งหมด</button>' +
+          KIND_KEYS.map(function (k) {
+            return '<button type="button" class="chip plain' + (F.kind === k ? ' on' : '') + '" data-f="kind" data-v="' + k + '">' + esc(KIND_TH[k]) + '</button>';
+          }).join('') + '</div></div>' +
           '<div class="frow"><span class="lbl">ประเภทงาน</span><div class="chips">' +
           '<button type="button" class="chip plain' + (!F.ttype ? ' on' : '') + '" data-f="ttype" data-v="">ทุกประเภท</button>' +
           TASK_TYPE_KEYS.map(function (k) {
             return '<button type="button" class="chip plain' + (F.ttype === k ? ' on' : '') + '" data-f="ttype" data-v="' + k + '">' + esc(TASK_TYPE_TH[k]) + '</button>';
           }).join('') + '</div></div>' +
           '<div class="frow"><span class="lbl">สถานะ</span><div class="chips">' +
-          [['open', 'ค้างอยู่'], ['late', 'เลยกำหนด'], ['done', 'เสร็จแล้ว'], ['', 'ทั้งหมด']].map(function (p) {
+          [['open', 'ค้างอยู่'], ['late', 'เลยกำหนด'], ['review', 'รอตรวจ'], ['done', 'เสร็จแล้ว'], ['', 'ทั้งหมด']].map(function (p) {
             return '<button type="button" class="chip plain' + (F.status === p[0] ? ' on' : '') + '" data-f="status" data-v="' + p[0] + '">' + esc(p[1]) + '</button>';
           }).join('') + '</div></div></div>';
       }
@@ -898,9 +950,10 @@
       var act = [];
       if (F.who) act.push(['who', '', 'คน: ' + shortName(staffById(F.who))]);
       if (F.kpi) act.push(['kpi', '', 'KPI: ' + (F.kpi === 'none' ? 'ไม่ระบุ' : ((kpiById(F.kpi) || {}).code || ''))]);
-      if (F.status !== 'open') act.push(['status', 'open', 'สถานะ: ' + ({ '': 'ทั้งหมด', late: 'เลยกำหนด', done: 'เสร็จแล้ว' }[F.status] || F.status)]);
+      if (F.status !== 'open') act.push(['status', 'open', 'สถานะ: ' + ({ '': 'ทั้งหมด', late: 'เลยกำหนด', review: 'รอตรวจ', done: 'เสร็จแล้ว' }[F.status] || F.status)]);
       if (F.campaign) { var cc0 = campaignById(F.campaign); act.push(['campaign', '', 'ปฏิทิน: ' + (cc0 ? cc0.name : F.campaign)]); }
       if (F.ttype) act.push(['ttype', '', 'ประเภท: ' + (TASK_TYPE_TH[F.ttype] || F.ttype)]);
+      if (F.kind) act.push(['kind', '', 'ชนิด: ' + (KIND_TH[F.kind] || F.kind)]);
       if (act.length) {
         h += '<div class="factive">' + act.map(function (a) {
           return '<button type="button" class="fchip" data-f="' + a[0] + '" data-v="' + a[1] + '">' + esc(a[2]) + ' <span>✕</span></button>';
@@ -930,7 +983,8 @@
         if (byKpi['_none']) h += groupList('ยังไม่ผูก KPI', byKpi['_none']);
       } else {
         var b = bucketize(list);
-        h += groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
+        h += groupList('รอตรวจ', b.review) +
+          groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat) + groupList('เสร็จแล้ว', b.done);
       }
       view.innerHTML = h;
@@ -1105,15 +1159,18 @@
      ตารางนี้ใช้ตัวเดียวกับ "ตารางโพสต์" (KAN_GRID) จึงได้ก็อป/วางจาก Excel ลากมุมคัดลอกลง
      Cmd+Z คลิกขวาแทรกแถว มาฟรีทั้งชุด
      ต่างกันตรงตารางนี้ไม่บันทึกอัตโนมัติ — เป็นฉบับร่างจนกว่าจะกดบันทึกทั้งหมด */
+  var SUPPORT_V = '__support__';
   var drafts = [];
   var dgrid = null;
 
   function blankDraft(last) {
-    return { title: '', taskType: '', assignees: [], date: '', time: '', detail: '', repeat: '', kpiId: '',
+    return { title: '', taskType: '', taskKind: 'ondemand', assignees: [], date: '', time: '', hours: '',
+             detail: '', repeat: '', kpiId: '', support: 0,
              campaignId: (last && last.campaignId) || (S.route.query || {}).campaign || '' };
   }
   function draftBlank(r) {
-    return !String(r.title || '').trim() && !(r.assignees || []).length && !r.date && !String(r.detail || '').trim();
+    return !String(r.title || '').trim() && !(r.assignees || []).length && !r.date &&
+      !String(r.detail || '').trim() && !r.kpiId && !r.support && r.hours === '';
   }
   /* บังคับ 4 ช่อง — เวลาปล่อยว่างได้ ระบบใส่ 18:00 ให้ (กติกาเดียวกับตอนพิมพ์สั่งในแชต) */
   function draftMissing(r) {
@@ -1122,6 +1179,9 @@
     if (!r.taskType) m.push('ประเภทงาน');
     if (!(r.assignees || []).length) m.push('สั่งใคร');
     if (!r.date) m.push('กำหนดส่ง');
+    /* ทุกงานต้องบอกว่าเข้า KPI ไหน หรือเป็นงาน support — คุณออนขอให้ทุกงานมีคำตอบ
+       นนท์ขอให้มีทางออกสำหรับงานที่ไม่ควรยัดเข้า KPI */
+    if (!r.kpiId && !r.support) m.push('KPI');
     return m;
   }
   function draftList() {
@@ -1159,6 +1219,19 @@
           return hit || guessTaskType(s) || null;
         },
         filterValues: function (r) { return [TASK_TYPE_TH[r.taskType] || '(ยังไม่เลือก)']; } },
+
+      { key: 'taskKind', label: 'ชนิดงาน', width: 104, type: 'pick',
+        options: function () { return KIND_KEYS.map(function (k) { return { v: k, label: KIND_TH[k] }; }); },
+        text: function (r) { return KIND_TH[r.taskKind] || KIND_TH.ondemand; },
+        parse: function (s2) {
+          s2 = String(s2).trim();
+          if (!s2) return 'ondemand';
+          var hit = '';
+          KIND_KEYS.forEach(function (k) { if (k === s2 || KIND_TH[k] === s2) hit = k; });
+          if (!hit && /ประจำ|ทุกวัน|routine/i.test(s2)) hit = 'routine';
+          return hit || null;
+        },
+        filterValues: function (r) { return [KIND_TH[r.taskKind] || KIND_TH.ondemand]; } },
 
       { key: 'assignees', label: 'สั่งใคร *', width: 168, type: 'multi',
         options: function () { return activeStaff().map(function (s) { return { v: s.id, label: shortName(s) }; }); },
@@ -1202,6 +1275,18 @@
         copy: function (r) { return showDueTime(r.time); },
         sortKey: function (r) { return r.time || '99:99'; } },
 
+      { key: 'hours', label: 'ใช้เวลา (ชม.)', width: 106,
+        text: function (r) { return r.hours === '' || r.hours == null ? '' : String(r.hours); },
+        edit: function (r) { return r.hours === '' || r.hours == null ? '' : String(r.hours); },
+        parse: function (s2) {
+          s2 = String(s2).trim().replace(/\s*(ชม\.?|ชั่วโมง|h|hr)$/i, '');
+          if (!s2) return '';
+          var n = Number(s2);
+          if (!isFinite(n) || n < 0 || n > 200) return null;
+          return Math.round(n * 4) / 4;
+        },
+        sortKey: function (r) { return r.hours === '' || r.hours == null ? -1 : Number(r.hours); } },
+
       { key: 'detail', label: 'รายละเอียด', width: 290,
         parse: function (s) { return String(s).trim().slice(0, 4000); } },
 
@@ -1218,20 +1303,37 @@
           return hit === null ? null : hit;
         } },
 
-      { key: 'kpiId', label: 'KPI ที่เกี่ยวข้อง', width: 200, type: 'pick',
+      /* เลือกได้ทั้ง KPI จริง และ "งาน support" ซึ่งเก็บเป็น support=1 ไม่ใช่ kpiId
+         affects บอก grid ว่าช่องนี้ไปแตะ support ด้วย จะได้ undo ถูก */
+      { key: 'kpiId', label: 'KPI *', width: 210, type: 'pick', affects: ['support'],
         options: function () {
-          return [{ v: '', label: '— ไม่ระบุ —' }].concat(S.kpis.map(function (k) {
+          return [{ v: SUPPORT_V, label: 'งาน support — ไม่เข้า KPI' }].concat(S.kpis.map(function (k) {
             return { v: k.id, label: k.code + ' · ' + k.title };
           }));
         },
-        text: function (r) { var k = kpiById(r.kpiId); return k ? k.code + ' · ' + k.title : ''; },
-        parse: function (s) {
-          s = String(s).trim().toLowerCase();
-          if (!s || s.indexOf('ไม่ระบุ') !== -1) return '';
-          var hit = S.kpis.filter(function (k) { return (k.code + ' · ' + k.title).toLowerCase() === s; })[0] ||
-                    S.kpis.filter(function (k) { return k.code.toLowerCase() === s; })[0] ||
-                    S.kpis.filter(function (k) { return (k.code + ' ' + k.title).toLowerCase().indexOf(s) !== -1; })[0];
+        get: function (r) { return r.support ? SUPPORT_V : (r.kpiId || ''); },
+        set: function (r, v) {
+          if (v === SUPPORT_V) { r.support = 1; r.kpiId = ''; }
+          else { r.support = 0; r.kpiId = v || ''; }
+        },
+        text: function (r) {
+          if (r.support) return 'งาน support';
+          var k = kpiById(r.kpiId);
+          return k ? k.code + ' · ' + k.title : '';
+        },
+        parse: function (s2) {
+          s2 = String(s2).trim();
+          if (!s2) return '';
+          if (s2 === SUPPORT_V || /support|ซัพพอร์ต|ไม่เข้า\s*kpi/i.test(s2)) return SUPPORT_V;
+          var low = s2.toLowerCase();
+          var hit = S.kpis.filter(function (k) { return (k.code + ' · ' + k.title).toLowerCase() === low; })[0] ||
+                    S.kpis.filter(function (k) { return k.code.toLowerCase() === low; })[0] ||
+                    S.kpis.filter(function (k) { return (k.code + ' ' + k.title).toLowerCase().indexOf(low) !== -1; })[0];
           return hit ? hit.id : null;
+        },
+        copy: function (r) { return r.support ? 'งาน support' : ((kpiById(r.kpiId) || {}).code || ''); },
+        filterValues: function (r) {
+          return [r.support ? 'งาน support' : ((kpiById(r.kpiId) || {}).code || '(ยังไม่เลือก)')];
         } },
 
       { key: 'campaignId', label: 'ปฏิทินการตลาด', width: 170, type: 'pick',
@@ -1283,9 +1385,10 @@
       isBlank: draftBlank,
       blankRow: blankDraft,
       cloneRow: function (src) {
-        return { title: src.title, taskType: src.taskType, assignees: (src.assignees || []).slice(),
-                 date: src.date, time: src.time, detail: src.detail, repeat: src.repeat,
-                 kpiId: src.kpiId, campaignId: src.campaignId };
+        return { title: src.title, taskType: src.taskType, taskKind: src.taskKind,
+                 assignees: (src.assignees || []).slice(), date: src.date, time: src.time,
+                 hours: src.hours, detail: src.detail, repeat: src.repeat,
+                 kpiId: src.kpiId, support: src.support, campaignId: src.campaignId };
       },
       /* ขีดแดงหน้าแถวที่กรอกไม่ครบ — เห็นตั้งแต่ยังไม่กดบันทึก */
       tone: function (r) { return (!draftBlank(r) && draftMissing(r).length) ? 'miss' : ''; },
@@ -1329,6 +1432,9 @@
     return {
       title: t.title || '',
       taskType: guessTaskType((t.title || '') + ' ' + (t.detail || '')),
+      taskKind: t.repeat ? 'routine' : 'ondemand',
+      hours: '',
+      support: 0,
       assignees: t.assignees || [],
       date: ok ? ymd(d) : '',
       time: ok ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '',
@@ -1361,7 +1467,9 @@
     if (btn) btn.disabled = true;
     var payload = list.map(function (r) {
       return { title: r.title, detail: r.detail || '', assignees: r.assignees, dueAt: draftDue(r),
-               repeat: r.repeat || '', kpiId: r.kpiId || null, taskType: r.taskType, priority: 0,
+               repeat: r.repeat || '', kpiId: r.kpiId || null, taskType: r.taskType,
+               taskKind: r.taskKind || 'ondemand', support: r.support ? 1 : 0,
+               hours: r.hours === '' ? null : r.hours, priority: 0,
                campaignId: r.campaignId || null };
     });
     api('/tasks', 'POST', { tasks: payload }).then(function (j) {
@@ -1383,6 +1491,150 @@
       });
     }).catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
   }
+  /* ติ๊กจากหน้ารายการ — ปุ่มถูกกดซ้ำระหว่างรอไม่ได้ กัน request ซ้อน */
+  function tickTask(btn) {
+    if (btn.dataset.busy) return;
+    var id = btn.getAttribute('data-tick'), act = btn.getAttribute('data-act');
+    btn.dataset.busy = '1';
+    btn.classList.add('busy');
+    var req = act === 'approve'
+      ? api('/tasks/' + id + '/review', 'POST', { pass: true })
+      : api('/tasks/' + id, 'PUT', { status: act === 'undone' ? 'todo' : 'done' });
+    req.then(function (j) {
+      S.tasks = null;
+      var msg = act === 'approve' ? 'ตรวจผ่านแล้ว'
+        : (act === 'undone' ? 'เอากลับมาเป็นรอทำแล้ว'
+        : (j && j.status === 'review' ? 'ส่งให้หัวหน้าตรวจแล้ว' : 'ปิดงานแล้ว'));
+      toast(msg);
+      render();
+    }).catch(function (e) {
+      btn.dataset.busy = '';
+      btn.classList.remove('busy');
+      toast(e.message, true);
+    });
+  }
+
+  /* ---------- สรุปผลงานรายเดือน (ข้อ 03 ของคุณออน) ---------- */
+  /* ตรงเวลานับตอน "ส่งรอตรวจ" เทียบ "วันเดิมก่อนถูกเลื่อน" — หัวหน้าตรวจช้าน้องไม่โดน
+     โชว์ 2 ตัวเลข: ถึงเวลาเป๊ะ กับ ภายในวันนั้น (ตัวหลังคือตัวที่เอาไปเข้า KPI) */
+  function pctNum(v) {
+    if (v == null) return '<span style="color:var(--k-mut)">—</span>';
+    var tone = v >= 90 ? 'ok' : (v >= 70 ? 'warn' : 'bad');
+    return '<span class="pctnum ' + tone + '">' + v + '%</span>';
+  }
+  function renderReport() {
+    var view = $('#view');
+    view.className = 'page';
+    var m = (S.route.query || {}).month || '';
+    view.innerHTML = '<div class="loading">กำลังรวมตัวเลข…</div>';
+    api('/report/monthly' + (m ? '?month=' + encodeURIComponent(m) : '')).then(function (j) {
+      var mm = j.month.split('-'), y = Number(mm[0]), mo = Number(mm[1]);
+      var prev = new Date(Date.UTC(y, mo - 2, 1)), next = new Date(Date.UTC(y, mo, 1));
+      var fmtM = function (d) { return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1); };
+      var label = MON_TH[mo - 1] + ' ' + (y + 543);
+      var T = j.team;
+      var h = '<div class="top"><div><span class="kicker">สรุปผลงาน</span><h1>' + esc(label) + '</h1>' +
+        '<p>นับจากงานที่<b>ครบกำหนดในเดือนนี้</b> · “ตรงเวลา” วัดตอนส่งให้ตรวจ เทียบกับวันเดิมก่อนถูกเลื่อน ' +
+        'หัวหน้าตรวจช้าไม่ทำให้น้องเสียคะแนน</p></div>' +
+        '<div class="top-r"><a class="btn-ghost" href="#/report?month=' + fmtM(prev) + '">◀ เดือนก่อน</a>' +
+        '<a class="btn-ghost" href="#/report?month=' + fmtM(next) + '">เดือนถัดไป ▶</a></div></div>';
+
+      h += '<div class="cards">' +
+        '<article class="hot"><span class="l">งานครบกำหนดเดือนนี้</span><b>' + T.assigned + '</b><small>ทั้งทีม</small></article>' +
+        '<article><span class="l">ส่งแล้ว</span><b>' + T.finished + '</b><small>ยังค้าง ' + T.open + ' งาน</small></article>' +
+        '<article' + (T.ontimeDayPct != null && T.ontimeDayPct < 80 ? ' class="warn"' : '') + '><span class="l">ตรงเวลา (ในวันนั้น)</span><b>' +
+        (T.ontimeDayPct == null ? '—' : T.ontimeDayPct + '%') + '</b><small>ตัวที่ใช้กับ KPI</small></article>' +
+        '<article><span class="l">ตรงเวลา (ถึงเวลาเป๊ะ)</span><b>' +
+        (T.ontimePct == null ? '—' : T.ontimePct + '%') + '</b><small>เกณฑ์เข้ม</small></article></div>';
+
+      if (!T.assigned) {
+        h += '<div class="sec"><div class="empty"><b>ยังไม่มีงานที่ครบกำหนดในเดือนนี้</b>ลองเปลี่ยนเดือน</div></div>';
+        view.innerHTML = h;
+        return;
+      }
+
+      var rowsOf = function (map, nameOf, keys) {
+        return (keys || Object.keys(map)).filter(function (k) { return map[k]; }).map(function (k) {
+          var b = map[k];
+          return '<tr><td>' + esc(nameOf(k)) + '</td>' +
+            '<td class="n">' + b.assigned + '</td><td class="n">' + b.finished + '</td>' +
+            '<td class="n">' + b.ontimeDay + '</td><td class="n">' + (b.finished - b.ontimeDay) + '</td>' +
+            '<td class="n">' + pctNum(b.ontimeDayPct) + '</td>' +
+            '<td class="n">' + (b.hours ? b.hours + ' ชม.' : '<span style="color:var(--k-mut)">—</span>') + '</td>' +
+            '<td class="n">' + (b.kpiSharePct == null ? '<span style="color:var(--k-mut)">—</span>' : b.kpiSharePct + '%') + '</td>' +
+            '<td class="n">' + (b.postpones || '') + '</td></tr>';
+        }).join('');
+      };
+      var head = '<thead><tr><th></th><th class="n">ครบกำหนด</th><th class="n">ส่งแล้ว</th><th class="n">ตรงเวลา</th>' +
+        '<th class="n">เลย</th><th class="n">% ตรงเวลา</th><th class="n">ชั่วโมง</th><th class="n">% เข้า KPI</th><th class="n">เลื่อน</th></tr></thead>';
+
+      h += '<div class="sec"><div class="sec-h"><h2>รายคน</h2><p>งานที่มีหลายคนรับ นับให้ทุกคนเต็มจำนวน ไม่หาร</p></div>' +
+        '<div class="sec-b tight"><div class="scrollx"><table class="rpt">' + head + '<tbody>' +
+        rowsOf(j.byStaff, function (k) { return (staffById(k) || {}).name || k; }) + '</tbody></table></div></div></div>';
+
+      h += '<div class="sec"><div class="sec-h"><h2>ตามประเภทงาน</h2></div><div class="sec-b tight"><div class="scrollx">' +
+        '<table class="rpt">' + head + '<tbody>' +
+        rowsOf(j.byType, function (k) { return TASK_TYPE_TH[k] || k; }, TASK_TYPE_KEYS) + '</tbody></table></div></div></div>';
+
+      h += '<div class="sec"><div class="sec-h"><h2>รูทีน เทียบ ตามสั่ง</h2>' +
+        '<p>ถ้ารูทีนกินเวลาเกินครึ่ง แปลว่าทีมไม่เหลือแรงทำงานที่สั่งเพิ่ม</p></div>' +
+        '<div class="sec-b tight"><div class="scrollx"><table class="rpt">' + head + '<tbody>' +
+        rowsOf(j.byKind, function (k) { return KIND_TH[k] || k; }, KIND_KEYS) + '</tbody></table></div></div></div>';
+
+      h += '<div class="postbar">ทั้งทีมลงเวลากับงานที่ผูก KPI <b>' +
+        (T.kpiSharePct == null ? '—' : T.kpiSharePct + '%') + '</b> (' + T.kpiHours + ' ชม.) · งาน support ' +
+        T.supportHours + ' ชม. — ตัวเลขนี้แม่นเมื่อทุกงานใส่ชั่วโมงไว้</div>';
+
+      view.innerHTML = h;
+    }).catch(function (e) { showError(e); });
+  }
+
+  /* ---------- หน้าแคมเปญ: งาน + โพสต์ ที่ผูกไว้ (ข้อ 05 ของคุณออน) ---------- */
+  function renderCampaign(cid) {
+    var view = $('#view');
+    view.className = 'page';
+    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    Promise.all([loadCampaigns(), api('/campaigns/' + cid + '/related'), loadPages()]).then(function (r) {
+      var c = campaignById(cid), j = r[1];
+      var tasks = j.tasks || [], posts = j.posts || [];
+      var doneT = tasks.filter(function (t) { return effStatus(t) === 'done'; }).length;
+      var doneP = posts.filter(function (x) { return x.status === 'done'; }).length;
+      var h = '<div class="top"><div><span class="kicker">ปฏิทินการตลาด</span><h1>' + esc(c ? c.name : 'แคมเปญ') + '</h1>' +
+        (c && c.start ? '<p>' + esc(thaiShort(c.start)) + (c.end ? ' – ' + esc(thaiShort(c.end)) : '') + '</p>' : '') +
+        '</div><div class="top-r"><a class="btn-ghost" href="' + CAL_URL + '">ดูปฏิทินทั้งหมด</a>' +
+        '<a class="btn" href="#/new?campaign=' + esc(cid) + '">+ สั่งงานให้แคมเปญนี้</a></div></div>';
+
+      h += '<div class="cards">' +
+        '<article class="hot"><span class="l">งานที่ผูกไว้</span><b>' + tasks.length + '</b><small>เสร็จแล้ว ' + doneT + '</small></article>' +
+        '<article><span class="l">โพสต์ที่ผูกไว้</span><b>' + posts.length + '</b><small>ลงแล้ว ' + doneP + '</small></article>' +
+        '<article><span class="l">งานค้าง</span><b>' + (tasks.length - doneT) + '</b><small>ยังไม่ปิด</small></article>' +
+        '<article><span class="l">โพสต์ค้าง</span><b>' + (posts.length - doneP) + '</b><small>ยังไม่ลง</small></article></div>';
+
+      h += tasks.length
+        ? '<div class="group"><div class="group-h"><h3>งานที่ผูกกับแคมเปญนี้</h3><span>' + tasks.length + '</span></div>' +
+          '<div class="tlist">' + tasks.map(taskRow).join('') + '</div></div>'
+        : '<div class="sec"><div class="empty"><b>ยังไม่มีงานผูกกับแคมเปญนี้</b>กด “สั่งงานให้แคมเปญนี้” ด้านบน</div></div>';
+
+      h += '<div class="sec"><div class="sec-h"><h2>โพสต์ที่ผูกกับแคมเปญนี้</h2>' +
+        '<p>' + (posts.length ? 'ลงแล้ว ' + doneP + ' จาก ' + posts.length : 'ยังไม่มี') + '</p></div>';
+      if (posts.length) {
+        h += '<div class="sec-b tight"><div class="scrollx"><table class="rpt"><thead><tr>' +
+          '<th>วันที่</th><th>เพจ</th><th>หัวข้อ</th><th>ช่องทาง</th><th>สถานะ</th></tr></thead><tbody>' +
+          posts.map(function (x) {
+            return '<tr><td>' + esc(thaiShort(x.date)) + (x.time ? ' ' + esc(x.time) : '') + '</td>' +
+              '<td>' + esc(pageName(x.pageId)) + '</td>' +
+              '<td>' + (x.url ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer">' + esc(x.topic || '(ไม่มีหัวข้อ)') + '</a>' : esc(x.topic || '(ไม่มีหัวข้อ)')) + '</td>' +
+              '<td>' + esc((x.channels || []).join(', ')) + '</td>' +
+              '<td>' + esc(POST_STATUS_TH[x.status] || x.status || '') + '</td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      } else {
+        h += '<div class="sec-b"><div class="empty">ยังไม่มีโพสต์ผูกกับแคมเปญนี้</div></div>';
+      }
+      h += '</div>';
+      view.innerHTML = h;
+    }).catch(function (e) { showError(e); });
+  }
+
   /* ---------- รายละเอียดงาน ---------- */
   var pendingFiles = [];
   var pendingLinks = [];
@@ -1438,9 +1690,13 @@
       ups.forEach(function (u) { S.taskUpdRaw[u.id] = u.note || ''; });
       var filesByUpdate = {};
       files.forEach(function (f) { (filesByUpdate[f.updateId || '_'] = filesByUpdate[f.updateId || '_'] || []).push(f); });
-      var es = effStatus(t), late = isLate(t), canEdit = S.me.role === 'owner' || t.createdBy === S.me.id;
+      var es = effStatus(t), late = isLate(t);
+      var canEdit = !readOnly() && (S.me.role === 'owner' || t.createdBy === S.me.id);
       var mine = t.assignees.indexOf(S.me.id) !== -1;
-      var canStatus = canEdit || mine;
+      var canStatus = !readOnly() && (canEdit || mine || S.me.canUpdateOthers);
+      /* งานที่ยังไม่เคยมีกำหนดส่ง — คนรับงานใส่วันเองได้ (พิซซ่าขอ)
+         แต่ถ้ามีวันแล้วต้องให้หัวหน้าเลื่อนเท่านั้น */
+      var canBackfill = canStatus && !t.dueAt;
       var by = staffById(t.createdBy);
       var view = $('#view');
       view.className = 'page';
@@ -1455,8 +1711,16 @@
             : (es === 'done' ? 'อัปเดตแล้วสัปดาห์นี้' : 'งานประจำสัปดาห์')) + '</span>' : '') + '</div>' +
         '<h1>' + (t.priority ? '★ ' : '') + esc(t.title) + '</h1>' +
         '<div class="meta"><div><span class="k">ผู้รับผิดชอบ</span><div class="v">' + avatars(t.assignees) + '</div></div>' +
-        '<div><span class="k">กำหนดส่ง</span><div class="v' + (late ? ' late' : '') + '">' + esc(fmtDue(t)) + (t.dueAt && !t.repeat ? ' <small style="color:var(--k-mut);font-weight:400">(' + esc(fmtFull(t.dueAt)) + ')</small>' : '') + '</div></div>' +
-        '<div><span class="k">KPI</span><div class="v">' + (t.kpiId ? '<span class="kpi-chip" style="font-size:13px;color:var(--k-ink)"><i style="background:' + esc((kpiById(t.kpiId) || {}).color) + '"></i>' + esc((kpiById(t.kpiId) || {}).code + ' · ' + (kpiById(t.kpiId) || {}).title) + '</span>' : '<span style="color:var(--k-mut)">ไม่ระบุ</span>') + '</div></div>' +
+        '<div><span class="k">กำหนดส่ง</span><div class="v' + (late ? ' late' : '') + '">' + esc(fmtDue(t)) +
+          (t.dueAt && !t.repeat ? ' <small style="color:var(--k-mut);font-weight:400">(' + esc(fmtFull(t.dueAt)) + ')</small>' : '') +
+          (t.postpones ? ' <span class="pill late" title="เลื่อนมาแล้ว ' + t.postpones + ' ครั้ง">เลื่อน ' + t.postpones + '</span>' : '') +
+          /* น้องเลื่อนเองไม่ได้ ขอได้อย่างเดียว — ตามที่คุณออนสั่ง */
+          (t.dueAt && !canEdit && canStatus && es !== 'done'
+            ? ' <button type="button" class="btn-text" id="postponeBtn">ขอเลื่อน</button>' : '') +
+          '</div></div>' +
+        '<div><span class="k">ชนิด / ใช้เวลา</span><div class="v">' + esc(KIND_TH[t.taskKind] || KIND_TH.ondemand) +
+          (t.hours ? ' · ' + esc(String(t.hours)) + ' ชม.' : ' <small style="color:var(--k-warn);font-weight:400">ยังไม่ใส่ชั่วโมง</small>') + '</div></div>' +
+        '<div><span class="k">KPI</span><div class="v">' + (t.kpiId ? '<span class="kpi-chip" style="font-size:13px;color:var(--k-ink)"><i style="background:' + esc((kpiById(t.kpiId) || {}).color) + '"></i>' + esc((kpiById(t.kpiId) || {}).code + ' · ' + (kpiById(t.kpiId) || {}).title) + '</span>' : (t.support ? '<span style="color:var(--k-soft)">งาน support — ไม่เข้า KPI</span>' : '<span style="color:var(--k-warn)">ยังไม่เลือก</span>')) + '</div></div>' +
         '<div><span class="k">สั่งโดย</span><div class="v">' + (by ? avatar(by) + ' ' + esc(shortName(by)) : '—') + ' <small style="color:var(--k-mut);font-weight:400">' + esc(fmtAgo(t.createdAt)) + '</small></div></div></div></div>';
 
       h += '<div class="two"><div>';
@@ -1468,11 +1732,16 @@
           '<div class="field"><label class="label">มอบหมายให้</label><div class="chips" id="editAs">' + S.staff.filter(function (s) { return s.active; }).map(function (s) {
             return '<button type="button" class="chip' + (t.assignees.indexOf(s.id) !== -1 ? ' on' : '') + '" data-as="' + esc(s.id) + '">' + avatar(s) + esc(shortName(s)) + '</button>';
           }).join('') + '</div></div>' +
-          '<div class="field"><label class="label">ประเภทงาน</label><select class="select" name="taskType">' +
+          '<div class="grid3"><div class="field"><label class="label">ประเภทงาน</label><select class="select" name="taskType">' +
           TASK_TYPE_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskType || 'other') === k ? ' selected' : '') + '>' + esc(TASK_TYPE_TH[k]) + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label class="label">ชนิดงาน</label><select class="select" name="taskKind">' +
+          KIND_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskKind || 'ondemand') === k ? ' selected' : '') + '>' + esc(KIND_TH[k]) + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label class="label">ใช้เวลา (ชม.)</label><input class="input" type="number" step="0.25" min="0" max="200" name="hours" value="' + (t.hours == null ? '' : esc(String(t.hours))) + '"></div></div>' +
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
           '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
-          '<div class="field"><label class="label">KPI</label><select class="select" name="kpiId"><option value="">— ไม่ระบุ —</option>' + S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
+          '<div class="field"><label class="label">KPI <small>ทุกงานต้องมีคำตอบ</small></label><select class="select" name="kpiId">' +
+          '<option value="' + SUPPORT_V + '"' + (t.support ? ' selected' : '') + '>งาน support — ไม่เข้า KPI</option>' +
+          S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
           '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด <small>คอนเทนต์ / แคมเปญ / โปรโมชั่นที่งานนี้ทำให้</small></label>' + campaignSelect('name="campaignId"', t.campaignId) + '</div>' +
           '<label class="label" style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" name="priority"' + (t.priority ? ' checked' : '') + '> งานด่วน (★)</label>' +
           '<div class="acts"><button type="submit" class="btn">บันทึกการแก้ไข</button><button type="button" class="btn-ghost" id="cancelEdit">ยกเลิก</button>' +
@@ -1518,9 +1787,36 @@
         }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
       h += '</div><div>';
 
-      h += '<div class="sec"><div class="sec-h"><h2>อัปเดตงาน</h2></div><div class="sec-b"><form id="updForm" class="upl">' +
+      /* งานรอตรวจ: หัวหน้าเห็นกล่องตรวจก่อนอย่างอื่น — นนท์ขอให้เด้งเข้ามาที่ตัวเอง */
+      if (es === 'review' && canApprove(t)) {
+        h += '<div class="sec reviewbox"><div class="sec-h"><h2>งานนี้ส่งมาให้คุณตรวจ</h2>' +
+          '<p>' + esc(t.assignees.map(function (x) { return shortName(staffById(x)); }).join(', ')) +
+          ' ส่งเมื่อ ' + esc(fmtAgo(t.submittedAt || t.updatedAt)) + '</p></div>' +
+          '<div class="sec-b"><form id="reviewForm" style="display:grid;gap:10px">' +
+          '<textarea class="textarea" name="note" data-rich rows="2" placeholder="ผ่านเลยก็ไม่ต้องพิมพ์ · ถ้าส่งกลับแก้ ต้องบอกว่าให้แก้อะไร"></textarea>' +
+          '<div class="acts"><button type="submit" class="btn" data-pass="1">ตรวจผ่าน</button>' +
+          '<button type="button" class="btn-ghost" id="rejectBtn">ส่งกลับแก้</button></div>' +
+          '</form></div></div>';
+      }
+      if (es === 'review' && !canApprove(t)) {
+        h += '<div class="postbar warn">ส่งให้หัวหน้าตรวจแล้ว รอผลตรวจอยู่ — ถ้าต้องแก้จะมีแจ้งเตือนกลับมา</div>';
+      }
+
+      /* โหมดดูมุมคนอื่น = อ่านอย่างเดียว ไม่ให้เผลอโพสต์อัปเดตในชื่อคนอื่น */
+      h += readOnly()
+        ? '<div class="sec"><div class="sec-h"><h2>อัปเดตงาน</h2></div>' +
+          '<div class="sec-b"><p class="hint">กำลังดูในมุมของคนอื่น — อัปเดตงานจากโหมดนี้ไม่ได้ กด “เลิกดู” ด้านบนก่อน</p></div></div>'
+        : '<div class="sec"><div class="sec-h"><h2>อัปเดตงาน</h2></div><div class="sec-b"><form id="updForm" class="upl">' +
         (canStatus ? '<div><label class="label">สถานะ</label><div class="chips" id="stChips">' +
-          ['todo', 'doing', 'blocked', 'done'].map(function (s) { return '<button type="button" class="chip plain' + (es === s ? ' on' : '') + '" data-st="' + s + '">' + STATUS_TH[s] + '</button>'; }).join('') + '</div></div>' : '') +
+          (canApprove(t) ? ['todo', 'doing', 'blocked', 'done'] : ['todo', 'doing', 'blocked', 'review'])
+            .map(function (s2) {
+              /* น้องเห็นปุ่ม "ส่งให้ตรวจ" แทน "เสร็จแล้ว" จะได้ไม่งงว่าทำไมกดเสร็จแล้วไม่เสร็จ */
+              var lbl = (s2 === 'review' && !canApprove(t)) ? 'ส่งให้ตรวจ' : STATUS_TH[s2];
+              return '<button type="button" class="chip plain' + (es === s2 ? ' on' : '') + '" data-st="' + s2 + '">' + lbl + '</button>';
+            }).join('') + '</div></div>' : '') +
+        (canBackfill ? '<div class="field"><label class="label">กำหนดส่ง <small>งานนี้ยังไม่มีวัน ใส่ย้อนหลังได้</small></label>' +
+          '<div class="linkrow"><input class="input" type="datetime-local" id="backfillDue">' +
+          '<button type="button" class="btn-ghost sm" id="backfillBtn">บันทึกวัน</button></div></div>' : '') +
         '<div class="field"><label class="label">บันทึก / รายงานผล <small>พิมพ์ @ชื่อ เพื่อแท็กให้เขาเห็นในกระดิ่ง</small></label>' +
         '<textarea class="textarea" name="note" data-rich placeholder="ทำอะไรไปแล้ว ติดอะไร ส่งอะไรให้ใคร"></textarea>' +
         '<div class="chips" style="margin-top:8px">' + S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
@@ -1568,6 +1864,53 @@
   }
   function wireTask(t) {
     var chosenStatus = null;
+
+    /* ---- ตรวจงาน: ผ่าน / ส่งกลับแก้ ---- */
+    var rf = $('#reviewForm');
+    if (rf) {
+      var sendReview = function (pass) {
+        var note = rf.note.value.trim();
+        if (!pass && !note) { toast('ส่งกลับแก้ต้องบอกด้วยว่าให้แก้อะไร', true); rf.note.focus(); return; }
+        $$('button', rf).forEach(function (x) { x.disabled = true; });
+        api('/tasks/' + t.id + '/review', 'POST', { pass: pass, note: note })
+          .then(function () {
+            S.tasks = null;
+            toast(pass ? 'ตรวจผ่านแล้ว' : 'ส่งกลับให้แก้แล้ว');
+            renderTask(t.id);
+          })
+          .catch(function (e) { $$('button', rf).forEach(function (x) { x.disabled = false; }); toast(e.message, true); });
+      };
+      rf.addEventListener('submit', function (ev) { ev.preventDefault(); sendReview(true); });
+      $('#rejectBtn').addEventListener('click', function () { sendReview(false); });
+    }
+
+    /* ---- ใส่กำหนดส่งย้อนหลังให้งานที่ยังไม่มีวัน ---- */
+    var bfBtn = $('#backfillBtn');
+    if (bfBtn) bfBtn.addEventListener('click', function () {
+      var v = fromLocalInput($('#backfillDue').value);
+      if (!v) { toast('เลือกวันกับเวลาก่อน', true); return; }
+      bfBtn.disabled = true;
+      api('/tasks/' + t.id, 'PUT', { dueAt: v })
+        .then(function () { S.tasks = null; toast('ใส่กำหนดส่งแล้ว'); renderTask(t.id); })
+        .catch(function (e) { bfBtn.disabled = false; toast(e.message, true); });
+    });
+
+    /* ---- ขอเลื่อนกำหนดส่ง (น้องขอ หัวหน้าเป็นคนเลื่อนจริง) ---- */
+    var pbBtn = $('#postponeBtn');
+    if (pbBtn) pbBtn.addEventListener('click', function () {
+      var reason = prompt('ขอเลื่อนเพราะอะไร — ข้อความนี้จะเด้งไปหาหัวหน้า');
+      if (reason == null) return;
+      reason = reason.trim();
+      if (!reason) { toast('ต้องบอกเหตุผล', true); return; }
+      pbBtn.disabled = true;
+      api('/tasks/' + t.id + '/postpone-request', 'POST', { reason: reason })
+        .then(function () { toast('ส่งคำขอเลื่อนให้หัวหน้าแล้ว'); renderTask(t.id); })
+        .catch(function (e) { pbBtn.disabled = false; toast(e.message, true); });
+    });
+
+    /* โหมดอ่านอย่างเดียวไม่มีฟอร์มอัปเดต — จบตรงนี้ ไม่งั้นโค้ดข้างล่างล้วง element ที่ไม่มี */
+    if (!$('#updForm')) return;
+
     var stChips = $('#stChips');
     if (stChips) stChips.addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-st]'); if (!b) return;
@@ -1733,8 +2076,12 @@
         var f = this;
         api('/tasks/' + t.id, 'PUT', {
           title: f.title.value, detail: f.detail.value, dueAt: fromLocalInput(f.dueAt.value), repeat: f.repeat.value,
-          kpiId: f.kpiId.value || null, priority: f.priority.checked ? 1 : 0,
+          kpiId: f.kpiId.value === SUPPORT_V ? null : (f.kpiId.value || null),
+          support: f.kpiId.value === SUPPORT_V ? 1 : 0,
+          priority: f.priority.checked ? 1 : 0,
           taskType: f.taskType.value,
+          taskKind: f.taskKind.value,
+          hours: f.hours.value === '' ? null : Number(f.hours.value),
           campaignId: f.campaignId.value || null,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
         }).then(function () {
@@ -2831,8 +3178,9 @@
         S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
           return '<option value="' + esc(x.id) + '"' + (S.viewAs === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>';
         }).join('') + '</select></div>' : '') + '</div>' +
-      (S.viewAs ? '<div class="postbar warn">กำลังดูเมนูในมุมของ <b>' + esc((staffById(S.viewAs) || {}).name || '') +
-        '</b> — เห็นเฉพาะหมวดที่เขามีสิทธิ์ <button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '');
+      (S.viewAs ? '<div class="postbar warn">กำลังดูทั้งระบบในมุมของ <b>' + esc((staffById(S.viewAs) || {}).name || '') +
+        '</b> — เห็นเมนู งาน และกระดิ่งเหมือนที่เขาเห็น · แก้อะไรไม่ได้ในโหมดนี้ ' +
+        '<button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '');
     h += '<div class="two"><div class="sec"><div class="sec-h"><h2>สมาชิก</h2><p>' + S.staff.filter(function (s) { return s.active; }).length + ' คนใช้งานอยู่</p></div><div class="sec-b tight">' +
       S.staff.map(function (s) {
         return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
@@ -2845,8 +3193,16 @@
                 return '<button type="button" class="chip plain' + (on ? ' on' : '') + '"' +
                   (owner ? ' data-sec-staff="' + esc(s.id) + '" data-sec="' + sc[0] + '" data-to="' + (on ? '0' : '1') + '"' : ' disabled') +
                   ' title="' + esc(sc[1]) + '">' + esc(SECTION_SHORT[sc[0]]) + '</button>';
-              }).join('')) + '</div></div>' +
+              }).join('')) + '</div>' +
+          /* สิทธิ์เพิ่ม + เวลาทำงาน — พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล
+             วันทำงานเก็บไว้ใช้กับหน้า Workload รอบหน้า แต่ตั้งไว้ก่อนได้เลย */
+          (s.role === 'owner' ? '' :
+            '<div class="secchips"><button type="button" class="chip plain' + (s.canUpdateOthers ? ' on' : '') + '"' +
+            (owner ? ' data-upd-staff="' + esc(s.id) + '" data-to="' + (s.canUpdateOthers ? '0' : '1') + '"' : ' disabled') +
+            ' title="ติ๊กงานและอัปเดตงานของคนอื่นได้">ติ๊กงานแทนคนอื่นได้</button>' +
+            '<span class="wdays">' + esc(workDaysLabel(s)) + '</span></div>') + '</div>' +
           (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
+            '<button type="button" class="btn-ghost sm" data-days-staff="' + esc(s.id) + '">วันทำงาน</button>' +
             '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' +
             '<button type="button" class="btn-ghost sm" data-pin-staff="' + esc(s.id) + '">รหัสตั้งค่าใหม่</button>' +
             (s.id !== S.me.id ? '<button type="button" class="btn-ghost sm' + (s.active ? ' danger' : '') + '" data-active-staff="' + esc(s.id) + '" data-to="' + (s.active ? '0' : '1') + '">' + (s.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน') + '</button>' : '') + '</div>' : '') + '</div>';
@@ -3020,10 +3376,40 @@
     var vsel = $('#viewAsSel');
     if (vsel) vsel.addEventListener('change', function () {
       S.viewAs = this.value || null;
-      renderSidebar(); renderHeaderUser(); renderTeam();
+      S.tasks = null;
+      /* เข้าโหมดดูมุมคนอื่น → พาไปหน้า "งานของฉัน" ของเขาเลย จะได้เห็นของจริง
+         ไม่ใช่แค่เมนูเปลี่ยน · ออกจากโหมดค่อยกลับมาหน้าทีม */
+      if (S.viewAs) location.hash = '#/me'; else render();
     });
     view.addEventListener('click', function (ev) {
       var b;
+      /* สิทธิ์ติ๊กงานแทนคนอื่น */
+      if ((b = ev.target.closest('[data-upd-staff]'))) {
+        var uid2 = b.getAttribute('data-upd-staff'), to = b.getAttribute('data-to') === '1';
+        b.disabled = true;
+        api('/staff/' + uid2, 'PUT', { canUpdateOthers: to })
+          .then(refreshMe)
+          .then(function () {
+            toast((to ? 'เปิด' : 'ปิด') + 'สิทธิ์ติ๊กงานแทนคนอื่นให้ ' + shortName(staffById(uid2)) + ' แล้ว');
+            renderTeam();
+          })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
+        return;
+      }
+      /* วันทำงาน + ชั่วโมงต่อวัน — ใช้กับหน้า Workload รอบหน้า */
+      if ((b = ev.target.closest('[data-days-staff]'))) {
+        var did = b.getAttribute('data-days-staff'), ds = staffById(did);
+        var cur = ds.workDays == null ? '1,2,3,4,5' : String(ds.workDays);
+        var ans = prompt('วันทำงานของ ' + shortName(ds) + ' — ใส่เลขวันคั่นด้วยจุลภาค\n0=อาทิตย์ 1=จันทร์ 2=อังคาร 3=พุธ 4=พฤหัส 5=ศุกร์ 6=เสาร์\n\nเช่น พิซซ่าหยุดพฤหัส = 0,1,2,3,5,6', cur);
+        if (ans == null) return;
+        var hrs = prompt('ชั่วโมงที่รับงานได้จริงต่อวัน (อยู่ร้าน 8 ชม. แต่รับงานได้ราว 6)', ds.hoursPerDay == null ? '6' : String(ds.hoursPerDay));
+        if (hrs == null) return;
+        api('/staff/' + did, 'PUT', { workDays: ans, hoursPerDay: Number(hrs) || 0 })
+          .then(refreshMe)
+          .then(function () { toast('บันทึกวันทำงานของ ' + shortName(ds) + ' แล้ว'); renderTeam(); })
+          .catch(function (e) { toast(e.message, true); });
+        return;
+      }
       if ((b = ev.target.closest('[data-sec-staff]'))) {
         var sid = b.getAttribute('data-sec-staff'), key = b.getAttribute('data-sec');
         var who2 = staffById(sid);
@@ -3151,6 +3537,8 @@
     switch (S.route.name) {
       case 'all': return renderAll();
       case 'new': return renderNew();
+      case 'report': return renderReport();
+      case 'campaign': return S.route.id ? renderCampaign(S.route.id) : renderAll();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'inbox': return renderInbox();
@@ -3179,8 +3567,14 @@
   /* ---------- global events ---------- */
   document.addEventListener('click', function (ev) {
     var b;
-    if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.href = CAL_URL + '#c=' + b.getAttribute('data-cc'); return; }
+    /* ชิปแคมเปญ → หน้าแคมเปญในระบบ (เห็นงาน+โพสต์ที่ผูกไว้) แทนกระโดดออกไปปฏิทิน */
+    if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.hash = '#/campaign/' + b.getAttribute('data-cc'); return; }
     if ((b = ev.target.closest('[data-tour-go]'))) { $('#tourMenu').hidden = true; global.KAN_TOUR.start(b.getAttribute('data-tour-go')); return; }
+    if ((b = ev.target.closest('[data-tick]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      tickTask(b);
+      return;
+    }
     if (ev.target.closest('[data-tour]')) { toggleTourMenu(); return; }
     if (!ev.target.closest('#tourMenu')) { var tmenu = $('#tourMenu'); if (tmenu && !tmenu.hidden) tmenu.hidden = true; }
     if (ev.target.closest('[data-erp-toggle]')) { document.documentElement.classList.toggle('erp-open'); return; }
@@ -3272,7 +3666,7 @@
     }
     if ((b = ev.target.closest('.cards article[data-go]'))) { F.status = b.getAttribute('data-go'); renderAll(); return; }
     if (ev.target.closest('[data-filter-toggle]')) { S.filterOpen = !S.filterOpen; renderAll(); return; }
-    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; F.campaign = ''; F.ttype = ''; renderAll(); return; }
+    if (ev.target.closest('[data-f-clear]')) { F.who = ''; F.kpi = ''; F.status = 'open'; F.campaign = ''; F.ttype = ''; F.kind = ''; renderAll(); return; }
     if ((b = ev.target.closest('.tbar [data-f], .fpanel [data-f], .factive [data-f], .hidden-note [data-f]'))) {
       F[b.getAttribute('data-f')] = b.getAttribute('data-v'); renderAll(); return;
     }
