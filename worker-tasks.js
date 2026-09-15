@@ -806,7 +806,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     const res = await db.prepare(
       "SELECT m.id, m.task_id, m.note, m.created_at, m.read_at, m.by_staff, t.title " +
       "FROM task_mentions m LEFT JOIN tasks t ON t.id = m.task_id " +
-      "WHERE m.staff_id = ? ORDER BY m.created_at DESC LIMIT 60"
+      "WHERE m.staff_id = ? ORDER BY m.created_at DESC LIMIT 200"
     ).bind(me.id).all();
     const rows = res.results || [];
     return json({
@@ -816,6 +816,15 @@ export async function handleTaskApi(request, env, url, path, method) {
         byStaff: r.by_staff, createdAt: r.created_at, read: !!r.read_at,
       })),
     });
+  }
+
+  /* กดกลับเป็น "ยังไม่ได้ดู" — เผลอกดผ่านแล้วต้องเอากลับมาตามได้ */
+  if (path === "/notifications/unread" && method === "POST") {
+    const body = await readBody(request);
+    if (!body.id) return json({ error: "ต้องระบุรายการ" }, 400);
+    await db.prepare("UPDATE task_mentions SET read_at = NULL WHERE id = ? AND staff_id = ?")
+      .bind(String(body.id), me.id).run();
+    return json({ ok: true });
   }
 
   if (path === "/notifications/read" && method === "POST") {

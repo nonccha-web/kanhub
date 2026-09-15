@@ -233,6 +233,21 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="newlot"]::before{ background:#1FA968; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
+/* ── แจ้งเตือน: แท็บยังไม่ได้ดู / ทั้งหมด ── */
+.seg.nseg a{ display:inline-flex; align-items:center; gap:7px; padding:7px 15px; font-size:13px; color:var(--k-soft);
+  text-decoration:none; border-right:1px solid var(--k-line); }
+.seg.nseg a:last-child{ border-right:0; }
+.seg.nseg a.on{ background:var(--k-ink); color:var(--k-paper); font-weight:500; }
+.seg.nseg a i{ font-style:normal; font-size:11px; font-variant-numeric:tabular-nums; color:var(--k-mut);
+  border:1px solid var(--k-line); border-radius:999px; padding:0 6px; min-width:20px; text-align:center; }
+.seg.nseg a.on i{ color:var(--k-paper); border-color:color-mix(in srgb, var(--k-paper) 45%, transparent); }
+.tl-i.notif .nlink{ display:block; text-decoration:none; color:inherit; }
+.tl-i.notif .nact{ margin-top:6px; }
+.tl-i.notif .nact .btn-text{ font-size:11.5px; color:var(--k-mut); }
+.tl-i.notif .nact .btn-text:hover{ color:var(--k-ink); }
+/* ยังไม่ได้ดู = ขีดซ้ายหนา ไม่ระบายพื้นหลังหลังตัวหนังสือ */
+.tl-i.notif.new{ box-shadow:inset 3px 0 0 0 var(--k-info); }
+
 /* ── รอตรวจ · ติ๊กจากหน้ารายการ · รายงาน ── */
 .pill.review{ border-color:var(--k-info); color:var(--k-info); }
 .pill.kind{ border-color:var(--k-line); color:var(--k-mut); }
@@ -453,7 +468,7 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 /* ── รายการแจ้งเตือน ── */
 .tl-i.notif{ text-decoration:none; color:inherit; transition:background .14s; }
 .tl-i.notif:hover{ background:var(--k-hair); }
-.tl-i.notif.new{ background:color-mix(in srgb, var(--k-warn) 8%, transparent); }
+.tl-i.notif.new{ background:none; }
 .tl-i.notif.new .h b:first-child::after{ content:''; display:inline-block; width:6px; height:6px; margin-left:6px;
   border-radius:50%; background:#F06400; vertical-align:middle; }
 

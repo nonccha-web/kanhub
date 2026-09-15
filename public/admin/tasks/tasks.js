@@ -3296,33 +3296,71 @@
   }
 
   /* ---------- กระดิ่ง: คนแท็กถึงเรา ---------- */
+  /* แจ้งเตือนมี 2 มุมมอง — ของเดิมกดแล้วหายเลย ตามไม่ได้ว่าอันไหนดูแล้ว (นนท์แจ้ง 15 ก.ย. 69)
+     ตอนนี้ "ยังไม่ได้ดู" คือคิวที่ต้องเคลียร์ · "ทั้งหมด" ย้อนดูของเก่าได้ · กดกลับเป็นยังไม่ได้ดูได้ */
   function renderInbox() {
     loadNotif().then(function (j) {
       renderHeaderUser();
       renderSidebar();
       var view = $('#view');
       view.className = 'page';
+      var tab = (S.route.query || {}).tab === 'all' ? 'all' : 'new';
+      var items = tab === 'all' ? j.items : j.items.filter(function (n) { return !n.read; });
+      var seg = function (k, label, n) {
+        return '<a class="' + (tab === k ? 'on' : '') + '" href="#/inbox' + (k === 'all' ? '?tab=all' : '') + '">' +
+          esc(label) + (n ? '<i>' + n + '</i>' : '') + '</a>';
+      };
       var h = '<div class="top"><div><span class="kicker">แจ้งเตือน</span><h1>คนแท็กถึงคุณ</h1>' +
-        '<p>ทุกครั้งที่มีคนพิมพ์ <b>@' + esc(shortName(S.me)) + '</b> ในคอมเมนต์ของงาน จะมาโผล่ที่นี่</p></div>' +
-        (j.unread ? '<div class="top-r"><button type="button" class="btn-ghost" id="readAll">อ่านทั้งหมดแล้ว</button></div>' : '') + '</div>';
-      if (!j.items.length) {
-        h += '<div class="sec"><div class="empty"><b>ยังไม่มีใครแท็กถึงคุณ</b>เวลาทีมพิมพ์ @ชื่อคุณ ในช่องบันทึกของงาน จะเด้งมาที่นี่</div></div>';
+        '<p>ทุกครั้งที่มีคนพิมพ์ <b>@' + esc(shortName(S.me)) + '</b> ในคอมเมนต์ของงาน จะมาโผล่ที่นี่ · ' +
+        'กดเข้าไปดูแล้วจะย้ายไปแท็บ “ทั้งหมด” ไม่หายไปไหน ย้อนดูได้</p></div>' +
+        (j.unread ? '<div class="top-r"><button type="button" class="btn-ghost" id="readAll">ทำเครื่องหมายว่าดูแล้วทั้งหมด</button></div>' : '') + '</div>';
+
+      h += '<div class="tbar"><div class="seg nseg">' +
+        seg('new', 'ยังไม่ได้ดู', j.unread) + seg('all', 'ทั้งหมด', j.items.length) +
+        '</div><span class="tbar-n">' + items.length + ' รายการ</span></div>';
+
+      if (!items.length) {
+        h += '<div class="sec"><div class="empty">' + (tab === 'new'
+          ? '<b>ดูครบแล้ว ไม่มีอะไรค้าง</b>ของที่ดูไปแล้วอยู่ในแท็บ “ทั้งหมด”'
+          : '<b>ยังไม่มีใครแท็กถึงคุณ</b>เวลาทีมพิมพ์ @ชื่อคุณ ในช่องบันทึกของงาน จะเด้งมาที่นี่') + '</div></div>';
       } else {
-        h += '<div class="sec"><div class="sec-b tight"><div class="tl">' + j.items.map(function (n) {
+        h += '<div class="sec"><div class="sec-b tight"><div class="tl">' + items.map(function (n) {
           var by = staffById(n.byStaff);
-          return '<a class="tl-i notif' + (n.read ? '' : ' new') + '" href="#/task/' + esc(n.taskId) + '" data-notif="' + esc(n.id) + '">' +
-            avatar(by, 'lg') + '<div><div class="h"><b>' + esc(by ? shortName(by) : '?') + '</b><span>แท็กคุณใน</span>' +
+          return '<div class="tl-i notif' + (n.read ? '' : ' new') + '">' +
+            avatar(by, 'lg') +
+            '<div><a class="nlink" href="#/task/' + esc(n.taskId) + '" data-notif="' + esc(n.id) + '">' +
+            '<div class="h"><b>' + esc(by ? shortName(by) : '?') + '</b><span>แท็กคุณใน</span>' +
             '<b style="font-weight:500">' + esc(n.taskTitle) + '</b><time>' + esc(fmtAgo(n.createdAt)) + '</time></div>' +
-            '<div class="n">' + withMentions(n.note) + '</div></div></a>';
+            '<div class="n">' + withMentions(n.note) + '</div></a>' +
+            '<div class="nact">' + (n.read
+              ? '<button type="button" class="btn-text" data-unread="' + esc(n.id) + '">กลับเป็นยังไม่ได้ดู</button>'
+              : '<button type="button" class="btn-text" data-read="' + esc(n.id) + '">ทำเครื่องหมายว่าดูแล้ว</button>') +
+            '</div></div></div>';
         }).join('') + '</div></div></div>';
       }
       view.innerHTML = h;
+
       var ra = $('#readAll');
       if (ra) ra.addEventListener('click', function () {
-        api('/notifications/read', 'POST', {}).then(function () { renderInbox(); });
+        ra.disabled = true;
+        api('/notifications/read', 'POST', {}).then(function () { toast('ทำเครื่องหมายว่าดูแล้วทั้งหมด'); renderInbox(); })
+          .catch(function (e) { ra.disabled = false; toast(e.message, true); });
       });
+      /* กดที่ตัวข้อความ = เปิดงาน แล้วนับว่าดูแล้ว (ยิงไปเงียบ ๆ ไม่ต้องรอ) */
       $$('[data-notif]').forEach(function (a) {
-        a.addEventListener('click', function () { api('/notifications/read', 'POST', { id: a.getAttribute('data-notif') }); });
+        a.addEventListener('click', function () {
+          api('/notifications/read', 'POST', { id: a.getAttribute('data-notif') }).catch(function () {});
+        });
+      });
+      view.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-read],[data-unread]');
+        if (!b) return;
+        ev.preventDefault();
+        var mark = b.hasAttribute('data-read');
+        b.disabled = true;
+        api('/notifications/' + (mark ? 'read' : 'unread'), 'POST', { id: b.getAttribute(mark ? 'data-read' : 'data-unread') })
+          .then(function () { renderInbox(); })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
       });
     }).catch(function (e) { showError(e); });
   }
