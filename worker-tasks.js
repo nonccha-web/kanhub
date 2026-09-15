@@ -118,6 +118,8 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN hours_per_day REAL",
   /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้ เพื่ออัปเดตงานแทนเติ้ล */
   "ALTER TABLE staff ADD COLUMN can_update_others INTEGER NOT NULL DEFAULT 0",
+  /* แก้กำหนดส่งได้ — เดิมมีแค่หัวหน้ากับคนสั่งงาน นนท์ขอเปิดให้พิซซ่าด้วย (15 ก.ย. 69) */
+  "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
 ];
 
@@ -444,7 +446,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,work_days,hours_per_day FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -456,7 +458,7 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,work_days,hours_per_day FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
@@ -465,6 +467,7 @@ function publicStaff(r) {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
     canUpdateOthers: r.role === "owner" || !!r.can_update_others,
+    canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
     hoursPerDay: r.hours_per_day == null ? null : Number(r.hours_per_day),
   };
@@ -778,9 +781,11 @@ export async function handleTaskApi(request, env, url, path, method) {
   const isOwner = me.role === "owner";
   /* พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล — หัวหน้าเปิดให้รายคนในหน้า "ทีม + สิทธิ์" */
   const canUpdateOthers = isOwner || !!me.can_update_others;
+  /* เลื่อนกำหนดส่งได้เอง — ปกติสงวนไว้ให้หัวหน้ากับคนสั่งงาน เปิดรายคนได้ */
+  const canReschedule = isOwner || !!me.can_reschedule;
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,work_days,hours_per_day FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -1397,6 +1402,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (body.sections != null) { sets.push("sections = ?"); vals.push(cleanSections(body.sections)); }
     /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้เพื่ออัปเดตงานแทนเติ้ล */
     if (body.canUpdateOthers != null) { sets.push("can_update_others = ?"); vals.push(body.canUpdateOthers ? 1 : 0); }
+    if (body.canReschedule != null) { sets.push("can_reschedule = ?"); vals.push(body.canReschedule ? 1 : 0); }
     /* วันทำงานรายคน "0,1,2,..." (0 = อาทิตย์) — พิซซ่าหยุดพฤหัส เติ้ลหยุดเสาร์อาทิตย์ */
     if (body.workDays != null) {
       const wd = String(body.workDays).split(",").map((x) => Number(String(x).trim()))
@@ -1631,16 +1637,31 @@ export async function handleTaskApi(request, env, url, path, method) {
          กับ "ใส่กำหนดส่งให้งานที่ยังไม่เคยมีวัน" ซึ่งพิซซ่าขอไว้ —
          งานที่มีวันแล้วยังเลื่อนเองไม่ได้ ต้องให้หัวหน้าเลื่อน */
       if (!mine && !canUpdateOthers) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
-      const backfill = body.dueAt !== undefined && !task.dueAt && body.dueAt;
-      if (backfill && !isIsoDateTime(body.dueAt)) return json({ error: "กำหนดส่งไม่ถูกต้อง" }, 400);
+      /* ใส่วันให้งานที่ยังไม่เคยมี = ทำได้ทุกคนที่แตะงานนี้ได้
+         เลื่อนวันที่มีอยู่แล้ว = ต้องมีสิทธิ์ can_reschedule และถูกบันทึกว่าเลื่อนจากวันไหน */
+      const wantDue = body.dueAt !== undefined && body.dueAt;
+      const backfill = wantDue && !task.dueAt;
+      const moveIt = wantDue && !!task.dueAt && canReschedule;
+      if (wantDue && !isIsoDateTime(body.dueAt)) return json({ error: "กำหนดส่งไม่ถูกต้อง" }, 400);
+      if (wantDue && task.dueAt && !canReschedule) {
+        return json({ error: "เลื่อนกำหนดส่งเองไม่ได้ — กด “ขอเลื่อน” เพื่อส่งให้หัวหน้าอนุมัติ" }, 403);
+      }
       const want = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
-      if (!want && !backfill) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      if (!want && !backfill && !moveIt) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
       const stmts2 = [];
-      if (backfill) {
+      if (backfill || moveIt) {
         const iso = new Date(body.dueAt).toISOString();
-        stmts2.push(db.prepare("UPDATE tasks SET due_at=?, due_original=?, updated_at=? WHERE id=?").bind(iso, iso, now, id));
-        stmts2.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
-          .bind(newId("u_"), id, me.id, "note", "ใส่กำหนดส่ง " + thDate(iso), null, now));
+        const same = task.dueAt && new Date(task.dueAt).getTime() === new Date(iso).getTime();
+        stmts2.push(db.prepare(
+          "UPDATE tasks SET due_at=?, due_original=?, postpones=?, updated_at=? WHERE id=?"
+        ).bind(iso, task.dueOriginal || iso, (task.postpones || 0) + (moveIt && !same ? 1 : 0), now, id));
+        if (!same) {
+          stmts2.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+            .bind(newId("u_"), id, me.id, "note",
+                  moveIt ? ("เลื่อนกำหนดส่ง " + thDate(task.dueAt) + " → " + thDate(iso) +
+                            (body.reason ? " · " + String(body.reason).trim().slice(0, 300) : ""))
+                         : ("ใส่กำหนดส่ง " + thDate(iso)), null, now));
+        }
       }
       if (want) {
         const status = statusFor(want, task, false);

@@ -1856,8 +1856,9 @@
       var mine = t.assignees.indexOf(S.me.id) !== -1;
       var canStatus = !readOnly() && (canEdit || mine || S.me.canUpdateOthers);
       /* งานที่ยังไม่เคยมีกำหนดส่ง — คนรับงานใส่วันเองได้ (พิซซ่าขอ)
-         แต่ถ้ามีวันแล้วต้องให้หัวหน้าเลื่อนเท่านั้น */
-      var canBackfill = canStatus && !t.dueAt;
+         ส่วนการ "เลื่อน" วันที่มีอยู่แล้ว ต้องมีสิทธิ์แก้วัน ไม่งั้นได้แค่กดขอเลื่อน */
+      var canMoveDue = !readOnly() && (canEdit || (S.me.canReschedule && (mine || S.me.canUpdateOthers)));
+      var canBackfill = (canStatus && !t.dueAt) || (canMoveDue && !canEdit);
       var by = staffById(t.createdBy);
       var view = $('#view');
       view.className = 'page';
@@ -1876,7 +1877,7 @@
           (t.dueAt && !t.repeat ? ' <small style="color:var(--k-mut);font-weight:400">(' + esc(fmtFull(t.dueAt)) + ')</small>' : '') +
           (t.postpones ? ' <span class="pill late" title="เลื่อนมาแล้ว ' + t.postpones + ' ครั้ง">เลื่อน ' + t.postpones + '</span>' : '') +
           /* น้องเลื่อนเองไม่ได้ ขอได้อย่างเดียว — ตามที่คุณออนสั่ง */
-          (t.dueAt && !canEdit && canStatus && es !== 'done'
+          (t.dueAt && !canEdit && !canMoveDue && canStatus && es !== 'done'
             ? ' <button type="button" class="btn-text" id="postponeBtn">ขอเลื่อน</button>' : '') +
           '</div></div>' +
         '<div><span class="k">ชนิด / ใช้เวลา</span><div class="v">' + esc(KIND_TH[t.taskKind] || KIND_TH.ondemand) +
@@ -1975,9 +1976,10 @@
               var lbl = (s2 === 'review' && !canApprove(t)) ? 'ส่งให้ตรวจ' : STATUS_TH[s2];
               return '<button type="button" class="chip plain' + (es === s2 ? ' on' : '') + '" data-st="' + s2 + '">' + lbl + '</button>';
             }).join('') + '</div></div>' : '') +
-        (canBackfill ? '<div class="field"><label class="label">กำหนดส่ง <small>งานนี้ยังไม่มีวัน ใส่ย้อนหลังได้</small></label>' +
-          '<div class="linkrow"><input class="input" type="datetime-local" id="backfillDue">' +
-          '<button type="button" class="btn-ghost sm" id="backfillBtn">บันทึกวัน</button></div></div>' : '') +
+        (canBackfill ? '<div class="field"><label class="label">กำหนดส่ง <small>' +
+          (t.dueAt ? 'คุณมีสิทธิ์เลื่อนวันได้ — ระบบจะบันทึกว่าเลื่อนจากวันไหน' : 'งานนี้ยังไม่มีวัน ใส่ย้อนหลังได้') + '</small></label>' +
+          '<div class="linkrow"><input class="input" type="datetime-local" id="backfillDue" value="' + esc(toLocalInput(t.dueAt)) + '">' +
+          '<button type="button" class="btn-ghost sm" id="backfillBtn">' + (t.dueAt ? 'เลื่อนวัน' : 'บันทึกวัน') + '</button></div></div>' : '') +
         '<div class="field"><label class="label">บันทึก / รายงานผล <small>พิมพ์ @ชื่อ เพื่อแท็กให้เขาเห็นในกระดิ่ง</small></label>' +
         '<textarea class="textarea" name="note" data-rich placeholder="ทำอะไรไปแล้ว ติดอะไร ส่งอะไรให้ใคร"></textarea>' +
         '<div class="chips" style="margin-top:8px">' + S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
@@ -3399,6 +3401,9 @@
             '<div class="secchips"><button type="button" class="chip plain' + (s.canUpdateOthers ? ' on' : '') + '"' +
             (owner ? ' data-upd-staff="' + esc(s.id) + '" data-to="' + (s.canUpdateOthers ? '0' : '1') + '"' : ' disabled') +
             ' title="ติ๊กงานและอัปเดตงานของคนอื่นได้">ติ๊กงานแทนคนอื่นได้</button>' +
+            '<button type="button" class="chip plain' + (s.canReschedule ? ' on' : '') + '"' +
+            (owner ? ' data-resch-staff="' + esc(s.id) + '" data-to="' + (s.canReschedule ? '0' : '1') + '"' : ' disabled') +
+            ' title="เลื่อนกำหนดส่งของงานได้เอง ไม่ต้องขออนุมัติ">แก้วันกำหนดส่งได้</button>' +
             '<span class="wdays">' + esc(workDaysLabel(s)) + '</span></div>') + '</div>' +
           (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
             '<button type="button" class="btn-ghost sm" data-days-staff="' + esc(s.id) + '">วันทำงาน</button>' +
@@ -3583,6 +3588,18 @@
     view.addEventListener('click', function (ev) {
       var b;
       /* สิทธิ์ติ๊กงานแทนคนอื่น */
+      if ((b = ev.target.closest('[data-resch-staff]'))) {
+        var rid2 = b.getAttribute('data-resch-staff'), rto = b.getAttribute('data-to') === '1';
+        b.disabled = true;
+        api('/staff/' + rid2, 'PUT', { canReschedule: rto })
+          .then(refreshMe)
+          .then(function () {
+            toast((rto ? 'เปิด' : 'ปิด') + 'สิทธิ์แก้วันกำหนดส่งให้ ' + shortName(staffById(rid2)) + ' แล้ว');
+            renderTeam();
+          })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
+        return;
+      }
       if ((b = ev.target.closest('[data-upd-staff]'))) {
         var uid2 = b.getAttribute('data-upd-staff'), to = b.getAttribute('data-to') === '1';
         b.disabled = true;
