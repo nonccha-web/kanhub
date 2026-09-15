@@ -51,12 +51,13 @@
 
   /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
      งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
-  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'other'];
-  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', other: 'อื่น ๆ' };
+  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'newlot', 'other'];
+  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', newlot: 'ล็อตใหม่', other: 'อื่น ๆ' };
   /* เดาประเภทจากข้อความตอนวางจากแชต — เดาผิดก็แก้ในตารางได้ ไม่ได้บังคับ
      เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่
      (คีย์ในฐานข้อมูลยังเป็น signage เหมือนเดิม เปลี่ยนแค่ชื่อที่โชว์ งานเก่าไม่กระทบ) */
   var TASK_TYPE_HINT = [
+    ['newlot', /ล็อตใหม่|ลอตใหม่|สินค้าเข้า|ของเข้า|new\s*lot|new\s*arrival|คอลเลคชั่นประจำเดือน/i],
     ['signage', /ป้าย|signage|signmate|บิลบอร์ด|billboard|โปสเตอร์|standee|สแตนดี|แบนเนอร์|banner|บูธ|booth|จอ(?!ง)|ตกแต่งร้าน|วิชวล/i],
     ['content', /คอนเทนต์|content|โพสต์|โพส|post|คลิป|วิดีโอ|video|reel|tiktok|ถ่ายภาพ|ถ่ายรูป|กราฟิก|อาร์ตเวิร์ก|artwork|แคปชัน|เพจ/i],
     ['campaign', /แคมเปญ|campaign|โปรโมชั่น|โปรโมชัน|promotion|promo|ลดราคา|เซล|sale|อีเวนต์|event|ออกบูธ|เปิดตัว|launch|ontour|on tour/i]

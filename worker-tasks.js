@@ -12,7 +12,8 @@ const STATUSES = ["todo", "doing", "review", "done", "blocked"];
 /* งานรูทีน = ทำซ้ำประจำ · งานตามสั่ง = สั่งเพิ่มเป็นครั้ง ๆ (ค่าเริ่มต้น) */
 const TASK_KINDS = ["ondemand", "routine"];
 /* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
-const TASK_TYPES = ["signage", "content", "campaign", "other"];
+/* newlot = ล็อตใหม่ — เป็นงานประชาสัมพันธ์ของเข้า ไม่ใช่โปรโมชัน จึงแยกหมวด (นนท์สั่ง 15 ก.ย. 69) */
+const TASK_TYPES = ["signage", "content", "campaign", "newlot", "other"];
 const REPEATS = ["", "daily", "weekly"];
 /* D1 เก็บ 1 แถวได้ไม่เกิน 2MB และเราเก็บเป็น base64 (โต 4/3) → ไฟล์จริงจึงได้ราว 1.4MB
    1.35MB คือเพดานที่เหลือที่ว่างให้คอลัมน์อื่น · ไฟล์ใหญ่กว่านี้ (วิดีโอ) ให้แนบเป็นลิงก์แทน */

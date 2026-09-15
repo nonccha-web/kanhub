@@ -230,6 +230,7 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="signage"]::before{ background:#e2574c; }
 .ttype[data-t="content"]::before{ background:#4c86e2; }
 .ttype[data-t="campaign"]::before{ background:#d99a1e; }
+.ttype[data-t="newlot"]::before{ background:#1FA968; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
 /* ── รอตรวจ · ติ๊กจากหน้ารายการ · รายงาน ── */
