@@ -361,9 +361,34 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200; background:var(--k-ink); color:var(--k-paper);
   padding:10px 18px; font-size:13px; border-radius:999px; box-shadow:0 10px 30px rgba(11,11,10,.25); }
 .toast.bad{ background:var(--k-bad); color:#fff; }
-.lightbox{ position:fixed; inset:0; z-index:300; background:rgba(11,11,10,.88); display:grid; place-items:center; padding:24px; }
-.lightbox img{ max-width:100%; max-height:100%; object-fit:contain; }
-.lightbox button{ position:absolute; top:16px; right:16px; width:38px; height:38px; border:0; border-radius:50%; background:rgba(255,255,255,.14); color:#fff; font-size:16px; cursor:pointer; }
+/* ── ดูรูป: ย่อ–ขยาย–ลากได้ ──
+   ของเดิมใช้ grid + max-height:100% ซึ่ง "ไม่ทำงาน" เพราะแถวของ grid เป็น auto
+   เบราว์เซอร์ถือว่าเป็นวงจรย้อนกลับแล้วตีเป็น none รูปสูง ๆ เลยทะลุจอลงไปข้างล่าง
+   รอบนี้คำนวณขนาดด้วย JS แล้วสั่งผ่าน transform — ไม่พึ่งเปอร์เซ็นต์อีก */
+.lightbox{ position:fixed; inset:0; z-index:300; background:rgba(11,11,10,.92);
+  display:flex; flex-direction:column; overscroll-behavior:contain; }
+.lb-bar{ flex:none; display:flex; align-items:center; gap:6px; padding:10px 12px; color:#fff;
+  background:rgba(0,0,0,.35); }
+.lb-bar .lb-z{ font-size:12.5px; font-variant-numeric:tabular-nums; min-width:52px; color:rgba(255,255,255,.72); }
+.lb-bar button, .lb-bar .lb-link{ border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08);
+  color:#fff; font:inherit; font-size:13px; height:32px; min-width:32px; padding:0 10px; border-radius:6px;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+.lb-bar button:hover, .lb-bar .lb-link:hover{ background:rgba(255,255,255,.2); }
+.lb-bar button:disabled{ opacity:.35; cursor:default; }
+.lb-bar button:focus-visible, .lb-bar .lb-link:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.lb-bar .w{ padding:0 12px; font-size:12.5px; }
+.lb-bar .x{ margin-left:auto; font-size:15px; }
+.lb-bar .lb-link{ font-size:12.5px; }
+.lb-stage{ flex:1; min-height:0; position:relative; overflow:hidden; touch-action:none;
+  display:grid; place-items:center; cursor:grab; }
+.lb-stage.pan{ cursor:grabbing; }
+.lb-stage img{ position:absolute; left:50%; top:50%; transform-origin:0 0; max-width:none; max-height:none;
+  user-select:none; -webkit-user-drag:none; will-change:transform; }
+.lb-hint{ flex:none; padding:8px 12px 12px; text-align:center; font-size:11.5px; color:rgba(255,255,255,.55); }
+@media (max-width:620px){
+  .lb-bar .lb-link{ display:none; }
+  .lb-hint{ font-size:10.5px; }
+}
 [hidden]{ display:none !important; }
 
 /* ── จอเล็ก ── */

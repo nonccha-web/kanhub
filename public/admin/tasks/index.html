@@ -15,7 +15,7 @@ try {
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="tasks.css?v=29">
+<link rel="stylesheet" href="tasks.css?v=30">
 </head>
 <body>
 <div class="erp-scrim" data-erp-close="1"></div>
@@ -56,11 +56,23 @@ try {
 </div>
 
 <div id="toast" class="toast" hidden></div>
-<div id="lightbox" class="lightbox" hidden><img alt=""><button type="button" aria-label="ปิด">✕</button></div>
+<div id="lightbox" class="lightbox" hidden>
+  <div class="lb-bar">
+    <span class="lb-z" id="lbZoom">100%</span>
+    <button type="button" data-lb="out" aria-label="ย่อ" title="ย่อ (−)">−</button>
+    <button type="button" data-lb="fit" class="w" title="พอดีจอ (กด 0)">พอดีจอ</button>
+    <button type="button" data-lb="full" class="w" title="ขนาดจริง (กด 1)">ขนาดจริง</button>
+    <button type="button" data-lb="in" aria-label="ขยาย" title="ขยาย (+)">+</button>
+    <a class="lb-link" id="lbOpen" target="_blank" rel="noopener noreferrer" title="เปิดรูปในแท็บใหม่">เปิดแท็บใหม่</a>
+    <button type="button" data-lb="close" class="x" aria-label="ปิด" title="ปิด (Esc)">✕</button>
+  </div>
+  <div class="lb-stage" id="lbStage"><img alt="" draggable="false"></div>
+  <div class="lb-hint" id="lbHint">ลากเพื่อเลื่อน · สกรอลล์หรือบีบนิ้วเพื่อย่อ–ขยาย · ดับเบิลคลิกสลับขนาด</div>
+</div>
 
 <script src="../cmo/erp-menu.js?v=29"></script>
 <script src="grid.js?v=3"></script>
 <script src="tour.js?v=2"></script>
-<script src="tasks.js?v=34"></script>
+<script src="tasks.js?v=35"></script>
 </body>
 </html>

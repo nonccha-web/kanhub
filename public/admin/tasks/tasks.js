@@ -52,9 +52,10 @@
   /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
      งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
   var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'other'];
-  var TASK_TYPE_TH = { signage: 'ป้ายโปรโมชัน', content: 'คอนเทนต์', campaign: 'แคมเปญ', other: 'อื่น ๆ' };
+  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', other: 'อื่น ๆ' };
   /* เดาประเภทจากข้อความตอนวางจากแชต — เดาผิดก็แก้ในตารางได้ ไม่ได้บังคับ
-     เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่ */
+     เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่
+     (คีย์ในฐานข้อมูลยังเป็น signage เหมือนเดิม เปลี่ยนแค่ชื่อที่โชว์ งานเก่าไม่กระทบ) */
   var TASK_TYPE_HINT = [
     ['signage', /ป้าย|signage|signmate|บิลบอร์ด|billboard|โปสเตอร์|standee|สแตนดี|แบนเนอร์|banner|บูธ|booth|จอ(?!ง)|ตกแต่งร้าน|วิชวล/i],
     ['content', /คอนเทนต์|content|โพสต์|โพส|post|คลิป|วิดีโอ|video|reel|tiktok|ถ่ายภาพ|ถ่ายรูป|กราฟิก|อาร์ตเวิร์ก|artwork|แคปชัน|เพจ/i],
@@ -1511,6 +1512,165 @@
       btn.dataset.busy = '';
       btn.classList.remove('busy');
       toast(e.message, true);
+    });
+  }
+
+  /* ---------- ดูรูป: ย่อ–ขยาย–ลากได้ ----------
+     ของเดิมพึ่ง max-height:100% ใน grid ซึ่งไม่ทำงาน รูปสูง ๆ เลยทะลุจอ เลื่อนลงไม่ได้ ย่อไม่ได้
+     รอบนี้คำนวณสเกลเองแล้วสั่งผ่าน transform: พอดีจอเสมอตอนเปิด แล้วซูมต่อได้ถึง 8 เท่า */
+  var LB = { on:false, scale:1, fit:1, x:0, y:0, pts:{}, pinch:null, moved:false, sx:0, sy:0 };
+
+  function lbEls() {
+    return { box:$('#lightbox'), img:$('#lightbox img'), stage:$('#lbStage'),
+             zoom:$('#lbZoom'), link:$('#lbOpen'), hint:$('#lbHint') };
+  }
+  function lbApply() {
+    var e = lbEls();
+    if (!e.img) return;
+    var w = (e.img.naturalWidth || 1) * LB.scale, h = (e.img.naturalHeight || 1) * LB.scale;
+    /* left/top 50% แล้วถอยครึ่งภาพ — จุดหมุนอยู่มุมบนซ้าย เลยคุมตำแหน่งได้ตรงไปตรงมา */
+    e.img.style.transform = 'translate(' + (LB.x - w / 2) + 'px,' + (LB.y - h / 2) + 'px) scale(' + LB.scale + ')';
+    if (e.zoom) e.zoom.textContent = Math.round(LB.scale * 100) + '%';
+    var st = e.stage.getBoundingClientRect();
+    var fits = w <= st.width + 1 && h <= st.height + 1;
+    e.stage.style.cursor = fits ? 'default' : 'grab';
+    $$('[data-lb="out"]').forEach(function (b) { b.disabled = LB.scale <= LB.fit * 0.5 + 0.001; });
+    $$('[data-lb="in"]').forEach(function (b) { b.disabled = LB.scale >= 7.999; });
+    if (e.hint) e.hint.textContent = fits
+      ? 'สกรอลล์หรือบีบนิ้วเพื่อขยาย · ดับเบิลคลิกดูขนาดจริง · Esc ปิด'
+      : 'ลากเพื่อเลื่อนดูส่วนที่เหลือ · สกรอลล์เพื่อย่อ–ขยาย · ดับเบิลคลิกกลับพอดีจอ';
+  }
+  /* กันภาพหลุดออกนอกจอ — ถ้าเล็กกว่าเวทีให้อยู่กลางเป๊ะ */
+  function lbClamp() {
+    var e = lbEls(), st = e.stage.getBoundingClientRect();
+    var w = (e.img.naturalWidth || 1) * LB.scale, h = (e.img.naturalHeight || 1) * LB.scale;
+    var mx = Math.max(0, (w - st.width) / 2), my = Math.max(0, (h - st.height) / 2);
+    LB.x = Math.min(mx, Math.max(-mx, LB.x));
+    LB.y = Math.min(my, Math.max(-my, LB.y));
+  }
+  function lbSet(scale, x, y) {
+    LB.scale = Math.min(8, Math.max(LB.fit * 0.5, scale));
+    if (x !== undefined) LB.x = x;
+    if (y !== undefined) LB.y = y;
+    lbClamp();
+    lbApply();
+  }
+  /* ซูมโดยตรึงจุดใต้เมาส์/นิ้วไว้กับที่ ไม่งั้นภาพจะวิ่งหนีตอนซูม */
+  function lbZoomAt(next, cx, cy) {
+    var e = lbEls(), st = e.stage.getBoundingClientRect();
+    next = Math.min(8, Math.max(LB.fit * 0.5, next));
+    var ox = cx - st.left - st.width / 2 - LB.x;
+    var oy = cy - st.top - st.height / 2 - LB.y;
+    var k = next / LB.scale;
+    LB.scale = next;
+    LB.x -= ox * (k - 1);
+    LB.y -= oy * (k - 1);
+    lbClamp();
+    lbApply();
+  }
+  function lbFit() {
+    var e = lbEls(), st = e.stage.getBoundingClientRect();
+    var nw = e.img.naturalWidth || 1, nh = e.img.naturalHeight || 1;
+    /* ไม่ขยายรูปเล็กให้เบลอ — เต็มที่ที่ 1 เท่า */
+    LB.fit = Math.min(st.width / nw, st.height / nh, 1);
+    lbSet(LB.fit, 0, 0);
+  }
+  function lbOpen(src) {
+    var e = lbEls();
+    if (!e.box || !e.img) return;
+    LB.on = true;
+    LB.pts = {}; LB.pinch = null;
+    e.box.hidden = false;
+    if (e.link) e.link.href = src;
+    e.img.removeAttribute('style');
+    e.img.src = src;
+    if (e.img.complete && e.img.naturalWidth) lbFit();
+    else e.img.onload = function () { lbFit(); };
+  }
+  function lbClose() {
+    var e = lbEls();
+    if (!e.box) return;
+    LB.on = false;
+    e.box.hidden = true;
+    e.img.removeAttribute('src');
+  }
+  function wireLightbox() {
+    var e = lbEls();
+    if (!e.box || e.box.dataset.wired) return;
+    e.box.dataset.wired = '1';
+
+    e.box.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-lb]');
+      if (b) {
+        var a = b.getAttribute('data-lb'), st = e.stage.getBoundingClientRect();
+        if (a === 'close') lbClose();
+        else if (a === 'fit') lbFit();
+        else if (a === 'full') lbSet(1, 0, 0);
+        else lbZoomAt(LB.scale * (a === 'in' ? 1.4 : 1 / 1.4), st.left + st.width / 2, st.top + st.height / 2);
+        return;
+      }
+      /* คลิกพื้นหลังแล้วปิด แต่ต้องไม่ใช่ตอนเพิ่งลากเสร็จ ไม่งั้นลากทีปิดที */
+      if (!LB.moved && !ev.target.closest('.lb-bar') && ev.target.tagName !== 'IMG') lbClose();
+    });
+
+    /* สกรอลล์ = ซูม (กันหน้าเว็บข้างหลังเลื่อนตาม) */
+    e.stage.addEventListener('wheel', function (ev) {
+      ev.preventDefault();
+      lbZoomAt(LB.scale * (ev.deltaY < 0 ? 1.12 : 1 / 1.12), ev.clientX, ev.clientY);
+    }, { passive: false });
+
+    e.stage.addEventListener('dblclick', function (ev) {
+      ev.preventDefault();
+      if (LB.scale > LB.fit + 0.001) lbFit();
+      else lbZoomAt(Math.max(1, LB.fit * 2.5), ev.clientX, ev.clientY);
+    });
+
+    /* ลาก + บีบนิ้ว ใช้ pointer event ตัวเดียวคุมทั้งเมาส์และจอสัมผัส */
+    e.stage.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== undefined && ev.button !== 0) return;
+      e.stage.setPointerCapture(ev.pointerId);
+      LB.pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      LB.moved = false;
+      LB.sx = ev.clientX; LB.sy = ev.clientY;
+      var ids = Object.keys(LB.pts);
+      if (ids.length === 2) {
+        var a = LB.pts[ids[0]], b2 = LB.pts[ids[1]];
+        LB.pinch = { d: Math.hypot(a.x - b2.x, a.y - b2.y), s: LB.scale };
+      }
+      e.stage.classList.add('pan');
+    });
+    e.stage.addEventListener('pointermove', function (ev) {
+      var p = LB.pts[ev.pointerId];
+      if (!p) return;
+      var dx = ev.clientX - p.x, dy = ev.clientY - p.y;
+      p.x = ev.clientX; p.y = ev.clientY;
+      if (Math.abs(ev.clientX - LB.sx) > 3 || Math.abs(ev.clientY - LB.sy) > 3) LB.moved = true;
+      var ids = Object.keys(LB.pts);
+      if (ids.length === 2 && LB.pinch) {
+        var a = LB.pts[ids[0]], b2 = LB.pts[ids[1]];
+        var d = Math.hypot(a.x - b2.x, a.y - b2.y);
+        if (LB.pinch.d > 0) lbZoomAt(LB.pinch.s * (d / LB.pinch.d), (a.x + b2.x) / 2, (a.y + b2.y) / 2);
+        return;
+      }
+      lbSet(LB.scale, LB.x + dx, LB.y + dy);
+    });
+    var up = function (ev) {
+      delete LB.pts[ev.pointerId];
+      if (Object.keys(LB.pts).length < 2) LB.pinch = null;
+      if (!Object.keys(LB.pts).length) e.stage.classList.remove('pan');
+      setTimeout(function () { LB.moved = false; }, 0);
+    };
+    e.stage.addEventListener('pointerup', up);
+    e.stage.addEventListener('pointercancel', up);
+
+    window.addEventListener('resize', function () { if (LB.on) lbFit(); });
+    window.addEventListener('keydown', function (ev) {
+      if (!LB.on) return;
+      if (ev.key === 'Escape') { ev.preventDefault(); lbClose(); }
+      else if (ev.key === '0') { ev.preventDefault(); lbFit(); }
+      else if (ev.key === '1') { ev.preventDefault(); lbSet(1, 0, 0); }
+      else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); lbSet(LB.scale * 1.4); }
+      else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); lbSet(LB.scale / 1.4); }
     });
   }
 
@@ -3551,6 +3711,7 @@
     return api('/me').then(function (j) { S.me = j.me; S.staff = j.staff || []; S.kpis = j.kpis || []; return j; });
   }
   function boot() {
+    wireLightbox();
     return fetch(API + '/me', { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
@@ -3695,9 +3856,9 @@
     }
     if (ev.target.id === 'saveBtn') { saveDrafts(); return; }
     if ((b = ev.target.closest('.att.img')) && !ev.target.closest('button')) {
-      var lb = $('#lightbox'); lb.querySelector('img').src = b.getAttribute('data-src'); lb.hidden = false; return;
+      lbOpen(b.getAttribute('data-src'));
+      return;
     }
-    if (ev.target.closest('#lightbox')) { $('#lightbox').hidden = true; return; }
   });
   /* วางลิงก์ในแถวตารางโพสต์ แล้วกด Enter หรือคลิกที่อื่น = บันทึกทันที */
   function savePostUrl(input) {
@@ -3712,7 +3873,7 @@
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
       document.documentElement.classList.remove('erp-open');
-      $('#lightbox').hidden = true;
+      lbClose();
       var m = $('.modal'); if (m) { if (m._close) m._close(); else m.remove(); }
     }
     if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('[data-post-url]')) {
