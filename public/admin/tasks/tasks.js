@@ -7,7 +7,7 @@
   'use strict';
 
   var API = '/api/t';
-  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' }, viewAs: null };
+  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' }, viewAs: null, seq: [], seqFrom: '#/all' };
 
   /* ---------- KPI 2570 (จากเอกสาร Executive Offer CMO 2027 — ข้อความอ้างอิงในหน้า KPI) ---------- */
   var KPI_DOC = {
@@ -67,7 +67,7 @@
     for (var i = 0; i < TASK_TYPE_HINT.length; i++) if (TASK_TYPE_HINT[i][1].test(t)) return TASK_TYPE_HINT[i][0];
     return '';
   }
-  var REPEAT_OPTS = [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']];
+  var REPEAT_OPTS = [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์'], ['monthly', 'ทุกเดือน']];
   function repeatLabel(v) {
     for (var i = 0; i < REPEAT_OPTS.length; i++) if (REPEAT_OPTS[i][0] === (v || '')) return REPEAT_OPTS[i][1];
     return '';
@@ -93,6 +93,8 @@
   function readOnly() { return !!S.viewAs; }
   function canApprove(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
   function mineTask(t) { return S.me && t.assignees.indexOf(S.me.id) !== -1; }
+  /* แก้/ลบ จากหน้ารายการ: หัวหน้าหรือคนสั่งงาน (เหมือนสิทธิ์แก้ไขในหน้ารายละเอียด) */
+  function canEditRow(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
   function canTick(t) {
     if (readOnly()) return false;
     return canApprove(t) || mineTask(t) || (S.me && S.me.canUpdateOthers);
@@ -203,6 +205,7 @@
   function sameDay(a, b) { return startOfDay(a).getTime() === startOfDay(b).getTime(); }
   function startOfWeek(d) { var x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
   function sameWeek(a, b) { return startOfWeek(a).getTime() === startOfWeek(b).getTime(); }
+  function sameMonth(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
 
   /* งานประจำ "เสร็จ" ได้แค่ในรอบของมัน — ขึ้นวันใหม่ (หรือสัปดาห์ใหม่) ต้องกลับมาเป็นรอทำเอง
      ไม่งั้นกดเสร็จวันเดียวแล้วงานประจำหายไปตลอดกาล ทั้งที่ทีมต้องอัปเดตทุกวัน */
@@ -212,6 +215,7 @@
       var d = new Date(t.doneAt), now = new Date();
       if (t.repeat === 'daily' && sameDay(d, now)) return 'done';
       if (t.repeat === 'weekly' && sameWeek(d, now)) return 'done';
+      if (t.repeat === 'monthly' && sameMonth(d, now)) return 'done';
     }
     return 'todo';
   }
@@ -224,7 +228,7 @@
   }
   function isLate(t) {
     if (effStatus(t) === 'done') return false;
-    if (t.repeat === 'weekly') return false;
+    if (t.repeat === 'weekly' || t.repeat === 'monthly') return false;
     var d = dueOf(t);
     return !!d && d < new Date();
   }
@@ -237,6 +241,7 @@
     if (t.repeat === 'daily') return 'ทุกวัน ' + (t.dueAt ? fmtTime(new Date(t.dueAt)) : '');
     /* eslint-disable-next-line no-unreachable */
     if (t.repeat === 'weekly') return 'ทุก' + (t.dueAt ? DAY_TH[new Date(t.dueAt).getDay()] + ' ' + fmtTime(new Date(t.dueAt)) : 'สัปดาห์');
+    if (t.repeat === 'monthly') return 'ทุกเดือน' + (t.dueAt ? ' วันที่ ' + new Date(t.dueAt).getDate() + ' ' + fmtTime(new Date(t.dueAt)) : '');
     if (!t.dueAt) return 'ไม่กำหนด';
     var d = new Date(t.dueAt), now = new Date();
     var diff = Math.round((startOfDay(d) - startOfDay(now)) / 86400000);
@@ -723,9 +728,10 @@
     var sub = t.nUpdates > 1 ? ('อัปเดต ' + fmtAgo(t.lastUpdate)) : (t.nFiles ? t.nFiles + ' รูป' : '');
     var cycle = t.repeat
       ? (es === 'done'
-          ? '<span class="pill done">' + (t.repeat === 'daily' ? 'อัปเดตแล้ววันนี้' : 'อัปเดตแล้วสัปดาห์นี้') + '</span>'
+          ? '<span class="pill done">' + ({ daily: 'อัปเดตแล้ววันนี้', weekly: 'อัปเดตแล้วสัปดาห์นี้', monthly: 'อัปเดตแล้วเดือนนี้' }[t.repeat] || 'อัปเดตแล้ว') + '</span>'
           : '<span class="pill ' + (late ? 'late' : 'repeat') + '">' +
-            (t.repeat === 'daily' ? (late ? 'ยังไม่อัปเดตวันนี้' : 'ประจำวัน') : 'ประจำสัปดาห์') + '</span>')
+            (t.repeat === 'daily' ? (late ? 'ยังไม่อัปเดตวันนี้' : 'ประจำวัน')
+              : (t.repeat === 'monthly' ? 'ประจำเดือน' : 'ประจำสัปดาห์')) + '</span>')
       : '';
     /* วงกลมหน้าแถวกดติ๊กได้เลย ไม่ต้องเข้าไปในงาน — พิซซ่าขอไว้ว่าหาไม่เจอ
        งานรอตรวจ: หัวหน้ากดตรงนี้ = ตรวจผ่าน · คนอื่นกดไม่ได้ */
@@ -747,13 +753,110 @@
       (t.nSub ? '<span title="งานย่อย">☑ ' + t.nSubDone + '/' + t.nSub + '</span>' : '') +
       (t.nFiles ? '<span>📷 ' + t.nFiles + '</span>' : '') + '</span></span>' +
       '<span class="due ' + dueCls + '">' + esc(fmtDue(t)) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+      /* แก้/ลบ ได้จากหน้ารายการเลย ไม่ต้องเข้าไปในงาน — ปุ่มเป็น <span> เพราะอยู่ใน <a> ซ้อน <button> ไม่ได้ */
+      (canEditRow(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="แก้ไข / ลบ" aria-label="แก้ไข หรือ ลบงานนี้">⋯</span>' : '<span class="rowmenu ghost"></span>') +
       '<svg class="arr" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>';
+  }
+  /* ลำดับงานที่กำลังเห็นอยู่ — ใช้ทำปุ่ม "ก่อนหน้า / ถัดไป" ในหน้ารายละเอียด
+     จำว่ามาจากหน้าไหนด้วย จะได้กดย้อนกลับไปที่เดิมพร้อมตัวกรองเดิม */
+  function markSeq(list, from) {
+    S.seq = list.map(function (t) { return t.id; });
+    S.seqFrom = from || location.hash || '#/all';
+    return list;
+  }
+  function seqNav(id) {
+    var ids = S.seq || [], i = ids.indexOf(id);
+    var back = S.seqFrom || '#/all';
+    var lbl = back.indexOf('#/me') === 0 ? 'งานของฉัน' : (back.indexOf('#/campaign') === 0 ? 'แคมเปญ' : 'งานทั้งหมด');
+    var btn = function (to, txt, dis) {
+      return dis ? '<span class="btn-ghost sm disabled">' + txt + '</span>'
+                 : '<a class="btn-ghost sm" href="#/task/' + esc(to) + '">' + txt + '</a>';
+    };
+    return '<div class="seqnav">' +
+      '<a class="btn-ghost sm" href="' + esc(back) + '">← กลับไป' + esc(lbl) + '</a>' +
+      (ids.length > 1 && i !== -1
+        ? '<span class="seqn">' + (i + 1) + ' / ' + ids.length + '</span>' +
+          btn(ids[i - 1], '‹ ก่อนหน้า', i <= 0) + btn(ids[i + 1], 'ถัดไป ›', i >= ids.length - 1)
+        : '') + '</div>';
   }
   function groupList(title, list, cls) {
     if (!list.length) return '';
     return '<div class="group"><div class="group-h' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3><span>' + list.length + '</span></div>' +
       '<div class="tlist">' + list.map(taskRow).join('') + '</div></div>';
   }
+  /* ---------- บอร์ดแบบคัมบัง ----------
+     คอลัมน์ = สถานะ · ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ
+     ใช้ drag ของ HTML เอง ไม่ต้องลากไลบรารีมา และใช้ได้กับคีย์บอร์ดผ่านปุ่มติ๊กในการ์ด
+     บนจอสัมผัสที่ลากไม่ได้ ให้กดการ์ดเข้าไปเปลี่ยนสถานะในหน้างานแทน */
+  var BOARD_COLS = [
+    { k: 'todo', label: 'รอทำ' },
+    { k: 'doing', label: 'กำลังทำ' },
+    { k: 'review', label: 'รอตรวจ' },
+    { k: 'blocked', label: 'ติดปัญหา' },
+    { k: 'done', label: 'เสร็จแล้ว' }
+  ];
+  function boardCard(t) {
+    var late = isLate(t), es = effStatus(t);
+    return '<article class="kcard' + (late ? ' late' : '') + '" draggable="' + (canTick(t) ? 'true' : 'false') + '" data-kid="' + esc(t.id) + '">' +
+      '<a href="#/task/' + esc(t.id) + '"><b>' + (t.priority ? '★ ' : '') + esc(t.title) + '</b></a>' +
+      '<div class="kmeta">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + '</div>' +
+      '<div class="kfoot"><span class="' + (late ? 'late' : '') + '">' + esc(fmtDue(t)) + '</span>' +
+      (canEditRow(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="แก้ไข / ลบ">⋯</span>' : '') +
+      '</div></article>';
+  }
+  function kanban(list) {
+    var by = {};
+    list.forEach(function (t) { var k = effStatus(t); (by[k] = by[k] || []).push(t); });
+    return '<div class="kban">' + BOARD_COLS.map(function (c) {
+      var items = by[c.k] || [];
+      return '<section class="kcol" data-kcol="' + c.k + '">' +
+        '<header><b>' + esc(c.label) + '</b><span>' + items.length + '</span></header>' +
+        '<div class="kbody">' + (items.length ? items.map(boardCard).join('')
+          : '<p class="kempty">ไม่มีงาน</p>') + '</div></section>';
+    }).join('') + '</div>' +
+    '<p class="khint">ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ · บนมือถือกดที่การ์ดแล้วเปลี่ยนในหน้างาน</p>';
+  }
+  /* ผูก drag ครั้งเดียวที่ document — การ์ดถูกวาดใหม่ทุกรอบ ผูกรายตัวจะหลุด */
+  var KDRAG = null;
+  document.addEventListener('dragstart', function (ev) {
+    var c = ev.target.closest && ev.target.closest('.kcard[draggable="true"]');
+    if (!c) return;
+    KDRAG = c.getAttribute('data-kid');
+    c.classList.add('dragging');
+    try { ev.dataTransfer.setData('text/plain', KDRAG); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+  });
+  document.addEventListener('dragend', function () {
+    KDRAG = null;
+    $$('.kcard.dragging').forEach(function (x) { x.classList.remove('dragging'); });
+    $$('.kcol.over').forEach(function (x) { x.classList.remove('over'); });
+  });
+  document.addEventListener('dragover', function (ev) {
+    var col = ev.target.closest && ev.target.closest('.kcol');
+    if (!col || !KDRAG) return;
+    ev.preventDefault();
+    try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {}
+    $$('.kcol.over').forEach(function (x) { if (x !== col) x.classList.remove('over'); });
+    col.classList.add('over');
+  });
+  document.addEventListener('drop', function (ev) {
+    var col = ev.target.closest && ev.target.closest('.kcol');
+    if (!col || !KDRAG) return;
+    ev.preventDefault();
+    var id = KDRAG, want = col.getAttribute('data-kcol');
+    KDRAG = null;
+    var t = (S.tasks || []).filter(function (x) { return x.id === id; })[0];
+    if (!t || effStatus(t) === want) { render(); return; }
+    /* ลากไปช่อง "เสร็จแล้ว" แต่ไม่มีสิทธิ์ปิดงาน = ส่งรอตรวจแทน เหมือนกดปุ่มในหน้างาน */
+    var req = (want === 'done' && effStatus(t) === 'review' && canApprove(t))
+      ? api('/tasks/' + id + '/review', 'POST', { pass: true })
+      : api('/tasks/' + id, 'PUT', { status: want });
+    req.then(function (j) {
+      S.tasks = null;
+      toast(j && j.status === 'review' && want === 'done' ? 'ส่งให้หัวหน้าตรวจแล้ว' : 'ย้ายไป “' + (STATUS_TH[want] || want) + '” แล้ว');
+      render();
+    }).catch(function (e) { toast(e.message, true); render(); });
+  });
+
   function bucketize(tasks) {
     var now = new Date(), week = new Date(startOfDay(now).getTime() + 7 * 86400000);
     var b = { review: [], late: [], today: [], week: [], later: [], nodate: [], repeat: [], done: [] };
@@ -780,6 +883,8 @@
       var who = S.viewAs || S.me.id;
       var mine = all.filter(function (t) { return t.assignees.indexOf(who) !== -1; });
       var b = bucketize(mine);
+      /* เรียงตามที่ตาเห็นบนหน้า ปุ่มถัดไปจะได้ไล่ตามลำดับเดียวกัน */
+      markSeq([].concat(b.review, b.late, b.today, b.week, b.later, b.nodate, b.repeat, b.done), '#/me');
       var open = mine.length - b.done.length;   /* b.done ใช้ effStatus แล้ว งานประจำของวันใหม่จึงกลับมานับเป็นค้าง */
       var view = $('#view');
       view.className = 'page';
@@ -890,6 +995,7 @@
       }
       var matched = all.filter(passFilters);
       var list = matched.filter(inRange);
+      markSeq(list, location.hash || '#/all');
       var hiddenNoDate = F.range === 'all' ? 0
         : matched.filter(function (t) { return !inRange(t) && !dueOf(t); }).length;
       var hiddenOther = F.range === 'all' ? 0
@@ -918,7 +1024,7 @@
         '<button type="button" class="fbtn' + (S.filterOpen ? ' open' : '') + (nActive ? ' has' : '') + '" data-filter-toggle>' +
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>' +
         'ตัวกรอง' + (nActive ? '<i>' + nActive + '</i>' : '') + '</button>' +
-        '<span class="tbar-lbl">จัดกลุ่ม</span>' + seg('group', [['due', 'กำหนดส่ง'], ['who', 'คน'], ['kpi', 'KPI']]) +
+        '<span class="tbar-lbl">จัดกลุ่ม</span>' + seg('group', [['due', 'กำหนดส่ง'], ['who', 'คน'], ['kpi', 'KPI'], ['board', 'บอร์ด']]) +
         '<span class="tbar-n">' + list.length + ' งาน</span></div>';
 
       if (S.filterOpen) {
@@ -978,6 +1084,8 @@
         });
         S.staff.forEach(function (s) { if (byWho[s.id]) h += groupList(s.name, byWho[s.id]); });
         if (byWho['_none']) h += groupList('ยังไม่มอบหมาย', byWho['_none'], 'late');
+      } else if (F.group === 'board') {
+        h += kanban(list);
       } else if (F.group === 'kpi') {
         var byKpi = {};
         list.forEach(function (t) { var k = t.kpiId || '_none'; (byKpi[k] = byKpi[k] || []).push(t); });
@@ -1053,7 +1161,8 @@
   function extractWhen(text) {
     var repeat = '', dow = -1, hh = 18, mm = 0, hasTime = false, date = null;
     var t = ' ' + text + ' ';
-    if (/ทุกวัน|ทุกๆวัน|daily|every day/i.test(t)) { repeat = 'daily'; t = t.replace(/ทุกๆ?วัน|daily|every day/gi, ' '); }
+    if (/ทุกเดือน|ทุกๆเดือน|รายเดือน|monthly|every month/i.test(t)) { repeat = 'monthly'; t = t.replace(/ทุกๆ?เดือน|รายเดือน|monthly|every month/gi, ' '); }
+    else if (/ทุกวัน|ทุกๆวัน|daily|every day/i.test(t)) { repeat = 'daily'; t = t.replace(/ทุกๆ?วัน|daily|every day/gi, ' '); }
     var m = t.match(RE_TIME);
     if (m) { hh = Number(m[1]); mm = Number(m[2]); if (hh <= 23 && mm <= 59) { hasTime = true; t = t.replace(m[0], ' '); } }
     for (var i = 0; i < DAY_WORDS.length && repeat !== 'daily'; i++) {
@@ -1302,6 +1411,7 @@
           REPEAT_OPTS.forEach(function (p) { if (p[0] === s || p[1] === s) hit = p[0]; });
           if (hit === null && /ทุกวัน|daily/i.test(s)) hit = 'daily';
           if (hit === null && /ทุกสัปดาห์|ทุกอาทิตย์|weekly/i.test(s)) hit = 'weekly';
+          if (hit === null && /ทุกเดือน|รายเดือน|monthly/i.test(s)) hit = 'monthly';
           return hit === null ? null : hit;
         } },
 
@@ -1514,6 +1624,78 @@
       btn.classList.remove('busy');
       toast(e.message, true);
     });
+  }
+
+  /* ---------- แก้ไขงานเร็วจากหน้ารายการ ---------- */
+  function quickEdit(id) {
+    var t = (S.tasks || []).filter(function (x) { return x.id === id; })[0];
+    if (!t) { toast('ไม่พบงานนี้', true); return; }
+    var host = document.createElement('div');
+    host.className = 'modal';
+    host.innerHTML = '<div class="modal-box qbox"><form id="qForm">' +
+      '<div class="sec-h"><h2>แก้ไขงาน</h2><p>แก้จากหน้ารายการได้เลย · กด “เปิดงานเต็ม” ถ้าจะแนบรูปหรือดูไทม์ไลน์</p></div>' +
+      '<div class="qbody">' +
+      '<div class="field"><label class="label">ชื่องาน</label><input class="input" name="title" value="' + esc(t.title) + '" required></div>' +
+      '<div class="field"><label class="label">มอบหมายให้</label><div class="chips" id="qAs">' +
+      activeStaff().map(function (x) {
+        return '<button type="button" class="chip' + (t.assignees.indexOf(x.id) !== -1 ? ' on' : '') + '" data-as="' + esc(x.id) + '">' + avatar(x) + esc(shortName(x)) + '</button>';
+      }).join('') + '</div></div>' +
+      '<div class="grid3">' +
+      '<div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
+      '<div class="field"><label class="label">สถานะ</label><select class="select" name="status">' +
+      ['todo', 'doing', 'review', 'blocked', 'done'].map(function (k) {
+        return '<option value="' + k + '"' + (t.status === k ? ' selected' : '') + '>' + STATUS_TH[k] + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' +
+      REPEAT_OPTS.map(function (pp) { return '<option value="' + pp[0] + '"' + ((t.repeat || '') === pp[0] ? ' selected' : '') + '>' + pp[1] + '</option>'; }).join('') + '</select></div>' +
+      '</div>' +
+      '<div class="grid3">' +
+      '<div class="field"><label class="label">ประเภทงาน</label><select class="select" name="taskType">' +
+      TASK_TYPE_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskType || 'other') === k ? ' selected' : '') + '>' + esc(TASK_TYPE_TH[k]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label class="label">ชนิดงาน</label><select class="select" name="taskKind">' +
+      KIND_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskKind || 'ondemand') === k ? ' selected' : '') + '>' + esc(KIND_TH[k]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label class="label">ใช้เวลา (ชม.)</label><input class="input" type="number" step="0.25" min="0" max="200" name="hours" value="' + (t.hours == null ? '' : esc(String(t.hours))) + '"></div>' +
+      '</div>' +
+      '<div class="field"><label class="label">รายละเอียด</label><textarea class="textarea" name="detail" data-rich rows="3">' + esc(t.detail) + '</textarea></div>' +
+      '</div>' +
+      '<div class="qacts">' +
+      (S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="qDel">ลบงานนี้</button>' : '') +
+      '<a class="btn-ghost" href="#/task/' + esc(t.id) + '" data-q-close>เปิดงานเต็ม</a>' +
+      '<button type="button" class="btn-ghost" data-q-close>ยกเลิก</button>' +
+      '<button type="submit" class="btn">บันทึก</button></div></form></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); };
+    host._close = close;
+    $$('[data-q-close]', host).forEach(function (b) { b.addEventListener('click', close); });
+    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
+    $('#qAs', host).addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-as]'); if (b) b.classList.toggle('on');
+    });
+    wireTyping(host);
+    var del = $('#qDel', host);
+    if (del) del.addEventListener('click', function () {
+      if (!confirm('ลบ “' + t.title + '” ออกจากระบบ? งานย่อย รูป และประวัติจะหายไปด้วย ย้อนกลับไม่ได้')) return;
+      del.disabled = true;
+      api('/tasks/' + t.id, 'DELETE')
+        .then(function () { S.tasks = null; close(); toast('ลบงานแล้ว'); render(); })
+        .catch(function (e) { del.disabled = false; toast(e.message, true); });
+    });
+    $('#qForm', host).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var f = this;
+      var btn = f.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      api('/tasks/' + t.id, 'PUT', {
+        title: f.title.value, detail: f.detail.value,
+        dueAt: fromLocalInput(f.dueAt.value), status: f.status.value, repeat: f.repeat.value,
+        taskType: f.taskType.value, taskKind: f.taskKind.value,
+        hours: f.hours.value === '' ? null : Number(f.hours.value),
+        assignees: $$('.chip.on[data-as]', $('#qAs', host)).map(function (b) { return b.getAttribute('data-as'); })
+      }).then(function () { S.tasks = null; close(); toast('บันทึกแล้ว'); render(); })
+        .catch(function (e) { btn.disabled = false; toast(e.message, true); });
+    });
+    var ti = $('input[name="title"]', host);
+    if (ti) ti.focus();
   }
 
   /* ---------- ดูรูป: ย่อ–ขยาย–ลากได้ ----------
@@ -1862,7 +2044,8 @@
       var by = staffById(t.createdBy);
       var view = $('#view');
       view.className = 'page';
-      var h = '<div class="task-hero"><div class="crumbs"><a href="#/all">งานทั้งหมด</a><span>›</span>' +
+      var h = seqNav(t.id) +
+        '<div class="task-hero"><div class="crumbs"><a href="#/all">งานทั้งหมด</a><span>›</span>' +
         (parent ? '<a href="#/task/' + esc(parent.id) + '">' + esc(parent.title) + '</a><span>›</span><span class="pill repeat">งานย่อย</span><span>›</span>' : '') +
         (t.kpiId ? '<a href="#/all?kpi=' + esc(t.kpiId) + '">' + esc((kpiById(t.kpiId) || {}).code || '') + '</a><span>›</span>' : '') +
         (t.campaignId && campaignById(t.campaignId) ? campaignChip(t.campaignId) + '<span>›</span>' : '') +
@@ -1900,7 +2083,7 @@
           KIND_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskKind || 'ondemand') === k ? ' selected' : '') + '>' + esc(KIND_TH[k]) + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">ใช้เวลา (ชม.)</label><input class="input" type="number" step="0.25" min="0" max="200" name="hours" value="' + (t.hours == null ? '' : esc(String(t.hours))) + '"></div></div>' +
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
-          '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์']].map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + REPEAT_OPTS.map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">KPI <small>ทุกงานต้องมีคำตอบ</small></label><select class="select" name="kpiId">' +
           '<option value="' + SUPPORT_V + '"' + (t.support ? ' selected' : '') + '>งาน support — ไม่เข้า KPI</option>' +
           S.kpis.map(function (k) { return '<option value="' + esc(k.id) + '"' + (t.kpiId === k.id ? ' selected' : '') + '>' + esc(k.code + ' · ' + k.title) + '</option>'; }).join('') + '</select></div></div>' +
@@ -3787,6 +3970,11 @@
     /* ชิปแคมเปญ → หน้าแคมเปญในระบบ (เห็นงาน+โพสต์ที่ผูกไว้) แทนกระโดดออกไปปฏิทิน */
     if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.hash = '#/campaign/' + b.getAttribute('data-cc'); return; }
     if ((b = ev.target.closest('[data-tour-go]'))) { $('#tourMenu').hidden = true; global.KAN_TOUR.start(b.getAttribute('data-tour-go')); return; }
+    if ((b = ev.target.closest('[data-rowmenu]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      quickEdit(b.getAttribute('data-rowmenu'));
+      return;
+    }
     if ((b = ev.target.closest('[data-tick]'))) {
       ev.preventDefault(); ev.stopPropagation();
       tickTask(b);
