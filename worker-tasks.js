@@ -122,6 +122,11 @@ const ALTERS = [
   /* แก้กำหนดส่งได้ — เดิมมีแค่หัวหน้ากับคนสั่งงาน นนท์ขอเปิดให้พิซซ่าด้วย (15 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
+  /* คิวรีรายการงานมี subquery 6 ตัวต่อหนึ่งแถว — ขาด index 3 ตัวนี้แล้วมันสแกนทั้งตารางต่อแถว
+     ทำให้เปิดหน้ารายการครั้งเดียวอ่านเป็นแสนแถว จนชนเพดานรายวันของ D1 (เจอ 15 ก.ย. 69) */
+  "CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id)",
+  "CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)",
+  "CREATE INDEX IF NOT EXISTS idx_task_mentions_task ON task_mentions(task_id)",
 ];
 
 const MAX_PIN_FAILS = 5;
