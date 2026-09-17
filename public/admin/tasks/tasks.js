@@ -1,7 +1,7 @@
 /* ============================================================
    KAN Admin — งานทีม (Task) · SPA (hash route) คุยกับ /api/t/* ใน worker.js
    หน้า: #/me งานของฉัน · #/all งานทั้งหมด · #/new สั่งงาน (วางข้อความ) ·
-         #/task/:id รายละเอียด+อัปเดต+ไฟล์แนบ · #/kpi KPI 2570 · #/team ทีม+รหัสผ่าน · #/inbox กระดิ่ง
+         #/task/:id รายละเอียด+อัปเดต+ไฟล์แนบ · #/kpi KPI 2570 · #/team ทีม+สิทธิ์ · #/inbox กระดิ่ง
    ============================================================ */
 (function (global) {
   'use strict';
@@ -616,8 +616,11 @@
     if (lb) lb.textContent = dark ? 'โหมดสว่าง' : 'โหมดมืด';
   }
 
-  /* ---------- ล็อกอิน: อีเมล + รหัสผ่านที่ทีมตั้งเอง ---------- */
-  var loginMode = 'in';   // 'in' = เข้าสู่ระบบ · 'setup' = ตั้งรหัสครั้งแรก
+  /* ---------- ล็อกอิน: กดชื่อตัวเองแล้วเข้าเลย ----------
+     นนท์สั่ง 17 ก.ย. 69 — พิซซ่ากับเติ้ลจำ user/รหัสไม่ได้ ตัดอีเมล/รหัสผ่านออกจากสมาชิกทั้งหมด
+     หัวหน้า (owner) ยังต้องใส่รหัสผ่าน เพราะกดชื่อแล้วได้สิทธิ์ลบทุกอย่าง + เห็นยอดขาย/KPI */
+  var loginPick = null;     // id ของหัวหน้าที่กดแล้วรอใส่รหัส
+  var loginStaff = null;    // รายชื่อจาก GET /login (แคชไว้ไม่ต้องโหลดซ้ำตอน re-render)
 
   /* ?next=/cmo/kpi — worker เด้งมาพร้อมปลายทาง รับเฉพาะ path ในบ้านเรา กัน open redirect */
   function nextParam() {
@@ -626,98 +629,85 @@
     var v = decodeURIComponent(m[1]);
     return /^\/[A-Za-z0-9_\-./?=&#]*$/.test(v) && v.indexOf('//') !== 0 ? v : '';
   }
+  /* ชื่อบนปุ่ม: "Pizza (Julalak Krongkheaw)" → Pizza · "Title Thitima S." → Title */
+  function loginLabel(x) {
+    var n = String(x.name || '').replace(/\(.*?\)/g, ' ').trim();
+    return n.split(/\s+/)[0] || x.name;
+  }
+  function afterLogin() {
+    loginPick = null;
+    /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
+    var next = nextParam();
+    if (next) { location.href = next; return; }
+    return boot();
+  }
   function renderLogin(err) {
     renderHeaderUser();
     var view = $('#view');
     view.className = 'login';
-    var tab = function (k, label) {
-      return '<button type="button" class="ltab' + (loginMode === k ? ' on' : '') + '" data-lmode="' + k + '">' + label + '</button>';
-    };
+    var picked = loginPick ? (loginStaff || []).filter(function (x) { return x.id === loginPick; })[0] : null;
+    if (!picked) loginPick = null;
+
     var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
-      '<p>' + (loginMode === 'in' ? 'เข้าด้วยอีเมลหรือชื่อผู้ใช้ กับรหัสผ่านของคุณ' : 'เลือกชื่อตัวเอง ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่าน') + '</p>' +
-      '<div class="ltabs">' + tab('in', 'เข้าสู่ระบบ') + tab('setup', 'ตั้งรหัสครั้งแรก') + '</div>' +
+      '<p>' + (picked ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
       (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
 
-    if (loginMode === 'in') {
-      h += '<form id="loginForm">' +
-        '<div class="field"><label class="label">อีเมลหรือชื่อผู้ใช้</label><input class="input" name="email" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@example.com หรือ pizza" required></div>' +
-        '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" required></div>' +
-        '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button></form>' +
-        '<p class="foot">ยังไม่เคยตั้งรหัส กดแท็บ “ตั้งรหัสครั้งแรก” · ลืมรหัสผ่านให้หัวหน้าตั้งใหม่ให้ในหน้า “ทีม”</p>';
+    if (!loginStaff) {
+      h += '<div class="who-grid"><p class="hint">กำลังโหลดรายชื่อ…</p></div>';
+    } else if (picked) {
+      h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + ' · หัวหน้า</small></div></div>' +
+        '<form id="loginForm">' +
+        '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" autofocus required></div>' +
+        '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button>' +
+        '<button type="button" class="btn-text" id="loginBack">← เลือกชื่ออื่น</button></form>';
     } else {
-      h += '<form id="setupForm">' +
-        '<div class="field"><label class="label">ชื่อของคุณ</label><select class="select" name="staffId" id="setupStaff"><option value="">กำลังโหลดรายชื่อ…</option></select></div>' +
-        '<div class="field"><label class="label">รหัสตั้งค่า <small>ตัวเลขที่หัวหน้าให้มา</small></label>' +
-        '<input class="input pin" name="setupCode" type="password" inputmode="numeric" maxlength="8" placeholder="••••" required></div>' +
-        '<div class="field"><label class="label">อีเมลของคุณ</label><input class="input" name="email" type="email" autocomplete="username" placeholder="you@example.com" required></div>' +
-        '<div class="field"><label class="label">ตั้งรหัสผ่าน <small>อย่างน้อย 8 ตัว</small></label><input class="input" name="password" type="password" autocomplete="new-password" minlength="8" required></div>' +
-        '<div class="field"><label class="label">พิมพ์รหัสผ่านอีกครั้ง</label><input class="input" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>' +
-        '<button type="submit" class="btn" id="setupBtn">ตั้งรหัสแล้วเข้าใช้งาน</button></form>' +
-        '<p class="foot">ตั้งเสร็จแล้วครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย · ' +
-        'รหัสตั้งค่าใช้ได้ครั้งเดียว ถ้าใส่แล้วไม่ผ่านให้ขอรหัสล่าสุดจากหัวหน้าทีม</p>';
+      h += '<div class="who-grid">' + loginStaff.map(function (x) {
+        return '<button type="button" class="who-btn' + (x.needsPassword ? ' owner' : '') + '" data-login="' + esc(x.id) + '">' +
+          avatar(x, 'lg') + '<b>' + esc(loginLabel(x)) + '</b>' +
+          '<small>' + (x.needsPassword ? 'หัวหน้า · ใส่รหัสผ่าน' : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
+      }).join('') + '</div>' +
+        '<p class="foot">ไม่ต้องใส่รหัส กดชื่อแล้วเข้าได้เลย · ไม่มีชื่อคุณในนี้ ให้หัวหน้าเพิ่มในหน้า "ทีม + สิทธิ์"</p>';
     }
     h += '<div class="login-by">Powered by <b>M Creation</b></div></div>';
     view.innerHTML = h;
 
-    $$('[data-lmode]').forEach(function (b) {
-      b.addEventListener('click', function () { loginMode = b.getAttribute('data-lmode'); renderLogin(); });
-    });
-
-    if (loginMode === 'setup') {
+    if (!loginStaff) {
       fetch(API + '/login', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
-        var sel = $('#setupStaff');
-        if (!sel) return;
-        sel.innerHTML = '<option value="">— เลือกชื่อ —</option>' + (j.staff || []).map(function (x) {
-          return '<option value="' + esc(x.id) + '">' + esc(x.name) + (x.hasPassword ? ' (ตั้งรหัสแล้ว)' : '') + '</option>';
-        }).join('');
-      }).catch(function () {});
-
-      $('#setupForm').addEventListener('submit', function (ev) {
-        ev.preventDefault();
-        var f = this;
-        if (f.password.value !== f.password2.value) { toast('รหัสผ่านสองช่องไม่ตรงกัน', true); return; }
-        if (!f.staffId.value) { toast('เลือกชื่อก่อน', true); return; }
-        $('#setupBtn').disabled = true;
-        fetch(API + '/setup', {
-          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ staffId: f.staffId.value, setupCode: f.setupCode.value, email: f.email.value, password: f.password.value }),
-        }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'ตั้งรหัสไม่สำเร็จ'); return j; }); })
-          .then(function (j) {
-            loginMode = 'in';
-            return boot().then(function () {
-              okDialog({
-                title: 'ตั้งรหัสเรียบร้อย ยินดีต้อนรับ',
-                lines: ['อีเมล: ' + f.email.value.trim(), 'ครั้งต่อไปเข้าด้วยอีเมลกับรหัสผ่านนี้ได้เลย'],
-                note: 'ลืมรหัสผ่านเมื่อไหร่ ให้หัวหน้าทีมตั้งใหม่ให้ในหน้า "ทีม + รหัสผ่าน"',
-              });
-            });
-          })
-          .catch(function (e) { renderLogin(e.message); });
+        loginStaff = j.staff || [];
+        if (!S.me) renderLogin(err);
+      }).catch(function () {
+        var g = $('.who-grid'); if (g) g.innerHTML = '<p class="hint">โหลดรายชื่อไม่ได้ ลองรีเฟรชหน้า</p>';
       });
       return;
     }
 
-    $('#loginForm').addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var f = this;
-      $('#loginBtn').disabled = true;
-      fetch(API + '/login', {
-        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: f.email.value, password: f.password.value }),
+    function submit(staffId, password) {
+      $$('.who-btn').forEach(function (b) { b.disabled = true; });
+      var lb = $('#loginBtn'); if (lb) lb.disabled = true;
+      var body = { staffId: staffId };
+      if (password != null) body.password = password;
+      return fetch(API + '/login', {
+        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
       }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
-        .then(function () {
-          try { localStorage.setItem('kan-task-last-email', f.email.value); } catch (e) {}
-          /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
-          var next = nextParam();
-          if (next) { location.href = next; return; }
-          return boot();
-        })
+        .then(afterLogin)
         .catch(function (e) { renderLogin(e.message); });
+    }
+
+    $$('[data-login]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var x = loginStaff.filter(function (s) { return s.id === b.getAttribute('data-login'); })[0];
+        if (!x) return;
+        if (x.needsPassword) { loginPick = x.id; renderLogin(); return; }
+        submit(x.id);
+      });
     });
-    try {
-      var last = localStorage.getItem('kan-task-last-email');
-      if (last) $('#loginForm').email.value = last;
-    } catch (e) {}
+    var back = $('#loginBack');
+    if (back) back.addEventListener('click', function () { loginPick = null; renderLogin(); });
+    var form = $('#loginForm');
+    if (form) {
+      form.addEventListener('submit', function (ev) { ev.preventDefault(); submit(loginPick, this.password.value); });
+      try { form.password.focus(); } catch (e) {}
+    }
   }
 
   /* ---------- งานของฉัน ---------- */
@@ -3556,7 +3546,7 @@
     view.className = 'page';
     var owner = S.me.role === 'owner';
     var h = '<div class="top"><div><span class="kicker">ทีม + สิทธิ์</span><h1>ทีมงานและสิทธิ์เข้าถึง</h1>' +
-      '<p>ทุกคนเข้าระบบด้วยอีเมลกับรหัสผ่านของตัวเอง ' + (owner ? 'ติ๊กได้ว่าใครเห็นหมวดไหน · หัวหน้าเห็นทุกหมวดเสมอ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : 'เปลี่ยนอีเมลกับรหัสผ่านของคุณได้ด้านล่าง') + '</p></div>' +
+      '<p>สมาชิกเข้าระบบด้วยการกดชื่อตัวเองที่หน้าแรก ไม่ต้องใช้รหัส · หัวหน้าใส่รหัสผ่าน ' + (owner ? '· ติ๊กได้ว่าใครเห็นหมวดไหน · หัวหน้าเห็นทุกหมวดเสมอ · "ชื่อเรียกใน @" คือคำที่ใช้พิมพ์ตอนสั่งงาน เช่น @Title' : '') + '</p></div>' +
       (owner ? '<div class="top-r"><label class="label" style="margin:0 8px 0 0">ดูระบบในมุมของ</label>' +
         '<select class="select" id="viewAsSel" style="width:auto;min-width:180px"><option value="">— ตัวเอง (หัวหน้า) —</option>' +
         S.staff.filter(function (x) { return x.active && x.id !== S.me.id; }).map(function (x) {
@@ -3568,8 +3558,8 @@
     h += '<div class="two"><div class="sec"><div class="sec-h"><h2>สมาชิก</h2><p>' + S.staff.filter(function (s) { return s.active; }).length + ' คนใช้งานอยู่</p></div><div class="sec-b tight">' +
       S.staff.map(function (s) {
         return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
-          (s.hasPassword ? '' : ' <span class="pill late">ยังไม่ตั้งรหัส</span>') + '</b>' +
-          '<small>' + (s.username ? 'ผู้ใช้ ' + esc(s.username) + ' · ' : '') + (s.email ? esc(s.email) : (s.username ? 'ไม่มีอีเมล' : 'ยังไม่มีอีเมล')) + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
+          (s.role === 'owner' && !s.hasPassword ? ' <span class="pill late">ยังไม่ตั้งรหัสผ่าน</span>' : '') + '</b>' +
+          '<small>' + (s.role === 'owner' ? 'เข้าด้วยรหัสผ่าน' : 'กดชื่อเข้าได้เลย') + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
           '<div class="secchips">' + (s.role === 'owner'
             ? '<span class="pill doing">เห็นทุกหมวด</span>'
             : SECTION_LIST.map(function (sc) {
@@ -3590,18 +3580,16 @@
             '<span class="wdays">' + esc(workDaysLabel(s)) + '</span></div>') + '</div>' +
           (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
             '<button type="button" class="btn-ghost sm" data-days-staff="' + esc(s.id) + '">วันทำงาน</button>' +
-            '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' +
-            '<button type="button" class="btn-ghost sm" data-pin-staff="' + esc(s.id) + '">รหัสตั้งค่าใหม่</button>' +
+            (s.role === 'owner' && s.id !== S.me.id ? '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' : '') +
             (s.id !== S.me.id ? '<button type="button" class="btn-ghost sm' + (s.active ? ' danger' : '') + '" data-active-staff="' + esc(s.id) + '" data-to="' + (s.active ? '0' : '1') + '">' + (s.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน') + '</button>' : '') + '</div>' : '') + '</div>';
       }).join('') + '</div></div><div>';
     if (owner) {
       h += '<div class="sec"><div class="sec-h"><h2>เพิ่มคนในทีม</h2></div><div class="sec-b"><form id="addStaff" style="display:grid;gap:12px">' +
         '<div class="field"><label class="label">ชื่อ-นามสกุล</label><input class="input" name="name" required placeholder="เช่น Somchai Dee"></div>' +
         '<div class="field"><label class="label">ชื่อเรียกใน @ <small>(คั่นด้วยจุลภาค)</small></label><input class="input" name="aliases" placeholder="เช่น Somchai,สมชาย"></div>' +
-        '<div class="grid2"><div class="field"><label class="label">อีเมล <small>(เว้นไว้ให้เจ้าตัวตั้งเองก็ได้)</small></label><input class="input" name="email" type="email" placeholder="you@example.com"></div>' +
-        '<div class="field"><label class="label">ชื่อผู้ใช้ <small>ใช้แทนอีเมลตอนเข้าระบบ</small></label><input class="input" name="username" autocapitalize="off" spellcheck="false" placeholder="เช่น pizza"></div></div>' +
-        '<div class="grid2"><div class="field"><label class="label">รหัสตั้งค่า <small>ให้เจ้าตัวใช้ครั้งแรก</small></label><input class="input" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required placeholder="4–8 หลัก"></div>' +
-        '<div class="field"><label class="label">ระดับ</label><select class="select" name="role"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div></div>' +
+        '<div class="grid2"><div class="field"><label class="label">ระดับ</label><select class="select" name="role" id="newRole"><option value="member">สมาชิก</option><option value="owner">หัวหน้า</option></select></div>' +
+        '<div class="field" id="newPwField" hidden><label class="label">รหัสผ่านหัวหน้า <small>อย่างน้อย 8 ตัว</small></label><input class="input" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="เฉพาะหัวหน้า"></div></div>' +
+        '<p class="hint" style="margin:0">สมาชิกไม่ต้องมีรหัส เพิ่มแล้วกดชื่อตัวเองที่หน้าแรกได้เลย</p>' +
         '<div class="field"><label class="label">เห็นหมวดไหนได้บ้าง <small>หัวหน้าเห็นทุกหมวดอยู่แล้ว</small></label>' +
         '<div class="chips" id="newSecs">' + SECTION_LIST.map(function (sc) {
           var on = sc[0] === 'tasks' || sc[0] === 'docs';
@@ -3609,11 +3597,12 @@
         }).join('') + '</div></div>' +
         '<div class="acts"><button type="submit" class="btn">เพิ่มคน</button></div></form></div></div>';
     }
-    h += '<div class="sec"><div class="sec-h"><h2>อีเมลและรหัสผ่านของฉัน</h2></div><div class="sec-b"><form id="myPw" style="display:grid;gap:12px">' +
-      '<div class="field"><label class="label">รหัสผ่านปัจจุบัน</label><input class="input" name="password" type="password" autocomplete="current-password" required></div>' +
-      '<div class="grid2"><div class="field"><label class="label">อีเมล <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="email" type="email" placeholder="' + esc(S.me.email || 'you@example.com') + '"></div>' +
-      '<div class="field"><label class="label">รหัสผ่านใหม่ <small>เว้นว่างถ้าไม่เปลี่ยน</small></label><input class="input" name="newPassword" type="password" autocomplete="new-password" minlength="8"></div></div>' +
-      '<div class="acts"><button type="submit" class="btn-ghost">บันทึก</button></div></form></div></div>';
+    if (owner) {
+      h += '<div class="sec"><div class="sec-h"><h2>รหัสผ่านของฉัน</h2><p>ใช้เฉพาะบัญชีหัวหน้า</p></div><div class="sec-b"><form id="myPw" style="display:grid;gap:12px">' +
+        '<div class="grid2"><div class="field"><label class="label">รหัสผ่านปัจจุบัน</label><input class="input" name="password" type="password" autocomplete="current-password"' + (S.me.hasPassword ? ' required' : ' placeholder="ยังไม่มี เว้นว่างได้"') + '></div>' +
+        '<div class="field"><label class="label">รหัสผ่านใหม่ <small>อย่างน้อย 8 ตัว</small></label><input class="input" name="newPassword" type="password" autocomplete="new-password" minlength="8" required></div></div>' +
+        '<div class="acts"><button type="submit" class="btn-ghost">บันทึก</button></div></form></div></div>';
+    }
     /* MCP: ให้ AI (Claude / ChatGPT) สั่งงาน-สรุปงานผ่านระบบนี้ได้ · token รายคน ผูกกับสิทธิ์ของคนนั้น */
     var tokenRows = S.staff.filter(function (x) { return x.active && (owner || x.id === S.me.id); });
     h += '<div class="sec" id="mcpBox"><div class="sec-h"><h2>ต่อกับ Claude / ChatGPT (MCP)</h2><p>ให้ AI สรุปงานวันนี้ สั่งงานจากโน้ต หรืออัปเดตตารางโพสต์แทนได้</p></div><div class="sec-b">' +
@@ -3717,23 +3706,17 @@
       var b = $('#storageBox .sec-b'); if (b) b.innerHTML = '<p class="hint">อ่านพื้นที่ไม่ได้</p>';
     });
 
-    $('#myPw').addEventListener('submit', function (ev) {
+    var myPw = $('#myPw');
+    if (myPw) myPw.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var f = this;
-      var body = { password: f.password.value };
-      if (f.email.value.trim()) body.email = f.email.value.trim();
-      if (f.newPassword.value) body.newPassword = f.newPassword.value;
-      if (!body.email && !body.newPassword) { toast('ยังไม่ได้กรอกอีเมลหรือรหัสผ่านใหม่', true); return; }
+      var body = { password: f.password.value, newPassword: f.newPassword.value };
       api('/me/password', 'PUT', body)
         .then(function () { f.reset(); return refreshMe(); })
         .then(function () {
-          var lines = [];
-          if (body.email) lines.push('อีเมลใหม่: ' + body.email);
-          if (body.newPassword) lines.push('เปลี่ยนรหัสผ่านแล้ว');
           okDialog({
-            title: 'บันทึกแล้ว',
-            lines: lines,
-            note: body.newPassword ? 'ครั้งหน้าใช้รหัสผ่านใหม่เข้าระบบ' : '',
+            title: 'เปลี่ยนรหัสผ่านแล้ว',
+            lines: ['ครั้งหน้ากดชื่อ ' + shortName(S.me) + ' ที่หน้าแรกแล้วใส่รหัสผ่านใหม่'],
             onClose: renderTeam,
           });
         })
@@ -3743,22 +3726,28 @@
     if (add) add.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var f = this;
-      var who = f.name.value, code = f.pin.value;
+      var who = f.name.value, isOwnerNew = f.role.value === 'owner';
       var secs = $$('#newSecs .chip.on').map(function (b) { return b.getAttribute('data-newsec'); });
-      var uname = (f.username.value || '').trim().toLowerCase();
-      api('/staff', 'POST', { name: who, aliases: f.aliases.value, pin: code, role: f.role.value, email: f.email.value.trim() || null, username: uname || null, sections: secs })
+      var body = { name: who, aliases: f.aliases.value, role: f.role.value, sections: secs };
+      if (isOwnerNew) body.password = f.password.value;
+      api('/staff', 'POST', body)
         .then(function () { return refreshMe(); })
         .then(function () {
           okDialog({
             title: 'เพิ่ม ' + who + ' เข้าทีมแล้ว',
-            lines: ['รหัสตั้งค่าของเขาคือ ' + code,
-                    (uname ? 'ชื่อผู้ใช้: ' + uname : 'ยังไม่ได้ตั้งชื่อผู้ใช้'),
-                    'เห็นได้: ' + (f.role.value === 'owner' ? 'ทุกหมวด (หัวหน้า)' : (secs.map(function (k) { return SECTION_SHORT[k]; }).join(' · ') || 'ยังไม่เปิดหมวดไหนเลย')),
-                    'ให้เขาเข้า admin.kan-hub.com/tasks/ แล้วกดแท็บ "ตั้งรหัสครั้งแรก"'],
-            note: 'รหัสนี้ใช้ได้ครั้งเดียว พอเขาตั้งรหัสผ่านเองแล้วจะใช้ไม่ได้อีก',
+            lines: ['เห็นได้: ' + (isOwnerNew ? 'ทุกหมวด (หัวหน้า)' : (secs.map(function (k) { return SECTION_SHORT[k]; }).join(' · ') || 'ยังไม่เปิดหมวดไหนเลย')),
+                    isOwnerNew ? 'เข้าระบบ: กดชื่อที่หน้าแรกแล้วใส่รหัสผ่านที่ตั้งไว้'
+                               : 'เข้าระบบ: เปิด admin.kan-hub.com/tasks/ แล้วกดชื่อตัวเองได้เลย ไม่ต้องใช้รหัส'],
             onClose: renderTeam,
           });
         }).catch(function (e) { toast(e.message, true); });
+    });
+    /* ช่องรหัสผ่านโผล่เฉพาะตอนเลือกระดับ "หัวหน้า" */
+    var roleSel = $('#newRole');
+    if (roleSel) roleSel.addEventListener('change', function () {
+      var pf = $('#newPwField'); if (!pf) return;
+      pf.hidden = this.value !== 'owner';
+      pf.querySelector('input').required = this.value === 'owner';
     });
     var vsel = $('#viewAsSel');
     if (vsel) vsel.addEventListener('change', function () {
@@ -3855,34 +3844,17 @@
           .catch(function (e) { toast(e.message, true); });
         return;
       }
-      if ((b = ev.target.closest('[data-pin-staff]'))) {
-        var s = staffById(b.getAttribute('data-pin-staff'));
-        var pin = prompt('รหัสตั้งค่าใหม่ของ ' + s.name + ' (ตัวเลข 4–8 หลัก)\nให้เจ้าตัวเอาไปใช้ที่แท็บ "ตั้งรหัสครั้งแรก"');
-        if (pin == null) return;
-        api('/staff/' + s.id, 'PUT', { pin: pin, resetSetup: true })
-          .then(refreshMe)
-          .then(function () {
-            okDialog({
-              title: 'ตั้งรหัสตั้งค่าใหม่ให้ ' + s.name + ' แล้ว',
-              lines: ['รหัสตั้งค่า: ' + pin, 'รหัสผ่านเดิมถูกล้าง เขาต้องไปตั้งใหม่ที่แท็บ "ตั้งรหัสครั้งแรก"'],
-              note: 'ส่งรหัสนี้ให้เขาทางไลน์ได้เลย ใช้ได้ครั้งเดียว',
-              onClose: renderTeam,
-            });
-          })
-          .catch(function (e) { toast(e.message, true); });
-      } else if ((b = ev.target.closest('[data-pw-staff]'))) {
+      if ((b = ev.target.closest('[data-pw-staff]'))) {
         var st2 = staffById(b.getAttribute('data-pw-staff'));
-        var who2 = st2.email || st2.username;
-        if (!who2) { toast('คนนี้ยังไม่มีอีเมลหรือชื่อผู้ใช้ กด "แก้ไข" ใส่ก่อน', true); return; }
-        var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเข้าระบบด้วย ' + who2);
+        var pw = prompt('ตั้งรหัสผ่านใหม่ให้ ' + st2.name + ' (อย่างน้อย 8 ตัว)\nเขากดชื่อตัวเองที่หน้าแรกแล้วใส่รหัสนี้');
         if (pw == null) return;
         api('/staff/' + st2.id, 'PUT', { password: pw })
           .then(refreshMe)
           .then(function () {
             okDialog({
               title: 'ตั้งรหัสผ่านให้ ' + st2.name + ' แล้ว',
-              lines: [(st2.email ? 'อีเมล: ' + st2.email : 'ชื่อผู้ใช้: ' + st2.username), 'รหัสผ่าน: ' + pw],
-              note: 'ส่งให้เขาแล้วบอกให้เปลี่ยนเองในหน้า "ทีม + รหัสผ่าน"',
+              lines: ['รหัสผ่าน: ' + pw, 'กดชื่อ ' + shortName(st2) + ' ที่หน้าแรกแล้วใส่รหัสนี้'],
+              note: 'ส่งให้เขาแล้วบอกให้เปลี่ยนเองในหน้า "ทีม + สิทธิ์"',
               onClose: renderTeam,
             });
           })
@@ -3894,13 +3866,11 @@
         var st = staffById(b.getAttribute('data-edit-staff'));
         var name = prompt('ชื่อ', st.name); if (name == null) return;
         var aliases = prompt('ชื่อเรียกใน @ (คั่นด้วยจุลภาค)', st.aliases || ''); if (aliases == null) return;
-        var email = prompt('อีเมลสำหรับเข้าระบบ (เว้นว่างได้)', st.email || ''); if (email == null) return;
-        var uname = prompt('ชื่อผู้ใช้สำหรับเข้าระบบ (a-z 0-9 . _ - เว้นว่างได้)', st.username || ''); if (uname == null) return;
-        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases, email: email.trim(), username: uname.trim() })
+        api('/staff/' + st.id, 'PUT', { name: name, aliases: aliases })
           .then(refreshMe)
           .then(function () {
             okDialog({ title: 'บันทึกข้อมูล ' + name + ' แล้ว',
-              lines: ['อีเมล: ' + (email.trim() || 'ยังไม่มี'), 'ชื่อผู้ใช้: ' + (uname.trim() || 'ยังไม่มี'), 'ชื่อเรียกใน @: ' + (aliases || '—')],
+              lines: ['ชื่อ: ' + name, 'ชื่อเรียกใน @: ' + (aliases || '—')],
               onClose: renderTeam });
           }).catch(function (e) { toast(e.message, true); });
       }
@@ -4026,7 +3996,7 @@
     }
     if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; render(); return; }
     if (ev.target.closest('[data-logout]')) {
-      fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { S.me = null; S.tasks = null; renderSidebar(); renderLogin(); });
+      fetch(API + '/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { S.me = null; S.tasks = null; loginPick = null; renderSidebar(); renderLogin(); });
       return;
     }
     if (ev.target.closest('[data-toggle-done]')) { S.showDone = !S.showDone; renderMe(); return; }

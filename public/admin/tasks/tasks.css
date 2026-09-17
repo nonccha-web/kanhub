@@ -415,7 +415,6 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .login-card > p{ margin-top:4px; font-size:13px; color:var(--k-mut); }
 .login-card form{ display:grid; gap:14px; margin-top:22px; }
 .login-card .foot{ margin-top:18px; font-size:11.5px; color:var(--k-mut); line-height:1.6; }
-.login-card .input.pin{ font-family:var(--k-display); font-size:22px; letter-spacing:.3em; text-align:center; }
 
 /* ── toast / lightbox ── */
 .toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200; background:var(--k-ink); color:var(--k-paper);
@@ -584,12 +583,25 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 /* กระดิ่งกับชิปผู้ใช้ต้องอยู่บรรทัดเดียวกัน — #headUser เป็น span ถ้าไม่บังคับ flex มันจะตกบรรทัด */
 #headUser{ display:inline-flex; align-items:center; gap:8px; }
 
-/* ── หน้าล็อกอิน: สองแท็บ ── */
-.ltabs{ display:flex; gap:2px; padding:2px; margin-top:16px; border:1px solid var(--k-line); border-radius:999px; background:var(--k-ground); }
-.ltab{ flex:1; border:0; border-radius:999px; background:transparent; color:var(--k-soft); font:inherit; font-size:12.5px;
-  padding:7px 10px; cursor:pointer; transition:background .15s, color .15s; }
-.ltab:hover{ color:var(--k-ink); }
-.ltab.on{ background:var(--k-ink); color:var(--k-paper); font-weight:600; }
+/* ── หน้าล็อกอิน: กดชื่อตัวเองแล้วเข้าเลย (หัวหน้าค่อยขึ้นช่องรหัสผ่าน) ── */
+.who-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px; }
+.who-grid .hint{ grid-column:1 / -1; margin:0; text-align:center; }
+.who-btn{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 10px 14px; min-height:112px;
+  border:1px solid var(--k-line); background:var(--k-ground); color:var(--k-ink); font:inherit; cursor:pointer; text-align:center;
+  transition:border-color .15s, background .15s, transform .1s; }
+.who-btn:hover{ border-color:var(--k-ink); background:var(--k-paper); }
+.who-btn:active{ transform:scale(.98); }
+.who-btn:disabled{ opacity:.55; cursor:default; }
+.who-btn .av.lg{ width:44px; height:44px; font-size:14px; }
+.who-btn b{ font-size:15px; font-weight:600; line-height:1.2; }
+.who-btn small{ font-size:11px; color:var(--k-mut); line-height:1.4; word-break:break-word; }
+.who-btn.owner{ border-style:dashed; }
+.who-btn.owner small{ color:var(--k-soft); }
+.who-picked{ display:flex; align-items:center; gap:12px; margin-top:22px; padding:12px 14px; border:1px solid var(--k-line); background:var(--k-ground); }
+.who-picked .av.lg{ width:40px; height:40px; font-size:13px; }
+.who-picked b{ display:block; font-size:15px; font-weight:600; }
+.who-picked small{ font-size:11.5px; color:var(--k-mut); }
+.login-card form .btn-text{ justify-self:center; }
 
 /* ── ช่องลากวางไฟล์ ── */
 .drop{ display:flex; align-items:center; gap:14px; border:1.5px dashed var(--k-line); background:var(--k-ground);

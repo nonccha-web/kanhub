@@ -1,6 +1,8 @@
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
-//  - ล็อกอินด้วยชื่อ + PIN → cookie เซ็นด้วย HMAC (secret สุ่มเก็บใน D1 ไม่ต้องตั้ง wrangler secret)
+//  - ล็อกอิน: สมาชิกกดชื่อตัวเองแล้วเข้าเลย ไม่มีรหัส (นนท์สั่ง 17 ก.ย. 69 — พิซซ่ากับเติ้ลจำ user/รหัสไม่ได้)
+//    หัวหน้า (owner) ยังต้องใส่รหัสผ่าน เพราะกดชื่อแล้วได้สิทธิ์ลบทุกอย่าง + เห็นยอดขาย/KPI
+//    → cookie เซ็นด้วย HMAC (secret สุ่มเก็บใน D1 ไม่ต้องตั้ง wrangler secret)
 //  - รูปแนบเก็บ base64 ใน D1 แบบเดียวกับปฏิทินแคมเปญ (ย่อฝั่งเบราว์เซอร์ก่อน)
 
 const COOKIE = "kan_tsess";
@@ -52,7 +54,7 @@ const SCHEMA = [
     "id TEXT PRIMARY KEY, task_id TEXT NOT NULL, update_id TEXT, file_name TEXT NOT NULL, " +
     "mime TEXT NOT NULL, bytes INTEGER NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_task_files_task ON task_files(task_id)",
-  /* กันเดา PIN — หน้า /admin ยังเปิดสาธารณะ PIN 4 หลักเดาหมดได้ใน 10,000 ครั้ง */
+  /* กันเดารหัสผ่านหัวหน้า — หน้าล็อกอินเปิดสาธารณะ ผิด 5 ครั้งล็อก 10 นาที */
   "CREATE TABLE IF NOT EXISTS task_logins (" +
     "staff_id TEXT PRIMARY KEY, fails INTEGER NOT NULL DEFAULT 0, locked_until TEXT)",
   /* ตารางโพสต์คอนเทนต์รายเพจ — พิซซ่าเป็นคนกรอกแผน หัวหน้าเข้ามาตรวจว่าโพสต์แล้วยังและมีลิงก์ไหม
@@ -82,7 +84,7 @@ const SCHEMA = [
    รันซ้ำจะได้ error "duplicate column" ซึ่งกลืนทิ้งได้ */
 const ALTERS = [
   "ALTER TABLE tasks ADD COLUMN parent_id TEXT",
-  /* ล็อกอินด้วยอีเมล+รหัสผ่าน (ทีมตั้งเอง) — ของเดิมคือชื่อ+PIN ซึ่งกลายเป็น "รหัสตั้งค่าครั้งแรก" */
+  /* email/username/pw_* เหลือใช้แค่รหัสผ่านของหัวหน้า — สมาชิกกดชื่อเข้าเลย (17 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN email TEXT",
   "ALTER TABLE staff ADD COLUMN pw_salt TEXT",
   "ALTER TABLE staff ADD COLUMN pw_hash TEXT",
@@ -161,7 +163,6 @@ const KPI_SEED = [
     keywords: "dashboard,track,pos,data,รายงาน,งบ,เอกสาร,forecast,วัดผล,attribution,cac,roi" },
 ];
 
-/* ทีมเริ่มต้น — PIN แรกคือ 1234 ทุกคน เปลี่ยนได้ในหน้า "ทีม + PIN" */
 /* ---------- สิทธิ์ตามหมวดเมนู ----------------------------------------
    นนท์: "ทุกคนเห็นทุกอย่าง ยกเว้นรายงานยอดขายกับ KPI"
      tasks = งานทีม + ตารางโพสต์ + ปฏิทินการตลาด
@@ -208,7 +209,6 @@ const STAFF_SEED = [
   { id: "s_title", name: "Title Thitima S.", aliases: "Title,Thitima", role: "member" },
   { id: "s_pizza", name: "Pizza", aliases: "Pizza,พิซซ่า", role: "member" },
 ];
-const SEED_PIN = "1234";
 
 /* ---------- helpers ---------- */
 function json(data, status = 200, extraHeaders) {
@@ -229,8 +229,7 @@ async function sha256Hex(str) {
   return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)));
 }
 
-/* รหัสผ่านของคนใช้ PBKDF2 ไม่ใช่ SHA-256 เปล่า — ตัวหลังเดาด้วยการ์ดจอได้เร็วเกินไป
-   (PIN 4 หลักยังใช้ sha256 ได้เพราะมีล็อกหลังผิด 5 ครั้งคุมอยู่ และเป็นรหัสชั่วคราว) */
+/* รหัสผ่านหัวหน้าใช้ PBKDF2 ไม่ใช่ SHA-256 เปล่า — ตัวหลังเดาด้วยการ์ดจอได้เร็วเกินไป */
 const PBKDF2_ITER = 100000;
 async function pbkdf2Hex(password, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
@@ -306,9 +305,6 @@ function getCookie(request, name) {
   }
   return "";
 }
-function validPin(pin) {
-  return typeof pin === "string" && /^\d{4,8}$/.test(pin);
-}
 async function readBody(request) {
   return request.json().catch(() => ({}));
 }
@@ -381,7 +377,7 @@ async function ensureSchema(db, env) {
         const stmts = [];
         for (const r of STAFF_SEED) {
           const salt = randHex(8);
-          const hash = await sha256Hex(salt + ":" + SEED_PIN);
+          const hash = await sha256Hex(salt + ":" + randHex(16)); /* pin ไม่ได้ใช้แล้ว แค่กันคอลัมน์ NOT NULL */
           stmts.push(db.prepare(
             "INSERT OR IGNORE INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at) VALUES (?,?,?,?,?,?,1,?)"
           ).bind(r.id, r.name, r.aliases, r.role, salt, hash, nowIso()));
@@ -663,68 +659,31 @@ export async function handleTaskApi(request, env, url, path, method) {
   if (!db) return json({ error: "ยังไม่ได้ผูกฐานข้อมูล" }, 503);
   await ensureSchema(db, env);
 
-  /* --- public: รายชื่อสำหรับหน้าล็อกอิน --- */
+  /* --- public: รายชื่อสำหรับหน้าล็อกอิน — needsPassword = หัวหน้าเท่านั้น --- */
   if (path === "/login" && method === "GET") {
-    const res = await db.prepare("SELECT id,name,role,pw_hash FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
+    const res = await db.prepare("SELECT id,name,aliases,role,pw_hash FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
     return json({
-      staff: (res.results || []).map((r) => ({ id: r.id, name: r.name, role: r.role, hasPassword: !!r.pw_hash })),
+      staff: (res.results || []).map((r) => ({
+        id: r.id, name: r.name, aliases: r.aliases || "", role: r.role,
+        needsPassword: r.role === "owner", hasPassword: !!r.pw_hash,
+      })),
     });
   }
 
-  /* ตั้งรหัสครั้งแรก: เลือกชื่อ + ใส่รหัสตั้งค่าที่หัวหน้าให้ แล้วตั้งอีเมลกับรหัสผ่านของตัวเอง */
-  if (path === "/setup" && method === "POST") {
-    const body = await readBody(request);
-    const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(String(body.staffId || "")).first();
-    if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 404);
-
-    const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
-    if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
-      const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
-      return json({ error: "ใส่รหัสผิดหลายครั้ง ลองใหม่ในอีก " + wait + " นาที" }, 429);
-    }
-    const codeHash = await sha256Hex(row.pin_salt + ":" + String(body.setupCode || ""));
-    if (codeHash !== row.pin_hash) {
-      const fails = ((gate && gate.fails) || 0) + 1;
-      const lockedUntil = fails >= MAX_PIN_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60000).toISOString() : null;
-      await db.prepare(
-        "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
-        "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
-      ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
-      return json({ error: lockedUntil ? "ใส่รหัสผิดหลายครั้ง ล็อก " + LOCK_MINUTES + " นาที"
-        : "รหัสตั้งค่าไม่ถูกต้อง (เหลืออีก " + (MAX_PIN_FAILS - fails) + " ครั้ง)" }, lockedUntil ? 429 : 401);
-    }
-
-    const email = normEmail(body.email);
-    if (!validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
-    if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
-    const taken = await db.prepare("SELECT id FROM staff WHERE email = ? AND id != ?").bind(email, row.id).first();
-    if (taken) return json({ error: "อีเมลนี้มีคนใช้แล้ว" }, 409);
-
-    const salt = randHex(16);
-    const hash = await pbkdf2Hex(body.password, salt);
-    await db.batch([
-      db.prepare("UPDATE staff SET email = ?, pw_salt = ?, pw_hash = ? WHERE id = ?").bind(email, salt, hash, row.id),
-      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id),
-    ]);
-    const fresh = await db.prepare("SELECT * FROM staff WHERE id = ?").bind(row.id).first();
-    const tok = await makeSession(db, row.id);
-    return json({ ok: true, me: publicStaff(fresh) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
-  }
-
+  /* ล็อกอิน: เลือกชื่อแล้วเข้าเลย — ยกเว้นหัวหน้าต้องใส่รหัสผ่าน
+     (ตัดอีเมล/ชื่อผู้ใช้/รหัสตั้งค่าออกทั้งหมด 17 ก.ย. 69 — ทีมจำไม่ได้ เข้าไม่เป็น) */
   if (path === "/login" && method === "POST") {
     const body = await readBody(request);
     const staffId = String(body.staffId || "");
-    const pin = String(body.pin || "");
+    const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
+    if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
 
-    /* ทางหลัก: อีเมล (หรือชื่อผู้ใช้) + รหัสผ่านที่ทีมตั้งเอง */
-    const who = normEmail(body.email || body.username);
-    if (who) {
-      const row = await db.prepare(
-        "SELECT * FROM staff WHERE (email = ? OR username = ?) AND active = 1"
-      ).bind(who, who).first();
-      const fail = json({ error: "อีเมล/ชื่อผู้ใช้ หรือรหัสผ่านไม่ถูกต้อง" }, 401);
-      if (!row || !row.pw_hash) return fail;
+    if (row.role === "owner") {
+      /* หัวหน้ากดชื่อแล้วได้สิทธิ์ทุกอย่าง — เว็บนี้ใครก็เปิด URL ได้ จึงต้องมีรหัสผ่านกัน */
+      if (!row.pw_hash) return json({ error: "บัญชีหัวหน้ายังไม่มีรหัสผ่าน ให้ตั้งจากเครื่องที่ล็อกอินอยู่ (หน้า ทีม + สิทธิ์)" }, 409);
+      if (body.password == null) return json({ error: "หัวหน้าต้องใส่รหัสผ่าน", needPassword: true }, 401);
 
+      /* ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
       const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
       if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
         const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
@@ -738,41 +697,16 @@ export async function handleTaskApi(request, env, url, path, method) {
           "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
           "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
         ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
-        return lockedUntil ? json({ error: "ใส่รหัสผิด " + MAX_PIN_FAILS + " ครั้ง ล็อก " + LOCK_MINUTES + " นาที" }, 429) : fail;
+        return json({
+          error: lockedUntil
+            ? "ใส่รหัสผิด " + MAX_PIN_FAILS + " ครั้ง ล็อก " + LOCK_MINUTES + " นาที"
+            : "รหัสผ่านไม่ถูกต้อง (เหลืออีก " + (MAX_PIN_FAILS - fails) + " ครั้ง)",
+          needPassword: true,
+        }, lockedUntil ? 429 : 401);
       }
       if (gate) await db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id).run();
-      const tok = await makeSession(db, row.id);
-      return json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
     }
 
-    /* ทางสำรอง: ชื่อ + รหัสตั้งค่า — ใช้ได้เฉพาะคนที่ยังไม่ได้ตั้งรหัสผ่าน */
-    const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
-    if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
-    if (row.pw_hash) return json({ error: "บัญชีนี้ตั้งรหัสผ่านแล้ว ให้เข้าด้วยอีเมล", needEmail: true }, 409);
-
-    /* ถูกล็อกอยู่หรือเปล่า — ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
-    const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
-    if (gate && gate.locked_until && Date.parse(gate.locked_until) > Date.now()) {
-      const wait = Math.ceil((Date.parse(gate.locked_until) - Date.now()) / 60000);
-      return json({ error: "ใส่ PIN ผิดหลายครั้ง ลองใหม่ในอีก " + wait + " นาที" }, 429);
-    }
-
-    const hash = await sha256Hex(row.pin_salt + ":" + pin);
-    if (hash !== row.pin_hash) {
-      const fails = ((gate && gate.fails) || 0) + 1;
-      const lockedUntil = fails >= MAX_PIN_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60000).toISOString() : null;
-      await db.prepare(
-        "INSERT INTO task_logins (staff_id, fails, locked_until) VALUES (?,?,?) " +
-        "ON CONFLICT(staff_id) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until"
-      ).bind(row.id, lockedUntil ? 0 : fails, lockedUntil).run();
-      return json({
-        error: lockedUntil
-          ? "ใส่ PIN ผิด " + MAX_PIN_FAILS + " ครั้ง ล็อก " + LOCK_MINUTES + " นาที"
-          : "PIN ไม่ถูกต้อง (เหลืออีก " + (MAX_PIN_FAILS - fails) + " ครั้ง)",
-      }, lockedUntil ? 429 : 401);
-    }
-
-    if (gate) await db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(row.id).run();
     const tok = await makeSession(db, row.id);
     return json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
   }
@@ -1270,13 +1204,16 @@ export async function handleTaskApi(request, env, url, path, method) {
     });
   }
 
-  /* เปลี่ยนรหัสผ่านของตัวเอง (และตั้ง/เปลี่ยนอีเมลได้ในตัว) */
+  /* เปลี่ยนรหัสผ่านของตัวเอง — มีแต่หัวหน้าที่ใช้รหัสผ่าน สมาชิกกดชื่อเข้าเลย */
   if (path === "/me/password" && method === "PUT") {
+    if (!isOwner) return json({ error: "สมาชิกไม่ต้องใช้รหัสผ่าน กดชื่อตัวเองเข้าระบบได้เลย" }, 403);
     const body = await readBody(request);
     const row = await db.prepare("SELECT * FROM staff WHERE id = ?").bind(me.id).first();
-    if (!row.pw_hash) return json({ error: "ยังไม่ได้ตั้งรหัสผ่าน ให้ใช้หน้าตั้งรหัสครั้งแรก" }, 400);
-    const cur = await pbkdf2Hex(String(body.password || ""), row.pw_salt);
-    if (cur !== row.pw_hash) return json({ error: "รหัสผ่านเดิมไม่ถูกต้อง" }, 400);
+    /* หัวหน้าที่ยังไม่มีรหัส (บัญชีเก่า) ตั้งได้เลยโดยไม่ต้องใส่รหัสเดิม */
+    if (row.pw_hash) {
+      const cur = await pbkdf2Hex(String(body.password || ""), row.pw_salt);
+      if (cur !== row.pw_hash) return json({ error: "รหัสผ่านเดิมไม่ถูกต้อง" }, 400);
+    }
 
     const sets = [], vals = [];
     if (body.email != null) {
@@ -1298,29 +1235,15 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ok: true });
   }
 
-  if (path === "/me/pin" && method === "PUT") {
-    const body = await readBody(request);
-    if (!validPin(body.newPin)) return json({ error: "PIN ใหม่ต้องเป็นตัวเลข 4–8 หลัก" }, 400);
-    const row = await db.prepare("SELECT pin_salt,pin_hash FROM staff WHERE id = ?").bind(me.id).first();
-    const oldHash = await sha256Hex(row.pin_salt + ":" + String(body.pin || ""));
-    if (oldHash !== row.pin_hash) return json({ error: "PIN เดิมไม่ถูกต้อง" }, 400);
-    const salt = randHex(8);
-    const hash = await sha256Hex(salt + ":" + body.newPin);
-    await db.batch([
-      db.prepare("UPDATE staff SET pin_salt = ?, pin_hash = ? WHERE id = ?").bind(salt, hash, me.id),
-      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(me.id),
-    ]);
-    return json({ ok: true });
-  }
-
   /* --- ทีม --- */
   if (path === "/staff" && method === "POST") {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
     const body = await readBody(request);
     const name = String(body.name || "").trim().slice(0, 120);
     if (!name) return json({ error: "ต้องมีชื่อ" }, 400);
-    if (!validPin(body.pin)) return json({ error: "รหัสตั้งค่าต้องเป็นตัวเลข 4–8 หลัก" }, 400);
     const role = body.role === "owner" ? "owner" : "member";
+    /* หัวหน้าคนใหม่ต้องมีรหัสผ่านตั้งแต่สร้าง ไม่งั้นเข้าไม่ได้เลย */
+    if (role === "owner" && !validPassword(body.password)) return json({ error: "หัวหน้าต้องตั้งรหัสผ่านอย่างน้อย 8 ตัว" }, 400);
     const aliases = String(body.aliases || "").trim().slice(0, 200);
     const email = body.email ? normEmail(body.email) : null;
     if (email && !validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
@@ -1335,14 +1258,14 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (takenU) return json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, 409);
     }
     const id = newId("s_");
+    /* pin_salt/pin_hash เป็น NOT NULL จากยุค PIN — ไม่ได้ใช้แล้ว ใส่ค่าสุ่มที่ไม่มีใครรู้ */
     const salt = randHex(8);
-    const hash = await sha256Hex(salt + ":" + body.pin);
+    const hash = await sha256Hex(salt + ":" + randHex(16));
     const secs = body.sections != null ? cleanSections(body.sections) : DEFAULT_SECTIONS.join(",");
     await db.prepare(
       "INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,email,username,sections) VALUES (?,?,?,?,?,?,1,?,?,?,?)"
     ).bind(id, name, aliases, role, salt, hash, nowIso(), email, username, secs).run();
-    if (body.password != null) {
-      if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
+    if (role === "owner") {
       const psalt = randHex(16);
       await db.prepare("UPDATE staff SET pw_salt = ?, pw_hash = ? WHERE id = ?")
         .bind(psalt, await pbkdf2Hex(body.password, psalt), id).run();
@@ -1428,12 +1351,6 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (id === me.id && !body.active) return json({ error: "ปิดบัญชีตัวเองไม่ได้" }, 400);
       sets.push("active = ?"); vals.push(body.active ? 1 : 0);
     }
-    if (body.pin != null) {
-      if (!validPin(body.pin)) return json({ error: "รหัสตั้งค่าต้องเป็นตัวเลข 4–8 หลัก" }, 400);
-      const salt = randHex(8);
-      sets.push("pin_salt = ?"); vals.push(salt);
-      sets.push("pin_hash = ?"); vals.push(await sha256Hex(salt + ":" + body.pin));
-    }
     if (body.email != null) {
       const email = normEmail(body.email);
       if (email && !validEmail(email)) return json({ error: "อีเมลไม่ถูกต้อง" }, 400);
@@ -1452,23 +1369,21 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
       sets.push("username = ?"); vals.push(username || null);
     }
-    /* หัวหน้าตั้งรหัสผ่านให้เลย — ใช้ตอนลืมรหัส */
+    /* ตั้งรหัสผ่านให้ — มีความหมายเฉพาะบัญชีหัวหน้า (สมาชิกกดชื่อเข้าเลย ไม่มีรหัส) */
     if (body.password != null) {
+      const target = await db.prepare("SELECT role FROM staff WHERE id = ?").bind(id).first();
+      const willBeOwner = body.role != null ? body.role === "owner" : (target && target.role === "owner");
+      if (!willBeOwner) return json({ error: "สมาชิกไม่ใช้รหัสผ่าน กดชื่อตัวเองเข้าระบบได้เลย" }, 400);
       if (!validPassword(body.password)) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว" }, 400);
       const salt = randHex(16);
       sets.push("pw_salt = ?"); vals.push(salt);
       sets.push("pw_hash = ?"); vals.push(await pbkdf2Hex(body.password, salt));
     }
-    /* หรือล้างรหัสผ่านทิ้ง ให้เจ้าตัวไปตั้งใหม่เองด้วยรหัสตั้งค่า */
-    if (body.resetSetup) {
-      sets.push("pw_hash = ?"); vals.push(null);
-      sets.push("pw_salt = ?"); vals.push(null);
-    }
     if (!sets.length) return json({ error: "ไม่มีอะไรให้แก้" }, 400);
     vals.push(id);
     await db.batch([
       db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals),
-      /* หัวหน้าตั้ง PIN ใหม่ให้ = ปลดล็อกที่ค้างจากการใส่ผิดด้วย */
+      /* หัวหน้าตั้งรหัสใหม่ให้ = ปลดล็อกที่ค้างจากการใส่ผิดด้วย */
       db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(id),
     ]);
     return json({ ok: true });
