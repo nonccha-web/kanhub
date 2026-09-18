@@ -1235,8 +1235,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       const q = "SELECT t.id,t.parent_id,t.stage,t.status,t.due_at,t.done_at,t.submitted_at," +
         "(SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id AND f.kind='file') AS n_pic," +
         "(SELECT id FROM task_files f WHERE f.task_id = t.id AND f.kind='file' ORDER BY created_at DESC LIMIT 1) AS pic_id " +
-        "FROM tasks t WHERE t.stage IS NOT NULL AND t.parent_id IN (" + ids.map(() => "?").join(",") + ")";
-      const sr = await db.prepare(q).bind(...ids).all();
+        /* ไม่ยัด id เป็น ?,?,? — D1 รับตัวแปรได้ 100 ตัว งานป้ายเกินร้อยแล้วหน้าพัง (18 ก.ย. 69) */
+        "FROM tasks t WHERE t.stage IS NOT NULL AND t.parent_id IN (SELECT id FROM tasks WHERE task_type = 'signage' AND parent_id IS NULL)";
+      const sr = await db.prepare(q).all();
       stages = (sr.results || []).map((r) => ({
         id: r.id, parentId: r.parent_id, stage: r.stage, status: r.status, dueAt: r.due_at,
         doneAt: r.done_at, submittedAt: r.submitted_at, nPic: r.n_pic || 0, picId: r.pic_id || null,
