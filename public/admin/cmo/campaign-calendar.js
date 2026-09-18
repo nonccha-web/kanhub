@@ -219,23 +219,70 @@
 
   function renderMonth() {
     var m = view.month, days = daysIn(year, m), lead = new Date(year, m, 1).getDay();
-    var tISO = todayISO(), list = ofMonth(m), cells = "";
-    var prevDays = daysIn(m === 0 ? year - 1 : year, m === 0 ? 11 : m - 1);
-
-    for (var i = lead; i > 0; i--) cells += '<div class="cc-cell out"><span class="cc-dnum">' + (prevDays - i + 1) + "</span></div>";
-    for (var d = 1; d <= days; d++) {
-      var dISO = iso(year, m, d), dow = new Date(year, m, d).getDay();
-      var todays = list.filter(function (it) { return covers(it, dISO) && !isMonthPlan(it); });
-      var chips = todays.slice(0, 3).map(function (it) {
-        return '<button class="cc-chip" data-edit="' + it.id + '"' + chipStyle(it) + ' title="' + esc(it.name) + '">' + kindDot(it) + '<b>' + esc(shortName(it.name)) + "</b></button>";
-      }).join("");
-      if (todays.length > 3) chips += '<span class="cc-more">+ อีก ' + (todays.length - 3) + "</span>";
-      // เซลล์ต้องไม่เป็น <button> เพราะ chip ข้างในก็เป็นปุ่ม — ปุ่มซ้อนปุ่มทำให้เบราว์เซอร์ตัดโครงทิ้ง
-      cells += '<div class="cc-cell' + (dow === 0 || dow === 6 ? " we" : "") + (dISO === tISO ? " today" : "") +
-               '" data-day="' + dISO + '" role="button" tabindex="0"><span class="cc-dnum">' + d + "</span>" + chips + "</div>";
-    }
+    var tISO = todayISO(), list = ofMonth(m);
+    var events = list.filter(function (it) { return !isMonthPlan(it); })
+      .sort(function (a, b) {
+        if (a.start !== b.start) return a.start < b.start ? -1 : 1;
+        var la = (a.end || a.start), lb = (b.end || b.start);
+        return la > lb ? -1 : la < lb ? 1 : 0;   /* เริ่มพร้อมกัน เอาอันยาวขึ้นก่อน */
+      });
+    /* วันในกริด (รวมวันเกินขอบเดือน) — เรียงเป็นสัปดาห์ละ 7 ช่อง
+       โปรฯ หลายวันวาดเป็นแถบยาวลากข้ามช่อง ไม่ต้องอ่านทีละวัน (นนท์ขอ 19 ก.ย. 69) */
+    var first = new Date(year, m, 1 - lead);
     var tail = (7 - ((lead + days) % 7)) % 7;
-    for (var j = 1; j <= tail; j++) cells += '<div class="cc-cell out"><span class="cc-dnum">' + j + "</span></div>";
+    var total = lead + days + tail;
+    var MAX_LANES = 6;
+    var weeks = "";
+    for (var w = 0; w < total / 7; w++) {
+      var dayISO = [];
+      for (var c = 0; c < 7; c++) {
+        var dt = new Date(first.getFullYear(), first.getMonth(), first.getDate() + w * 7 + c);
+        dayISO.push(iso(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+      }
+      var wStart = dayISO[0], wEnd = dayISO[6];
+      /* จัดเลน: แถบที่คาบสัปดาห์นี้ ใส่เลนแรกที่ว่างในช่วงคอลัมน์ของมัน */
+      var lanes = [], bars = [], hidden = [0, 0, 0, 0, 0, 0, 0];
+      events.forEach(function (it) {
+        var e = it.end || it.start;
+        if (it.start > wEnd || e < wStart) return;
+        var c0 = it.start <= wStart ? 0 : dayISO.indexOf(it.start);
+        var c1 = e >= wEnd ? 6 : dayISO.indexOf(e);
+        var lane = -1;
+        for (var L = 0; L < lanes.length; L++) {
+          var busy = false;
+          for (var k = c0; k <= c1; k++) if (lanes[L][k]) { busy = true; break; }
+          if (!busy) { lane = L; break; }
+        }
+        if (lane === -1) { lane = lanes.length; lanes.push([0, 0, 0, 0, 0, 0, 0]); }
+        if (lane >= MAX_LANES) { for (var q = c0; q <= c1; q++) hidden[q]++; return; }
+        for (var k2 = c0; k2 <= c1; k2++) lanes[lane][k2] = 1;
+        bars.push({ it: it, c0: c0, c1: c1, lane: lane, contL: it.start < wStart, contR: e > wEnd });
+      });
+      var nLanes = Math.min(MAX_LANES, lanes.length);
+      var cells = "", nums = "", mores = "";
+      for (var d = 0; d < 7; d++) {
+        var dISO = dayISO[d], dt2 = new Date(dISO.slice(0, 4), +dISO.slice(5, 7) - 1, +dISO.slice(8, 10));
+        var inMonth = dt2.getMonth() === m;
+        var dow = dt2.getDay();
+        // เซลล์ = พื้นหลังกินทุกแถวของสัปดาห์ (กดเพิ่มรายการ) · เลขวันอยู่แถว 1 · แถบอยู่แถว 2.. · "+ อีก" แถวสุดท้าย
+        // เซลล์ต้องไม่เป็น <button> เพราะแถบข้างในก็เป็นปุ่ม — ปุ่มซ้อนปุ่มทำให้เบราว์เซอร์ตัดโครงทิ้ง
+        cells += '<div class="cc-cell' + (inMonth ? "" : " out") + (dow === 0 || dow === 6 ? " we" : "") + (dISO === tISO ? " today" : "") +
+          '" style="grid-column:' + (d + 1) + ';grid-row:1 / span ' + (nLanes + 2) + '"' +
+          (inMonth ? ' data-day="' + dISO + '" role="button" tabindex="0" aria-label="เพิ่มรายการวันที่ ' + dt2.getDate() + '"' : "") + "></div>";
+        nums += '<span class="cc-dnum' + (dISO === tISO ? " today" : "") + (inMonth ? "" : " out") + '" style="grid-column:' + (d + 1) + ';grid-row:1">' + dt2.getDate() + "</span>";
+        if (hidden[d]) mores += '<button type="button" class="cc-more" style="grid-column:' + (d + 1) + ';grid-row:' + (nLanes + 2) + '" data-daypeek="' + dISO + '" data-dayopen="' + dISO + '">+ อีก ' + hidden[d] + "</button>";
+      }
+      var barsH = bars.map(function (b) {
+        var it = b.it, col = colorOf(it);
+        /* กดแถบ = ไปหน้าสถานะ (งานป้าย/โพสต์ที่ผูก) · แก้รายละเอียดจากการ์ด hover หรือหน้าสถานะ */
+        return '<button class="cc-bar' + (b.contL ? " contl" : "") + (b.contR ? " contr" : "") + '" data-open="' + it.id +
+          '" style="grid-column:' + (b.c0 + 1) + ' / ' + (b.c1 + 2) + ';grid-row:' + (b.lane + 2) + ';background:' + tint(col, .16) + ';color:' + col + ';border-left-color:' + col + '"' +
+          ' title="' + esc(it.name) + " · " + fullRange(it) + '">' + kindDot(it) + "<b>" + esc(shortName(it.name)) + "</b>" +
+          (it.branches && it.branches.length && b.c1 - b.c0 >= 2 ? '<small>' + esc(it.branches.join(" · ")) + "</small>" : "") + "</button>";
+      }).join("");
+      weeks += '<div class="cc-week" style="grid-template-rows:auto repeat(' + nLanes + ', auto) minmax(18px, 1fr)">' + cells + nums + barsH + mores + "</div>";
+    }
+    var cells = weeks;
 
     var monthPlans = list.filter(isMonthPlan);
     var banner = monthPlans.length
@@ -255,7 +302,7 @@
         '<button class="cc-btn" data-newmonth="1">+ แผนทั้งเดือนนี้</button>' +
       "</div>" + banner +
       '<div class="cc-cal"><div class="cc-dow">' + DOW.map(function (x) { return "<div>" + x + "</div>"; }).join("") +
-      '</div><div class="cc-grid">' + cells + "</div></div>" +
+      '</div><div class="cc-weeks">' + cells + "</div></div>" +
       renderBranchBoard(list);
   }
 
@@ -407,6 +454,7 @@
   }
 
   function showHover(list, anchor, dayISO) {
+    hoverCard().classList.toggle("list", list.length > 1);
     var el = hoverCard();
     var head = "";
     if (dayISO) {
@@ -435,20 +483,21 @@
           (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
           (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
           (linkLine(it) ? '<div class="cc-hover-meta">' + linkLine(it) + "</div>" : "") +
-          '<button type="button" class="cc-hover-btn" data-edit="' + it.id + '">เปิดดู / แก้ไขรายละเอียด</button>' +
+          '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn" data-open="' + it.id + '">ดูงานป้าย · โพสต์ · สถานะ</button>' +
+          '<button type="button" class="cc-hover-btn ghost" data-edit="' + it.id + '">แก้ไขรายละเอียด</button></div>' +
         "</div>";
     } else {
       // หลายแคมเปญในวันเดียว — โชว์เป็นรายการ กดเลือกได้
       body = '<div class="cc-hover-body">' + head +
         list.map(function (it) {
           var a0 = (it.attachments || [])[0];
-          return '<button type="button" class="cc-hover-item" data-edit="' + it.id + '">' +
+          return '<button type="button" class="cc-hover-item" data-open="' + it.id + '">' +
                  '<span class="cc-hover-dot" style="background:' + colorOf(it) + '"></span>' +
-                 (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" decoding="async">' : '<span class="cc-hover-noimg"></span>') +
+                 (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" decoding="async">' : "") +
                  '<span class="cc-hover-itemtext"><b>' + esc(shortName(it.name)) + "</b>" +
                  '<span class="cc-hover-meta">' + fmtRange(it) +
                  (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span></span>" +
-                 kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
+                 '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
                  "</button>";
         }).join("") + "</div>";
     }
@@ -484,15 +533,15 @@
       var list = items.filter(function (it) { return covers(it, day); });
       return list.length ? { list: list, day: day } : null;
     }
-    if (el.dataset.edit) {
-      var it = byId(el.dataset.edit);
+    if (el.dataset.edit || el.dataset.open) {
+      var it = byId(el.dataset.edit || el.dataset.open);
       return it ? { list: [it], day: null } : null;
     }
     return null;
   }
 
   document.addEventListener("mouseover", function (e) {
-    var t = e.target.closest("[data-edit],[data-daypeek]");
+    var t = e.target.closest("[data-edit],[data-open],[data-daypeek]");
     if (!t) return;
     if (t.closest(".cc-hover")) { keepHover(); return; }   // อยู่ในการ์ดเอง อย่าปิด
     var found = peekTargets(t);
@@ -503,7 +552,7 @@
   });
   document.addEventListener("mouseout", function (e) {
     if (e.target.closest(".cc-hover")) return;
-    if (e.target.closest("[data-edit],[data-daypeek]")) hideHover(260);
+    if (e.target.closest("[data-edit],[data-open],[data-daypeek]")) hideHover(260);
   });
   document.addEventListener("scroll", function () { hideHover(); }, true);
 
@@ -942,6 +991,10 @@
     if (mo) { view.mode = "month"; view.month = +mo.dataset.month; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
     if (e.target.closest("#ccBack")) { view.mode = "year"; view.month = null; render(); return; }
     if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
+    var op = e.target.closest("[data-open]");
+    if (op) { location.href = TASKS_BASE + "#/campaign/" + encodeURIComponent(op.dataset.open); return; }
+    var dop = e.target.closest("[data-dayopen]");
+    if (dop) { var f0 = peekTargets(dop); if (f0) { clearTimeout(hoverTimer); showHover(f0.list, dop, f0.day); } return; }
     var day = e.target.closest("[data-day]");
     if (day) { openDrawer(null, day.dataset.day, "range"); return; }
     if (e.target.closest("[data-new]")) {

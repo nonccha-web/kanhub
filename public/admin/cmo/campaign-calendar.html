@@ -139,6 +139,32 @@ body{ padding:24px 20px; }
 /* สีมาจากข้อมูลของแต่ละแคมเปญ (inline style) ไม่ใช่จากสถานะแล้ว */
 .cc-chip b{ font-weight:600; color:var(--text-primary); }
 .cc-more{ font-size:11px; color:var(--text-muted); padding-left:3px; }
+/* สัปดาห์ = กริด 7 คอลัมน์ · เซลล์วันเป็นพื้นหลังกินทุกแถว · แถบโปรฯ วางทับตามคอลัมน์ที่คาบ */
+.cc-weeks{ display:grid; gap:1px; }
+.cc-week{ display:grid; grid-template-columns:repeat(7,1fr); column-gap:1px; row-gap:3px; min-height:108px; }
+.cc-week .cc-cell{ z-index:0; min-height:0; padding:0; }
+.cc-week .cc-dnum{ z-index:1; margin:6px 0 2px 6px; pointer-events:none; }
+.cc-week .cc-dnum.today{ background:var(--accent); color:#fff; font-weight:600; }
+.cc-week .cc-dnum.out{ opacity:.4; }
+.cc-week .cc-more{ z-index:1; justify-self:start; align-self:end; margin:0 0 5px 6px; border:0; background:none; font-family:inherit; cursor:pointer; padding:2px 4px; border-radius:4px; }
+.cc-week .cc-more:hover{ background:var(--bg-card-hover); color:var(--text-primary); }
+.cc-hover-acts{ display:flex; gap:8px; flex-wrap:wrap; }
+.cc-hover-btn.ghost{ background:transparent; color:var(--text-secondary); border:1px solid var(--bg-glass-border); }
+/* รายการหลายโปรฯ ในวันเดียว — กว้างขึ้น ชื่อไม่หัก ไม่โชว์กรอบรูปเปล่า */
+.cc-hover.list{ width:min(440px, 92vw); }
+.cc-hover.list .cc-hover-itemtext b{ white-space:normal; }
+.cc-hover.list .cc-hover-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cc-hover.list .cc-pill{ flex:none; }
+.cc-bar{ z-index:1; margin:0 4px 0 2px; font-family:inherit; font-size:11.5px; line-height:1.3; padding:3px 7px; border-radius:4px; cursor:pointer;
+  text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border:0; border-left:3px solid currentColor; align-self:start; min-width:0; }
+.cc-bar b{ font-weight:600; color:var(--text-primary); }
+.cc-bar small{ margin-left:6px; font-size:10.5px; color:var(--text-muted); font-weight:400; }
+.cc-bar .cc-kdot{ margin-right:4px; }
+.cc-bar.contl{ border-left-width:0; border-radius:0 4px 4px 0; margin-left:0; padding-left:10px; }
+.cc-bar.contr{ border-radius:4px 0 0 4px; margin-right:0; }
+.cc-bar.contl.contr{ border-radius:0; }
+.cc-bar:hover{ filter:brightness(.96); }
+.cc-bar:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
 
 /* ---------- table ---------- */
 .cc-list{ margin-top:24px; }
@@ -335,7 +361,8 @@ body{ padding:24px 20px; }
 @media (max-width:640px){
   .cc-cell{ min-height:64px; padding:4px; }
   .cc-dnum{ width:19px; height:19px; font-size:11px; }
-  .cc-chip{ font-size:10px; padding:2px 4px; border-left-width:2px; }
+  .cc-chip, .cc-bar{ font-size:10px; padding:2px 4px; border-left-width:2px; }
+  .cc-bar small{ display:none; }
   .cc-two{ grid-template-columns:1fr; }
   body{ padding:14px 10px; }
   .cc-top h1{ font-size:22px; }
@@ -523,6 +550,6 @@ body{ padding:24px 20px; }
 
 <script src="erp-menu.js?v=34"></script>
 <script src="nav.js?v=27"></script>
-<script src="campaign-calendar.js?v=6"></script>
+<script src="campaign-calendar.js?v=9"></script>
 </body>
 </html>

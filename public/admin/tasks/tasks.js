@@ -2624,46 +2624,67 @@
     var view = $('#view');
     view.className = 'page';
     view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
-    Promise.all([loadCampaigns(), api('/campaigns/' + cid + '/related'), loadPages()]).then(function (r) {
+    /* หน้าสถานะของโปรฯ/แคมเปญ — กดจากปฏิทินมาที่นี่ (นนท์ 19 ก.ย. 69: "ต้องเห็นว่ามีงานป้าย งานโพสต์ ทำยัง สถานะเป็นไง")
+       โหลด S.tasks ด้วยเพื่อเอาขั้นของงานป้ายมาวาด funnel */
+    Promise.all([loadCampaigns(), api('/campaigns/' + cid + '/related'), loadPages(), loadTasks()]).then(function (r) {
       var c = campaignById(cid), j = r[1];
-      var tasks = j.tasks || [], posts = j.posts || [];
+      var tasks = (j.tasks || []).filter(function (t) { return !t.parentId; }), posts = j.posts || [];
+      markSeq(tasks, '#/campaign/' + cid);
+      var signs = tasks.filter(function (t) { return t.taskType === 'signage'; });
+      var others = tasks.filter(function (t) { return t.taskType !== 'signage'; });
       var doneT = tasks.filter(function (t) { return effStatus(t) === 'done'; }).length;
       var doneP = posts.filter(function (x) { return x.status === 'done'; }).length;
-      var h = '<div class="top"><div><span class="kicker">ปฏิทินการตลาด</span><h1>' + esc(c ? c.name : 'แคมเปญ') + '</h1>' +
-        (c && c.start ? '<p>' + esc(thaiShort(c.start)) + (c.end ? ' – ' + esc(thaiShort(c.end)) : '') + '</p>' : '') +
-        '</div><div class="top-r"><a class="btn-ghost" href="' + CAL_URL + '">ดูปฏิทินทั้งหมด</a>' +
-        '<a class="btn" href="#/new?campaign=' + esc(cid) + '">+ สั่งงานให้แคมเปญนี้</a></div></div>';
+      var lateT = tasks.filter(isLate).length;
+      var kindTh = { content: 'คอนเทนต์', campaign: 'แคมเปญ', promo: 'โปรโมชั่น' };
+      var h = '<div class="top"><div><span class="kicker">' + esc(kindTh[c && c.kind] || 'ปฏิทินการตลาด') + '</span><h1>' + esc(c ? c.name : 'แคมเปญ') + '</h1>' +
+        (c && c.start ? '<p>' + esc(thaiShort(c.start)) + (c.end && c.end !== c.start ? ' – ' + esc(thaiShort(c.end)) : '') +
+          (c.status ? ' · ' + ({ plan: 'วางแผน', live: 'กำลังจัด', done: 'จบแล้ว' }[c.status] || c.status) : '') + '</p>' : '') +
+        '</div><div class="top-r"><a class="btn-ghost" href="' + CAL_URL + '#c=' + esc(cid) + '">แก้ไขรายละเอียดในปฏิทิน</a>' +
+        '<a class="btn" href="#/new?campaign=' + esc(cid) + '">+ สั่งงานให้โปรฯ นี้</a></div></div>';
 
       h += '<div class="cards">' +
-        '<article class="hot"><span class="l">งานที่ผูกไว้</span><b>' + tasks.length + '</b><small>เสร็จแล้ว ' + doneT + '</small></article>' +
-        '<article><span class="l">โพสต์ที่ผูกไว้</span><b>' + posts.length + '</b><small>ลงแล้ว ' + doneP + '</small></article>' +
-        '<article><span class="l">งานค้าง</span><b>' + (tasks.length - doneT) + '</b><small>ยังไม่ปิด</small></article>' +
-        '<article><span class="l">โพสต์ค้าง</span><b>' + (posts.length - doneP) + '</b><small>ยังไม่ลง</small></article></div>';
+        '<article class="hot"><span class="l">งานป้าย</span><b>' + signs.length + '</b><small>' + (signs.length ? 'ติดตั้งแล้ว ' + signs.filter(function (t) { return effStatus(t) === 'done'; }).length : 'ยังไม่มี') + '</small></article>' +
+        '<article' + (posts.length - doneP > 0 ? ' class="warn"' : '') + '><span class="l">โพสต์</span><b>' + posts.length + '</b><small>' + (posts.length ? 'ลงแล้ว ' + doneP + ' · ค้าง ' + (posts.length - doneP) : 'ยังไม่มี') + '</small></article>' +
+        '<article><span class="l">งานอื่น</span><b>' + others.length + '</b><small>' + (others.length ? 'เสร็จ ' + others.filter(function (t) { return effStatus(t) === 'done'; }).length : 'ยังไม่มี') + '</small></article>' +
+        '<article' + (lateT ? ' class="bad"' : '') + '><span class="l">เลยกำหนด</span><b>' + lateT + '</b><small>' + (lateT ? 'ต้องเคลียร์ก่อน' : 'ไม่มี') + '</small></article></div>';
 
-      h += tasks.length
-        ? '<div class="group"><div class="group-h"><h3>งานที่ผูกกับแคมเปญนี้</h3><span>' + tasks.length + '</span>' + gsel() + '</div>' +
-          '<div class="tlist">' + tasks.map(taskRow).join('') + '</div></div>'
-        : '<div class="sec"><div class="empty"><b>ยังไม่มีงานผูกกับแคมเปญนี้</b>กด “สั่งงานให้แคมเปญนี้” ด้านบน</div></div>';
+      /* งานป้าย: แถว + funnel ย่อใต้แถว เห็นเลยว่าถึงขั้นไหน */
+      h += '<div class="group"><div class="group-h"><h3>งานป้าย</h3><span>' + signs.length + '</span>' + (signs.length ? gsel() : '') + '</div>';
+      if (signs.length) {
+        h += '<div class="tlist">' + signs.map(function (t) {
+          var st = stageSubs(t);
+          return taskRow(t) + (st.length ? '<div class="cfun">' + signFunnel(t, st, true) + '</div>' : '');
+        }).join('') + '</div>';
+      } else {
+        h += '<div class="empty small">ยังไม่มีงานป้ายสำหรับโปรฯ นี้ — <a href="#/new?campaign=' + esc(cid) + '&ttype=signage">สั่งงานป้าย</a></div>';
+      }
+      h += '</div>';
 
-      h += '<div class="sec"><div class="sec-h"><h2>โพสต์ที่ผูกกับแคมเปญนี้</h2>' +
-        '<p>' + (posts.length ? 'ลงแล้ว ' + doneP + ' จาก ' + posts.length : 'ยังไม่มี') + '</p></div>';
+      h += '<div class="group"><div class="group-h"><h3>โพสต์</h3><span>' + posts.length + '</span></div>';
       if (posts.length) {
-        h += '<div class="sec-b tight"><div class="scrollx"><table class="rpt"><thead><tr>' +
+        h += '<div class="scrollx"><table class="rpt"><thead><tr>' +
           '<th>วันที่</th><th>เพจ</th><th>หัวข้อ</th><th>ช่องทาง</th><th>สถานะ</th></tr></thead><tbody>' +
           posts.map(function (x) {
-            return '<tr><td>' + esc(thaiShort(x.date)) + (x.time ? ' ' + esc(x.time) : '') + '</td>' +
+            var late = x.status !== 'done' && x.date < todayIso();
+            return '<tr' + (late ? ' class="late"' : '') + '><td>' + esc(thaiShort(x.date)) + (x.time ? ' ' + esc(x.time) : '') + '</td>' +
               '<td>' + esc(pageName(x.pageId)) + '</td>' +
               '<td>' + (x.url ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener noreferrer">' + esc(x.topic || '(ไม่มีหัวข้อ)') + '</a>' : esc(x.topic || '(ไม่มีหัวข้อ)')) + '</td>' +
               '<td>' + esc((x.channels || []).join(', ')) + '</td>' +
-              '<td>' + esc(POST_STATUS_TH[x.status] || x.status || '') + '</td></tr>';
-          }).join('') + '</tbody></table></div></div>';
+              '<td>' + (x.status === 'done' ? '<span class="pill done">โพสต์แล้ว</span>' : (late ? '<span class="pill late">ยังไม่โพสต์ · เลยวัน</span>' : '<span class="pill">' + esc(POST_STATUS_TH[x.status] || x.status || '') + '</span>')) + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
       } else {
-        h += '<div class="sec-b"><div class="empty">ยังไม่มีโพสต์ผูกกับแคมเปญนี้</div></div>';
+        h += '<div class="empty small">ยังไม่มีโพสต์ผูกกับโปรฯ นี้ — <a href="#/posts">ไปตารางโพสต์</a> แล้วเลือกปฏิทินการตลาดในแถว</div>';
       }
       h += '</div>';
+
+      h += '<div class="group"><div class="group-h"><h3>งานอื่น ๆ</h3><span>' + others.length + '</span>' + (others.length ? gsel() : '') + '</div>' +
+        (others.length ? '<div class="tlist">' + others.map(taskRow).join('') + '</div>'
+          : '<div class="empty small">ยังไม่มี — กด “+ สั่งงานให้โปรฯ นี้”</div>') + '</div>';
       view.innerHTML = h;
+      syncSel();
     }).catch(function (e) { showError(e); });
   }
+  function todayIso() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 
   /* ---------- รายละเอียดงาน ---------- */
   var pendingFiles = [];

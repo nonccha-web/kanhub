@@ -1249,3 +1249,9 @@ body.has-bulk .toast{ bottom:92px; }
 .frow2 .fbtns .btn-ghost.sm{ height:28px; padding:0 9px; }
 @media (max-width:720px){ .frow2{ grid-template-columns:22px minmax(0,1fr); } .frow2 .fl, .frow2 .fbtns{ grid-column:2; } }
 .ksub .rowmenu{ flex:none; margin:-2px -4px 0 0; }
+/* หน้าสถานะโปรฯ: funnel ย่อใต้แถวงานป้าย */
+.tlist .cfun{ padding:0 18px 12px 54px; border-bottom:1px solid var(--k-hair); }
+.tlist .cfun:last-child{ border-bottom:0; }
+.empty.small{ padding:16px 4px; text-align:left; font-size:13px; }
+.empty.small a{ color:var(--k-ink); }
+table.rpt tr.late td{ color:var(--k-warn); }
