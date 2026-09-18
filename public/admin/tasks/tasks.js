@@ -870,7 +870,8 @@
       selCircle(x, late ? 'late' : es, mark, !!SEL[x.id], 'ksel') +
       '<span class="kst"><b>' + esc(x.title) + '</b>' +
       '<span class="ksm">' + (x.assignees.length ? esc(x.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ')) : 'ยังไม่มอบหมาย') +
-      (x.dueAt ? ' · ' + esc(fmtDue(x)) : '') + (es === 'review' ? ' · รอตรวจ' : '') + '</span></span></div>';
+      (x.dueAt ? ' · ' + esc(fmtDue(x)) : '') + (es === 'review' ? ' · รอตรวจ' : '') + '</span></span>' +
+      (canEditRow(x) || canTick(x) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(x.id) + '" title="เมนูงานย่อยนี้">⋯</span>' : '') + '</div>';
   }
   function boardCard(t, model) {
     var late = isLate(t), es = effStatus(t);
@@ -2001,7 +2002,7 @@
       ['todo', 'doing', 'blocked'].map(function (k) { return '<option value="' + k + '">' + STATUS_TH[k] + '</option>'; }).join('') + '</select>';
     if (allEdit) h += '<button type="button" class="btn-ghost sm" data-bulk="assign">คนรับ</button>';
     if (anyDue) h += '<button type="button" class="btn-ghost sm" data-bulk="due">เลื่อนส่ง</button>';
-    if (amOwner()) h += '<button type="button" class="btn-ghost sm danger" data-bulk="delete">ลบ</button>';
+    if (ts.some(canEditRow)) h += '<button type="button" class="btn-ghost sm danger" data-bulk="delete">ลบ</button>';
     h += '<button type="button" class="bx" data-bulk="clear" title="ยกเลิกการเลือก" aria-label="ยกเลิกการเลือก">✕</button>';
     bar.innerHTML = h;
     var sel = $('[data-bulk-status]', bar);
@@ -2170,7 +2171,7 @@
     if (canTick(t) && act) h += '<button type="button" data-tick="' + esc(id) + '" data-act="' + act + '">' + esc(tickLbl) + '</button>';
     if (canEditRow(t)) h += '<button type="button" data-pm="edit">แก้ไขรายละเอียด…</button>';
     h += '<button type="button" data-pm="open">เปิดงานเต็ม</button>';
-    if (amOwner()) h += '<button type="button" class="danger" data-pm="del">ลบงานนี้</button>';
+    if (canEditRow(t)) h += '<button type="button" class="danger" data-pm="del">' + (t.parentId ? 'ลบงานย่อยนี้' : 'ลบงานนี้') + '</button>';
     h += '</div>';
     var el = popOpen(anchor, h);
     el.addEventListener('click', function (ev) {
@@ -2223,7 +2224,7 @@
       '<div class="field"><label class="label">รายละเอียด</label><textarea class="textarea" name="detail" data-rich rows="3">' + esc(t.detail) + '</textarea></div>' +
       '</div>' +
       '<div class="qacts">' +
-      (S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="qDel">ลบงานนี้</button>' : '') +
+      (canEditRow(t) ? '<button type="button" class="btn-ghost danger" id="qDel">ลบงานนี้</button>' : '') +
       '<a class="btn-ghost" href="#/task/' + esc(t.id) + '" data-q-close>เปิดงานเต็ม</a>' +
       '<button type="button" class="btn-ghost" data-q-close>ยกเลิก</button>' +
       '<button type="submit" class="btn">บันทึก</button></div></form></div>';

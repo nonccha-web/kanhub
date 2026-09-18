@@ -1717,7 +1717,7 @@ export async function handleTaskApi(request, env, url, path, method) {
 
     for (const t of tasks) {
       if (action === "delete") {
-        if (!isOwner) { skip(t, "เฉพาะหัวหน้าทีม"); continue; }
+        if (!canApproveT(t)) { skip(t, "ลบได้เฉพาะหัวหน้าหรือคนสร้าง"); continue; }
         changed.push({ id: t.id, prev: t.status });
         continue;
       }
@@ -1978,7 +1978,8 @@ export async function handleTaskApi(request, env, url, path, method) {
     }
 
     if (!sub && method === "DELETE") {
-      if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+      /* หัวหน้า หรือคนที่สร้างงานนั้นเอง (น้องเพิ่มงานย่อยเองแล้วต้องลบเองได้) */
+      if (!(isOwner || task.createdBy === me.id)) return json({ error: "ลบได้เฉพาะหัวหน้าหรือคนที่สร้างงานนี้" }, 403);
       /* ลบงานหลัก = ลบงานย่อยของมันด้วย ไม่งั้นงานย่อยลอยหาพ่อแม่ไม่เจอ */
       const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(id).all();
       const ids = [id].concat((kids.results || []).map((r) => r.id));

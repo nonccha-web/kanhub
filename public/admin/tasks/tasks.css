@@ -1248,3 +1248,4 @@ body.has-bulk .toast{ bottom:92px; }
 .frow2 .fbtns{ display:inline-flex; gap:4px; }
 .frow2 .fbtns .btn-ghost.sm{ height:28px; padding:0 9px; }
 @media (max-width:720px){ .frow2{ grid-template-columns:22px minmax(0,1fr); } .frow2 .fl, .frow2 .fbtns{ grid-column:2; } }
+.ksub .rowmenu{ flex:none; margin:-2px -4px 0 0; }
