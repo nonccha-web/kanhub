@@ -577,7 +577,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/me', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -1169,7 +1169,10 @@
       }
       view.innerHTML = h;
       syncSel();
-
+      fillPostBar();
+    }).catch(function (e) { showError(e); });
+  }
+  function fillPostBar() {
       api('/posts/today').then(function (t) {
         var bar = $('#postBar');
         if (!bar) return;
@@ -1187,7 +1190,6 @@
       }).catch(function () {
         var bar = $('#postBar'); if (bar) bar.remove();
       });
-    }).catch(function (e) { showError(e); });
   }
 
   /* ---------- งานทั้งหมด ---------- */
@@ -1219,7 +1221,9 @@
     if (q.ttype !== undefined) { F.ttype = q.ttype; }
     Promise.all([loadTasks(), loadCampaigns()]).then(function (r) {
       var all = r[0];
-      all = all.filter(function (t) { return !t.parentId; });
+      var meIdA = S.viewAs || S.me.id;
+      /* ทั้งทีม = นับเฉพาะงานหลัก (ไม่งั้นซ้ำกับงานย่อย) · ของฉัน = งานย่อยที่มอบให้ฉันต้องเห็นด้วย */
+      all = all.filter(function (t) { return !t.parentId || (F.who === meIdA && t.assignees.indexOf(meIdA) !== -1); });
       var now = new Date(), weekAgo = new Date(now.getTime() - 7 * 86400000);
       var open = all.filter(function (t) { return effStatus(t) !== 'done'; });
       var late = open.filter(isLate), today = open.filter(function (t) { return isToday(t) && !isLate(t); });
@@ -1248,24 +1252,52 @@
 
       var view = $('#view');
       view.className = 'page';
-      var h = '<div class="top"><div><span class="kicker">งานทั้งหมดของทีม</span><h1>ภาพรวมงาน</h1>' +
-        '<p>ทุกงานที่สั่งไว้ แยกดูตามคน ตาม KPI หรือตามกำหนดส่ง — กดที่งานเพื่อดูรายละเอียดและรูปที่ทีมอัปเดต</p></div>' +
-        '<div class="top-r"><a class="btn-ghost" href="#/kpi">KPI 2570</a><a class="btn" href="#/new">+ สั่งงาน</a></div></div>';
+      /* มุมมอง "ของฉัน": ตัวเลขนับเฉพาะงานที่มอบให้ฉัน (รวมงานย่อย) — เหมือนหน้างานของฉันเดิม */
+      var meId0 = S.viewAs || S.me.id;
+      var mineView = F.who === meId0;
+      var scopeList = mineView ? r[0].filter(function (t) { return t.assignees.indexOf(meId0) !== -1; }) : all;
+      var openS = scopeList.filter(function (t) { return effStatus(t) !== 'done'; });
+      var lateS = openS.filter(isLate), todayS = openS.filter(function (t) { return isToday(t) && !isLate(t); });
+      var doneWeekS = scopeList.filter(function (t) { return t.status === 'done' && new Date(t.doneAt || t.updatedAt) > weekAgo; });
+      var whoS = staffById(meId0) || S.me;
+      var h = (S.viewAs ? '<div class="postbar warn">กำลังดูในมุมของ <b>' + esc(whoS.name) + '</b> — อ่านอย่างเดียว ' +
+          '<button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '') +
+        '<div class="top"><div><span class="kicker">' + (mineView ? 'งานของฉัน' : 'งานทั้งหมดของทีม') + '</span>' +
+        '<h1>' + (mineView ? (S.viewAs ? esc(whoS.name) : 'สวัสดี ' + esc(shortName(S.me))) : 'ภาพรวมงาน') + '</h1>' +
+        '<p>' + (mineView
+          ? (openS.length ? 'มีงานค้าง ' + openS.length + ' รายการ' + (lateS.length ? ' · เลยกำหนด ' + lateS.length : '') + (todayS.length ? ' · ครบกำหนดวันนี้ ' + todayS.length : '') : 'ไม่มีงานค้าง เยี่ยม')
+          : 'ทุกงานที่สั่งไว้ แยกดูตามคน ตาม KPI หรือตามกำหนดส่ง — กดที่งานเพื่อดูรายละเอียดและรูปที่ทีมอัปเดต') + '</p></div>' +
+        '<div class="top-r">' + (amOwner() ? '<a class="btn-ghost" href="#/kpi">KPI 2570</a>' : '') + (readOnly() ? '' : '<a class="btn" href="#/new">+ สั่งงาน</a>') + '</div></div>';
       h += '<div class="cards">' +
-        '<article class="hot" data-go="open"><span class="l">งานค้างทั้งทีม</span><b>' + open.length + '</b><small>รวมงานประจำ</small></article>' +
-        '<article' + (late.length ? ' class="bad"' : '') + ' data-go="late"><span class="l">เลยกำหนด</span><b>' + late.length + '</b><small>กดเพื่อดูเฉพาะที่เลยกำหนด</small></article>' +
-        '<article' + (today.length ? ' class="warn"' : '') + '><span class="l">ครบกำหนดวันนี้</span><b>' + today.length + '</b><small>' + esc(DAY_TH[now.getDay()] + ' ' + fmtDate(now)) + '</small></article>' +
-        '<article data-go="done"><span class="l">เสร็จใน 7 วัน</span><b>' + doneWeek.length + '</b><small>ปิดงานสัปดาห์นี้</small></article></div>';
+        '<article class="hot" data-go="open"><span class="l">' + (mineView ? 'งานค้างของฉัน' : 'งานค้างทั้งทีม') + '</span><b>' + openS.length + '</b><small>รวมงานประจำ</small></article>' +
+        '<article' + (lateS.length ? ' class="bad"' : '') + ' data-go="late"><span class="l">เลยกำหนด</span><b>' + lateS.length + '</b><small>กดเพื่อดูเฉพาะที่เลยกำหนด</small></article>' +
+        '<article' + (todayS.length ? ' class="warn"' : '') + '><span class="l">ครบกำหนดวันนี้</span><b>' + todayS.length + '</b><small>' + esc(DAY_TH[now.getDay()] + ' ' + fmtDate(now)) + '</small></article>' +
+        '<article data-go="done"><span class="l">เสร็จใน 7 วัน</span><b>' + doneWeekS.length + '</b><small>ปิดงานสัปดาห์นี้</small></article></div>';
+      /* งานที่คนอื่นส่งมาให้เราตรวจ — ค้างที่เรา ไม่ใช่ค้างที่เขา ขึ้นก่อนเสมอ */
+      var toReview = readOnly() ? [] : r[0].filter(function (t) {
+        return effStatus(t) === 'review' && canApprove(t) && t.assignees.indexOf(S.me.id) === -1;
+      });
+      if (toReview.length) {
+        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() + '</div>' +
+          '<div class="tlist">' + toReview.map(taskRow).join('') + '</div></div>';
+      }
+      /* แถบตรวจโพสต์ของวันนี้ */
+      h += '<div class="postbar" id="postBar"><span class="pbi">กำลังอ่านตารางโพสต์…</span></div>';
 
       /* แถบเดียวจบ: ช่วงเวลา · ปุ่มตัวกรอง (กางเมื่อกด) · จัดกลุ่ม
          ของเดิมเป็นชิป 3 แถวเต็มจอ ทั้งที่ส่วนใหญ่ไม่ได้แตะ */
-      var nActive = (F.who ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0) + (F.ttype ? 1 : 0) + (F.kind ? 1 : 0);
+      /* "ของฉัน" มีสวิตช์ของตัวเองแล้ว ไม่นับเป็นตัวกรอง */
+      var nActive = (F.who && F.who !== (S.viewAs || S.me.id) ? 1 : 0) + (F.kpi ? 1 : 0) + (F.status !== 'open' ? 1 : 0) + (F.campaign ? 1 : 0) + (F.ttype ? 1 : 0) + (F.kind ? 1 : 0);
       var seg = function (name, opts) {
         return '<div class="seg">' + opts.map(function (o) {
           return '<button type="button" class="' + (F[name] === o[0] ? 'on' : '') + '" data-f="' + name + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
         }).join('') + '</div>';
       };
-      h += '<div class="tbar">' + seg('range', RANGES) +
+      var meId = S.viewAs || S.me.id;
+      var mineOn = F.who === meId;
+      h += '<div class="tbar"><div class="seg" data-tour-id="mine">' +
+        '<button type="button" class="' + (mineOn ? 'on' : '') + '" data-f="who" data-v="' + esc(meId) + '">งานของฉัน</button>' +
+        '<button type="button" class="' + (!F.who ? 'on' : '') + '" data-f="who" data-v="">ทั้งทีม</button></div>' + seg('range', RANGES) +
         '<button type="button" class="fbtn' + (S.filterOpen ? ' open' : '') + (nActive ? ' has' : '') + '" data-filter-toggle>' +
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>' +
         'ตัวกรอง' + (nActive ? '<i>' + nActive + '</i>' : '') + '</button>' +
@@ -1301,7 +1333,7 @@
 
       /* สรุปว่ากรองอะไรอยู่ พร้อมปุ่มเอาออกทีละอัน — ไม่ต้องกางแผงเพื่อดู */
       var act = [];
-      if (F.who) act.push(['who', '', 'คน: ' + shortName(staffById(F.who))]);
+      if (F.who && F.who !== (S.viewAs || S.me.id)) act.push(['who', '', 'คน: ' + shortName(staffById(F.who))]);
       if (F.kpi) act.push(['kpi', '', 'KPI: ' + (F.kpi === 'none' ? 'ไม่ระบุ' : ((kpiById(F.kpi) || {}).code || ''))]);
       if (F.status !== 'open') act.push(['status', 'open', 'สถานะ: ' + ({ '': 'ทั้งหมด', late: 'เลยกำหนด', review: 'รอตรวจ', done: 'เสร็จแล้ว' }[F.status] || F.status)]);
       if (F.campaign) { var cc0 = campaignById(F.campaign); act.push(['campaign', '', 'ปฏิทิน: ' + (cc0 ? cc0.name : F.campaign)]); }
@@ -1344,6 +1376,7 @@
       }
       view.innerHTML = h;
       syncSel();
+      fillPostBar();
     }).catch(function (e) { showError(e); });
   }
 
@@ -4683,7 +4716,9 @@
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
-      default: return renderMe();
+      /* งานของฉันรวมอยู่ในหน้างานทั้งหมดแล้ว (นนท์ 19 ก.ย. 69) — #/me = งานทั้งหมดที่กรองเป็นของฉัน */
+      case 'me': F.who = S.viewAs || S.me.id; F.status = 'open'; return renderAll();
+      default: F.who = S.viewAs || S.me.id; F.status = 'open'; return renderAll();
     }
   }
   function refreshMe() {

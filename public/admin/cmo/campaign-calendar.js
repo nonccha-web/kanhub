@@ -526,7 +526,9 @@
     if (!hoverEl) {
       hoverEl = document.createElement("div");
       hoverEl.className = "cc-hover";
-      hoverEl.addEventListener("mouseleave", function () { if (!pinned) hideHover(400); });
+      /* เมาส์อยู่ในการ์ด = อ่านอยู่ ห้ามหาย (เลื่อนดูในการ์ดก็ได้) · ออกจากการ์ดค่อยปิดช้า ๆ */
+      hoverEl.addEventListener("mouseenter", function () { overCard = true; keepHover(); });
+      hoverEl.addEventListener("mouseleave", function () { overCard = false; if (!pinned) hideHover(500); });
       document.body.appendChild(hoverEl);
     }
     return hoverEl;
@@ -591,20 +593,23 @@
     el.style.top = "0px";
     var w = el.offsetWidth, h = el.offsetHeight;
     var left = Math.min(Math.max(8, r.left - 8), window.innerWidth - w - 8);
-    var top = r.top - h - 10;
-    if (top < 8) top = Math.min(r.bottom + 10, window.innerHeight - h - 8);
+    /* วางใต้แถบก่อน (เมาส์เลื่อนลงไปอ่านต่อได้เลย) ถ้าล่างไม่พอค่อยขึ้นบน · ชิดแถบ 4px ไม่ให้เมาส์หลุดกลางทาง */
+    var top = r.bottom + 4;
+    if (top + h > window.innerHeight - 8) top = r.top - h - 4;
+    if (top < 8) top = Math.max(8, window.innerHeight - h - 8);
     el.style.left = left + "px";
     el.style.top = Math.max(8, top) + "px";
     el.style.visibility = "";
   }
 
   var closeTimer = null;
+  var overCard = false;
   var pinned = false;   /* กดแถบ = การ์ดค้างไว้จนกว่าจะกดที่อื่น (นนท์: เมาส์ค้างแล้วยังไม่ทันกดมันหาย) */
   function hideHover(delay, force) {
     clearTimeout(hoverTimer);
     clearTimeout(closeTimer);
     if (!hoverEl) return;
-    if (pinned && !force) return;
+    if ((pinned || overCard) && !force) return;
     if (force) pinned = false;
     if (delay) closeTimer = setTimeout(function () { hoverEl.classList.remove("show"); }, delay);
     else hoverEl.classList.remove("show");
@@ -657,7 +662,12 @@
     if (e.target.closest(".cc-hover")) return;
     if (e.target.closest("[data-edit],[data-open],[data-daypeek]")) hideHover(700);
   });
-  document.addEventListener("scroll", function () { if (!pinned) hideHover(); }, true);
+  /* เลื่อนในการ์ดเอง หรือเลื่อนหน้าขณะเมาส์อยู่บนการ์ด ไม่ปิด · เลื่อนหน้าตอนอื่นค่อยปิด */
+  document.addEventListener("scroll", function (e) {
+    if (pinned || overCard) return;
+    if (e.target && e.target.closest && e.target.closest(".cc-hover")) return;
+    hideHover();
+  }, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && pinned) hideHover(0, true); });
 
   /* มือถือ: แตะค้าง 450ms = ดูรายละเอียด (ไม่เปิดฟอร์ม) */

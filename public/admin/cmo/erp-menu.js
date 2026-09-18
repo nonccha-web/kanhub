@@ -25,8 +25,7 @@
       { icon: 'clipboard', label: 'งานทีม', items: [
         /* ปฏิทินอยู่บนสุด = หน้าแรกของระบบ (นนท์ 18 ก.ย. 69) */
         { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' },
-        { icon: 'user',      label: 'งานของฉัน',      tasks: '#/me' },
-        { icon: 'bell',      label: 'แจ้งเตือน',       tasks: '#/inbox', badge: 'mentions' },
+        /* งานของฉัน = สวิตช์ในหน้างานทั้งหมด · แจ้งเตือน = กระดิ่งมุมขวาบน (นนท์ 19 ก.ย. 69) */
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */

@@ -157,3 +157,13 @@ html.erp-collapsed .erp-sidebar:not(:hover) .erp-powered, html.erp-collapsed .la
 .erp-box.open .erp-glabel{ color:var(--k-ink); }
 .erp-subh{ font-size:10.5px; font-weight:600; color:var(--k-mut); padding:10px 12px 4px 14px; }
 .erp-subh:first-child{ padding-top:4px; }
+
+/* กระดิ่งแจ้งเตือนมุมขวาบน — ทุกหน้า (นนท์ 19 ก.ย. 69: เอาเมนูแจ้งเตือนไปไว้มุมขวาบนสุด) */
+.erp-bell{ position:relative; display:grid; place-items:center; width:32px; height:32px; border-radius:999px;
+  color:var(--k-mut); text-decoration:none; transition:background .15s, color .15s; }
+.erp-bell:hover{ background:var(--k-hair); color:var(--k-ink); }
+.erp-bell.on{ color:var(--k-ink); }
+.erp-bell svg{ width:18px; height:18px; display:block; }
+.erp-bell i{ position:absolute; top:0; right:-1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+  background:#F06400; color:#fff; font:700 9.5px/16px var(--k-display, inherit); font-style:normal; text-align:center;
+  box-shadow:0 0 0 2px var(--k-paper); }
