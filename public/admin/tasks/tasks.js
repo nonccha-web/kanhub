@@ -68,6 +68,11 @@
     return '';
   }
   var REPEAT_OPTS = [['', 'ครั้งเดียว'], ['daily', 'ทุกวัน'], ['weekly', 'ทุกสัปดาห์'], ['monthly', 'ทุกเดือน']];
+  /* งานป้าย 6 ขั้น — ต้องตรงกับ SIGN_STAGES ใน worker */
+  var SIGN_STAGES = [['design', 'ออกแบบ'], ['approved', 'แบบเสร็จ'], ['sent', 'ส่งโรงพิมพ์'], ['produced', 'ผลิต'], ['arrived', 'ของถึงสาขา'], ['installed', 'ติดตั้ง']];
+  var SIGN_KEYS = SIGN_STAGES.map(function (x) { return x[0]; });
+  var SIGN_TH = {}; SIGN_STAGES.forEach(function (x) { SIGN_TH[x[0]] = x[1]; });
+  function signStageIdx(k) { return SIGN_KEYS.indexOf(k); }
   function repeatLabel(v) {
     for (var i = 0; i < REPEAT_OPTS.length; i++) if (REPEAT_OPTS[i][0] === (v || '')) return REPEAT_OPTS[i][1];
     return '';
@@ -537,7 +542,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all' };
+  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -774,7 +779,7 @@
   function seqNav(id) {
     var ids = S.seq || [], i = ids.indexOf(id);
     var back = S.seqFrom || '#/all';
-    var lbl = back.indexOf('#/me') === 0 ? 'งานของฉัน' : (back.indexOf('#/campaign') === 0 ? 'แคมเปญ' : 'งานทั้งหมด');
+    var lbl = back.indexOf('#/me') === 0 ? 'งานของฉัน' : (back.indexOf('#/campaign') === 0 ? 'แคมเปญ' : (back.indexOf('#/signage') === 0 ? 'งานป้าย' : 'งานทั้งหมด'));
     var btn = function (to, txt, dis) {
       return dis ? '<span class="btn-ghost sm disabled">' + txt + '</span>'
                  : '<a class="btn-ghost sm" href="#/task/' + esc(to) + '">' + txt + '</a>';
@@ -979,6 +984,7 @@
     if (q.who) { F.who = q.who; }
     if (q.status !== undefined) { F.status = q.status; }
     if (q.campaign !== undefined) { F.campaign = q.campaign; }
+    if (q.ttype !== undefined) { F.ttype = q.ttype; }
     Promise.all([loadTasks(), loadCampaigns()]).then(function (r) {
       var all = r[0];
       all = all.filter(function (t) { return !t.parentId; });
@@ -1283,7 +1289,7 @@
 
   function blankDraft(last) {
     return { title: '', taskType: '', taskKind: 'ondemand', assignees: [], date: '', time: '', hours: '',
-             detail: '', repeat: '', kpiId: '', support: 0,
+             detail: '', repeat: '', kpiId: '', support: 0, signW: '', signH: '', signQty: '', signBranch: '',
              campaignId: (last && last.campaignId) || (S.route.query || {}).campaign || '' };
   }
   function draftBlank(r) {
@@ -1300,6 +1306,9 @@
     /* ทุกงานต้องบอกว่าเข้า KPI ไหน หรือเป็นงาน support — คุณออนขอให้ทุกงานมีคำตอบ
        นนท์ขอให้มีทางออกสำหรับงานที่ไม่ควรยัดเข้า KPI */
     if (!r.kpiId && !r.support) m.push('KPI');
+    /* งานป้ายต้องรู้ขนาดกับสาขา ไม่งั้นโรงพิมพ์ทำไม่ได้ */
+    if (r.taskType === 'signage' && (r.signW === '' || r.signH === '')) m.push('ขนาดป้าย');
+    if (r.taskType === 'signage' && !String(r.signBranch || '').trim()) m.push('สาขา');
     return m;
   }
   function draftList() {
@@ -1455,6 +1464,19 @@
           return [r.support ? 'งาน support' : ((kpiById(r.kpiId) || {}).code || '(ยังไม่เลือก)')];
         } },
 
+      /* เฉพาะงานป้าย — งานอื่นปล่อยว่าง · หน่วยเมตร */
+      { key: 'signW', label: 'กว้าง (ม.)', width: 82,
+        text: function (r) { return r.signW == null || r.signW === '' ? '' : String(r.signW); },
+        parse: function (s2) { s2 = String(s2).trim().replace(/[มm]\.?$/i, ''); if (!s2) return ''; var n = Number(s2); return isFinite(n) && n >= 0 && n <= 100 ? n : null; } },
+      { key: 'signH', label: 'สูง (ม.)', width: 76,
+        text: function (r) { return r.signH == null || r.signH === '' ? '' : String(r.signH); },
+        parse: function (s2) { s2 = String(s2).trim().replace(/[มm]\.?$/i, ''); if (!s2) return ''; var n = Number(s2); return isFinite(n) && n >= 0 && n <= 100 ? n : null; } },
+      { key: 'signQty', label: 'จำนวนใบ', width: 76,
+        text: function (r) { return r.signQty == null || r.signQty === '' ? '' : String(r.signQty); },
+        parse: function (s2) { s2 = String(s2).trim().replace(/ใบ$/, ''); if (!s2) return ''; var n = Math.round(Number(s2)); return isFinite(n) && n >= 1 && n <= 9999 ? n : null; } },
+      { key: 'signBranch', label: 'สาขา', width: 110,
+        parse: function (s2) { return String(s2).trim().slice(0, 80); } },
+
       { key: 'campaignId', label: 'ปฏิทินการตลาด', width: 170, type: 'pick',
         options: function () {
           return [{ v: '', label: '— ไม่ผูก —' }].concat((S.campaigns || []).map(function (c) {
@@ -1507,7 +1529,8 @@
         return { title: src.title, taskType: src.taskType, taskKind: src.taskKind,
                  assignees: (src.assignees || []).slice(), date: src.date, time: src.time,
                  hours: src.hours, detail: src.detail, repeat: src.repeat,
-                 kpiId: src.kpiId, support: src.support, campaignId: src.campaignId };
+                 kpiId: src.kpiId, support: src.support, campaignId: src.campaignId,
+                 signW: src.signW, signH: src.signH, signQty: src.signQty, signBranch: src.signBranch };
       },
       /* ขีดแดงหน้าแถวที่กรอกไม่ครบ — เห็นตั้งแต่ยังไม่กดบันทึก */
       tone: function (r) { return (!draftBlank(r) && draftMissing(r).length) ? 'miss' : ''; },
@@ -1554,6 +1577,7 @@
       taskKind: t.repeat ? 'routine' : 'ondemand',
       hours: '',
       support: 0,
+      signW: '', signH: '', signQty: '', signBranch: '',
       assignees: t.assignees || [],
       date: ok ? ymd(d) : '',
       time: ok ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '',
@@ -1589,7 +1613,9 @@
                repeat: r.repeat || '', kpiId: r.kpiId || null, taskType: r.taskType,
                taskKind: r.taskKind || 'ondemand', support: r.support ? 1 : 0,
                hours: r.hours === '' ? null : r.hours, priority: 0,
-               campaignId: r.campaignId || null };
+               campaignId: r.campaignId || null,
+               signW: r.signW === '' ? null : r.signW, signH: r.signH === '' ? null : r.signH,
+               signQty: r.signQty === '' ? null : r.signQty, signBranch: r.signBranch || null };
     });
     api('/tasks', 'POST', { tasks: payload }).then(function (j) {
       var n = (j.ids || []).length;
@@ -1637,6 +1663,42 @@
       btn.classList.remove('busy');
       toast(e.message, true);
     });
+  }
+
+  /* ---------- funnel งานป้าย: 6 ขั้นเรียงซ้ายไปขวา ----------
+     stages = งานย่อยที่มี stage · ขั้นผ่านแล้ว = สถานะ done · ขั้นปัจจุบัน = ขั้นแรกที่ยังไม่ done
+     ช่องรูป: ขั้นไหนมีรูปคือผ่านจริง ไม่ใช่แค่กดว่าเสร็จ — ขั้นที่ปิดโดยไม่มีรูปทำไม่ได้ตั้งแต่ฝั่ง worker */
+  function signFunnel(main, stages, compact) {
+    var byK = {};
+    (stages || []).forEach(function (x) { byK[x.stage] = x; });
+    var now = new Date();
+    var cur = null;
+    for (var i = 0; i < SIGN_KEYS.length; i++) { var st0 = byK[SIGN_KEYS[i]]; if (!st0 || effStatus(st0) !== 'done') { cur = SIGN_KEYS[i]; break; } }
+    return '<div class="sfun' + (compact ? ' compact' : '') + '">' + SIGN_STAGES.map(function (def, i) {
+      var k = def[0], x = byK[k];
+      var done = x && effStatus(x) === 'done', isCur = k === cur, rev = x && effStatus(x) === 'review';
+      var late = x && !done && x.dueAt && new Date(x.dueAt) < now;
+      var cls = 'sst' + (done ? ' on' : '') + (isCur ? ' now' : '') + (rev ? ' rev' : '') + (late ? ' late' : '');
+      var when = x ? (done ? (x.doneAt ? fmtDate(new Date(x.doneAt)) + ' ✓' : 'เสร็จ')
+                          : (x.dueAt ? 'คาด ' + fmtDate(new Date(x.dueAt)) : '')) : '';
+      var pic = x && x.picId
+        ? '<a class="sshot has" href="#/task/' + esc(x.id) + '"><img src="' + API + '/files/' + esc(x.picId) + '" alt="" loading="lazy"></a>'
+        : (x ? '<a class="sshot' + (isCur ? ' need' : '') + '" href="#/task/' + esc(x.id) + '">' +
+               (rev ? 'รอตรวจ' : (isCur ? 'ยังไม่ส่งรูป' : (done ? (x.nFiles ? 'มีรูป ' + x.nFiles : 'ไม่มีรูป') : 'รอถึงคิว'))) + '</a>'
+             : '<span class="sshot off">ยังไม่ตั้งขั้น</span>');
+      return '<div class="' + cls + '" data-k="' + k + '">' +
+        (x ? '<a class="slbl" href="#/task/' + esc(x.id) + '"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</a>'
+           : '<span class="slbl"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</span>') +
+        '<span class="swhen' + (late ? ' late' : '') + '">' + esc(when) + '</span>' +
+        (compact ? '' : pic) + '</div>';
+    }).join('') + '</div>';
+  }
+  function signMeta(t) {
+    var parts = [];
+    if (t.signW != null && t.signH != null) parts.push(t.signW + ' × ' + t.signH + ' ม. · ' + (Math.round(t.signW * t.signH * 100) / 100) + ' ตร.ม.');
+    if (t.signQty) parts.push(t.signQty + ' ใบ');
+    if (t.signBranch) parts.push(t.signBranch);
+    return parts.join(' · ');
   }
 
   /* ---------- แก้ไขงานเร็วจากหน้ารายการ ---------- */
@@ -1870,6 +1932,125 @@
     });
   }
 
+  /* ---------- หน้างานป้าย: funnel รวม + funnel รายป้าย + ตาราง ----------
+     เปิดมาเห็นก่อนว่าของกองอยู่ขั้นไหน แล้วค่อยไล่ทีละป้าย · ป้ายเยอะสลับเป็นตารางได้ */
+  var SG = { view: 'cards', stage: '', branch: '', showDone: false };
+  function renderSignage() {
+    var view = $('#view');
+    view.className = 'page';
+    view.innerHTML = '<div class="loading">กำลังโหลดงานป้าย…</div>';
+    api('/signage').then(function (j) {
+      var all = j.tasks || [], stByParent = {};
+      (j.stages || []).forEach(function (x) { (stByParent[x.parentId] = stByParent[x.parentId] || []).push(x); });
+      /* ขั้นปัจจุบันของแต่ละป้าย = ขั้นแรกที่ยังไม่ผ่าน · ป้ายไม่มีขั้น = 'none' · ปิดแล้ว = 'done' */
+      function curStage(t) {
+        if (effStatus(t) === 'done') return 'done';
+        var ss = stByParent[t.id] || [];
+        if (!ss.length) return 'none';
+        for (var i = 0; i < SIGN_KEYS.length; i++) {
+          var x = ss.filter(function (y) { return y.stage === SIGN_KEYS[i]; })[0];
+          if (!x || effStatus(x) !== 'done') return SIGN_KEYS[i];
+        }
+        return 'done';
+      }
+      function area(t) { return t.signW != null && t.signH != null ? t.signW * t.signH * (t.signQty || 1) : 0; }
+      all.forEach(function (t) { t._cur = curStage(t); t._area = area(t); });
+      var open = all.filter(function (t) { return t._cur !== 'done'; });
+      var branches = {};
+      all.forEach(function (t) { if (t.signBranch) branches[t.signBranch] = (branches[t.signBranch] || 0) + 1; });
+
+      var counts = {}, areas = {}, lateN = {};
+      SIGN_KEYS.concat(['none']).forEach(function (k) { counts[k] = 0; areas[k] = 0; lateN[k] = 0; });
+      open.forEach(function (t) {
+        counts[t._cur]++; areas[t._cur] += t._area;
+        var ss = stByParent[t.id] || [], x = ss.filter(function (y) { return y.stage === t._cur; })[0];
+        if (x && x.dueAt && new Date(x.dueAt) < new Date()) lateN[t._cur]++;
+      });
+      var doneN = all.length - open.length;
+      var maxC = Math.max(1, Math.max.apply(null, SIGN_KEYS.map(function (k) { return counts[k]; })));
+
+      var list = all.filter(function (t) {
+        if (!SG.showDone && t._cur === 'done') return false;
+        if (SG.stage && t._cur !== SG.stage) return false;
+        if (SG.branch && t.signBranch !== SG.branch) return false;
+        return true;
+      });
+      /* เรียง: เลยกำหนดก่อน แล้วตามวันติดตั้ง */
+      list.sort(function (a, b) { return (a.dueAt || '9') < (b.dueAt || '9') ? -1 : 1; });
+      markSeq(list, '#/signage');
+
+      var h = '<div class="top"><div><span class="kicker">งานป้าย</span><h1>ป้ายทุกอัน ค้างอยู่ขั้นไหน</h1>' +
+        '<p>ทุกป้ายมี 6 ขั้นตายตัว ผ่านขั้นไหนต้องมีรูปยืนยัน · แถบซ้ายบวมตรงไหนคือคอขวด</p></div>' +
+        '<div class="top-r"><a class="btn-ghost" href="#/all?ttype=signage">ดูในรายการงาน</a><a class="btn" href="#/new">+ สั่งป้าย</a></div></div>';
+
+      /* funnel รวม — แถบยาวตามจำนวน ไม่ใช่รูปกรวยแข็ง ๆ เพราะขั้นกลางบวมได้ */
+      h += '<div class="sec"><div class="sec-h"><h2>ค้างอยู่ขั้นไหน</h2><p>' + open.length + ' ป้ายค้าง · เสร็จแล้ว ' + doneN + '</p></div>' +
+        '<div class="sec-b"><div class="sfbig">' + SIGN_STAGES.map(function (d, i) {
+          var k = d[0], n = counts[k], w = Math.max(6, Math.round(n / maxC * 100));
+          return '<button type="button" class="sfrow' + (SG.stage === k ? ' on' : '') + '" data-sg-stage="' + k + '">' +
+            '<span class="sfl">' + (i + 1) + '. ' + esc(d[1]) + '</span>' +
+            '<span class="sfb"><i class="s' + (i + 1) + '" style="width:' + w + '%"></i><b>' + n + '</b></span>' +
+            '<span class="sfm">' + (areas[k] ? Math.round(areas[k] * 10) / 10 + ' ตร.ม.' : '') +
+            (lateN[k] ? ' · <em>' + lateN[k] + ' เลยกำหนด</em>' : '') + '</span></button>';
+        }).join('') +
+        (counts.none ? '<button type="button" class="sfrow off' + (SG.stage === 'none' ? ' on' : '') + '" data-sg-stage="none"><span class="sfl">ยังไม่ตั้งขั้น</span><span class="sfb"><b>' + counts.none + '</b></span><span class="sfm">งานเก่าก่อนมีระบบนี้ — เข้าไปกด “สร้าง 6 ขั้น”</span></button>' : '') +
+        '</div></div></div>';
+
+      /* แถบกรอง + สลับมุมมอง */
+      h += '<div class="tbar"><div class="seg">' +
+        '<button type="button" class="' + (SG.view === 'cards' ? 'on' : '') + '" data-sg-view="cards">การ์ด</button>' +
+        '<button type="button" class="' + (SG.view === 'table' ? 'on' : '') + '" data-sg-view="table">ตาราง</button></div>' +
+        (Object.keys(branches).length ? '<span class="tbar-lbl">สาขา</span><div class="seg">' +
+          '<button type="button" class="' + (!SG.branch ? 'on' : '') + '" data-sg-branch="">ทุกสาขา</button>' +
+          Object.keys(branches).sort().map(function (b) {
+            return '<button type="button" class="' + (SG.branch === b ? 'on' : '') + '" data-sg-branch="' + esc(b) + '">' + esc(b) + ' <i>' + branches[b] + '</i></button>';
+          }).join('') + '</div>' : '') +
+        '<label class="tbar-lbl" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sgDone"' + (SG.showDone ? ' checked' : '') + '> รวมที่เสร็จแล้ว</label>' +
+        (SG.stage ? '<button type="button" class="btn-text" data-sg-stage="">✕ เลิกกรองขั้น</button>' : '') +
+        '<span class="tbar-n">' + list.length + ' ป้าย</span></div>';
+
+      if (!list.length) {
+        h += '<div class="sec"><div class="empty"><b>ไม่มีป้ายตามเงื่อนไขนี้</b>ลองเลิกกรอง หรือกด “+ สั่งป้าย”</div></div>';
+      } else if (SG.view === 'table') {
+        h += '<div class="sec"><div class="sec-b tight"><div class="scrollx"><table class="rpt sgt"><thead><tr>' +
+          '<th>ป้าย</th><th>สาขา</th><th class="n">กว้าง × สูง</th><th class="n">ใบ</th><th class="n">ตร.ม.</th><th>ขั้นตอน</th><th>ค้างที่</th><th>ติดตั้ง</th><th>คนทำ</th></tr></thead><tbody>' +
+          list.map(function (t) {
+            var ss = stByParent[t.id] || [];
+            var dots = SIGN_KEYS.map(function (k, i) {
+              var x = ss.filter(function (y) { return y.stage === k; })[0];
+              return '<i class="' + (x && effStatus(x) === 'done' ? 'd' + (i + 1) : '') + '" title="' + esc(SIGN_TH[k]) + '"></i>';
+            }).join('');
+            var cur = ss.filter(function (y) { return y.stage === t._cur; })[0];
+            var late = cur && cur.dueAt && new Date(cur.dueAt) < new Date();
+            return '<tr><td><a href="#/task/' + esc(t.id) + '">' + esc(t.title) + '</a></td><td>' + esc(t.signBranch || '—') + '</td>' +
+              '<td class="n">' + (t.signW != null && t.signH != null ? t.signW + ' × ' + t.signH : '—') + '</td>' +
+              '<td class="n">' + (t.signQty || 1) + '</td><td class="n">' + (t._area ? Math.round(t._area * 10) / 10 : '—') + '</td>' +
+              '<td><span class="dots">' + dots + '</span></td>' +
+              '<td' + (late ? ' style="color:var(--k-bad)"' : '') + '>' + (t._cur === 'done' ? 'เสร็จแล้ว' : (t._cur === 'none' ? 'ยังไม่ตั้งขั้น' : esc(SIGN_TH[t._cur]) + (late ? ' · เลย' : ''))) + '</td>' +
+              '<td>' + (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '—') + '</td>' +
+              '<td>' + esc(t.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ') || '—') + '</td></tr>';
+          }).join('') + '</tbody></table></div></div></div>';
+      } else {
+        h += '<div class="sgcards">' + list.map(function (t) {
+          var ss = stByParent[t.id] || [];
+          var cur = ss.filter(function (y) { return y.stage === t._cur; })[0];
+          var late = cur && cur.dueAt && new Date(cur.dueAt) < new Date();
+          return '<article class="sgcard' + (late ? ' late' : '') + '">' +
+            '<div class="sgh"><div><a href="#/task/' + esc(t.id) + '"><b>' + esc(t.title) + '</b></a>' +
+            '<div class="sgm">' + (signMeta(t) ? '<span class="size">' + esc(signMeta(t)) + '</span>' : '') +
+            avatars(t.assignees) + campaignChip(t.campaignId, false, true) + '</div></div>' +
+            '<div class="sgdue' + (late ? ' late' : '') + '"><b>' + (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : 'ไม่กำหนด') + '</b>' +
+            (t.dueAt ? '<small>' + esc(fmtDue(t)) + '</small>' : '') + '</div></div>' +
+            (ss.length ? signFunnel(t, ss, false)
+              : '<div class="postbar warn" style="margin:0 18px 16px">ยังไม่มี 6 ขั้น — <a href="#/task/' + esc(t.id) + '">เข้าไปสร้าง</a></div>') +
+            '</article>';
+        }).join('') + '</div>';
+      }
+      view.innerHTML = h;
+      var cb = $('#sgDone'); if (cb) cb.addEventListener('change', function () { SG.showDone = this.checked; renderSignage(); });
+    }).catch(function (e) { showError(e); });
+  }
+
   /* ---------- สรุปผลงานรายเดือน (ข้อ 03 ของคุณออน) ---------- */
   /* ตรงเวลานับตอน "ส่งรอตรวจ" เทียบ "วันเดิมก่อนถูกเลื่อน" — หัวหน้าตรวจช้าน้องไม่โดน
      โชว์ 2 ตัวเลข: ถึงเวลาเป๊ะ กับ ภายในวันนั้น (ตัวหลังคือตัวที่เอาไปเข้า KPI) */
@@ -2095,6 +2276,11 @@
           '<div class="field"><label class="label">ชนิดงาน</label><select class="select" name="taskKind">' +
           KIND_KEYS.map(function (k) { return '<option value="' + k + '"' + ((t.taskKind || 'ondemand') === k ? ' selected' : '') + '>' + esc(KIND_TH[k]) + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">ใช้เวลา (ชม.)</label><input class="input" type="number" step="0.25" min="0" max="200" name="hours" value="' + (t.hours == null ? '' : esc(String(t.hours))) + '"></div></div>' +
+          '<div class="grid3 signfields"' + ((t.taskType || 'other') === 'signage' ? '' : ' hidden') + '>' +
+          '<div class="field"><label class="label">กว้าง (ม.)</label><input class="input" type="number" step="0.01" min="0" max="100" name="signW" value="' + (t.signW == null ? '' : esc(String(t.signW))) + '"></div>' +
+          '<div class="field"><label class="label">สูง (ม.)</label><input class="input" type="number" step="0.01" min="0" max="100" name="signH" value="' + (t.signH == null ? '' : esc(String(t.signH))) + '"></div>' +
+          '<div class="field"><label class="label">จำนวนใบ</label><input class="input" type="number" step="1" min="1" max="9999" name="signQty" value="' + (t.signQty == null ? '' : esc(String(t.signQty))) + '"></div>' +
+          '<div class="field" style="grid-column:1/-1"><label class="label">สาขา</label><input class="input" name="signBranch" value="' + esc(t.signBranch || '') + '" placeholder="สุราษฎร์ธานี / ชุมพร / ภูเก็ต / KAN Fashion"></div></div>' +
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
           '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + REPEAT_OPTS.map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">KPI <small>ทุกงานต้องมีคำตอบ</small></label><select class="select" name="kpiId">' +
@@ -2106,7 +2292,30 @@
           (S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delBtn" style="margin-left:auto">ลบงานนี้</button>' : '') + '</div></form>' : '') +
         '</div></div>';
 
+      /* งานป้ายหลัก: 6 ขั้นเป็น funnel — งานย่อยธรรมดาซ่อนไว้ใต้นั้น */
+      var stageSubs = subs.filter(function (x) { return x.stage; });
+      var plainSubs = subs.filter(function (x) { return !x.stage; });
+      if (!t.parentId && t.taskType === 'signage') {
+        var passed = stageSubs.filter(function (x) { return effStatus(x) === 'done'; }).length;
+        h += '<div class="sec signsec"><div class="sec-h"><h2>ขั้นตอนงานป้าย</h2>' +
+          '<p>' + (stageSubs.length ? 'ผ่านแล้ว ' + passed + ' จาก 6' + (signMeta(t) ? ' · ' + esc(signMeta(t)) : '') : 'ยังไม่ได้ตั้งขั้นตอน') + '</p></div>' +
+          '<div class="sec-b">' +
+          (stageSubs.length
+            ? signFunnel(t, stageSubs, false) +
+              '<p class="hint" style="margin-top:12px">กดที่ขั้นเพื่อเข้าไปแนบรูปแล้วส่ง · วันคาดว่าเสร็จถอยหลังมาจากวันติดตั้ง ' +
+              (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '') + ' ข้ามเสาร์อาทิตย์ · เลื่อนวันติดตั้งแล้วทุกขั้นขยับตาม</p>'
+            : '<p class="hint">งานนี้เป็นป้ายแต่ยังไม่มี 6 ขั้น (สั่งไว้ก่อนมีระบบนี้)</p>' +
+              (canEdit || mine ? '<div class="acts" style="margin-top:10px"><button type="button" class="btn" id="mkStages">สร้าง 6 ขั้นให้เลย</button></div>' : '')) +
+          '</div></div>';
+      }
+      /* ขั้นของงานป้าย: บอกว่าเป็นขั้นที่เท่าไหร่ และต้องแนบรูป */
+      if (t.parentId && t.stage) {
+        h += '<div class="postbar">ขั้นที่ <b>' + (signStageIdx(t.stage) + 1) + ' จาก 6</b> · ' + esc(SIGN_TH[t.stage] || t.stage) +
+          ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' +
+          (t.stage === 'approved' ? ' · ขั้นนี้หัวหน้าเป็นคนกดผ่าน' : '') + '</div>';
+      }
       /* งานย่อย — เฉพาะงานหลัก (งานย่อยไม่ซ้อนอีกชั้น จะได้ไม่กลายเป็นต้นไม้ที่ตามไม่ทัน) */
+      subs = plainSubs;
       if (!t.parentId) {
         var doneSub = subs.filter(function (x) { return effStatus(x) === 'done'; }).length;
         h += '<div class="sec"><div class="sec-h"><h2>งานย่อย</h2>' +
@@ -2246,6 +2455,15 @@
       rf.addEventListener('submit', function (ev) { ev.preventDefault(); sendReview(true); });
       $('#rejectBtn').addEventListener('click', function () { sendReview(false); });
     }
+
+    /* ---- สร้าง 6 ขั้นให้งานป้ายเก่า ---- */
+    var mk = $('#mkStages');
+    if (mk) mk.addEventListener('click', function () {
+      mk.disabled = true;
+      api('/tasks/' + t.id + '/stages', 'POST', {})
+        .then(function (j) { S.tasks = null; toast('สร้าง ' + (j.created || 0) + ' ขั้นแล้ว'); renderTask(t.id); })
+        .catch(function (e) { mk.disabled = false; toast(e.message, true); });
+    });
 
     /* ---- ใส่กำหนดส่งย้อนหลังให้งานที่ยังไม่มีวัน ---- */
     var bfBtn = $('#backfillBtn');
@@ -2433,6 +2651,10 @@
         wireTyping($('#editForm'));
       });
       $('#cancelEdit').addEventListener('click', function () { $('#editForm').hidden = true; $('#detailText').hidden = false; editBtn.hidden = false; });
+      /* ช่องขนาดป้ายโผล่เฉพาะตอนเลือกประเภท "ป้าย" */
+      $('#editForm').taskType.addEventListener('change', function () {
+        var sf = $('#editForm .signfields'); if (sf) sf.hidden = this.value !== 'signage';
+      });
       $('#editAs').addEventListener('click', function (ev) { var b = ev.target.closest('[data-as]'); if (b) b.classList.toggle('on'); });
       $('#editForm').addEventListener('submit', function (ev) {
         ev.preventDefault();
@@ -2445,6 +2667,10 @@
           taskType: f.taskType.value,
           taskKind: f.taskKind.value,
           hours: f.hours.value === '' ? null : Number(f.hours.value),
+          signW: f.signW.value === '' ? null : Number(f.signW.value),
+          signH: f.signH.value === '' ? null : Number(f.signH.value),
+          signQty: f.signQty.value === '' ? null : Number(f.signQty.value),
+          signBranch: f.signBranch.value || null,
           campaignId: f.campaignId.value || null,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
         }).then(function () {
@@ -3934,6 +4160,7 @@
       case 'all': return renderAll();
       case 'new': return renderNew();
       case 'report': return renderReport();
+      case 'signage': return renderSignage();
       case 'campaign': return S.route.id ? renderCampaign(S.route.id) : renderAll();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
@@ -3967,6 +4194,9 @@
     /* ชิปแคมเปญ → หน้าแคมเปญในระบบ (เห็นงาน+โพสต์ที่ผูกไว้) แทนกระโดดออกไปปฏิทิน */
     if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.hash = '#/campaign/' + b.getAttribute('data-cc'); return; }
     if ((b = ev.target.closest('[data-tour-go]'))) { $('#tourMenu').hidden = true; global.KAN_TOUR.start(b.getAttribute('data-tour-go')); return; }
+    if ((b = ev.target.closest('[data-sg-stage]'))) { SG.stage = SG.stage === b.getAttribute('data-sg-stage') ? '' : b.getAttribute('data-sg-stage'); renderSignage(); return; }
+    if ((b = ev.target.closest('[data-sg-view]'))) { SG.view = b.getAttribute('data-sg-view'); renderSignage(); return; }
+    if ((b = ev.target.closest('[data-sg-branch]'))) { SG.branch = b.getAttribute('data-sg-branch'); renderSignage(); return; }
     if ((b = ev.target.closest('[data-rowmenu]'))) {
       ev.preventDefault(); ev.stopPropagation();
       quickEdit(b.getAttribute('data-rowmenu'));

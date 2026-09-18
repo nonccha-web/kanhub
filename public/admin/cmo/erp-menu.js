@@ -27,6 +27,7 @@
         { icon: 'bell',      label: 'แจ้งเตือน',       tasks: '#/inbox', badge: 'mentions' },
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
         { icon: 'zap',       label: 'สั่งงาน',         tasks: '#/new' },
+        { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
         { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
         { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' }
       ]},

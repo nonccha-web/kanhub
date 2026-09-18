@@ -19,6 +19,73 @@ const TASK_KINDS = ["ondemand", "routine"];
 const TASK_TYPES = ["signage", "content", "campaign", "newlot", "other"];
 /* monthly = ทุกเดือน — นนท์ขอเพิ่ม 15 ก.ย. 69 (งานอย่างสรุปยอดรายเดือน คอลเลคชั่นประจำเดือน) */
 const REPEATS = ["", "daily", "weekly", "monthly"];
+
+/* ---------- งานป้าย: 6 ขั้นตายตัว (นนท์ยืนยัน 15 ก.ย. 69) ----------
+   ทุกขั้นเป็น "งานย่อย" ของงานป้ายหลัก ปิดขั้นต้องแนบรูป · "แบบเสร็จ" ต้องหัวหน้าตรวจผ่าน
+   (ซึ่งเป็นกติกาปกติของทุกงานอยู่แล้ว) · lead = จำนวนวันที่ขั้นนั้นใช้ ใช้ถอยหลังจากวันติดตั้ง */
+const SIGN_STAGES = [
+  { k: "design",    th: "ออกแบบ",      lead: 3 },
+  { k: "approved",  th: "แบบเสร็จ",    lead: 1 },
+  { k: "sent",      th: "ส่งโรงพิมพ์",  lead: 1 },
+  { k: "produced",  th: "ผลิต",        lead: 3 },
+  { k: "arrived",   th: "ของถึงสาขา",  lead: 2 },
+  { k: "installed", th: "ติดตั้ง",      lead: 1 },
+];
+const SIGN_STAGE_KEYS = SIGN_STAGES.map((x) => x.k);
+/* วันคาดว่าเสร็จของแต่ละขั้น = วันติดตั้ง − ผลรวม lead ของขั้นที่ตามหลัง
+   ข้ามเสาร์อาทิตย์ (โรงพิมพ์ปิด) แต่ไม่ยุ่งกับวันหยุดรายคน */
+function stageDueDates(installIso, leads) {
+  const L = leads || {};
+  const out = {};
+  let cursor = new Date(installIso);
+  for (let i = SIGN_STAGES.length - 1; i >= 0; i--) {
+    const st = SIGN_STAGES[i];
+    out[st.k] = cursor.toISOString();
+    const days = Number(L[st.k] != null ? L[st.k] : st.lead) || 0;
+    /* ถอยหลังทีละวันทำการ */
+    let left = days;
+    while (left > 0) {
+      cursor = new Date(cursor.getTime() - 86400000);
+      const dow = new Date(cursor.getTime() + 7 * 3600000).getUTCDay();   /* วันแบบไทย */
+      if (dow !== 0 && dow !== 6) left--;
+    }
+  }
+  return out;
+}
+async function signLeads(db) {
+  try {
+    const row = await db.prepare("SELECT value FROM task_settings WHERE key = 'sign_leads'").first();
+    return row && row.value ? JSON.parse(row.value) : {};
+  } catch (e) { return {}; }
+}
+/* สร้างงานย่อย 6 ขั้นให้งานป้ายหลัก — เรียกได้ซ้ำ ถ้ามีอยู่แล้วไม่สร้างซ้อน */
+async function ensureSignStages(db, mainId, meId, now) {
+  const main = await db.prepare("SELECT id,title,due_at,task_type FROM tasks WHERE id = ?").bind(mainId).first();
+  if (!main || main.task_type !== "signage") return { created: 0 };
+  const have = await db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE parent_id = ? AND stage IS NOT NULL").bind(mainId).first();
+  if (have && have.n > 0) return { created: 0 };
+  const who = await db.prepare("SELECT staff_id FROM task_assignees WHERE task_id = ?").bind(mainId).all();
+  const assignees = (who.results || []).map((r) => r.staff_id);
+  const dues = main.due_at ? stageDueDates(main.due_at, await signLeads(db)) : {};
+  const stmts = [];
+  for (const st of SIGN_STAGES) {
+    const id = newId("t_");
+    stmts.push(db.prepare(
+      "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,stage) " +
+      "VALUES (?,?,?,NULL,'todo',?,'',0,?,?,?,NULL,?,NULL,'signage','ondemand',NULL,1,?,?)"
+    ).bind(id, st.th + " · " + String(main.title).slice(0, 200),
+           "ขั้นที่ " + (SIGN_STAGE_KEYS.indexOf(st.k) + 1) + " จาก 6 ของงานป้าย\nปิดขั้นนี้ต้องแนบรูปยืนยัน",
+           dues[st.k] || null, meId, now, now, mainId, dues[st.k] || null, st.k));
+    for (const sid of assignees) {
+      stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
+    }
+    stmts.push(db.prepare(
+      "INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)"
+    ).bind(newId("u_"), id, meId, "create", "", "todo", now));
+  }
+  await db.batch(stmts);
+  return { created: SIGN_STAGES.length };
+}
 /* D1 เก็บ 1 แถวได้ไม่เกิน 2MB และเราเก็บเป็น base64 (โต 4/3) → ไฟล์จริงจึงได้ราว 1.4MB
    1.35MB คือเพดานที่เหลือที่ว่างให้คอลัมน์อื่น · ไฟล์ใหญ่กว่านี้ (วิดีโอ) ให้แนบเป็นลิงก์แทน */
 const MAX_FILE_BYTES = 1350000;
@@ -130,6 +197,12 @@ const ALTERS = [
   "CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id)",
   "CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)",
   "CREATE INDEX IF NOT EXISTS idx_task_mentions_task ON task_mentions(task_id)",
+  /* งานป้าย (18 ก.ย. 69): ขนาด จำนวนใบ สาขา + ขั้นตอนของงานย่อย */
+  "ALTER TABLE tasks ADD COLUMN sign_w REAL",
+  "ALTER TABLE tasks ADD COLUMN sign_h REAL",
+  "ALTER TABLE tasks ADD COLUMN sign_qty INTEGER",
+  "ALTER TABLE tasks ADD COLUMN sign_branch TEXT",
+  "ALTER TABLE tasks ADD COLUMN stage TEXT",
 ];
 
 const MAX_PIN_FAILS = 5;
@@ -533,6 +606,11 @@ function rowToTask(r) {
     approvedAt: r.approved_at || null,
     approvedBy: r.approved_by || null,
     postpones: r.postpones || 0,
+    signW: r.sign_w == null ? null : Number(r.sign_w),
+    signH: r.sign_h == null ? null : Number(r.sign_h),
+    signQty: r.sign_qty == null ? null : Number(r.sign_qty),
+    signBranch: r.sign_branch || null,
+    stage: r.stage || null,
     priority: r.priority || 0,
     createdBy: r.created_by,
     createdAt: r.created_at,
@@ -580,6 +658,10 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
   /* ไม่ได้เลือกชนิดงาน: มีความถี่ = รูทีน ไม่มี = ตามสั่ง */
   const taskKind = TASK_KINDS.indexOf(input.taskKind) !== -1 ? input.taskKind : (repeat ? "routine" : "ondemand");
   const support = input.support ? 1 : 0;
+  const num = (x, max) => { if (x == null || x === "") return null; const n = Number(x); return isFinite(n) && n >= 0 && n <= max ? n : null; };
+  const signW = num(input.signW, 100), signH = num(input.signH, 100);
+  const signQty = input.signQty == null || input.signQty === "" ? null : Math.max(1, Math.min(9999, Math.round(Number(input.signQty) || 1)));
+  const signBranch = input.signBranch ? String(input.signBranch).trim().slice(0, 80) : null;
   let hours = null;
   if (input.hours != null && input.hours !== "") {
     const h = Number(input.hours);
@@ -592,7 +674,7 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
 }
 
 async function loadIdSets(db) {
@@ -1143,6 +1225,26 @@ export async function handleTaskApi(request, env, url, path, method) {
     });
   }
 
+  /* ---- หน้างานป้าย: งานหลัก + 6 ขั้น + รูปของแต่ละขั้น ในคำขอเดียว ---- */
+  if (path === "/signage" && method === "GET") {
+    const mains = await db.prepare(TASK_SELECT + "WHERE t.task_type = 'signage' AND t.parent_id IS NULL" + TASK_ORDER).all();
+    const list = (mains.results || []).map(rowToTask);
+    const ids = list.map((t) => t.id);
+    let stages = [];
+    if (ids.length) {
+      const q = "SELECT t.id,t.parent_id,t.stage,t.status,t.due_at,t.done_at,t.submitted_at," +
+        "(SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id AND f.kind='file') AS n_pic," +
+        "(SELECT id FROM task_files f WHERE f.task_id = t.id AND f.kind='file' ORDER BY created_at DESC LIMIT 1) AS pic_id " +
+        "FROM tasks t WHERE t.stage IS NOT NULL AND t.parent_id IN (" + ids.map(() => "?").join(",") + ")";
+      const sr = await db.prepare(q).bind(...ids).all();
+      stages = (sr.results || []).map((r) => ({
+        id: r.id, parentId: r.parent_id, stage: r.stage, status: r.status, dueAt: r.due_at,
+        doneAt: r.done_at, submittedAt: r.submitted_at, nPic: r.n_pic || 0, picId: r.pic_id || null,
+      }));
+    }
+    return json({ tasks: list, stages, stageDefs: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: x.lead })), leads: await signLeads(db) });
+  }
+
   /* ---- หน้าแคมเปญ: งานกับโพสต์ที่ผูกไว้ในที่เดียว (ข้อ 05 ของคุณออน) ---- */
   const campRel = path.match(/^\/campaigns\/([A-Za-z0-9_-]{1,40})\/related$/);
   if (campRel && method === "GET") {
@@ -1439,6 +1541,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     const sets = await loadIdSets(db);
     const stmts = [];
     const ids = [];
+    const signMains = [];
     const now = nowIso();
     for (const input of list) {
       const parsed = cleanTask(input, sets.kpiIds, sets.staffIds, sets.campaignIds);
@@ -1447,10 +1550,12 @@ export async function handleTaskApi(request, env, url, path, method) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
-             v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt));
+             v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt,
+             v.signW, v.signH, v.signQty, v.signBranch));
+      if (v.taskType === "signage" && !v.parentId) signMains.push(id);
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -1459,10 +1564,12 @@ export async function handleTaskApi(request, env, url, path, method) {
       ).bind(newId("u_"), id, me.id, "create", "", v.status, now));
     }
     await db.batch(stmts);
-    return json({ ids });
+    /* งานป้ายทุกอันได้งานย่อย 6 ขั้นทันที วันคาดว่าเสร็จถอยหลังจากวันติดตั้ง */
+    for (const mid of signMains) await ensureSignStages(db, mid, me.id, now);
+    return json({ ids, stagesFor: signMains });
   }
 
-  const taskMatch = path.match(/^\/tasks\/([A-Za-z0-9_-]{1,40})(\/updates|\/review|\/postpone-request)?$/);
+  const taskMatch = path.match(/^\/tasks\/([A-Za-z0-9_-]{1,40})(\/updates|\/review|\/postpone-request|\/stages)?$/);
   if (taskMatch) {
     const id = taskMatch[1];
     const sub = taskMatch[2] || "";
@@ -1479,6 +1586,18 @@ export async function handleTaskApi(request, env, url, path, method) {
         "SELECT id,update_id,file_name,mime,bytes,created_at,kind,url,title FROM task_files WHERE task_id = ? ORDER BY created_at ASC"
       ).bind(id).all();
       const subs = await db.prepare(TASK_SELECT + "WHERE t.parent_id = ?" + TASK_ORDER).bind(id).all();
+      /* งานป้าย: รูปล่าสุดของแต่ละขั้น เอาไปโชว์ใน funnel โดยไม่ต้องเปิดทีละขั้น */
+      const subRows = (subs.results || []).map(rowToTask);
+      const stageIds = subRows.filter((x) => x.stage && x.nFiles).map((x) => x.id);
+      if (stageIds.length) {
+        const pr = await db.prepare(
+          "SELECT task_id, MAX(created_at) AS at, id FROM task_files WHERE kind = 'file' AND task_id IN (" +
+          stageIds.map(() => "?").join(",") + ") GROUP BY task_id"
+        ).bind(...stageIds).all();
+        const pic = {};
+        for (const r of (pr.results || [])) pic[r.task_id] = r.id;
+        subRows.forEach((x) => { if (pic[x.id]) x.picId = pic[x.id]; });
+      }
       let parent = null;
       if (task.parentId) {
         const pr = await db.prepare("SELECT id, title FROM tasks WHERE id = ?").bind(task.parentId).first();
@@ -1487,7 +1606,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       return json({
         task,
         parent,
-        subtasks: (subs.results || []).map(rowToTask),
+        subtasks: subRows,
         updates: (ups.results || []).map((u) => ({
           id: u.id, staffId: u.staff_id, kind: u.kind, note: u.note || "", statusTo: u.status_to || null,
           createdAt: u.created_at, editedAt: u.edited_at || null,
@@ -1519,6 +1638,10 @@ export async function handleTaskApi(request, env, url, path, method) {
           taskKind: body.taskKind != null ? body.taskKind : task.taskKind,
           hours: body.hours !== undefined ? body.hours : task.hours,
           support: body.support != null ? body.support : task.support,
+          signW: body.signW !== undefined ? body.signW : task.signW,
+          signH: body.signH !== undefined ? body.signH : task.signH,
+          signQty: body.signQty !== undefined ? body.signQty : task.signQty,
+          signBranch: body.signBranch !== undefined ? body.signBranch : task.signBranch,
         };
         const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds, sets.campaignIds);
         if (parsed.error) return json({ error: parsed.error }, 400);
@@ -1528,10 +1651,11 @@ export async function handleTaskApi(request, env, url, path, method) {
         const moved = !!(task.dueAt && v.dueAt && new Date(task.dueAt).getTime() !== new Date(v.dueAt).getTime());
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=? WHERE id=?"
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
           ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
                  v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType,
-                 v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0), id),
+                 v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0),
+                 v.signW, v.signH, v.signQty, v.signBranch, id),
           db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
         ];
         if (moved) {
@@ -1554,6 +1678,21 @@ export async function handleTaskApi(request, env, url, path, method) {
             .bind(st.submitted, st.approvedAt, st.approvedBy, id));
         }
         await db.batch(stmts);
+        /* งานป้ายหลักเลื่อนวันติดตั้ง → คำนวณวันคาดว่าเสร็จของทุกขั้นใหม่ (เฉพาะขั้นที่ยังไม่ปิด)
+           กลายเป็นป้ายทีหลัง → สร้าง 6 ขั้นให้ */
+        if (v.taskType === "signage" && !task.parentId) {
+          if (task.taskType !== "signage") await ensureSignStages(db, id, me.id, now);
+          else if (moved && v.dueAt) {
+            const dues = stageDueDates(v.dueAt, await signLeads(db));
+            const kids = await db.prepare("SELECT id, stage, status FROM tasks WHERE parent_id = ? AND stage IS NOT NULL").bind(id).all();
+            const fix = [];
+            for (const k of (kids.results || [])) {
+              if (k.status === "done" || !dues[k.stage]) continue;
+              fix.push(db.prepare("UPDATE tasks SET due_at=?, updated_at=? WHERE id=?").bind(dues[k.stage], now, k.id));
+            }
+            if (fix.length) await db.batch(fix);
+          }
+        }
         return json({ ok: true });
       }
       /* ผู้รับงาน (หรือคนที่ได้สิทธิ์ติ๊กแทนคนอื่น): เปลี่ยนได้แค่สถานะ
@@ -1571,6 +1710,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
       const want = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
       if (!want && !backfill && !moveIt) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      if (want && (want === "done" || want === "review") && task.stage) {
+        const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ?").bind(id).first();
+        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + (SIGN_STAGES.filter((x) => x.k === task.stage)[0] || {}).th + "” ต้องแนบรูปยืนยันก่อน — เข้าไปในงานแล้วแนบรูปพร้อมกดส่ง" }, 400);
+      }
       const stmts2 = [];
       if (backfill || moveIt) {
         const iso = new Date(body.dueAt).toISOString();
@@ -1641,6 +1784,11 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
       /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ ทุกงานรวมงานประจำ */
       const newStatus = status ? statusFor(status, task, canApprove) : null;
+      /* ขั้นของงานป้าย: ปิดโดยไม่มีรูปไม่ได้ (นับรูปที่แนบมารอบนี้ + ที่มีอยู่แล้ว) */
+      if (newStatus && (newStatus === "done" || newStatus === "review") && task.stage && !files.length) {
+        const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ? AND kind = 'file'").bind(id).first();
+        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + (SIGN_STAGES.filter((x) => x.k === task.stage)[0] || {}).th + "” ต้องแนบรูปยืนยันในรอบเดียวกัน" }, 400);
+      }
       const now = nowIso();
       const uid = newId("u_");
       const stmts = [
@@ -1717,6 +1865,14 @@ export async function handleTaskApi(request, env, url, path, method) {
         db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, approved_at=?, approved_by=? WHERE id=?")
           .bind(status, now, pass ? now : null, pass ? now : null, pass ? me.id : null, id),
       ];
+      /* ขั้นของงานป้ายผ่านแล้ว → บันทึกขั้นล่าสุดไว้ที่งานหลัก จะได้เห็นในหน้ารายการโดยไม่ต้องโหลดงานย่อย */
+      if (pass && task.stage && task.parentId) {
+        const par = await db.prepare("SELECT stage FROM tasks WHERE id = ?").bind(task.parentId).first();
+        const cur = par ? SIGN_STAGE_KEYS.indexOf(par.stage) : -1;
+        if (SIGN_STAGE_KEYS.indexOf(task.stage) > cur) {
+          stmts.push(db.prepare("UPDATE tasks SET stage=?, updated_at=? WHERE id=?").bind(task.stage, now, task.parentId));
+        }
+      }
       /* บอกคนรับงานทุกคนว่าผ่านแล้วหรือต้องแก้ */
       for (const sid of task.assignees) {
         if (sid === me.id) continue;
@@ -1727,6 +1883,14 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
       await db.batch(stmts);
       return json({ ok: true, status });
+    }
+
+    /* ---- สร้าง 6 ขั้นให้งานป้ายที่ยังไม่มี (งานเก่าก่อนมีระบบนี้) ---- */
+    if (sub === "/stages" && method === "POST") {
+      if (!(isOwner || task.createdBy === me.id || mine)) return json({ error: "ไม่มีสิทธิ์" }, 403);
+      if (task.taskType !== "signage") return json({ error: "ไม่ใช่งานป้าย" }, 400);
+      const r = await ensureSignStages(db, id, me.id, nowIso());
+      return json({ ok: true, created: r.created });
     }
 
     /* ---- ขอเลื่อนกำหนดส่ง: น้องขอ → เด้งหาหัวหน้า (เลื่อนจริงได้เฉพาะหัวหน้า) ---- */
