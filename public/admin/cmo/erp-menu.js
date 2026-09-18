@@ -30,7 +30,6 @@
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
-        { icon: 'monitor',   label: 'โพสต์ทั้งเดือน',   tasks: '#/posts?range=month' },
         { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
         { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' }
       ]}
