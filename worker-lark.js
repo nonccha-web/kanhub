@@ -51,7 +51,8 @@ export async function buildDigest(db) {
   const review = open.filter((t) => t.status === "review");
   const blocked = open.filter((t) => t.status === "blocked");
   /* ค้างไม่อัปเดต = ยังไม่เสร็จ และไม่มีใครแตะเกิน 3 วัน (ไม่นับที่เพิ่งสั่งวันนี้) */
-  const stale = open.filter((t) => t.status !== "review" && daysAgo(t.updatedAt) >= 3 && !dueToday.includes(t));
+  /* งานที่เลยกำหนดอยู่แล้วไม่ต้องซ้ำในหมวดนี้ — บอกว่าเงียบกี่วันไว้ในบรรทัดเลยกำหนดแทน */
+  const stale = open.filter((t) => t.status !== "review" && daysAgo(t.updatedAt) >= 3 && !dueToday.includes(t) && !late.includes(t));
 
   /* งานประจำที่ยังไม่ติ๊กวันนี้ */
   const rr = await db.prepare(
@@ -70,8 +71,9 @@ export async function buildDigest(db) {
 function line(t, withDue) {
   const who = t.who && t.who.length ? " — " + t.who.join(", ") : " — ยังไม่มีคนรับ";
   const due = withDue && t.dueAt ? " (" + thDate(t.dueAt) + ")" : "";
+  const quiet = daysAgo(t.updatedAt) >= 3 ? " · เงียบ " + daysAgo(t.updatedAt) + " วัน" : "";
   const tail = t.status === "blocked" ? " ⚠️ติดปัญหา" : "";
-  return "• " + t.title + who + due + tail;
+  return "• " + t.title + who + due + quiet + tail;
 }
 function cap(list, n) {
   const out = list.slice(0, n).map((t) => line(t, true));
