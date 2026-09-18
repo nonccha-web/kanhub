@@ -312,6 +312,23 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.hidden = true; }, bad ? 4200 : 2600);
   }
+  /* toast ที่มีปุ่ม "เลิกทำ" — นนท์กดปิดงานผิดแล้วหาทางกลับไม่เจอ (18 ก.ย. 69)
+     ค้างไว้ 8 วิ ให้ทันกด · กดแล้วเรียก undo() ที่ส่งมา */
+  function toastUndo(msg, undo) {
+    var el = $('#toast');
+    el.innerHTML = esc(msg) + ' <button type="button" class="tundo">เลิกทำ</button>';
+    el.className = 'toast';
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 8000);
+    var b = el.querySelector('.tundo');
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      clearTimeout(toastTimer);
+      Promise.resolve(undo()).then(function () { el.hidden = true; })
+        .catch(function (e) { toast(e.message, true); });
+    });
+  }
 
   /* ============================================================
      ตัวช่วยพิมพ์ในช่องข้อความ: แท็บคน (@) และรายการอัตโนมัติ (1. / -)
@@ -1602,12 +1619,18 @@
     var req = act === 'approve'
       ? api('/tasks/' + id + '/review', 'POST', { pass: true })
       : api('/tasks/' + id, 'PUT', { status: act === 'undone' ? 'todo' : 'done' });
+    var prev = ((S.tasks || []).filter(function (x) { return x.id === id; })[0] || {}).status || 'todo';
     req.then(function (j) {
       S.tasks = null;
       var msg = act === 'approve' ? 'ตรวจผ่านแล้ว'
         : (act === 'undone' ? 'เอากลับมาเป็นรอทำแล้ว'
         : (j && j.status === 'review' ? 'ส่งให้หัวหน้าตรวจแล้ว' : 'ปิดงานแล้ว'));
-      toast(msg);
+      /* กดผิดกดคืนได้ทันที — เอากลับไปสถานะก่อนหน้า ไม่ใช่รอทำเสมอไป */
+      toastUndo(msg, function () {
+        return api('/tasks/' + id, 'PUT', { status: prev }).then(function () {
+          S.tasks = null; toast('เอากลับมาแล้ว'); render();
+        });
+      });
       render();
     }).catch(function (e) {
       btn.dataset.busy = '';
@@ -2211,7 +2234,11 @@
         api('/tasks/' + t.id + '/review', 'POST', { pass: pass, note: note })
           .then(function () {
             S.tasks = null;
-            toast(pass ? 'ตรวจผ่านแล้ว' : 'ส่งกลับให้แก้แล้ว');
+            toastUndo(pass ? 'ตรวจผ่านแล้ว' : 'ส่งกลับให้แก้แล้ว', function () {
+              return api('/tasks/' + t.id, 'PUT', { status: 'review' }).then(function () {
+                S.tasks = null; toast('เอากลับมาเป็นรอตรวจแล้ว'); renderTask(t.id);
+              });
+            });
             renderTask(t.id);
           })
           .catch(function (e) { $$('button', rf).forEach(function (x) { x.disabled = false; }); toast(e.message, true); });

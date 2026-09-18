@@ -420,6 +420,10 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200; background:var(--k-ink); color:var(--k-paper);
   padding:10px 18px; font-size:13px; border-radius:999px; box-shadow:0 10px 30px rgba(11,11,10,.25); }
 .toast.bad{ background:var(--k-bad); color:#fff; }
+.toast .tundo{ margin-left:12px; border:1px solid rgba(255,255,255,.4); background:none; color:inherit; font:inherit;
+  font-size:12.5px; font-weight:500; padding:3px 11px; border-radius:999px; cursor:pointer; }
+.toast .tundo:hover{ background:rgba(255,255,255,.14); }
+.toast .tundo:disabled{ opacity:.5; }
 /* ── ดูรูป: ย่อ–ขยาย–ลากได้ ──
    ของเดิมใช้ grid + max-height:100% ซึ่ง "ไม่ทำงาน" เพราะแถวของ grid เป็น auto
    เบราว์เซอร์ถือว่าเป็นวงจรย้อนกลับแล้วตีเป็น none รูปสูง ๆ เลยทะลุจอลงไปข้างล่าง
