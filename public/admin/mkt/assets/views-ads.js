@@ -38,6 +38,7 @@
   Object.keys(brSalesIx).forEach(function (k) {
     if (brSalesIx[k] != null) { salesIxBr[brSalesIx[k]] = k; }
   });
+  ADS.salesIx = function (key) { return brSalesIx[key] != null ? brSalesIx[key] : null; };
   ADS.brName = function (key) {
     for (var i = 0; i < ADS.branches.length; i++) {
       if (ADS.branches[i].key === key) { return ADS.branches[i].name; }
@@ -225,7 +226,10 @@
 
       var M = A.meta;
       var b = KAN.branchFilter();
-      var brKey = b != null ? (salesIxBr[b] || null) : null;
+      var sb = KAN.state.branch;
+      /* สาขาที่มีเฉพาะฝั่งแอด (เลือกจากตัวกรอง 'ads:<key>') */
+      var adsOnly = typeof sb === 'string' && sb.indexOf('ads:') === 0 ? sb.slice(4) : null;
+      var brKey = adsOnly || (b != null ? (salesIxBr[b] || null) : null);
       var brMissing = b != null && !brKey;
 
       /* ตัดช่วงให้อยู่ในกรอบที่ข้อมูลแอดมีจริง */
@@ -300,12 +304,19 @@
       h += '</div>';
 
       /* ── 2. คุ้มไหม (เทียบยอดขายช่วงเดียวกัน) ────────────────────── */
-
+      /* KAN HUB เป็นโกดัง / นครไม่มีในระบบขาย → ไม่มีบิลหน้าร้านให้เทียบ ข้ามส่วนนี้ไปเลย */
+      var noPos = adsOnly || (b != null && D.branches[b] && D.branches[b].kind !== 'store');
+      if (noPos) {
+        h += UI.sect({
+          id: 'worth', eyebrow: 'คุ้มไหม', title: 'ค่าแอดเทียบกับยอดขาย',
+          lead: 'สาขานี้ไม่มีบิลหน้าร้านในระบบขาย จึงเทียบค่าแอดกับยอดขายไม่ได้ — ดูผลที่วัดได้ในแอดเอง (ทัก แชท เอ็นเกจ) ด้านล่างแทน',
+          body: '' });
+      }
       var perBaht = t.spend ? pos.net / t.spend : 0;
       var share   = pos.net ? t.spend / pos.net : 0;
       var tone = share === 0 ? '' : share <= 0.05 ? 'g' : share <= 0.10 ? 'a' : 'r';
 
-      h += UI.sect({
+      if (!noPos) h += UI.sect({
         id: 'worth', eyebrow: 'คุ้มไหม', title: 'ค่าแอดเทียบกับยอดขายในช่วงเดียวกัน',
         lead: 'ดูว่าเงินที่จ่ายให้ Meta คิดเป็นสัดส่วนเท่าไหร่ของยอดขายที่เข้ามาจริง',
         body:

@@ -235,6 +235,8 @@
 
   KAN.branchFilter = function () {
     var b = KAN.state.branch;
+    /* 'ads:<key>' = สาขาที่มีแค่ฝั่งแอด (นคร) — ฝั่งยอดขายถือว่าไม่ได้กรอง */
+    if (typeof b === 'string' && b.indexOf('ads:') === 0) { return null; }
     return b === 'all' ? null : +b;
   };
 
@@ -940,6 +942,8 @@
     return b ? b.name : '—';
   };
   KAN.scopeLabel = function () {
+    var sb = KAN.state.branch;
+    if (typeof sb === 'string' && sb.indexOf('ads:') === 0 && KAN.ADS) { return KAN.ADS.brName(sb.slice(4)); }
     var b = KAN.branchFilter();
     return b == null ? 'ทุกสาขา' : KAN.branchName(b);
   };

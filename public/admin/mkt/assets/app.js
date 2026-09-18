@@ -44,11 +44,21 @@
     var h = '<div class="frow2">';
 
     h += '<div class="f"><label>สาขา</label><select id="fBranch"><option value="all">ทุกสาขา</option>';
-    D.branches.forEach(function (b, i) {
-      if (b.kind !== 'store') { return; }
-      h += '<option value="' + i + '"' + (String(s.branch) === String(i) ? ' selected' : '') + '>' +
-           esc(b.name) + '</option>';
-    });
+    var ADS = KAN.ADS;
+    if (KAN.currentView === 'ads' && ADS && ADS.ok) {
+      /* หน้ารายงานแอด: สาขาตามบัญชีโฆษณา — รวม KAN HUB (โกดัง ไม่มีบิลหน้าร้าน แต่ยิงแอดเอง)
+         และสาขาที่ฝั่งยอดขายไม่มี (นคร) — นนท์ทัก 18 ก.ย. 69 ว่าไม่มีตัวกรอง KAN HUB */
+      ADS.branches.forEach(function (b) {
+        var v = ADS.salesIx(b.key) != null ? String(ADS.salesIx(b.key)) : 'ads:' + b.key;
+        h += '<option value="' + esc(v) + '"' + (String(s.branch) === v ? ' selected' : '') + '>' + esc(b.name) + '</option>';
+      });
+    } else {
+      D.branches.forEach(function (b, i) {
+        if (b.kind !== 'store') { return; }
+        h += '<option value="' + i + '"' + (String(s.branch) === String(i) ? ' selected' : '') + '>' +
+             esc(b.name) + '</option>';
+      });
+    }
     h += '</select></div>';
 
     h += '<div class="f"><label>ช่วงเวลา</label><div class="dr-wrap" id="drHost"></div></div>';
@@ -57,7 +67,7 @@
     document.getElementById('filterHost').innerHTML = h;
 
     document.getElementById('fBranch').addEventListener('change', function () {
-      KAN.state.branch = this.value === 'all' ? 'all' : +this.value;
+      KAN.state.branch = this.value === 'all' ? 'all' : (this.value.indexOf('ads:') === 0 ? this.value : +this.value);
       render();
     });
 
@@ -80,6 +90,11 @@
     var v = KAN.views[current] || KAN.views.overview;
     var range = KAN.range();
     KAN.currentView = v.id;
+    if (v.id !== 'ads') {
+      var sb = KAN.state.branch;
+      if (typeof sb === 'string' && sb.indexOf('ads:') === 0) { KAN.state.branch = 'all'; }
+      else if (sb !== 'all' && D.branches[sb] && D.branches[sb].kind !== 'store') { KAN.state.branch = 'all'; }
+    }
 
     document.getElementById('crumb').innerHTML =
       'KAN Admin <span style="color:var(--muted)">/</span> ' + esc(v.group) +
