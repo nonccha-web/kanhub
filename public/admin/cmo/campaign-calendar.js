@@ -85,30 +85,41 @@
   }
   function stOf(it) { return STATUS[it.id] || null; }
   /* ข้อความสั้นบนแถบ: "ป้าย ผลิต 3/6 · โพสต์ 2/5 · งาน 1/3" — ว่าง = ยังไม่มีงานผูก */
+  var TASK_STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
+  var CHAN_TH = { line: "LINE", fb: "Facebook", tiktok: "TikTok", ig: "Instagram", other: "ช่องอื่น" };
   function hasMedia(st) { return !!(st && (st.signs.length || st.others.length || st.posts.total)); }
   function statusBrief(it) {
     var st = stOf(it);
     /* โปรฯ ทุกอันต้องมีสื่ออย่างน้อย LINE — ไม่มีอะไรผูกเลย = เตือนบนแถบ */
-    if (!hasMedia(st)) return '<span class="cc-st warn">ยังไม่มีสื่อ</span>';
+    if (!hasMedia(st)) return '<span class="cc-st warn" data-tip="ยังไม่มีโพสต์ งานป้าย หรืองานอื่นผูกกับโปรฯ นี้เลย — โปรฯ ทุกอันต้องมีอย่างน้อยโพสต์ LINE">ยังไม่มีสื่อ</span>';
     var parts = [];
     var line = st.chan && st.chan.line;
-    if (!line) parts.push('<span class="cc-st warn">LINE ✗</span>');
+    if (!line) parts.push('<span class="cc-st warn" data-tip="ยังไม่มีโพสต์ช่องทาง LINE สำหรับโปรฯ นี้ (มีเฉพาะช่องอื่น)">LINE ✗</span>');
     if (st.signs.length) {
       var worst = st.signs.slice().sort(function (a, b) { return a.stageIdx - b.stageIdx; })[0];
       var doneN = st.signs.filter(function (x) { return x.status === "done"; }).length;
-      parts.push('<span class="cc-st' + (st.signs.some(function (x) { return x.late; }) ? " late" : (doneN === st.signs.length ? " ok" : "")) + '">ป้าย ' +
+      var lateS = st.signs.filter(function (x) { return x.late; }).length;
+      var tipS = "งานป้าย " + st.signs.length + " งาน · ติดตั้งเสร็จ " + doneN +
+        (doneN === st.signs.length ? "" : " · งานที่ช้าสุดอยู่ขั้น “" + worst.stageTh + "” (ผ่านแล้ว " + Math.max(0, worst.stageIdx) + " จาก " + worst.nStages + " ขั้น)") +
+        (lateS ? " · เลยกำหนด " + lateS + " งาน" : "");
+      parts.push('<span class="cc-st' + (lateS ? " late" : (doneN === st.signs.length ? " ok" : "")) + '" data-tip="' + esc(tipS) + '">ป้าย ' +
         (st.signs.length > 1 ? st.signs.length + " · " : "") + (doneN === st.signs.length ? "ติดตั้งครบ" : esc(worst.stageTh) + (worst.nStages ? " " + Math.max(0, worst.stageIdx) + "/" + worst.nStages : "")) + "</span>");
     }
-    if (st.posts.total) parts.push('<span class="cc-st' + (st.posts.late ? " late" : (st.posts.done === st.posts.total ? " ok" : "")) + '">โพสต์ ' + st.posts.done + "/" + st.posts.total + "</span>");
+    if (st.posts.total) {
+      var tipP = "โพสต์ที่ผูกกับโปรฯ นี้ " + st.posts.total + " โพสต์ · ลงแล้ว " + st.posts.done + " · ยังไม่ลง " + (st.posts.total - st.posts.done) +
+        (st.posts.late ? " (เลยวันที่ต้องลง " + st.posts.late + ")" : "") +
+        (st.chan ? " · " + Object.keys(st.chan).map(function (k) { return CHAN_TH[k] + " " + st.chan[k].done + "/" + st.chan[k].total; }).join(", ") : "");
+      parts.push('<span class="cc-st' + (st.posts.late ? " late" : (st.posts.done === st.posts.total ? " ok" : "")) + '" data-tip="' + esc(tipP) + '">โพสต์ ' + st.posts.done + "/" + st.posts.total + "</span>");
+    }
     if (st.others.length) {
       var od = st.others.filter(function (x) { return x.status === "done"; }).length;
-      parts.push('<span class="cc-st' + (st.others.some(function (x) { return x.late; }) ? " late" : (od === st.others.length ? " ok" : "")) + '">งาน ' + od + "/" + st.others.length + "</span>");
+      var lateO = st.others.filter(function (x) { return x.late; }).length;
+      var tipO = "งานอื่น (คลิป/คอนเทนต์/จัดร้าน) " + st.others.length + " งาน · เสร็จ " + od + (lateO ? " · เลยกำหนด " + lateO : "") + " — " + st.others.map(function (x) { return x.title + " (" + (TASK_STATUS_TH[x.status] || x.status) + ")"; }).join(", ");
+      parts.push('<span class="cc-st' + (lateO ? " late" : (od === st.others.length ? " ok" : "")) + '" data-tip="' + esc(tipO) + '">งาน ' + od + "/" + st.others.length + "</span>");
     }
     return parts.join("");
   }
-  var TASK_STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
   /* บล็อกสถานะเต็มในการ์ด: funnel จุดต่องานป้าย · โพสต์ · งานอื่น — กดแต่ละบรรทัดไปงานนั้น */
-  var CHAN_TH = { line: "LINE", fb: "Facebook", tiktok: "TikTok", ig: "Instagram", other: "ช่องอื่น" };
   function statusBlock(it) {
     var st = stOf(it) || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 }, chan: {} };
     var h = '<div class="cc-stblk">';
@@ -117,10 +128,10 @@
     var line = chan.line;
     h += '<div class="cc-media">' +
       '<a class="cc-mchip' + (line ? (line.late ? " late" : (line.done === line.total ? " ok" : " some")) : " miss") + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '" title="โพสต์ LINE">' +
-        (line ? "LINE " + line.done + "/" + line.total : "LINE ✗ ยังไม่มี") + "</a>" +
+        (line ? "LINE ลงแล้ว " + line.done + "/" + line.total + (line.late ? " · เลยวัน " + line.late : "") : "LINE ✗ ยังไม่มี") + "</a>" +
       Object.keys(chan).filter(function (k) { return k !== "line"; }).map(function (k) {
         var c = chan[k];
-        return '<a class="cc-mchip' + (c.late ? " late" : (c.done === c.total ? " ok" : " some")) + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '">' + CHAN_TH[k] + " " + c.done + "/" + c.total + "</a>";
+        return '<a class="cc-mchip' + (c.late ? " late" : (c.done === c.total ? " ok" : " some")) + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '">' + CHAN_TH[k] + " ลงแล้ว " + c.done + "/" + c.total + (c.late ? " · เลยวัน " + c.late : "") + "</a>";
       }).join("") +
       (st.signs.length ? "" : '<a class="cc-mchip miss" href="' + TASKS_BASE + '#/new?campaign=' + it.id + '&ttype=signage" title="ยังไม่มีงานป้าย">ป้าย ✗</a>') +
       "</div>";
@@ -613,6 +624,24 @@
     return null;
   }
 
+  /* กล่องขยายความของป้ายเล็ก ๆ บนแถบ (data-tip) — ขึ้นทันทีเมื่อเมาส์ค้าง */
+  var tipEl = null;
+  function showTip(el) {
+    if (!tipEl) { tipEl = document.createElement("div"); tipEl.className = "cc-tip"; document.body.appendChild(tipEl); }
+    tipEl.textContent = el.getAttribute("data-tip");
+    tipEl.classList.add("show");
+    var r = el.getBoundingClientRect();
+    tipEl.style.left = "0px"; tipEl.style.top = "0px";
+    var w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var top = r.bottom + 6; if (top + h > window.innerHeight - 8) top = r.top - h - 6;
+    tipEl.style.left = left + "px"; tipEl.style.top = top + "px";
+  }
+  function hideTip() { if (tipEl) tipEl.classList.remove("show"); }
+  document.addEventListener("mouseover", function (e) {
+    var tp = e.target.closest("[data-tip]");
+    if (tp) showTip(tp); else hideTip();
+  });
   document.addEventListener("mouseover", function (e) {
     var t = e.target.closest("[data-edit],[data-open],[data-daypeek]");
     if (!t) return;

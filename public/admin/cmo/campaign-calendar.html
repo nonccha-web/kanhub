@@ -162,6 +162,9 @@ body{ padding:24px 20px; }
 .cc-mchip:hover{ background:var(--bg-card-hover); }
 .cc-stnote{ font-size:11.5px; color:var(--text-muted); line-height:1.5; }
 .cc-stnote a{ color:var(--accent-text); }
+.cc-tip{ position:fixed; z-index:90; max-width:320px; padding:8px 11px; border-radius:8px; font-size:12px; line-height:1.55;
+  background:var(--text-primary); color:var(--bg-glass); box-shadow:0 6px 20px rgba(0,0,0,.18); opacity:0; pointer-events:none; transition:opacity .1s; }
+.cc-tip.show{ opacity:1; }
 .cc-hover-meta .cc-st{ margin-left:0; margin-right:6px; background:var(--bg-card-subtle); }
 .cc-stblk{ margin-top:8px; padding-top:8px; border-top:1px dashed var(--bg-glass-border); display:flex; flex-direction:column; gap:4px; }
 .cc-stblk.empty{ font-size:11.5px; color:var(--text-muted); }
@@ -579,6 +582,6 @@ body{ padding:24px 20px; }
 
 <script src="erp-menu.js?v=34"></script>
 <script src="nav.js?v=27"></script>
-<script src="campaign-calendar.js?v=12"></script>
+<script src="campaign-calendar.js?v=13"></script>
 </body>
 </html>
