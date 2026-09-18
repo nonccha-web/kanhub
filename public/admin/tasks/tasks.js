@@ -104,6 +104,14 @@
     if (readOnly()) return false;
     return canApprove(t) || mineTask(t) || (S.me && S.me.canUpdateOthers);
   }
+  /* แก้กำหนดส่งจากแถว: หัวหน้า/คนสั่งแก้ได้เสมอ · คนรับใส่วันให้งานที่ยังไม่มีวันได้ · เลื่อนวันที่มีแล้วต้องมี can_reschedule */
+  function canDue(t) {
+    if (readOnly() || !S.me) return false;
+    if (canEditRow(t)) return true;
+    if (!(mineTask(t) || S.me.canUpdateOthers)) return false;
+    return !t.dueAt || !!S.me.canReschedule;
+  }
+  function taskById(id) { return (S.tasks || []).filter(function (x) { return x.id === id; })[0] || null; }
   var DOW_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   function workDaysLabel(s2) {
     if (!s2.workDays) return 'ยังไม่ตั้งวันทำงาน';
@@ -745,18 +753,17 @@
             (t.repeat === 'daily' ? (late ? 'ยังไม่อัปเดตวันนี้' : 'ประจำวัน')
               : (t.repeat === 'monthly' ? 'ประจำเดือน' : 'ประจำสัปดาห์')) + '</span>')
       : '';
-    /* วงกลมหน้าแถวกดติ๊กได้เลย ไม่ต้องเข้าไปในงาน — พิซซ่าขอไว้ว่าหาไม่เจอ
-       งานรอตรวจ: หัวหน้ากดตรงนี้ = ตรวจผ่าน · คนอื่นกดไม่ได้ */
-    var tick = canTick(t);
-    var act = es === 'review' ? (canApprove(t) ? 'approve' : '') : (es === 'done' ? 'undone' : 'done');
-    var tip = act === 'approve' ? 'ตรวจผ่าน' : (act === 'undone' ? 'เอากลับมาเป็นยังไม่เสร็จ'
-      : (canApprove(t) ? 'ปิดงานนี้' : 'ส่งให้หัวหน้าตรวจ'));
-    return '<a class="trow ' + esc(es) + '" href="#/task/' + esc(t.id) + '">' +
-      (tick && act
-        ? '<button type="button" class="st ' + esc(st) + ' tick" data-tick="' + esc(t.id) + '" data-act="' + act + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + mark + '</button>'
-        : '<span class="st ' + esc(st) + '">' + mark + '</span>') +
-      '<span class="main"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
-      '<span class="m">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
+    /* วงกลมหน้าแถว = ติ๊กเลือก (เลือกหลายงานแล้วสั่งจากแถบล่างทีเดียว — นนท์ขอ 18 ก.ย. 69)
+       ปุ่มติ๊กเสร็จ/ตรวจผ่านของงานเดี่ยวย้ายไปอยู่ในเมนู ⋯ ท้ายแถว */
+    var sel = !!SEL[t.id];
+    var canMenu = canEditRow(t) || canTick(t);
+    return '<a class="trow ' + esc(es) + (sel ? ' selected' : '') + '" href="#/task/' + esc(t.id) + '">' +
+      selCircle(t, st, mark, sel) +
+      '<span class="main"><span class="tline"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
+      (canEditRow(t) ? '<i class="tpen" role="button" tabindex="0" data-tedit="' + esc(t.id) + '" title="แก้ชื่องาน" aria-label="แก้ชื่องาน">✎</i>' : '') + '</span>' +
+      '<span class="m">' +
+      (canEditRow(t) ? '<span class="edt" role="button" tabindex="0" data-aedit="' + esc(t.id) + '" title="เปลี่ยนคนรับ">' + avatars(t.assignees) + '</span>' : avatars(t.assignees)) +
+      typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
       (es === 'review' ? '<span class="pill review">รอตรวจ</span>' : '') +
       (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
@@ -764,9 +771,10 @@
       (t.parentId ? '<span class="pill sub">งานย่อย</span>' : '') +
       (t.nSub ? '<span title="งานย่อย">☑ ' + t.nSubDone + '/' + t.nSub + '</span>' : '') +
       (t.nFiles ? '<span>📷 ' + t.nFiles + '</span>' : '') + '</span></span>' +
-      '<span class="due ' + dueCls + '">' + esc(fmtDue(t)) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
-      /* แก้/ลบ ได้จากหน้ารายการเลย ไม่ต้องเข้าไปในงาน — ปุ่มเป็น <span> เพราะอยู่ใน <a> ซ้อน <button> ไม่ได้ */
-      (canEditRow(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="แก้ไข / ลบ" aria-label="แก้ไข หรือ ลบงานนี้">⋯</span>' : '<span class="rowmenu ghost"></span>') +
+      '<span class="due ' + dueCls + (canDue(t) ? ' edt' : '') + '"' + (canDue(t) ? ' role="button" tabindex="0" data-dedit="' + esc(t.id) + '" title="แก้กำหนดส่ง"' : '') + '>' +
+      esc(fmtDue(t)) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+      /* เมนู ⋯: ติ๊กเสร็จ/ตรวจผ่าน · แก้ไข · เปิดงานเต็ม · ลบ — ปุ่มเป็น <span> เพราะอยู่ใน <a> ซ้อน <button> ไม่ได้ */
+      (canMenu ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="เมนูงานนี้" aria-label="เมนูงานนี้">⋯</span>' : '<span class="rowmenu ghost"></span>') +
       '<svg class="arr" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>';
   }
   /* ลำดับงานที่กำลังเห็นอยู่ — ใช้ทำปุ่ม "ก่อนหน้า / ถัดไป" ในหน้ารายละเอียด
@@ -791,9 +799,10 @@
           btn(ids[i - 1], '‹ ก่อนหน้า', i <= 0) + btn(ids[i + 1], 'ถัดไป ›', i >= ids.length - 1)
         : '') + '</div>';
   }
+  function gsel() { return '<span class="gsel" role="checkbox" aria-checked="false" tabindex="0" data-gsel title="เลือกทั้งกลุ่ม" aria-label="เลือกทั้งกลุ่ม"></span>'; }
   function groupList(title, list, cls) {
     if (!list.length) return '';
-    return '<div class="group"><div class="group-h' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3><span>' + list.length + '</span></div>' +
+    return '<div class="group"><div class="group-h' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3><span>' + list.length + '</span>' + gsel() + '</div>' +
       '<div class="tlist">' + list.map(taskRow).join('') + '</div></div>';
   }
   /* ---------- บอร์ดแบบคัมบัง ----------
@@ -809,11 +818,14 @@
   ];
   function boardCard(t) {
     var late = isLate(t), es = effStatus(t);
-    return '<article class="kcard' + (late ? ' late' : '') + '" draggable="' + (canTick(t) ? 'true' : 'false') + '" data-kid="' + esc(t.id) + '">' +
-      '<a href="#/task/' + esc(t.id) + '"><b>' + (t.priority ? '★ ' : '') + esc(t.title) + '</b></a>' +
+    var sel = !!SEL[t.id];
+    var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : (es === 'review' ? '?' : ''));
+    return '<article class="kcard' + (late ? ' late' : '') + (sel ? ' selected' : '') + '" draggable="' + (canTick(t) ? 'true' : 'false') + '" data-kid="' + esc(t.id) + '">' +
+      '<div class="khead">' + selCircle(t, late ? 'late' : es, mark, sel, 'ksel') +
+      '<a href="#/task/' + esc(t.id) + '"><b>' + (t.priority ? '★ ' : '') + esc(t.title) + '</b></a></div>' +
       '<div class="kmeta">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + '</div>' +
       '<div class="kfoot"><span class="' + (late ? 'late' : '') + '">' + esc(fmtDue(t)) + '</span>' +
-      (canEditRow(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="แก้ไข / ลบ">⋯</span>' : '') +
+      (canEditRow(t) || canTick(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="เมนูงานนี้">⋯</span>' : '') +
       '</div></article>';
   }
   function kanban(list) {
@@ -918,7 +930,7 @@
         return effStatus(t) === 'review' && canApprove(t) && t.assignees.indexOf(S.me.id) === -1;
       });
       if (toReview.length) {
-        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span></div>' +
+        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() + '</div>' +
           '<div class="tlist">' + toReview.map(taskRow).join('') + '</div></div>';
       }
       /* แถบตรวจโพสต์ของวันนี้ — งาน routine ที่หัวหน้าทำทุกวัน ไม่ต้องสร้างเป็น task รายโพสต์ */
@@ -931,12 +943,13 @@
           groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat);
         if (b.done.length) {
-          h += '<div class="group"><div class="group-h"><h3>เสร็จแล้ว</h3><span>' + b.done.length + '</span>' +
+          h += '<div class="group"><div class="group-h"><h3>เสร็จแล้ว</h3><span>' + b.done.length + '</span>' + (S.showDone ? gsel() : '') +
             '<button type="button" class="btn-text" style="margin-left:auto" data-toggle-done>' + (S.showDone ? 'ซ่อน' : 'แสดง') + '</button></div>' +
             (S.showDone ? '<div class="tlist">' + b.done.slice(0, 40).map(taskRow).join('') + '</div>' : '') + '</div>';
         }
       }
       view.innerHTML = h;
+      syncSel();
 
       api('/posts/today').then(function (t) {
         var bar = $('#postBar');
@@ -1111,6 +1124,7 @@
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat) + groupList('เสร็จแล้ว', b.done);
       }
       view.innerHTML = h;
+      syncSel();
     }).catch(function (e) { showError(e); });
   }
 
@@ -1701,6 +1715,266 @@
     return parts.join(' · ');
   }
 
+  /* ============================================================
+     เลือกหลายงาน + สั่งทีเดียว · แก้ชื่อ/คนรับ/กำหนดส่งในแถว (นนท์ขอ 18 ก.ย. 69)
+     SEL = { id: 1 } ของที่ติ๊กไว้ · ล้างเมื่อเปลี่ยนหน้า · ตัดที่หายจากจอออกทุกครั้งที่วาดใหม่
+     ============================================================ */
+  var SEL = {};
+  var SEL_LAST = null;
+  function selIds() { return Object.keys(SEL); }
+  function selTasks() { return selIds().map(taskById).filter(Boolean); }
+  function selCircle(t, st, mark, on, extra) {
+    return '<span class="st ' + esc(st) + ' sel' + (on ? ' on' : '') + (extra ? ' ' + extra : '') + '" role="checkbox" tabindex="0" aria-checked="' + (on ? 'true' : 'false') +
+      '" data-sel="' + esc(t.id) + '" data-mark="' + esc(mark) + '" title="เลือกงานนี้ (Shift = เลือกเป็นช่วง)" aria-label="เลือกงานนี้">' + (on ? '✓' : mark) + '</span>';
+  }
+  function toggleSel(id, range) {
+    if (range && SEL_LAST && SEL_LAST !== id) {
+      /* Shift+คลิก = เลือกทุกแถวระหว่างอันก่อนกับอันนี้ ตามลำดับที่เห็นบนจอ */
+      var all = $$('[data-sel]').map(function (el) { return el.getAttribute('data-sel'); });
+      var a = all.indexOf(SEL_LAST), b = all.indexOf(id);
+      if (a !== -1 && b !== -1) {
+        var lo = Math.min(a, b), hi = Math.max(a, b);
+        for (var i = lo; i <= hi; i++) SEL[all[i]] = 1;
+        SEL_LAST = id; paintSel(); return;
+      }
+    }
+    if (SEL[id]) delete SEL[id]; else SEL[id] = 1;
+    SEL_LAST = id;
+    paintSel();
+  }
+  function syncSel() {
+    var onScreen = {};
+    $$('[data-sel]').forEach(function (el) { onScreen[el.getAttribute('data-sel')] = 1; });
+    selIds().forEach(function (id) { if (!onScreen[id]) delete SEL[id]; });
+    paintSel();
+  }
+  function paintSel() {
+    $$('[data-sel]').forEach(function (el) {
+      var on = !!SEL[el.getAttribute('data-sel')];
+      el.classList.toggle('on', on);
+      el.setAttribute('aria-checked', on ? 'true' : 'false');
+      el.textContent = on ? '✓' : (el.getAttribute('data-mark') || '');
+      var row = el.closest('.trow, .kcard');
+      if (row) row.classList.toggle('selected', on);
+    });
+    $$('.group').forEach(function (g) {
+      var gs = $('[data-gsel]', g); if (!gs) return;
+      var all = $$('[data-sel]', g);
+      var n = all.filter(function (el) { return SEL[el.getAttribute('data-sel')]; }).length;
+      gs.classList.toggle('on', all.length > 0 && n === all.length);
+      gs.classList.toggle('some', n > 0 && n < all.length);
+      gs.setAttribute('aria-checked', n === 0 ? 'false' : (n === all.length ? 'true' : 'mixed'));
+    });
+    renderBulk();
+  }
+  /* แถบคำสั่งล่าง — ปุ่มขึ้นตามสิทธิ์ของงานที่เลือก */
+  function renderBulk() {
+    var bar = $('#bulkbar');
+    var ts = selTasks();
+    if (!ts.length) { if (bar) bar.remove(); document.body.classList.remove('has-bulk'); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'bulkbar'; bar.className = 'bulkbar'; bar.setAttribute('role', 'toolbar'); document.body.appendChild(bar); }
+    document.body.classList.add('has-bulk');
+    var anyApprove = ts.some(function (t) { return effStatus(t) === 'review' && canApprove(t); });
+    var allApprove = ts.every(canApprove);
+    var allEdit = ts.every(canEditRow);
+    var anyTick = ts.some(canTick);
+    var anyDue = ts.some(canDue);
+    var h = '<span class="bn"><b>' + ts.length + '</b> งานที่เลือก</span>';
+    if (anyApprove) h += '<button type="button" class="btn sm" data-bulk="approve">ตรวจผ่าน</button>';
+    if (anyTick) h += '<button type="button" class="btn-ghost sm" data-bulk="done">' + (allApprove ? 'เสร็จแล้ว' : 'เสร็จแล้ว → ส่งตรวจ') + '</button>';
+    if (anyTick) h += '<select class="select" data-bulk-status aria-label="เปลี่ยนสถานะ"><option value="">เปลี่ยนสถานะ…</option>' +
+      ['todo', 'doing', 'blocked'].map(function (k) { return '<option value="' + k + '">' + STATUS_TH[k] + '</option>'; }).join('') + '</select>';
+    if (allEdit) h += '<button type="button" class="btn-ghost sm" data-bulk="assign">คนรับ</button>';
+    if (anyDue) h += '<button type="button" class="btn-ghost sm" data-bulk="due">เลื่อนส่ง</button>';
+    if (amOwner()) h += '<button type="button" class="btn-ghost sm danger" data-bulk="delete">ลบ</button>';
+    h += '<button type="button" class="bx" data-bulk="clear" title="ยกเลิกการเลือก" aria-label="ยกเลิกการเลือก">✕</button>';
+    bar.innerHTML = h;
+    var sel = $('[data-bulk-status]', bar);
+    if (sel) sel.addEventListener('change', function () { if (this.value) bulkRun('status', { status: this.value }, 'เปลี่ยนเป็น ' + STATUS_TH[this.value]); });
+  }
+  function bulkClick(k, btn) {
+    if (k === 'clear') { SEL = {}; paintSel(); return; }
+    if (k === 'approve') return bulkRun('approve', {}, 'ตรวจผ่าน');
+    if (k === 'done') return bulkRun('done', {}, 'ปิดงาน');
+    if (k === 'assign') return assignPop(btn, selIds());
+    if (k === 'due') return duePop(btn, selIds());
+    if (k === 'delete') {
+      var n = selIds().length;
+      if (!confirm('ลบ ' + n + ' งานที่เลือกออกจากระบบ? งานย่อย รูป และประวัติจะหายไปด้วย ย้อนกลับไม่ได้')) return;
+      return bulkRun('delete', {}, 'ลบแล้ว');
+    }
+  }
+  function bulkRun(action, payload, label) {
+    var ids = selIds();
+    if (!ids.length) return Promise.resolve();
+    var bar = $('#bulkbar'); if (bar) bar.classList.add('busy');
+    popClose();
+    return api('/tasks/bulk', 'POST', Object.assign({ ids: ids, action: action }, payload || {})).then(function (j) {
+      S.tasks = null; SEL = {};
+      var msg = label + ' ' + (j.done || 0) + ' งาน';
+      if (j.skipped && j.skipped.length) {
+        var why = [];
+        j.skipped.forEach(function (x) { if (why.indexOf(x.reason) === -1) why.push(x.reason); });
+        msg += ' · ข้าม ' + j.skipped.length + ' งาน (' + why.slice(0, 2).join(' / ') + ')';
+      }
+      var undoable = (action === 'approve' || action === 'done' || action === 'status') && j.changed && j.changed.length;
+      if (undoable) toastUndo(msg, function () { return bulkRevert(j.changed); });
+      else toast(msg, !j.done);
+      render();
+    }).catch(function (e) { if (bar) bar.classList.remove('busy'); toast(e.message, true); });
+  }
+  /* เลิกทำ: คืนสถานะเดิมของแต่ละงาน — จัดกลุ่มตามสถานะเดิม ยิงทีละกลุ่ม */
+  function bulkRevert(changed) {
+    var by = {};
+    changed.forEach(function (c) { var k = c.prev || 'todo'; (by[k] = by[k] || []).push(c.id); });
+    return Promise.all(Object.keys(by).map(function (st) {
+      return api('/tasks/bulk', 'POST', { ids: by[st], action: 'status', status: st });
+    })).then(function () { S.tasks = null; toast('เอากลับมาแล้ว'); render(); });
+  }
+
+  /* ---------- ป๊อปอัปเล็กใต้ปุ่ม: คนรับ · กำหนดส่ง · เมนู ⋯ ---------- */
+  var POP = null;
+  function popClose() { if (POP) { POP.remove(); POP = null; } }
+  function popOpen(anchor, html) {
+    popClose();
+    var el = document.createElement('div');
+    el.className = 'pop';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    var r = anchor.getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var top = r.bottom + 6;
+    if (top + hh > window.innerHeight - 8) top = Math.max(8, r.top - hh - 6);
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    POP = el;
+    $$('[data-pop-cancel]', el).forEach(function (b) { b.addEventListener('click', popClose); });
+    return el;
+  }
+  document.addEventListener('click', function (ev) {
+    if (POP && !POP.contains(ev.target)) popClose();
+  }, true);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && POP) { popClose(); return; }
+    /* วงกลมเลือก/ปุ่มในแถวกดด้วยคีย์บอร์ดได้ (แถวเป็นลิงก์ Enter ปกติจะพาไปหน้างาน) */
+    var el = ev.target;
+    if ((ev.key === ' ' || ev.key === 'Enter') && el.matches && el.matches('[data-sel],[data-gsel],[data-tedit],[data-aedit],[data-dedit],[data-rowmenu]')) {
+      ev.preventDefault(); el.click();
+    }
+  });
+  function assignPop(anchor, ids) {
+    var one = ids.length === 1 ? taskById(ids[0]) : null;
+    var cur = one ? one.assignees : [];
+    var el = popOpen(anchor, '<div class="ph">' + (one ? 'มอบหมาย “' + esc(one.title) + '” ให้' : 'มอบหมาย ' + ids.length + ' งานให้') + '</div>' +
+      '<div class="chips" id="popAs">' + activeStaff().map(function (x) {
+        return '<button type="button" class="chip' + (cur.indexOf(x.id) !== -1 ? ' on' : '') + '" data-as="' + esc(x.id) + '">' + avatar(x) + esc(shortName(x)) + '</button>';
+      }).join('') + '</div>' +
+      (one ? '' : '<div class="pqn">คนที่เลือกจะแทนคนรับเดิมของทุกงาน</div>') +
+      '<div class="pf"><button type="button" class="btn-ghost sm" data-pop-cancel>ยกเลิก</button><button type="button" class="btn sm" data-pop-ok>บันทึก</button></div>');
+    $('#popAs', el).addEventListener('click', function (ev) { var b = ev.target.closest('[data-as]'); if (b) b.classList.toggle('on'); });
+    $('[data-pop-ok]', el).addEventListener('click', function () {
+      var who = $$('.chip.on[data-as]', el).map(function (b) { return b.getAttribute('data-as'); });
+      this.disabled = true;
+      if (one) {
+        api('/tasks/' + one.id, 'PUT', { assignees: who }).then(function () { S.tasks = null; popClose(); toast(who.length ? 'เปลี่ยนคนรับแล้ว' : 'เอาคนรับออกแล้ว'); render(); })
+          .catch(function (e) { toast(e.message, true); });
+      } else bulkRun('assign', { assignees: who }, 'เปลี่ยนคนรับ');
+    });
+  }
+  /* วันลัดจากวันเดิม (หรือวันนี้ถ้ายังไม่มี) เวลาเดิมคงไว้ */
+  function shiftFrom(base, days) {
+    var d = base ? new Date(base) : new Date(); if (!base) d.setHours(18, 0, 0, 0);
+    d.setDate(d.getDate() + days); return d;
+  }
+  function duePop(anchor, ids) {
+    var one = ids.length === 1 ? taskById(ids[0]) : null;
+    var quick = [['พรุ่งนี้', 'tmr'], ['+1 วัน', 1], ['+3 วัน', 3], ['ศุกร์นี้', 'fri'], ['+7 วัน', 7]];
+    var el = popOpen(anchor, '<div class="ph">' + (one ? 'กำหนดส่ง “' + esc(one.title) + '”' + (one.dueAt ? ' · ตอนนี้ ' + esc(fmtDue(one)) : '') : 'กำหนดส่ง ' + ids.length + ' งาน') + '</div>' +
+      '<input class="input" type="datetime-local" data-due-in value="' + esc(one ? toLocalInput(one.dueAt) : '') + '" aria-label="วันและเวลา">' +
+      '<div class="pq"><span class="pqn">' + (one ? 'ทางลัด' : 'เลื่อนจากวันเดิมของแต่ละงาน') + '</span>' +
+      quick.map(function (q) { return '<button type="button" class="chip plain" data-dq="' + q[1] + '">' + q[0] + '</button>'; }).join('') + '</div>' +
+      '<input class="input" data-due-why placeholder="เหตุผลที่เลื่อน (ถ้ามี)" maxlength="300">' +
+      '<div class="pf"><button type="button" class="btn-ghost sm" data-pop-cancel>ยกเลิก</button><button type="button" class="btn sm" data-pop-ok>' + (one ? 'บันทึก' : 'ตั้งวันนี้ให้ทุกงาน') + '</button></div>');
+    var inp = $('[data-due-in]', el), why = $('[data-due-why]', el);
+    function quickDate(q) {
+      var base = one ? one.dueAt : null;
+      if (q === 'tmr') return shiftFrom(startOfDay(new Date()).toISOString(), 1);
+      if (q === 'fri') { var d = nextWeekday(5, 18, 0); if (base) { var b0 = new Date(base); d.setHours(b0.getHours(), b0.getMinutes(), 0, 0); } return d; }
+      return shiftFrom(base, Number(q));
+    }
+    el.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-dq]'); if (!b) return;
+      var q = b.getAttribute('data-dq');
+      if (one || q === 'tmr' || q === 'fri') { inp.value = toLocalInput(quickDate(q).toISOString()); if (one) return; }
+      if (!one && (q === '1' || q === '3' || q === '7')) { bulkRun('due', { shiftDays: Number(q), reason: why.value.trim() }, 'เลื่อนส่ง'); return; }
+      if (!one) $('[data-pop-ok]', el).click();
+    });
+    $('[data-pop-ok]', el).addEventListener('click', function () {
+      var iso = fromLocalInput(inp.value);
+      if (!iso) { toast('ยังไม่ได้เลือกวัน', true); return; }
+      this.disabled = true;
+      if (one) {
+        api('/tasks/' + one.id, 'PUT', { dueAt: iso, reason: why.value.trim() })
+          .then(function () { S.tasks = null; popClose(); toast(one.dueAt ? 'เลื่อนกำหนดส่งแล้ว' : 'ใส่กำหนดส่งแล้ว'); render(); })
+          .catch(function (e) { toast(e.message, true); });
+      } else bulkRun('due', { dueAt: iso, reason: why.value.trim() }, 'ตั้งกำหนดส่ง');
+    });
+    inp.focus();
+  }
+  /* แก้ชื่อในแถว: Enter/คลิกที่อื่น = บันทึก · Esc = ยกเลิก */
+  function titleEdit(id) {
+    var t = taskById(id); if (!t) return;
+    var pen = $('[data-tedit="' + id + '"]'); if (!pen) return;
+    var main = pen.closest('.main'); if (!main || $('.tedit', main)) return;
+    var line = $('.tline', main);
+    line.innerHTML = '<span class="tedit"><input class="input" maxlength="200" aria-label="ชื่องาน"><span class="teh">Enter บันทึก · Esc ยกเลิก</span></span>';
+    var inp = $('input', line);
+    inp.value = t.title;
+    var closed = false;
+    function finish(save) {
+      if (closed) return; closed = true;
+      var v = inp.value.trim();
+      if (!save || !v || v === t.title) { render(); return; }
+      api('/tasks/' + id, 'PUT', { title: v }).then(function () { S.tasks = null; toast('แก้ชื่องานแล้ว'); render(); })
+        .catch(function (e) { toast(e.message, true); render(); });
+    }
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', function () { setTimeout(function () { finish(true); }, 0); });
+    inp.focus(); inp.select();
+  }
+  /* เมนู ⋯ ท้ายแถว */
+  function rowMenu(anchor, id) {
+    var t = taskById(id); if (!t) return;
+    var es = effStatus(t);
+    var act = es === 'review' ? (canApprove(t) ? 'approve' : '') : (es === 'done' ? 'undone' : 'done');
+    var tickLbl = act === 'approve' ? 'ตรวจผ่าน' : (act === 'undone' ? 'เอากลับมาเป็นยังไม่เสร็จ'
+      : (canApprove(t) ? 'ปิดงาน — เสร็จแล้ว' : 'เสร็จแล้ว — ส่งให้หัวหน้าตรวจ'));
+    var h = '<div class="pmenu">';
+    if (canTick(t) && act) h += '<button type="button" data-tick="' + esc(id) + '" data-act="' + act + '">' + esc(tickLbl) + '</button>';
+    if (canEditRow(t)) h += '<button type="button" data-pm="edit">แก้ไขรายละเอียด…</button>';
+    h += '<button type="button" data-pm="open">เปิดงานเต็ม</button>';
+    if (amOwner()) h += '<button type="button" class="danger" data-pm="del">ลบงานนี้</button>';
+    h += '</div>';
+    var el = popOpen(anchor, h);
+    el.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-pm]'); if (!b) return;
+      var k = b.getAttribute('data-pm');
+      popClose();
+      if (k === 'edit') quickEdit(id);
+      else if (k === 'open') location.hash = '#/task/' + id;
+      else if (k === 'del') delTask(t);
+    });
+  }
+  function delTask(t, btn) {
+    if (!confirm('ลบ “' + t.title + '” ออกจากระบบ? งานย่อย รูป และประวัติจะหายไปด้วย ย้อนกลับไม่ได้')) return;
+    if (btn) btn.disabled = true;
+    api('/tasks/' + t.id, 'DELETE')
+      .then(function () { S.tasks = null; toast('ลบงานแล้ว'); render(); })
+      .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+  }
+
   /* ---------- แก้ไขงานเร็วจากหน้ารายการ ---------- */
   function quickEdit(id) {
     var t = (S.tasks || []).filter(function (x) { return x.id === id; })[0];
@@ -2148,7 +2422,7 @@
         '<article><span class="l">โพสต์ค้าง</span><b>' + (posts.length - doneP) + '</b><small>ยังไม่ลง</small></article></div>';
 
       h += tasks.length
-        ? '<div class="group"><div class="group-h"><h3>งานที่ผูกกับแคมเปญนี้</h3><span>' + tasks.length + '</span></div>' +
+        ? '<div class="group"><div class="group-h"><h3>งานที่ผูกกับแคมเปญนี้</h3><span>' + tasks.length + '</span>' + gsel() + '</div>' +
           '<div class="tlist">' + tasks.map(taskRow).join('') + '</div></div>'
         : '<div class="sec"><div class="empty"><b>ยังไม่มีงานผูกกับแคมเปญนี้</b>กด “สั่งงานให้แคมเปญนี้” ด้านบน</div></div>';
 
@@ -4149,6 +4423,8 @@
   }
   function render() {
     S.route = parseRoute();
+    popClose();
+    if (S.lastRoute !== S.route.name) { SEL = {}; S.lastRoute = S.route.name; renderBulk(); }
     if (!S.me) { renderLogin(); return; }
     renderSidebar();
     renderHeaderUser();
@@ -4197,9 +4473,29 @@
     if ((b = ev.target.closest('[data-sg-stage]'))) { SG.stage = SG.stage === b.getAttribute('data-sg-stage') ? '' : b.getAttribute('data-sg-stage'); renderSignage(); return; }
     if ((b = ev.target.closest('[data-sg-view]'))) { SG.view = b.getAttribute('data-sg-view'); renderSignage(); return; }
     if ((b = ev.target.closest('[data-sg-branch]'))) { SG.branch = b.getAttribute('data-sg-branch'); renderSignage(); return; }
+    /* กำลังพิมพ์ชื่องานในแถว — แถวเป็นลิงก์ ห้ามพาไปหน้างาน */
+    if (ev.target.closest('.tedit')) { ev.preventDefault(); return; }
+    if ((b = ev.target.closest('[data-sel]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      toggleSel(b.getAttribute('data-sel'), ev.shiftKey);
+      return;
+    }
+    if ((b = ev.target.closest('[data-gsel]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      var grp = b.closest('.group');
+      var ids0 = $$('[data-sel]', grp).map(function (el) { return el.getAttribute('data-sel'); });
+      var allOn = ids0.length && ids0.every(function (id) { return SEL[id]; });
+      ids0.forEach(function (id) { if (allOn) delete SEL[id]; else SEL[id] = 1; });
+      paintSel();
+      return;
+    }
+    if ((b = ev.target.closest('[data-tedit]'))) { ev.preventDefault(); ev.stopPropagation(); titleEdit(b.getAttribute('data-tedit')); return; }
+    if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
+    if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
+    if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
     if ((b = ev.target.closest('[data-rowmenu]'))) {
       ev.preventDefault(); ev.stopPropagation();
-      quickEdit(b.getAttribute('data-rowmenu'));
+      rowMenu(b, b.getAttribute('data-rowmenu'));
       return;
     }
     if ((b = ev.target.closest('[data-tick]'))) {

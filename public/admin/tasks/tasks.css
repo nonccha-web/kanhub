@@ -1119,3 +1119,63 @@ tr.xl-new .xl-rh{ color:var(--k-hair); }
 .tl-ed .acts{ margin-top:8px; }
 .btn.sm, .btn-ghost.sm{ font-size:12px; padding:5px 12px; }
 @media (hover:none){ .tl-edit{ opacity:1; } }
+
+/* ── เลือกหลายงาน · แก้ในแถว (นนท์ขอ 18 ก.ย. 69) ──
+   วงกลมหน้าแถว = ติ๊กเลือก แล้วสั่งจากแถบล่างทีเดียว · ชื่อ/คนรับ/กำหนดส่ง แก้ตรงแถวได้
+   แถวที่เลือกใช้เส้นซ้าย ไม่ใช้พื้นสีหลังตัวหนังสือ */
+.trow .st.sel, .kcard .st.sel{ cursor:pointer; user-select:none; transition:transform .12s ease, border-color .12s ease, background .12s ease; }
+.trow .st.sel:hover, .kcard .st.sel:hover{ border-color:var(--k-ink); transform:scale(1.15); }
+.trow .st.sel.on, .kcard .st.sel.on{ border-color:var(--k-ink); background:var(--k-ink); color:var(--k-paper); font-weight:700; }
+.trow .st.sel:focus-visible, .kcard .st.sel:focus-visible, .gsel:focus-visible, .trow .edt:focus-visible, .tpen:focus-visible{ outline:2px solid var(--k-info); outline-offset:2px; }
+.trow.selected, .kcard.selected{ box-shadow:inset 3px 0 0 0 var(--k-ink); }
+.kcard.late.selected{ box-shadow:inset 3px 0 0 0 var(--k-ink), inset 6px 0 0 0 var(--k-bad); }
+.kcard .st.sel.ksel{ width:16px; height:16px; border-radius:50%; border:1.5px solid var(--k-line); display:grid; place-items:center; font-size:9px; flex:none; }
+.gsel{ width:14px; height:14px; border-radius:50%; border:1.5px solid var(--k-line); display:inline-grid; place-items:center; cursor:pointer;
+  align-self:center; font-size:9px; line-height:1; color:var(--k-paper); user-select:none; }
+.gsel:hover{ border-color:var(--k-ink); }
+.gsel.on{ background:var(--k-ink); border-color:var(--k-ink); }
+.gsel.on::after{ content:'✓'; }
+.gsel.some{ border-color:var(--k-ink); }
+.gsel.some::after{ content:''; width:6px; height:6px; border-radius:50%; background:var(--k-ink); }
+.trow .tline{ display:flex; align-items:center; gap:6px; min-width:0; }
+.trow .tline .t{ min-width:0; flex:0 1 auto; }
+.tpen{ flex:none; font-style:normal; font-size:12px; color:var(--k-mut); opacity:0; cursor:pointer; padding:0 4px; border-radius:4px; line-height:1.4; }
+.trow:hover .tpen, .tpen:focus-visible{ opacity:1; }
+.tpen:hover{ color:var(--k-ink); background:var(--k-line); }
+.tedit{ display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
+.tedit .input{ flex:1; min-width:0; padding:4px 8px; font-size:14px; height:auto; }
+.tedit .teh{ font-size:10.5px; color:var(--k-mut); white-space:nowrap; }
+.trow .edt{ cursor:pointer; text-decoration:underline dotted var(--k-line); text-underline-offset:4px; text-decoration-thickness:1px; }
+.trow .edt:hover{ text-decoration-color:var(--k-ink); color:var(--k-ink); }
+.trow .who.edt, .trow .edt .who{ text-decoration:inherit; }
+
+/* แถบคำสั่งล่าง — โผล่เมื่อเลือกอย่างน้อย 1 งาน */
+.bulkbar{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:190; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  max-width:min(96vw, 940px); padding:10px 14px; border:1px solid var(--k-ink); background:var(--k-paper); color:var(--k-ink);
+  box-shadow:0 14px 40px rgba(0,0,0,.18); }
+.bulkbar .bn{ display:inline-flex; align-items:center; gap:10px; font-size:13px; margin-right:4px; white-space:nowrap; }
+.bulkbar .bn b{ font-family:var(--k-display); font-size:17px; font-variant-numeric:tabular-nums; }
+.bulkbar .select{ width:auto; height:30px; padding:0 30px 0 10px; font-size:12.5px; }
+body.has-bulk #view{ padding-bottom:96px; }
+.bulkbar .bx{ border:0; background:none; font:inherit; font-size:14px; color:var(--k-mut); cursor:pointer; padding:4px 6px; margin-left:2px; }
+.bulkbar .bx:hover{ color:var(--k-ink); }
+.bulkbar.busy{ opacity:.6; pointer-events:none; }
+body.has-bulk .toast{ bottom:92px; }
+@media (max-width:720px){ .bulkbar{ left:8px; right:8px; transform:none; max-width:none; bottom:12px; } }
+
+/* ป๊อปอัปเล็ก: คนรับ · กำหนดส่ง · เมนู ⋯ */
+.pop{ position:fixed; z-index:260; min-width:230px; max-width:min(92vw, 400px); padding:12px; border:1px solid var(--k-ink); background:var(--k-paper); color:var(--k-ink);
+  box-shadow:0 16px 40px rgba(0,0,0,.16); display:flex; flex-direction:column; gap:10px; }
+.pop .ph{ font-size:12px; color:var(--k-mut); }
+.pop .pq{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.pop .pqn{ font-size:11px; color:var(--k-mut); flex-basis:100%; }
+.pop .pf{ display:flex; gap:8px; justify-content:flex-end; }
+.pop .input{ width:100%; }
+.pop .pmenu{ display:flex; flex-direction:column; align-items:stretch; margin:-4px; }
+.pop .pmenu button{ text-align:left; border:0; background:none; font:inherit; font-size:13.5px; padding:8px 10px; cursor:pointer; color:var(--k-ink); border-radius:6px; }
+.pop .pmenu button:hover{ background:var(--k-hair); }
+.pop .pmenu button.danger{ color:var(--k-bad); }
+.kcard .khead{ display:flex; align-items:flex-start; gap:8px; }
+.kcard .khead a{ min-width:0; flex:1; }
+.kcard .khead .st.sel{ margin-top:2px; }
+.trow .st.sel.done.on, .trow .st.sel.blocked.on{ background:var(--k-ink); border-color:var(--k-ink); }

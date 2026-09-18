@@ -1570,6 +1570,149 @@ export async function handleTaskApi(request, env, url, path, method) {
     return json({ ids, stagesFor: signMains });
   }
 
+  /* ---- ทำหลายงานพร้อมกันจากหน้ารายการ (ติ๊กเลือกแล้วสั่งครั้งเดียว) ----
+     action: approve | done | status | assign | due | delete
+     สิทธิ์ตรวจรายงานเหมือนยิงทีละงาน — งานที่ทำไม่ได้จะถูกข้ามพร้อมบอกเหตุผล ไม่ล้มทั้งชุด
+     ยิงเป็น batch เดียว ไม่กิน D1 ทีละงาน · จำกัด 60 งาน/ครั้ง (ตัวแปร SQL ของ D1 ได้ 100) */
+  if (path === "/tasks/bulk" && method === "POST") {
+    const body = await readBody(request);
+    const ids = Array.isArray(body.ids) ? body.ids.map(String).filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(x)).slice(0, MAX_BULK_TASKS) : [];
+    const action = String(body.action || "");
+    if (!ids.length) return json({ error: "ยังไม่ได้เลือกงาน" }, 400);
+    if (["approve", "done", "status", "assign", "due", "delete"].indexOf(action) === -1) return json({ error: "คำสั่งไม่ถูกต้อง" }, 400);
+    const qs = ids.map(() => "?").join(",");
+    const rows = await db.prepare(TASK_SELECT + "WHERE t.id IN (" + qs + ")").bind(...ids).all();
+    const tasks = (rows.results || []).map(rowToTask);
+    const now = nowIso();
+    const stmts = [];
+    const skipped = [];
+    const changed = [];
+    const skip = (t, why) => skipped.push({ id: t.id, title: t.title, reason: why });
+    const canApproveT = (t) => isOwner || t.createdBy === me.id;
+    const mineT = (t) => t.assignees.indexOf(me.id) !== -1;
+    const canTickT = (t) => canApproveT(t) || mineT(t) || canUpdateOthers;
+
+    /* ขั้นของงานป้ายปิดโดยไม่มีรูปไม่ได้ — เช็คทีเดียวทั้งชุด */
+    let picCount = {};
+    if (action === "approve" || action === "done" || action === "status") {
+      const stageIds = tasks.filter((t) => t.stage).map((t) => t.id);
+      if (stageIds.length) {
+        const pr = await db.prepare("SELECT task_id, COUNT(*) AS n FROM task_files WHERE task_id IN (" + stageIds.map(() => "?").join(",") + ") GROUP BY task_id").bind(...stageIds).all();
+        for (const r of (pr.results || [])) picCount[r.task_id] = r.n;
+      }
+    }
+    let owners = null;
+    const ownerIds = async () => {
+      if (!owners) { const o = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all(); owners = (o.results || []).map((x) => x.id); }
+      return owners;
+    };
+    const setStatus = async (t, status, note) => {
+      const st = stampsFor(status, t, now, me.id);
+      stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
+        .bind(status, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, t.id));
+      stmts.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+        .bind(newId("u_"), t.id, me.id, "status", note || (mineT(t) || canApproveT(t) ? "" : "อัปเดตแทน"), status, now));
+      if (status === t.status) return;
+      if (canApproveT(t)) {
+        /* หัวหน้าเปลี่ยนสถานะ → บอกคนรับงาน (เหมือนตรวจผ่านทีละงาน) */
+        if (status === "done") for (const sid of t.assignees) {
+          if (sid === me.id) continue;
+          stmts.push(db.prepare("INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)")
+            .bind(newId("m_"), t.id, "", sid, me.id, ("ตรวจผ่านแล้ว: " + String(t.title)).slice(0, 300), now));
+        }
+      } else {
+        /* น้องเปลี่ยน → เด้งหาหัวหน้า + คนสั่ง */
+        const tell = new Set(await ownerIds()); if (t.createdBy) tell.add(t.createdBy); tell.delete(me.id);
+        const what = status === "review" ? "ส่งงานให้ตรวจ" : "เปลี่ยนเป็น " + (STATUS_TH[status] || status);
+        for (const sid of tell) stmts.push(db.prepare("INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(newId("m_"), t.id, "", sid, me.id, (what + ": " + String(t.title)).slice(0, 300), now));
+      }
+      /* ขั้นป้ายผ่าน → จดขั้นล่าสุดไว้ที่งานหลัก (เหมือนตรวจทีละงาน) */
+      if (status === "done" && t.stage && t.parentId) {
+        const par = await db.prepare("SELECT stage FROM tasks WHERE id = ?").bind(t.parentId).first();
+        if (SIGN_STAGE_KEYS.indexOf(t.stage) > (par ? SIGN_STAGE_KEYS.indexOf(par.stage) : -1)) {
+          stmts.push(db.prepare("UPDATE tasks SET stage=?, updated_at=? WHERE id=?").bind(t.stage, now, t.parentId));
+        }
+      }
+    };
+    let sets = null;
+
+    for (const t of tasks) {
+      if (action === "delete") {
+        if (!isOwner) { skip(t, "เฉพาะหัวหน้าทีม"); continue; }
+        changed.push({ id: t.id, prev: t.status });
+        continue;
+      }
+      if (action === "assign") {
+        if (!canApproveT(t)) { skip(t, "แก้คนรับได้เฉพาะหัวหน้าหรือคนสั่ง"); continue; }
+        if (!sets) sets = await loadIdSets(db);
+        const want = Array.from(new Set((Array.isArray(body.assignees) ? body.assignees : []).map(String).filter((x) => sets.staffIds.has(x)))).slice(0, 20);
+        stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(t.id));
+        for (const sid of want) stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(t.id, sid));
+        stmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, t.id));
+        /* คนที่เพิ่งได้รับงาน → แจ้ง */
+        for (const sid of want) if (t.assignees.indexOf(sid) === -1 && sid !== me.id) {
+          stmts.push(db.prepare("INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)")
+            .bind(newId("m_"), t.id, "", sid, me.id, ("มอบหมายงานให้คุณ: " + String(t.title)).slice(0, 300), now));
+        }
+        changed.push({ id: t.id, prev: t.assignees });
+        continue;
+      }
+      if (action === "due") {
+        /* dueAt = ตั้งวันเดียวกันทุกงาน · shiftDays = เลื่อนจากวันเดิมของแต่ละงาน */
+        let iso = null;
+        if (body.dueAt) { if (!isIsoDateTime(body.dueAt)) return json({ error: "กำหนดส่งไม่ถูกต้อง" }, 400); iso = new Date(body.dueAt).toISOString(); }
+        else if (body.shiftDays != null) {
+          if (!t.dueAt) { skip(t, "ยังไม่มีวันให้เลื่อน"); continue; }
+          iso = new Date(new Date(t.dueAt).getTime() + Number(body.shiftDays) * 86400000).toISOString();
+        } else return json({ error: "ต้องส่ง dueAt หรือ shiftDays" }, 400);
+        const editor = canApproveT(t);
+        if (!editor) {
+          if (!mineT(t) && !canUpdateOthers) { skip(t, "ไม่ใช่งานของคุณ"); continue; }
+          if (t.dueAt && !canReschedule) { skip(t, "เลื่อนเองไม่ได้ ต้องให้หัวหน้าเลื่อน"); continue; }
+        }
+        const same = t.dueAt && new Date(t.dueAt).getTime() === new Date(iso).getTime();
+        const moved = !!(t.dueAt && !same);
+        stmts.push(db.prepare("UPDATE tasks SET due_at=?, due_original=?, postpones=?, updated_at=? WHERE id=?")
+          .bind(iso, t.dueOriginal || iso, (t.postpones || 0) + (moved ? 1 : 0), now, t.id));
+        if (!same) stmts.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(newId("u_"), t.id, me.id, "note",
+                (moved ? "เลื่อนกำหนดส่ง " + thDate(t.dueAt) + " → " + thDate(iso) : "ใส่กำหนดส่ง " + thDate(iso)) +
+                (body.reason ? " · " + String(body.reason).trim().slice(0, 300) : ""), null, now));
+        changed.push({ id: t.id, prev: t.dueAt });
+        continue;
+      }
+      /* approve / done / status */
+      let want = action === "approve" ? "done" : (action === "done" ? "done" : String(body.status || ""));
+      if (STATUSES.indexOf(want) === -1) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      if (action === "approve") {
+        if (!canApproveT(t)) { skip(t, "ตรวจได้เฉพาะหัวหน้าหรือคนสั่ง"); continue; }
+        if (t.status !== "review") { skip(t, "ยังไม่ได้ส่งตรวจ"); continue; }
+      } else if (!canTickT(t)) { skip(t, "ไม่ใช่งานของคุณ"); continue; }
+      const status = statusFor(want, t, canApproveT(t));
+      if ((status === "done" || status === "review") && t.stage && !picCount[t.id]) { skip(t, "ขั้นป้ายต้องแนบรูปก่อนปิด"); continue; }
+      if (status === t.status && !(t.repeat && status === "done")) { skip(t, "เป็น " + (STATUS_TH[status] || status) + " อยู่แล้ว"); continue; }
+      await setStatus(t, status, action === "approve" ? "ตรวจผ่านแล้ว" : "");
+      changed.push({ id: t.id, prev: t.status, status });
+    }
+
+    if (action === "delete" && changed.length) {
+      const delIds = changed.map((c) => c.id);
+      const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id IN (" + delIds.map(() => "?").join(",") + ")").bind(...delIds).all();
+      const all = delIds.concat((kids.results || []).map((r) => r.id));
+      for (const tid of all) {
+        stmts.push(db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_updates WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM task_mentions WHERE task_id = ?").bind(tid));
+        stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
+      }
+    }
+    if (stmts.length) await db.batch(stmts);
+    const missing = ids.filter((id) => !tasks.some((t) => t.id === id)).length;
+    return json({ ok: true, done: changed.length, changed, skipped, missing });
+  }
+
   const taskMatch = path.match(/^\/tasks\/([A-Za-z0-9_-]{1,40})(\/updates|\/review|\/postpone-request|\/stages)?$/);
   if (taskMatch) {
     const id = taskMatch[1];
