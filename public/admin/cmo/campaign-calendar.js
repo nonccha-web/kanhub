@@ -300,7 +300,7 @@
       var atts = it.attachments || [];
       var thumbs = atts.length
         ? '<div class="cc-thumbs">' + atts.slice(0, 4).map(function (a) {
-            return '<img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy">';
+            return '<img src="' + API + "/attachments/" + a.id + '?s=thumb" alt="' + esc(a.fileName) + '" loading="lazy" decoding="async">';
           }).join("") + (atts.length > 4 ? '<span class="cc-more">+' + (atts.length - 4) + "</span>" : "") + "</div>"
         : "";
       return '<tr style="border-left:3px solid ' + colorOf(it) + '">' +
@@ -367,7 +367,7 @@
   function soonRow(it) {
     var a0 = (it.attachments || [])[0];
     return '<button type="button" class="cc-soon-item" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
-      (a0 ? '<img src="' + API + "/attachments/" + a0.id + '" alt="">' : '<span class="cc-soon-noimg" style="background:' + tint(colorOf(it), 0.18) + '"></span>') +
+      (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" loading="lazy" decoding="async">' : '<span class="cc-soon-noimg" style="background:' + tint(colorOf(it), 0.18) + '"></span>') +
       '<span class="cc-soon-text"><span class="cc-soon-top">' + kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></span>" +
       "<b>" + esc(it.name) + "</b>" + linkLine(it) +
       '<span class="cc-soon-meta">' + fmtRange(it) +
@@ -421,7 +421,7 @@
       var atts = it.attachments || [];
       var pics = atts.length
         ? '<div class="cc-hover-pics">' + atts.slice(0, 3).map(function (a) {
-            return '<img src="' + API + "/attachments/" + a.id + '" alt="">';
+            return '<img src="' + API + "/attachments/" + a.id + '?s=thumb" alt="" decoding="async">';
           }).join("") + "</div>"
         : "";
       body = '<div class="cc-hover-bar" style="background:' + colorOf(it) + '"></div>' + pics +
@@ -444,7 +444,7 @@
           var a0 = (it.attachments || [])[0];
           return '<button type="button" class="cc-hover-item" data-edit="' + it.id + '">' +
                  '<span class="cc-hover-dot" style="background:' + colorOf(it) + '"></span>' +
-                 (a0 ? '<img src="' + API + "/attachments/" + a0.id + '" alt="">' : '<span class="cc-hover-noimg"></span>') +
+                 (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" decoding="async">' : '<span class="cc-hover-noimg"></span>') +
                  '<span class="cc-hover-itemtext"><b>' + esc(shortName(it.name)) + "</b>" +
                  '<span class="cc-hover-meta">' + fmtRange(it) +
                  (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span></span>" +
@@ -692,7 +692,12 @@
             q -= 0.12;
             out = cv.toDataURL("image/jpeg", q);
           }
-          resolve({ dataUrl: out, fileName: file.name });
+          /* รูปย่อ 320px ไว้โชว์ในปฏิทิน — รูปเต็มโหลดเฉพาะตอนกดเปิด */
+          var ts = Math.min(1, 320 / Math.max(w, h));
+          var tc = document.createElement("canvas");
+          tc.width = Math.max(1, Math.round(w * ts)); tc.height = Math.max(1, Math.round(h * ts));
+          tc.getContext("2d").drawImage(img, 0, 0, tc.width, tc.height);
+          resolve({ dataUrl: out, fileName: file.name, thumb: tc.toDataURL("image/jpeg", 0.72) });
         };
         img.src = String(reader.result);
       };

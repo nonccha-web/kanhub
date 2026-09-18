@@ -31,6 +31,8 @@ function ensureCampaignSchema(db, env) {
           "value TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft', updated_at TEXT NOT NULL, PRIMARY KEY (year, month, code))"),
       ]);
       try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
+      /* รูปย่อ ~320px สำหรับปฏิทิน — รูปเต็ม 9 รูป = 3.5MB โหลดครั้งแรกช้า (นนท์ทัก 18 ก.ย. 69) */
+      try { await db.prepare("ALTER TABLE attachments ADD COLUMN thumb TEXT").run(); } catch (e) { /* มีแล้ว */ }
       /* ตาราง posts/tasks ต้องมีก่อน เพราะ LIST_SQL นับโพสต์และงานที่ผูกกับแต่ละรายการ */
       await ensureTaskSchema(db, env);
     })().catch((e) => { campaignSchemaReady = null; throw e; });
@@ -145,7 +147,8 @@ async function handleApi(request, env, url) {
   // ---- รูปแนบ ----
   const fileMatch = path.match(/^\/attachments\/([A-Za-z0-9_-]{1,40})$/);
   if (fileMatch && method === "GET") {
-    const row = await db.prepare("SELECT mime, data, file_name FROM attachments WHERE id = ?")
+    const wantThumb = url.searchParams.get("s") === "thumb";
+    const row = await db.prepare("SELECT mime, " + (wantThumb ? "COALESCE(thumb, data) AS data, thumb IS NOT NULL AS is_thumb" : "data, 0 AS is_thumb") + ", file_name FROM attachments WHERE id = ?")
       .bind(fileMatch[1]).first();
     if (!row) return new Response("ไม่พบรูป", { status: 404 });
     const binary = atob(row.data);
@@ -153,10 +156,18 @@ async function handleApi(request, env, url) {
     for (let i = 0; i < binary.length; i++) bin[i] = binary.charCodeAt(i);
     return new Response(bin, {
       headers: {
-        "content-type": row.mime || "application/octet-stream",
+        "content-type": row.is_thumb ? "image/jpeg" : (row.mime || "application/octet-stream"),
         "cache-control": "public, max-age=31536000, immutable",
       },
     });
+  }
+  /* ใส่รูปย่อให้รูปเก่า (สคริปต์ฝั่งเครื่องนนท์ย่อแล้วส่งมา) */
+  if (fileMatch && method === "PUT") {
+    const body = await request.json().catch(function () { return {}; });
+    const m2 = String(body.thumb || "").match(/^data:image\/jpeg;base64,(.+)$/);
+    if (!m2 || m2[1].length > 120000) return json({ error: "รูปย่อไม่ถูกต้อง (ต้องเป็น jpeg ≤ 90KB)" }, 400);
+    await db.prepare("UPDATE attachments SET thumb = ? WHERE id = ?").bind(m2[1], fileMatch[1]).run();
+    return json({ ok: true });
   }
   if (fileMatch && method === "DELETE") {
     await db.prepare("DELETE FROM attachments WHERE id = ?").bind(fileMatch[1]).run();
@@ -280,10 +291,12 @@ async function handleApi(request, env, url) {
       }
 
       const aid = "a" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      const tm = String(body.thumb || "").match(/^data:image\/jpeg;base64,(.+)$/);
+      const thumb = tm && tm[1].length <= 120000 ? tm[1] : null;
       await db.prepare(
-        "INSERT INTO attachments (id,campaign_id,file_name,mime,bytes,data,created_at) VALUES (?,?,?,?,?,?,?)"
+        "INSERT INTO attachments (id,campaign_id,file_name,mime,bytes,data,created_at,thumb) VALUES (?,?,?,?,?,?,?,?)"
       ).bind(aid, id, String(body.fileName || "image").slice(0, 160), mime, bytes, b64,
-             new Date().toISOString()).run();
+             new Date().toISOString(), thumb).run();
       return json({ id: aid });
     }
   }
