@@ -696,6 +696,9 @@
     /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
     var next = nextParam();
     if (next) { location.href = next; return; }
+    /* เปิดระบบมาเปล่า ๆ = ไปปฏิทินการตลาดก่อน (นนท์: "เปิดมาปุ๊ปควรเจอหน้านี้เลย" 18 ก.ย. 69)
+       ถ้ามี #/… ติดมา (กดจากลิงก์แจ้งเตือน) ไปหน้านั้นตามเดิม */
+    if (!location.hash || location.hash === '#' || location.hash === '#/') { location.href = '../cmo/campaign-calendar.html'; return; }
     return boot();
   }
   function renderLogin(err) {

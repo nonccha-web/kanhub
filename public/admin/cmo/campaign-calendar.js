@@ -47,7 +47,8 @@
 
   var items = [];
   var year = new Date().getFullYear();
-  var view = { mode:"year", month:null, kind:"", branch:"" };
+  /* เปิดมาเห็นเดือนนี้ก่อน (นนท์: "เอามาแค่โปรโมชั่นของเดือนนี้ก็พอ" 18 ก.ย. 69) — ปุ่มย้อนกลับพาไปดูทั้งปี */
+  var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"" };
   try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
   try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}
   function inBranch(it, b) {
