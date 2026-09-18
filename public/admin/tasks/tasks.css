@@ -1179,3 +1179,72 @@ body.has-bulk .toast{ bottom:92px; }
 .kcard .khead a{ min-width:0; flex:1; }
 .kcard .khead .st.sel{ margin-top:2px; }
 .trow .st.sel.done.on, .trow .st.sel.blocked.on{ background:var(--k-ink); border-color:var(--k-ink); }
+
+/* ── บอร์ดแบบไปป์ไลน์ (ref monday ที่นนท์ส่ง 18 ก.ย. 69) ──
+   หัวคอลัมน์เป็นสีทึบทรงลูกศร ตัวหนังสือขาว — เป็นข้อยกเว้นของกฎ "ไม่มีสีหลังตัวหนังสือ" เพราะลูกค้าขอตาม ref เอง */
+.kbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.seg button i{ font-style:normal; font-size:10.5px; margin-left:5px; opacity:.7; font-variant-numeric:tabular-nums; }
+.kbar-n{ margin-left:auto; font-size:12px; color:var(--k-mut); font-variant-numeric:tabular-nums; }
+.kban{ grid-auto-columns:minmax(236px,1fr); gap:10px; }
+.kcol{ border:1px solid var(--k-line); background:var(--k-paper); border-radius:6px; overflow:hidden; }
+.kcol .khdr{ display:flex; align-items:center; gap:6px; padding:11px 14px; margin:0 6px 0 0; border:0; background:var(--kc); color:#fff;
+  clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
+.kcol .khdr b{ font-size:14px; font-weight:600; color:#fff; }
+.kcol .khdr span{ margin-left:0; font-size:13px; color:rgba(255,255,255,.85); font-variant-numeric:tabular-nums; }
+.kcol .ksum{ display:flex; align-items:baseline; gap:8px; padding:10px 14px; border-bottom:1px solid var(--k-line); font-size:12px; color:var(--k-mut); }
+.kcol .ksum b{ font-family:var(--k-display); font-size:16px; color:var(--k-ink); font-variant-numeric:tabular-nums; }
+.kcol .ksum em{ font-style:normal; color:var(--k-bad); }
+.kcol .ksum small{ margin-left:auto; font-size:10.5px; }
+.kcol.over{ border-color:var(--kc); }
+.kcol.over .kbody{ box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--kc) 40%,transparent); }
+.kbody{ padding:10px; display:grid; gap:10px; background:var(--k-ground); min-height:90px; }
+.kitem{ display:grid; gap:0; }
+.kcard{ border:1px solid var(--k-line); border-radius:6px; background:var(--k-paper); padding:11px 12px; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.kcard[draggable="true"]{ cursor:grab; }
+.kcard:hover{ border-color:var(--k-ink); }
+.kcard.isdone .khead b{ color:var(--k-mut); text-decoration:line-through; text-decoration-color:var(--k-line); }
+.kcard .khead{ display:flex; align-items:flex-start; gap:8px; }
+.kcard .khead b{ flex:1; min-width:0; font-size:13.5px; font-weight:500; line-height:1.4; }
+.kchips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
+.kchip{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--k-line); border-radius:4px; padding:2px 8px 2px 0; font-size:11.5px; color:var(--k-soft); background:var(--k-ground); }
+.kchip i{ display:block; width:3px; align-self:stretch; background:var(--k-line); border-radius:2px 0 0 2px; margin-right:2px; }
+.kchip.pri{ color:var(--k-bad); } .kchip.pri i{ background:var(--k-bad); }
+.kchip.due.late{ color:var(--k-bad); } .kchip.due.late i{ background:var(--k-bad); }
+.kchip.due.today{ color:var(--k-ink); } .kchip.due.today i{ background:var(--k-warn); }
+.kchips .ttype, .kchips .kpi{ border-radius:4px; }
+.kcard .kfoot{ display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; color:var(--k-mut); }
+.kcard .kfoot .avs{ display:inline-flex; }
+.kcard .kfoot .avs .av{ margin-left:-5px; box-shadow:0 0 0 2px var(--k-paper); } .kcard .kfoot .avs .av:first-child{ margin-left:0; }
+.kcard .kwho{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kcard .kwho.warn{ color:var(--k-warn); }
+.kcnt{ display:inline-flex; align-items:center; gap:3px; font-variant-numeric:tabular-nums; }
+.kcard .kfoot .rowmenu{ margin-left:2px; }
+.knote{ margin-top:8px; font-size:11.5px; }
+.ksubs{ margin:0 0 0 18px; padding-left:10px; border-left:2px solid var(--k-line); display:grid; gap:6px; padding-top:6px; }
+.ksub{ display:flex; align-items:flex-start; gap:8px; border:1px solid var(--k-line); border-radius:6px; background:var(--k-paper); padding:8px 10px; cursor:pointer; position:relative; }
+.ksub::before{ content:''; position:absolute; left:-12px; top:16px; width:10px; height:2px; background:var(--k-line); }
+.ksub:hover{ border-color:var(--k-ink); }
+.ksub.late{ box-shadow:inset 3px 0 0 0 var(--k-bad); }
+.ksub .kst{ min-width:0; flex:1; }
+.ksub .kst b{ display:block; font-size:12.5px; font-weight:500; line-height:1.35; }
+.ksub.done .kst b{ color:var(--k-mut); text-decoration:line-through; text-decoration-color:var(--k-line); }
+.ksub .ksm{ display:block; font-size:11px; color:var(--k-mut); margin-top:2px; }
+/* ปุ่มเพิ่มงานย่อยโผล่เฉพาะการ์ดที่มีงานย่อยอยู่แล้ว หรือตอนเอาเมาส์ชี้ — ไม่งั้นรกทุกใบ */
+.kadd{ position:relative; display:none; }
+.kitem:hover .kadd, .kitem:focus-within .kadd, .ksub + .kadd, .kadd:has(input){ display:block; }
+.ksubs:not(:has(.ksub)){ padding-top:0; border-left-color:transparent; }
+.kitem:hover .ksubs:not(:has(.ksub)), .kitem:focus-within .ksubs:not(:has(.ksub)){ padding-top:6px; border-left-color:var(--k-line); }
+.kadd::before{ content:''; position:absolute; left:-12px; top:14px; width:10px; height:2px; background:var(--k-line); }
+.kaddp{ display:inline-block; font-size:11.5px; color:var(--k-mut); padding:5px 8px; border:1px dashed var(--k-line); border-radius:6px; cursor:pointer; }
+.kaddp:hover{ color:var(--k-ink); border-color:var(--k-ink); }
+.kadd .input{ padding:6px 8px; font-size:12.5px; height:auto; }
+.kadd .teh{ display:block; font-size:10.5px; color:var(--k-mut); margin-top:3px; }
+/* ตัวตั้งค่าขั้นงาน */
+.flist{ display:grid; gap:8px; margin-bottom:12px; }
+.frow2{ display:grid; grid-template-columns:22px minmax(0,1fr) auto auto auto; align-items:center; gap:8px; }
+.frow2 .fn{ font-size:12px; color:var(--k-mut); font-variant-numeric:tabular-nums; text-align:right; }
+.frow2 .fl{ display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--k-soft); white-space:nowrap; }
+.frow2 .fl .input{ width:56px; padding:4px 6px; height:auto; }
+.frow2 .fbtns{ display:inline-flex; gap:4px; }
+.frow2 .fbtns .btn-ghost.sm{ height:28px; padding:0 9px; }
+@media (max-width:720px){ .frow2{ grid-template-columns:22px minmax(0,1fr); } .frow2 .fl, .frow2 .fbtns{ grid-column:2; } }

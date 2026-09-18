@@ -32,14 +32,64 @@ const SIGN_STAGES = [
   { k: "installed", th: "ติดตั้ง",      lead: 1 },
 ];
 const SIGN_STAGE_KEYS = SIGN_STAGES.map((x) => x.k);
+/* ขั้นงาน (flow) ตั้งเองได้ต่อประเภทงาน — นนท์ขอ 18 ก.ย. 69: "แก้ไข/เพิ่มลด flow พวกนี้ได้"
+   เก็บใน task_settings key 'flows' = { signage:[{k,th,lead,pic}], content:[...], ... }
+   ประเภทที่ไม่มี flow → บอร์ดใช้คอลัมน์ตามสถานะเหมือนเดิม · ป้ายมีค่าเริ่มต้น 6 ขั้น (ทุกขั้นต้องแนบรูป) */
+const MAX_FLOW_STAGES = 12;
+function defaultFlows(leads) {
+  const L = leads || {};
+  return { signage: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: Number(L[x.k] != null ? L[x.k] : x.lead) || 0, pic: 1 })) };
+}
+function cleanFlow(list) {
+  if (!Array.isArray(list)) return { error: "รูปแบบขั้นงานไม่ถูกต้อง" };
+  const out = [];
+  const seen = new Set();
+  for (const raw of list.slice(0, MAX_FLOW_STAGES)) {
+    const th = String((raw && raw.th) || "").trim().slice(0, 40);
+    if (!th) continue;
+    let k = String((raw && raw.k) || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
+    if (!k) k = "s" + (out.length + 1) + "_" + Math.random().toString(36).slice(2, 6);
+    if (seen.has(k)) return { error: "รหัสขั้นซ้ำ: " + k };
+    seen.add(k);
+    const lead = Math.max(0, Math.min(60, Math.round(Number(raw.lead) || 0)));
+    out.push({ k, th, lead, pic: raw.pic ? 1 : 0 });
+  }
+  return { value: out };
+}
+async function loadFlows(db) {
+  let flows = null;
+  try {
+    const row = await db.prepare("SELECT value FROM task_settings WHERE key = 'flows'").first();
+    if (row && row.value) flows = JSON.parse(row.value);
+  } catch (e) { flows = null; }
+  const base = defaultFlows(await signLeads(db));
+  if (!flows || typeof flows !== "object") return base;
+  /* ป้ายที่ไม่เคยตั้งเอง ใช้ค่าเริ่มต้น */
+  for (const k of Object.keys(base)) if (!Array.isArray(flows[k])) flows[k] = base[k];
+  for (const k of Object.keys(flows)) if (!Array.isArray(flows[k]) || !flows[k].length) delete flows[k];
+  return flows;
+}
+async function flowFor(db, taskType) {
+  const flows = await loadFlows(db);
+  return flows[taskType] || [];
+}
+function stageIdx(flow, k) { for (let i = 0; i < flow.length; i++) if (flow[i].k === k) return i; return -1; }
+function stageDef(flow, k) { return flow[stageIdx(flow, k)] || null; }
+/* ปิดขั้นนี้ต้องแนบรูปไหม — ขั้นที่ไม่อยู่ใน flow แล้ว (ตั้งชื่อใหม่ไปแล้ว) ถือว่าไม่บังคับ */
+async function stageNeedsPic(db, task) {
+  if (!task.stage) return false;
+  const def = stageDef(await flowFor(db, task.taskType), task.stage);
+  return !!(def && def.pic);
+}
 /* วันคาดว่าเสร็จของแต่ละขั้น = วันติดตั้ง − ผลรวม lead ของขั้นที่ตามหลัง
    ข้ามเสาร์อาทิตย์ (โรงพิมพ์ปิด) แต่ไม่ยุ่งกับวันหยุดรายคน */
-function stageDueDates(installIso, leads) {
+function stageDueDates(installIso, leads, flow) {
   const L = leads || {};
+  const STAGES = flow && flow.length ? flow : SIGN_STAGES;
   const out = {};
   let cursor = new Date(installIso);
-  for (let i = SIGN_STAGES.length - 1; i >= 0; i--) {
-    const st = SIGN_STAGES[i];
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    const st = STAGES[i];
     out[st.k] = cursor.toISOString();
     const days = Number(L[st.k] != null ? L[st.k] : st.lead) || 0;
     /* ถอยหลังทีละวันทำการ */
@@ -58,33 +108,36 @@ async function signLeads(db) {
     return row && row.value ? JSON.parse(row.value) : {};
   } catch (e) { return {}; }
 }
-/* สร้างงานย่อย 6 ขั้นให้งานป้ายหลัก — เรียกได้ซ้ำ ถ้ามีอยู่แล้วไม่สร้างซ้อน */
+/* สร้างงานย่อยตามขั้นงาน (flow) ของประเภทนั้นให้งานหลัก — เรียกได้ซ้ำ ถ้ามีอยู่แล้วไม่สร้างซ้อน
+   ประเภทที่ไม่มี flow → ไม่สร้างอะไร · วันคาดว่าเสร็จถอยหลังจากกำหนดส่งของงานหลัก */
 async function ensureSignStages(db, mainId, meId, now) {
   const main = await db.prepare("SELECT id,title,due_at,task_type FROM tasks WHERE id = ?").bind(mainId).first();
-  if (!main || main.task_type !== "signage") return { created: 0 };
+  if (!main) return { created: 0 };
+  const flow = await flowFor(db, main.task_type || "other");
+  if (!flow.length) return { created: 0 };
   const have = await db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE parent_id = ? AND stage IS NOT NULL").bind(mainId).first();
   if (have && have.n > 0) return { created: 0 };
   const who = await db.prepare("SELECT staff_id FROM task_assignees WHERE task_id = ?").bind(mainId).all();
   const assignees = (who.results || []).map((r) => r.staff_id);
-  const dues = main.due_at ? stageDueDates(main.due_at, await signLeads(db)) : {};
+  const dues = main.due_at ? stageDueDates(main.due_at, {}, flow) : {};
   const stmts = [];
-  for (const st of SIGN_STAGES) {
+  flow.forEach((st, i) => {
     const id = newId("t_");
     stmts.push(db.prepare(
       "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,stage) " +
-      "VALUES (?,?,?,NULL,'todo',?,'',0,?,?,?,NULL,?,NULL,'signage','ondemand',NULL,1,?,?)"
+      "VALUES (?,?,?,NULL,'todo',?,'',0,?,?,?,NULL,?,NULL,?,'ondemand',NULL,1,?,?)"
     ).bind(id, st.th + " · " + String(main.title).slice(0, 200),
-           "ขั้นที่ " + (SIGN_STAGE_KEYS.indexOf(st.k) + 1) + " จาก 6 ของงานป้าย\nปิดขั้นนี้ต้องแนบรูปยืนยัน",
-           dues[st.k] || null, meId, now, now, mainId, dues[st.k] || null, st.k));
+           "ขั้นที่ " + (i + 1) + " จาก " + flow.length + (st.pic ? "\nปิดขั้นนี้ต้องแนบรูปยืนยัน" : ""),
+           dues[st.k] || null, meId, now, now, mainId, main.task_type || "other", dues[st.k] || null, st.k));
     for (const sid of assignees) {
       stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
     }
     stmts.push(db.prepare(
       "INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)"
     ).bind(newId("u_"), id, meId, "create", "", "todo", now));
-  }
+  });
   await db.batch(stmts);
-  return { created: SIGN_STAGES.length };
+  return { created: flow.length };
 }
 /* D1 เก็บ 1 แถวได้ไม่เกิน 2MB และเราเก็บเป็น base64 (โต 4/3) → ไฟล์จริงจึงได้ราว 1.4MB
    1.35MB คือเพดานที่เหลือที่ว่างให้คอลัมน์อื่น · ไฟล์ใหญ่กว่านี้ (วิดีโอ) ให้แนบเป็นลิงก์แทน */
@@ -1243,7 +1296,25 @@ export async function handleTaskApi(request, env, url, path, method) {
         doneAt: r.done_at, submittedAt: r.submitted_at, nPic: r.n_pic || 0, picId: r.pic_id || null,
       }));
     }
-    return json({ tasks: list, stages, stageDefs: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: x.lead })), leads: await signLeads(db) });
+    const sflow = await flowFor(db, "signage");
+    return json({ tasks: list, stages, stageDefs: sflow.map((x) => ({ k: x.k, th: x.th, lead: x.lead, pic: x.pic })), leads: await signLeads(db) });
+  }
+
+  /* ---- ขั้นงานต่อประเภท: ดู/แก้ (หัวหน้าแก้ได้) ---- */
+  if (path === "/flows" && method === "GET") {
+    return json({ flows: await loadFlows(db), types: TASK_TYPES, max: MAX_FLOW_STAGES });
+  }
+  if (path === "/flows" && method === "PUT") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const body = await readBody(request);
+    const type = String(body.type || "");
+    if (TASK_TYPES.indexOf(type) === -1) return json({ error: "ประเภทงานไม่ถูกต้อง" }, 400);
+    const parsed = cleanFlow(body.stages || []);
+    if (parsed.error) return json({ error: parsed.error }, 400);
+    const flows = await loadFlows(db);
+    if (parsed.value.length) flows[type] = parsed.value; else delete flows[type];
+    await db.prepare("INSERT OR REPLACE INTO task_settings (key,value) VALUES ('flows', ?)").bind(JSON.stringify(flows)).run();
+    return json({ ok: true, flows });
   }
 
   /* ---- หน้าแคมเปญ: งานกับโพสต์ที่ผูกไว้ในที่เดียว (ข้อ 05 ของคุณออน) ---- */
@@ -1556,7 +1627,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
              v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt,
              v.signW, v.signH, v.signQty, v.signBranch));
-      if (v.taskType === "signage" && !v.parentId) signMains.push(id);
+      if (!v.parentId) signMains.push(id);   /* ensureSignStages เช็คเองว่าประเภทนี้มี flow ไหม */
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
       }
@@ -1565,9 +1636,15 @@ export async function handleTaskApi(request, env, url, path, method) {
       ).bind(newId("u_"), id, me.id, "create", "", v.status, now));
     }
     await db.batch(stmts);
-    /* งานป้ายทุกอันได้งานย่อย 6 ขั้นทันที วันคาดว่าเสร็จถอยหลังจากวันติดตั้ง */
-    for (const mid of signMains) await ensureSignStages(db, mid, me.id, now);
-    return json({ ids, stagesFor: signMains });
+    /* ประเภทที่มีขั้นงาน (ป้ายเป็นค่าเริ่มต้น) ได้งานย่อยตามขั้นทันที วันคาดว่าเสร็จถอยหลังจากกำหนดส่ง */
+    const flowsNow = await loadFlows(db);
+    const stagesFor = [];
+    for (const mid of signMains) {
+      const t0 = list[ids.indexOf(mid)];
+      const tt = t0 && TASK_TYPES.indexOf(t0.taskType) !== -1 ? t0.taskType : "other";
+      if (flowsNow[tt]) { await ensureSignStages(db, mid, me.id, now); stagesFor.push(mid); }
+    }
+    return json({ ids, stagesFor });
   }
 
   /* ---- ทำหลายงานพร้อมกันจากหน้ารายการ (ติ๊กเลือกแล้วสั่งครั้งเดียว) ----
@@ -1630,7 +1707,8 @@ export async function handleTaskApi(request, env, url, path, method) {
       /* ขั้นป้ายผ่าน → จดขั้นล่าสุดไว้ที่งานหลัก (เหมือนตรวจทีละงาน) */
       if (status === "done" && t.stage && t.parentId) {
         const par = await db.prepare("SELECT stage FROM tasks WHERE id = ?").bind(t.parentId).first();
-        if (SIGN_STAGE_KEYS.indexOf(t.stage) > (par ? SIGN_STAGE_KEYS.indexOf(par.stage) : -1)) {
+        const fl = await flowFor(db, t.taskType);
+        if (stageIdx(fl, t.stage) > (par ? stageIdx(fl, par.stage) : -1)) {
           stmts.push(db.prepare("UPDATE tasks SET stage=?, updated_at=? WHERE id=?").bind(t.stage, now, t.parentId));
         }
       }
@@ -1690,7 +1768,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         if (t.status !== "review") { skip(t, "ยังไม่ได้ส่งตรวจ"); continue; }
       } else if (!canTickT(t)) { skip(t, "ไม่ใช่งานของคุณ"); continue; }
       const status = statusFor(want, t, canApproveT(t));
-      if ((status === "done" || status === "review") && t.stage && !picCount[t.id]) { skip(t, "ขั้นป้ายต้องแนบรูปก่อนปิด"); continue; }
+      if ((status === "done" || status === "review") && t.stage && !picCount[t.id] && await stageNeedsPic(db, t)) { skip(t, "ขั้นนี้ต้องแนบรูปก่อนปิด"); continue; }
       if (status === t.status && !(t.repeat && status === "done")) { skip(t, "เป็น " + (STATUS_TH[status] || status) + " อยู่แล้ว"); continue; }
       await setStatus(t, status, action === "approve" ? "ตรวจผ่านแล้ว" : "");
       changed.push({ id: t.id, prev: t.status, status });
@@ -1824,10 +1902,11 @@ export async function handleTaskApi(request, env, url, path, method) {
         await db.batch(stmts);
         /* งานป้ายหลักเลื่อนวันติดตั้ง → คำนวณวันคาดว่าเสร็จของทุกขั้นใหม่ (เฉพาะขั้นที่ยังไม่ปิด)
            กลายเป็นป้ายทีหลัง → สร้าง 6 ขั้นให้ */
-        if (v.taskType === "signage" && !task.parentId) {
-          if (task.taskType !== "signage") await ensureSignStages(db, id, me.id, now);
-          else if (moved && v.dueAt) {
-            const dues = stageDueDates(v.dueAt, await signLeads(db));
+        if (!task.parentId) {
+          const fl2 = await flowFor(db, v.taskType);
+          if (fl2.length && v.taskType !== task.taskType) await ensureSignStages(db, id, me.id, now);
+          else if (fl2.length && moved && v.dueAt) {
+            const dues = stageDueDates(v.dueAt, {}, fl2);
             const kids = await db.prepare("SELECT id, stage, status FROM tasks WHERE parent_id = ? AND stage IS NOT NULL").bind(id).all();
             const fix = [];
             for (const k of (kids.results || [])) {
@@ -1854,9 +1933,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
       const want = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
       if (!want && !backfill && !moveIt) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
-      if (want && (want === "done" || want === "review") && task.stage) {
+      if (want && (want === "done" || want === "review") && task.stage && await stageNeedsPic(db, task)) {
         const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ?").bind(id).first();
-        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + (SIGN_STAGES.filter((x) => x.k === task.stage)[0] || {}).th + "” ต้องแนบรูปยืนยันก่อน — เข้าไปในงานแล้วแนบรูปพร้อมกดส่ง" }, 400);
+        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + ((stageDef(await flowFor(db, task.taskType), task.stage) || {}).th || task.stage) + "” ต้องแนบรูปยืนยันก่อน — เข้าไปในงานแล้วแนบรูปพร้อมกดส่ง" }, 400);
       }
       const stmts2 = [];
       if (backfill || moveIt) {
@@ -1929,9 +2008,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ ทุกงานรวมงานประจำ */
       const newStatus = status ? statusFor(status, task, canApprove) : null;
       /* ขั้นของงานป้าย: ปิดโดยไม่มีรูปไม่ได้ (นับรูปที่แนบมารอบนี้ + ที่มีอยู่แล้ว) */
-      if (newStatus && (newStatus === "done" || newStatus === "review") && task.stage && !files.length) {
+      if (newStatus && (newStatus === "done" || newStatus === "review") && task.stage && !files.length && await stageNeedsPic(db, task)) {
         const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ? AND kind = 'file'").bind(id).first();
-        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + (SIGN_STAGES.filter((x) => x.k === task.stage)[0] || {}).th + "” ต้องแนบรูปยืนยันในรอบเดียวกัน" }, 400);
+        if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + ((stageDef(await flowFor(db, task.taskType), task.stage) || {}).th || task.stage) + "” ต้องแนบรูปยืนยันในรอบเดียวกัน" }, 400);
       }
       const now = nowIso();
       const uid = newId("u_");
@@ -2012,8 +2091,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       /* ขั้นของงานป้ายผ่านแล้ว → บันทึกขั้นล่าสุดไว้ที่งานหลัก จะได้เห็นในหน้ารายการโดยไม่ต้องโหลดงานย่อย */
       if (pass && task.stage && task.parentId) {
         const par = await db.prepare("SELECT stage FROM tasks WHERE id = ?").bind(task.parentId).first();
-        const cur = par ? SIGN_STAGE_KEYS.indexOf(par.stage) : -1;
-        if (SIGN_STAGE_KEYS.indexOf(task.stage) > cur) {
+        const fl3 = await flowFor(db, task.taskType);
+        const cur = par ? stageIdx(fl3, par.stage) : -1;
+        if (stageIdx(fl3, task.stage) > cur) {
           stmts.push(db.prepare("UPDATE tasks SET stage=?, updated_at=? WHERE id=?").bind(task.stage, now, task.parentId));
         }
       }
@@ -2032,7 +2112,8 @@ export async function handleTaskApi(request, env, url, path, method) {
     /* ---- สร้าง 6 ขั้นให้งานป้ายที่ยังไม่มี (งานเก่าก่อนมีระบบนี้) ---- */
     if (sub === "/stages" && method === "POST") {
       if (!(isOwner || task.createdBy === me.id || mine)) return json({ error: "ไม่มีสิทธิ์" }, 403);
-      if (task.taskType !== "signage") return json({ error: "ไม่ใช่งานป้าย" }, 400);
+      if (task.parentId) return json({ error: "งานย่อยไม่มีขั้นงานของตัวเอง" }, 400);
+      if (!(await flowFor(db, task.taskType)).length) return json({ error: "ประเภทนี้ยังไม่ได้ตั้งขั้นงาน — ตั้งได้ที่บอร์ด › ตั้งค่าขั้นงาน" }, 400);
       const r = await ensureSignStages(db, id, me.id, nowIso());
       return json({ ok: true, created: r.created });
     }

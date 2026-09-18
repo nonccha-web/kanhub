@@ -73,6 +73,33 @@
   var SIGN_KEYS = SIGN_STAGES.map(function (x) { return x[0]; });
   var SIGN_TH = {}; SIGN_STAGES.forEach(function (x) { SIGN_TH[x[0]] = x[1]; });
   function signStageIdx(k) { return SIGN_KEYS.indexOf(k); }
+  /* ขั้นงาน (flow) ตั้งเองได้ต่อประเภท — โหลดจาก /flows แล้วอัปเดตชุด SIGN_* ให้หน้างานป้ายใช้ต่อได้ */
+  S.flows = null;
+  function loadFlows(force) {
+    if (S.flows && !force) return Promise.resolve(S.flows);
+    return api('/flows').then(function (j) { applyFlows(j.flows || {}); return S.flows; })
+      .catch(function () { S.flows = S.flows || {}; return S.flows; });
+  }
+  function applyFlows(flows) {
+    S.flows = flows || {};
+    var sg = S.flows.signage;
+    if (sg && sg.length) {
+      SIGN_STAGES = sg.map(function (x) { return [x.k, x.th]; });
+      SIGN_KEYS = SIGN_STAGES.map(function (x) { return x[0]; });
+      SIGN_TH = {}; SIGN_STAGES.forEach(function (x) { SIGN_TH[x[0]] = x[1]; });
+    }
+  }
+  function flowOf(type) { return (S.flows && S.flows[type]) || []; }
+  /* ขั้นปัจจุบันของงานหลัก = ขั้นแรกที่ยังไม่เสร็จ · null = ไม่มีขั้น · 'done' = ครบทุกขั้น */
+  function stageSubs(t) { return (S.tasks || []).filter(function (x) { return x.parentId === t.id && x.stage; }); }
+  function plainSubs(t) { return (S.tasks || []).filter(function (x) { return x.parentId === t.id && !x.stage; }); }
+  function currentStage(t, flow) {
+    var subs = stageSubs(t);
+    if (!subs.length) return null;
+    var byK = {}; subs.forEach(function (x) { byK[x.stage] = x; });
+    for (var i = 0; i < flow.length; i++) { var x = byK[flow[i].k]; if (!x || effStatus(x) !== 'done') return flow[i].k; }
+    return 'done';
+  }
   function repeatLabel(v) {
     for (var i = 0; i < REPEAT_OPTS.length; i++) if (REPEAT_OPTS[i][0] === (v || '')) return REPEAT_OPTS[i][1];
     return '';
@@ -550,7 +577,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/new', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { me: '#/me', all: '#/all', new: '#/me', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -805,10 +832,11 @@
     return '<div class="group"><div class="group-h' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3><span>' + list.length + '</span>' + gsel() + '</div>' +
       '<div class="tlist">' + list.map(taskRow).join('') + '</div></div>';
   }
-  /* ---------- บอร์ดแบบคัมบัง ----------
-     คอลัมน์ = สถานะ · ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ
-     ใช้ drag ของ HTML เอง ไม่ต้องลากไลบรารีมา และใช้ได้กับคีย์บอร์ดผ่านปุ่มติ๊กในการ์ด
-     บนจอสัมผัสที่ลากไม่ได้ ให้กดการ์ดเข้าไปเปลี่ยนสถานะในหน้างานแทน */
+  /* ---------- บอร์ด (ไปป์ไลน์แบบ monday) ----------
+     นนท์ส่ง ref มา 18 ก.ย. 69: หัวคอลัมน์สีเป็นลูกศร + จำนวน · ใต้หัวมีสรุป · การ์ดมีชิป/คนรับ/ตัวนับ
+     งานย่อยซ้อนใต้การ์ด + ปุ่มเพิ่มงานย่อยตรงนั้น · กดการ์ดเปิดงาน
+     คอลัมน์: เลือกประเภทงานที่มีขั้นงาน (flow) → คอลัมน์ = ขั้น · ไม่มี flow → คอลัมน์ = สถานะ
+     ลากการ์ดข้ามคอลัมน์ = เปลี่ยนสถานะ / เลื่อนขั้น (ขั้นที่ต้องแนบรูปยังบังคับที่ worker) */
   var BOARD_COLS = [
     { k: 'todo', label: 'รอทำ' },
     { k: 'doing', label: 'กำลังทำ' },
@@ -816,29 +844,114 @@
     { k: 'blocked', label: 'ติดปัญหา' },
     { k: 'done', label: 'เสร็จแล้ว' }
   ];
-  function boardCard(t) {
+  var B = { type: '' };
+  try { B.type = localStorage.getItem('kan-board-type') || ''; } catch (e) {}
+  /* สีหัวคอลัมน์ — ชุดเดียวกับ ref: คราม ฟ้า เขียวน้ำทะเล เขียว · ติดปัญหา = ชมพูแดง · เสร็จ = เขียวเสมอ */
+  var KCOLORS = ['#5b5fc7', '#4f8bf0', '#4fbfc0', '#7c6bd6', '#e39a3b', '#d96a8b', '#6a9bd8'];
+  function kcolColor(k, i, n) {
+    if (k === 'done') return '#5dbb7a';
+    if (k === 'blocked') return '#e0607e';
+    if (k === 'review') return '#4fbfc0';
+    if (k === 'doing') return '#4f8bf0';
+    if (k === 'todo') return '#5b5fc7';
+    return KCOLORS[i % KCOLORS.length];
+  }
+  function boardColumns() {
+    var flow = B.type ? flowOf(B.type) : [];
+    if (flow.length) {
+      return { byStage: true, flow: flow, cols: flow.map(function (st) { return { k: st.k, label: st.th, pic: st.pic }; }).concat([{ k: 'done', label: 'เสร็จแล้ว' }]) };
+    }
+    return { byStage: false, flow: [], cols: BOARD_COLS };
+  }
+  function subCard(x) {
+    var es = effStatus(x), late = isLate(x);
+    var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : (es === 'review' ? '?' : ''));
+    return '<div class="ksub' + (es === 'done' ? ' done' : '') + (late ? ' late' : '') + '" data-kopen="' + esc(x.id) + '">' +
+      selCircle(x, late ? 'late' : es, mark, !!SEL[x.id], 'ksel') +
+      '<span class="kst"><b>' + esc(x.title) + '</b>' +
+      '<span class="ksm">' + (x.assignees.length ? esc(x.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ')) : 'ยังไม่มอบหมาย') +
+      (x.dueAt ? ' · ' + esc(fmtDue(x)) : '') + (es === 'review' ? ' · รอตรวจ' : '') + '</span></span></div>';
+  }
+  function boardCard(t, model) {
     var late = isLate(t), es = effStatus(t);
     var sel = !!SEL[t.id];
     var mark = es === 'done' ? '✓' : (es === 'blocked' ? '!' : (es === 'review' ? '?' : ''));
-    return '<article class="kcard' + (late ? ' late' : '') + (sel ? ' selected' : '') + '" draggable="' + (canTick(t) ? 'true' : 'false') + '" data-kid="' + esc(t.id) + '">' +
+    var subs = plainSubs(t), stages = stageSubs(t);
+    var stDone = stages.filter(function (x) { return effStatus(x) === 'done'; }).length;
+    var canDrag = model.byStage ? (canTick(t) && stages.length > 0) : canTick(t);
+    var chips = '';
+    if (t.priority) chips += '<span class="kchip pri"><i></i>ด่วน</span>';
+    if (!B.type) chips += typeChip(t.taskType);
+    chips += kpiChip(t.kpiId);
+    if (t.dueAt || t.repeat) chips += '<span class="kchip due' + (late ? ' late' : (isToday(t) && es !== 'done' ? ' today' : '')) + '"><i></i>' + esc(fmtDue(t)) + '</span>';
+    if (t.hours) chips += '<span class="kchip"><i></i>' + esc(String(t.hours)) + ' ชม.</span>';
+    var flowHas = flowOf(t.taskType).length > 0;
+    var h = '<article class="kcard' + (late ? ' late' : '') + (sel ? ' selected' : '') + (es === 'done' ? ' isdone' : '') +
+      '" draggable="' + (canDrag ? 'true' : 'false') + '" data-kid="' + esc(t.id) + '" data-kopen="' + esc(t.id) + '">' +
       '<div class="khead">' + selCircle(t, late ? 'late' : es, mark, sel, 'ksel') +
-      '<a href="#/task/' + esc(t.id) + '"><b>' + (t.priority ? '★ ' : '') + esc(t.title) + '</b></a></div>' +
-      '<div class="kmeta">' + avatars(t.assignees) + typeChip(t.taskType) + kpiChip(t.kpiId) + '</div>' +
-      '<div class="kfoot"><span class="' + (late ? 'late' : '') + '">' + esc(fmtDue(t)) + '</span>' +
+      '<b>' + esc(t.title) + '</b></div>' +
+      (chips ? '<div class="kchips">' + chips + '</div>' : '') +
+      '<div class="kfoot">' + (t.assignees.length ? '<span class="avs">' + t.assignees.slice(0, 3).map(function (id) { return avatar(staffById(id)); }).join('') + '</span>' +
+        '<span class="kwho">' + esc(t.assignees.map(function (id) { return shortName(staffById(id)); }).join(', ')) + '</span>' : '<span class="kwho warn">ยังไม่มอบหมาย</span>') +
+      '<span class="kcnt" title="ความคืบหน้า/ความเห็น">' + svgIcon('chat') + (t.nUpdates || 0) + '</span>' +
+      (stages.length ? '<span class="kcnt" title="ขั้นงาน">' + svgIcon('flow') + stDone + '/' + stages.length + '</span>' : '') +
+      (subs.length ? '<span class="kcnt" title="งานย่อย">' + svgIcon('sub') + subs.filter(function (x) { return effStatus(x) === 'done'; }).length + '/' + subs.length + '</span>' : '') +
+      (t.nFiles ? '<span class="kcnt" title="รูป">' + svgIcon('pic') + t.nFiles + '</span>' : '') +
       (canEditRow(t) || canTick(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="เมนูงานนี้">⋯</span>' : '') +
-      '</div></article>';
+      '</div>' +
+      (model.byStage && !stages.length && flowHas && !readOnly() ? '<div class="knote"><button type="button" class="btn-text" data-mkstages="' + esc(t.id) + '">ยังไม่มีขั้นงาน — สร้าง ' + flowOf(t.taskType).length + ' ขั้น</button></div>' : '') +
+      '</article>';
+    /* งานย่อย (ที่ไม่ใช่ขั้น) ซ้อนใต้การ์ด + ช่องเพิ่ม */
+    var canAdd = !readOnly() && (canEditRow(t) || mineTask(t) || (S.me && S.me.canUpdateOthers));
+    if (subs.length || canAdd) {
+      h += '<div class="ksubs">' + subs.map(subCard).join('') +
+        (canAdd ? '<div class="kadd" data-kadd="' + esc(t.id) + '"><span class="kaddp" role="button" tabindex="0">+ เพิ่มงานย่อย</span></div>' : '') + '</div>';
+    }
+    return '<div class="kitem">' + h + '</div>';
+  }
+  function svgIcon(k) {
+    if (k === 'chat') return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6a8 8 0 1 1 18-5z"/></svg>';
+    if (k === 'flow') return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h6M4 12h10M4 18h14"/></svg>';
+    if (k === 'sub') return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v12a2 2 0 0 0 2 2h12M5 10h8M9 16h10"/></svg>';
+    if (k === 'pic') return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-8 7"/></svg>';
+    return '';
   }
   function kanban(list) {
+    var model = boardColumns();
+    var pool = B.type ? list.filter(function (t) { return (t.taskType || 'other') === B.type; }) : list;
     var by = {};
-    list.forEach(function (t) { var k = effStatus(t); (by[k] = by[k] || []).push(t); });
-    return '<div class="kban">' + BOARD_COLS.map(function (c) {
+    pool.forEach(function (t) {
+      var k;
+      if (model.byStage) {
+        var cur = currentStage(t, model.flow);
+        k = effStatus(t) === 'done' ? 'done' : (cur === null ? model.cols[0].k : cur);
+        if (k !== 'done' && !model.cols.some(function (c) { return c.k === k; })) k = model.cols[0].k;   /* ขั้นเก่าที่ถูกลบจาก flow */
+      } else k = effStatus(t);
+      (by[k] = by[k] || []).push(t);
+    });
+    var typeTabs = '<div class="kbar"><div class="seg">' +
+      '<button type="button" class="' + (!B.type ? 'on' : '') + '" data-btype="">ทุกงาน · ตามสถานะ</button>' +
+      TASK_TYPE_KEYS.map(function (k) {
+        var n = flowOf(k).length;
+        return '<button type="button" class="' + (B.type === k ? 'on' : '') + '" data-btype="' + k + '" title="' + (n ? n + ' ขั้น' : 'ยังไม่ตั้งขั้นงาน — ใช้สถานะ') + '">' + esc(TASK_TYPE_TH[k]) + (n ? '<i>' + n + '</i>' : '') + '</button>';
+      }).join('') + '</div>' +
+      (amOwner() ? '<button type="button" class="btn-ghost sm" data-flow-edit>ตั้งค่าขั้นงาน</button>' : '') +
+      '<span class="kbar-n">' + pool.length + ' งาน' + (model.byStage ? ' · ' + model.flow.length + ' ขั้น' : '') + '</span></div>';
+    var cols = model.cols.map(function (c, i) {
       var items = by[c.k] || [];
-      return '<section class="kcol" data-kcol="' + c.k + '">' +
-        '<header><b>' + esc(c.label) + '</b><span>' + items.length + '</span></header>' +
-        '<div class="kbody">' + (items.length ? items.map(boardCard).join('')
+      var hrs = items.reduce(function (a, t) { return a + (t.hours || 0); }, 0);
+      var lateN = items.filter(isLate).length;
+      var color = kcolColor(c.k, i, model.cols.length);
+      return '<section class="kcol" data-kcol="' + (model.byStage ? '' : c.k) + '"' + (model.byStage ? ' data-kstage="' + esc(c.k) + '" data-kidx="' + i + '"' : '') + ' style="--kc:' + color + '">' +
+        '<header class="khdr"><b>' + esc(c.label) + '</b><span>/ ' + items.length + '</span></header>' +
+        '<div class="ksum">' + (hrs ? '<b>' + esc(String(Math.round(hrs * 4) / 4)) + '</b> ชม.' : '<b>' + items.length + '</b> งาน') +
+        (lateN ? '<em>เลยกำหนด ' + lateN + '</em>' : '') + (c.pic ? '<small title="ปิดขั้นนี้ต้องแนบรูป">📷 ต้องมีรูป</small>' : '') + '</div>' +
+        '<div class="kbody">' + (items.length ? items.map(function (t) { return boardCard(t, model); }).join('')
           : '<p class="kempty">ไม่มีงาน</p>') + '</div></section>';
-    }).join('') + '</div>' +
-    '<p class="khint">ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ · บนมือถือกดที่การ์ดแล้วเปลี่ยนในหน้างาน</p>';
+    }).join('');
+    return typeTabs + '<div class="kban">' + cols + '</div>' +
+      '<p class="khint">' + (model.byStage ? 'ลากการ์ดไปคอลัมน์ถัดไป = ปิดขั้นปัจจุบัน (ขั้นที่ต้องมีรูปจะไม่ผ่านจนกว่าจะแนบรูปในงาน) · ' : 'ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ · ') +
+      'กดที่การ์ดเพื่อเปิดงาน · วงกลม = เลือกหลายงาน</p>';
   }
   /* ผูก drag ครั้งเดียวที่ document — การ์ดถูกวาดใหม่ทุกรอบ ผูกรายตัวจะหลุด */
   var KDRAG = null;
@@ -866,10 +979,13 @@
     var col = ev.target.closest && ev.target.closest('.kcol');
     if (!col || !KDRAG) return;
     ev.preventDefault();
-    var id = KDRAG, want = col.getAttribute('data-kcol');
+    var id = KDRAG;
     KDRAG = null;
-    var t = (S.tasks || []).filter(function (x) { return x.id === id; })[0];
-    if (!t || effStatus(t) === want) { render(); return; }
+    var t = taskById(id);
+    if (!t) { render(); return; }
+    if (col.hasAttribute('data-kstage')) { moveToStage(t, col.getAttribute('data-kstage'), Number(col.getAttribute('data-kidx'))); return; }
+    var want = col.getAttribute('data-kcol');
+    if (!want || effStatus(t) === want) { render(); return; }
     /* ลากไปช่อง "เสร็จแล้ว" แต่ไม่มีสิทธิ์ปิดงาน = ส่งรอตรวจแทน เหมือนกดปุ่มในหน้างาน */
     var req = (want === 'done' && effStatus(t) === 'review' && canApprove(t))
       ? api('/tasks/' + id + '/review', 'POST', { pass: true })
@@ -880,6 +996,105 @@
       render();
     }).catch(function (e) { toast(e.message, true); render(); });
   });
+  /* ลากการ์ดไปคอลัมน์ขั้นที่ไกลกว่า = ปิดทุกขั้นก่อนหน้านั้น (ยิง bulk ครั้งเดียว · ขั้นที่ต้องมีรูปจะถูกข้ามพร้อมบอก)
+     ลากถอยหลัง = เปิดขั้นนั้นกับขั้นหลังจากนั้นกลับมาเป็นรอทำ */
+  function moveToStage(t, stageK, idx) {
+    var flow = flowOf(t.taskType);
+    var subs = stageSubs(t);
+    if (!subs.length) { toast('งานนี้ยังไม่มีขั้นงาน — กด “สร้างขั้น” บนการ์ดก่อน', true); render(); return; }
+    var byK = {}; subs.forEach(function (x) { byK[x.stage] = x; });
+    var target = stageK === 'done' ? flow.length : idx;
+    var toClose = [], toOpen = [];
+    flow.forEach(function (st, i) {
+      var x = byK[st.k]; if (!x) return;
+      if (i < target && effStatus(x) !== 'done') toClose.push(x.id);
+      if (i >= target && effStatus(x) === 'done') toOpen.push(x.id);
+    });
+    if (!toClose.length && !toOpen.length) { render(); return; }
+    var reqs = [];
+    if (toClose.length) reqs.push(api('/tasks/bulk', 'POST', { ids: toClose, action: 'done' }));
+    if (toOpen.length) reqs.push(api('/tasks/bulk', 'POST', { ids: toOpen, action: 'status', status: 'todo' }));
+    Promise.all(reqs).then(function (rs) {
+      S.tasks = null;
+      var skipped = [];
+      rs.forEach(function (j) { (j.skipped || []).forEach(function (x) { skipped.push(x); }); });
+      if (skipped.length) toast('เลื่อนได้บางส่วน — ' + skipped[0].reason + (skipped.length > 1 ? ' (+' + (skipped.length - 1) + ')' : ''), true);
+      else toast(stageK === 'done' ? 'ปิดครบทุกขั้นแล้ว' : 'เลื่อนไปขั้น “' + esc((flow[idx] || {}).th || '') + '” แล้ว');
+      render();
+    }).catch(function (e) { toast(e.message, true); render(); });
+  }
+  /* เพิ่มงานย่อยใต้การ์ด: ช่องพิมพ์ชื่อ Enter = สร้าง (คนรับ/กำหนดส่ง/ประเภท/KPI ตามงานหลัก) */
+  function kaddOpen(host) {
+    if ($('input', host)) return;
+    var pid = host.getAttribute('data-kadd'), parent = taskById(pid);
+    host.innerHTML = '<input class="input" maxlength="200" placeholder="ชื่องานย่อย แล้วกด Enter" aria-label="ชื่องานย่อย"><span class="teh">Enter สร้าง · Esc ยกเลิก</span>';
+    var inp = $('input', host);
+    var closed = false;
+    function done(save) {
+      if (closed) return; closed = true;
+      var v = inp.value.trim();
+      if (!save || !v || !parent) { render(); return; }
+      api('/tasks', 'POST', { tasks: [{ title: v, parentId: parent.id, assignees: parent.assignees, dueAt: parent.dueAt, taskType: parent.taskType, kpiId: parent.kpiId, support: parent.support, campaignId: parent.campaignId }] })
+        .then(function () { S.tasks = null; toast('เพิ่มงานย่อยแล้ว'); render(); })
+        .catch(function (e) { toast(e.message, true); render(); });
+    }
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); done(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); done(false); }
+    });
+    inp.addEventListener('blur', function () { setTimeout(function () { done(true); }, 0); });
+    inp.focus();
+  }
+  /* ตั้งค่าขั้นงานต่อประเภท (หัวหน้า): เพิ่ม/ลบ/สลับ/เปลี่ยนชื่อ/วันนำ/ต้องมีรูป */
+  function flowEditor(type) {
+    type = type || B.type || 'signage';
+    var host = document.createElement('div');
+    host.className = 'modal';
+    var rows = (flowOf(type) || []).map(function (x) { return { k: x.k, th: x.th, lead: x.lead || 0, pic: !!x.pic }; });
+    function draw() {
+      host.innerHTML = '<div class="modal-box qbox"><div class="sec-h"><h2>ตั้งค่าขั้นงาน</h2>' +
+        '<p>งานประเภทนี้ที่สั่งใหม่จะได้งานย่อยตามขั้นเหล่านี้อัตโนมัติ · วันนำ = จำนวนวันทำการที่ขั้นนั้นใช้ (ถอยหลังจากกำหนดส่ง) · ลบทุกขั้น = กลับไปใช้คอลัมน์ตามสถานะ</p></div>' +
+        '<div class="qbody"><div class="seg" style="margin-bottom:12px">' + TASK_TYPE_KEYS.map(function (k) {
+          return '<button type="button" class="' + (type === k ? 'on' : '') + '" data-ft="' + k + '">' + esc(TASK_TYPE_TH[k]) + (flowOf(k).length ? '<i>' + flowOf(k).length + '</i>' : '') + '</button>';
+        }).join('') + '</div>' +
+        '<div class="flist">' + (rows.length ? rows.map(function (r, i) {
+          return '<div class="frow2" data-i="' + i + '"><span class="fn">' + (i + 1) + '</span>' +
+            '<input class="input" data-fk="th" value="' + esc(r.th) + '" placeholder="ชื่อขั้น" maxlength="40">' +
+            '<label class="fl"><input class="input" type="number" min="0" max="60" data-fk="lead" value="' + esc(String(r.lead)) + '" aria-label="วันนำ"> วัน</label>' +
+            '<label class="fl"><input type="checkbox" data-fk="pic"' + (r.pic ? ' checked' : '') + '> ต้องมีรูป</label>' +
+            '<span class="fbtns"><button type="button" class="btn-ghost sm" data-fmv="-1" title="เลื่อนขึ้น"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+            '<button type="button" class="btn-ghost sm" data-fmv="1" title="เลื่อนลง"' + (i === rows.length - 1 ? ' disabled' : '') + '>↓</button>' +
+            '<button type="button" class="btn-ghost sm danger" data-fdel title="ลบขั้นนี้">✕</button></span></div>';
+        }).join('') : '<p class="hint">ยังไม่มีขั้นงานสำหรับประเภทนี้ — บอร์ดใช้คอลัมน์ตามสถานะ</p>') + '</div>' +
+        '<button type="button" class="btn-ghost sm" data-fadd' + (rows.length >= 12 ? ' disabled' : '') + '>+ เพิ่มขั้น</button></div>' +
+        '<div class="qacts"><button type="button" class="btn-ghost" data-q-close>ยกเลิก</button><button type="button" class="btn" data-fsave>บันทึก</button></div></div>';
+    }
+    function pull() {
+      $$('.frow2', host).forEach(function (el, i) {
+        rows[i].th = $('[data-fk="th"]', el).value.trim();
+        rows[i].lead = Number($('[data-fk="lead"]', el).value) || 0;
+        rows[i].pic = $('[data-fk="pic"]', el).checked;
+      });
+    }
+    draw();
+    document.body.appendChild(host);
+    host.addEventListener('click', function (ev) {
+      var b;
+      if (ev.target === host || ev.target.closest('[data-q-close]')) { host.remove(); return; }
+      if ((b = ev.target.closest('[data-ft]'))) { pull(); type = b.getAttribute('data-ft'); rows = (flowOf(type) || []).map(function (x) { return { k: x.k, th: x.th, lead: x.lead || 0, pic: !!x.pic }; }); draw(); return; }
+      if (ev.target.closest('[data-fadd]')) { pull(); rows.push({ k: '', th: '', lead: 1, pic: false }); draw(); var last = $$('.frow2 [data-fk="th"]', host).pop(); if (last) last.focus(); return; }
+      if ((b = ev.target.closest('[data-fmv]'))) { pull(); var i = Number(b.closest('.frow2').getAttribute('data-i')), j = i + Number(b.getAttribute('data-fmv')); var tmp = rows[i]; rows[i] = rows[j]; rows[j] = tmp; draw(); return; }
+      if ((b = ev.target.closest('[data-fdel]'))) { pull(); rows.splice(Number(b.closest('.frow2').getAttribute('data-i')), 1); draw(); return; }
+      if ((b = ev.target.closest('[data-fsave]'))) {
+        pull();
+        var clean = rows.filter(function (r) { return r.th; });
+        b.disabled = true;
+        api('/flows', 'PUT', { type: type, stages: clean.map(function (r) { return { k: r.k, th: r.th, lead: r.lead, pic: r.pic ? 1 : 0 }; }) })
+          .then(function (j) { applyFlows(j.flows || {}); host.remove(); toast('บันทึกขั้นงาน ' + TASK_TYPE_TH[type] + ' แล้ว'); B.type = type; try { localStorage.setItem('kan-board-type', B.type); } catch (e) {} render(); })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      }
+    });
+  }
 
   function bucketize(tasks) {
     var now = new Date(), week = new Date(startOfDay(now).getTime() + 7 * 86400000);
@@ -1857,7 +2072,7 @@
     if (ev.key === 'Escape' && POP) { popClose(); return; }
     /* วงกลมเลือก/ปุ่มในแถวกดด้วยคีย์บอร์ดได้ (แถวเป็นลิงก์ Enter ปกติจะพาไปหน้างาน) */
     var el = ev.target;
-    if ((ev.key === ' ' || ev.key === 'Enter') && el.matches && el.matches('[data-sel],[data-gsel],[data-tedit],[data-aedit],[data-dedit],[data-rowmenu]')) {
+    if ((ev.key === ' ' || ev.key === 'Enter') && el.matches && el.matches('[data-sel],[data-gsel],[data-tedit],[data-aedit],[data-dedit],[data-rowmenu],.kaddp')) {
       ev.preventDefault(); el.click();
     }
   });
@@ -4456,7 +4671,7 @@
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
         if (!location.hash) location.hash = S.me.role === 'owner' ? '#/all' : '#/me';
-        loadCampaigns().then(render).then(function () {
+        Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {
           var T = global.KAN_TOUR;
           /* เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง) ไม่ต้องพาทัวร์ตอนนั้น */
           if (T && !T.seen() && location.hash.indexOf('#/task/') !== 0) setTimeout(function () { if (S.me && !T.active()) T.start('overview'); }, 900);
@@ -4493,6 +4708,20 @@
     if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
     if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
     if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
+    if ((b = ev.target.closest('[data-btype]'))) { B.type = b.getAttribute('data-btype'); try { localStorage.setItem('kan-board-type', B.type); } catch (e) {} renderAll(); return; }
+    if (ev.target.closest('[data-flow-edit]')) { flowEditor(B.type); return; }
+    if ((b = ev.target.closest('[data-mkstages]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      b.disabled = true;
+      api('/tasks/' + b.getAttribute('data-mkstages') + '/stages', 'POST', {}).then(function (j) { S.tasks = null; toast('สร้าง ' + (j.created || 0) + ' ขั้นแล้ว'); render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-kadd]'))) { ev.preventDefault(); ev.stopPropagation(); if (!ev.target.closest('input')) kaddOpen(b); return; }
+    /* กดที่ตัวการ์ด/งานย่อย = เปิดงาน (ยกเว้นปุ่มในการ์ด) */
+    if ((b = ev.target.closest('[data-kopen]')) && !ev.target.closest('[data-sel],[data-rowmenu],[data-mkstages],a,button,input')) {
+      location.hash = '#/task/' + b.getAttribute('data-kopen'); return;
+    }
     if ((b = ev.target.closest('[data-rowmenu]'))) {
       ev.preventDefault(); ev.stopPropagation();
       rowMenu(b, b.getAttribute('data-rowmenu'));

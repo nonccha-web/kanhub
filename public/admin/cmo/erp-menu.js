@@ -26,12 +26,12 @@
         { icon: 'user',      label: 'งานของฉัน',      tasks: '#/me' },
         { icon: 'bell',      label: 'แจ้งเตือน',       tasks: '#/inbox', badge: 'mentions' },
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
-        { icon: 'zap',       label: 'สั่งงาน',         tasks: '#/new' },
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
         { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
-        { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' }
+        { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' },
+        { icon: 'users',     label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' }
       ]}
 
     ]},
@@ -62,6 +62,12 @@
     ]},
 
     /* ── เอกสาร + ระบบ: เปิดนาน ๆ ที · ของที่ข้อมูลยังเชื่อไม่ได้อยู่ในนี้ ──── */
+
+  ];
+  /* ── เมนูอื่น ๆ (เอกสารแผน · B2B · สต็อก · ระบบ) — นนท์ขอเอาออกจาก sidebar 18 ก.ย. 69 ("อาจจะไม่ใช้แล้ว")
+     เก็บโครงไว้ตรงนี้เฉย ๆ ไม่วาด · อยากเอากลับให้ย้ายบล็อกนี้ไปต่อท้าย SECTIONS
+     "ทีม + สิทธิ์" ย้ายไปอยู่กลุ่มงานทีมแล้ว เพราะหัวหน้ายังต้องใช้ตั้งสิทธิ์รายคน */
+  var ARCHIVED_SECTIONS = [
     { id: 'ref', label: 'เอกสาร + ระบบ', boxed: 'เมนูอื่น ๆ', boxNote: 'เอกสารแผน · B2B · สต็อก · ระบบ', groups: [
 
       { icon: 'folder', label: 'เอกสารแผนงาน', items: [
@@ -105,6 +111,7 @@
 
     ]}
   ];
+
 
   /* กลุ่มทั้งหมดเรียงต่อกัน — ของเดิมที่อื่นยังเรียก GROUPS อยู่ */
   var GROUPS = [];
@@ -185,7 +192,7 @@
     return item.sales != null ? ('sales:' + item.sales) : ('cmo:' + item.cmo);
   }
 
-  var ERP_MENU = global.ERP_MENU = {
+  var ERP_MENU = global.ERP_MENU = { archived: ARCHIVED_SECTIONS,
     GROUPS: GROUPS,
     SECTIONS: SECTIONS,
     brandTitle: 'KAN Admin',
