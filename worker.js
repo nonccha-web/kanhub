@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi, ensureTaskSchema, authFor, canSee } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 
@@ -225,6 +225,49 @@ async function handleApi(request, env, url) {
   if (path === "/campaigns" && method === "GET") {
     const res = await db.prepare(LIST_SQL).all();
     return json({ campaigns: (res.results || []).map(rowToCampaign) });
+  }
+
+  /* สถานะงานของทุกโปรฯ ในครั้งเดียว — ปฏิทินเอาไปโชว์บนแถบ/การ์ด ไม่ต้องเปิดหน้ากลับไปกลับมา (นนท์ 19 ก.ย. 69)
+     ต่อโปรฯ: งานป้าย (ถึงขั้นไหน จากกี่ขั้น เลยกำหนดไหม) · งานอื่น · โพสต์ (ลงแล้ว/ทั้งหมด/เลยวัน) */
+  if (path === "/campaigns/status" && method === "GET") {
+    const nowIso = new Date().toISOString();
+    const todayTh = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+    const flows = await loadFlows(db);
+    const mains = await db.prepare(
+      "SELECT id, campaign_id, title, task_type, status, due_at, stage FROM tasks WHERE campaign_id IS NOT NULL AND parent_id IS NULL"
+    ).all();
+    const subs = await db.prepare(
+      "SELECT parent_id, stage, status FROM tasks WHERE stage IS NOT NULL AND parent_id IN (SELECT id FROM tasks WHERE campaign_id IS NOT NULL AND parent_id IS NULL)"
+    ).all();
+    const posts = await db.prepare(
+      "SELECT campaign_id, COUNT(*) AS n, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS n_done, " +
+      "SUM(CASE WHEN status <> 'done' AND post_date < ? THEN 1 ELSE 0 END) AS n_late FROM posts WHERE campaign_id IS NOT NULL GROUP BY campaign_id"
+    ).bind(todayTh).all();
+    const subBy = {};
+    for (const r of (subs.results || [])) (subBy[r.parent_id] = subBy[r.parent_id] || []).push(r);
+    const out = {};
+    const bucket = (cid) => (out[cid] = out[cid] || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 } });
+    for (const t of (mains.results || [])) {
+      const b = bucket(t.campaign_id);
+      const late = t.status !== "done" && !!t.due_at && t.due_at < nowIso;
+      const flow = flows[t.task_type] || [];
+      if (t.task_type === "signage" || flow.length) {
+        const st = subBy[t.id] || [];
+        const byK = {}; for (const x of st) byK[x.stage] = x;
+        let idx = -1; let cur = null;
+        if (st.length) {
+          idx = flow.length;   /* ครบทุกขั้น */
+          for (let i = 0; i < flow.length; i++) { const x = byK[flow[i].k]; if (!x || x.status !== "done") { idx = i; cur = flow[i]; break; } }
+        }
+        b.signs.push({ id: t.id, title: t.title, type: t.task_type, status: t.status, late, dueAt: t.due_at,
+          nStages: flow.length, stageIdx: t.status === "done" ? flow.length : idx, stageTh: t.status === "done" ? "เสร็จ" : (cur ? cur.th : (st.length ? "เสร็จทุกขั้น" : "ยังไม่ตั้งขั้น")),
+          stages: flow.map((f) => ({ k: f.k, th: f.th, done: !!(byK[f.k] && byK[f.k].status === "done"), review: !!(byK[f.k] && byK[f.k].status === "review") })) });
+      } else {
+        b.others.push({ id: t.id, title: t.title, type: t.task_type, status: t.status, late, dueAt: t.due_at });
+      }
+    }
+    for (const r of (posts.results || [])) { const b = bucket(r.campaign_id); b.posts = { total: r.n || 0, done: r.n_done || 0, late: r.n_late || 0 }; }
+    return json({ status: out, generated: nowIso });
   }
 
   if (path === "/campaigns" && method === "POST") {

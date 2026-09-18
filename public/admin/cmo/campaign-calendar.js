@@ -78,11 +78,59 @@
     return data;
   }
 
+  /* สถานะงานต่อโปรฯ (ป้าย/โพสต์/งานอื่น) — โชว์บนแถบและการ์ด ไม่ต้องเปิดหน้าอื่น */
+  var STATUS = {};
+  async function loadStatus() {
+    try { var d = await api("/campaigns/status"); STATUS = d.status || {}; } catch (e) { STATUS = {}; }
+  }
+  function stOf(it) { return STATUS[it.id] || null; }
+  /* ข้อความสั้นบนแถบ: "ป้าย ผลิต 3/6 · โพสต์ 2/5 · งาน 1/3" — ว่าง = ยังไม่มีงานผูก */
+  function statusBrief(it) {
+    var st = stOf(it); if (!st) return "";
+    var parts = [];
+    if (st.signs.length) {
+      var worst = st.signs.slice().sort(function (a, b) { return a.stageIdx - b.stageIdx; })[0];
+      var doneN = st.signs.filter(function (x) { return x.status === "done"; }).length;
+      parts.push('<span class="cc-st' + (st.signs.some(function (x) { return x.late; }) ? " late" : (doneN === st.signs.length ? " ok" : "")) + '">ป้าย ' +
+        (st.signs.length > 1 ? st.signs.length + " · " : "") + (doneN === st.signs.length ? "ติดตั้งครบ" : esc(worst.stageTh) + (worst.nStages ? " " + Math.max(0, worst.stageIdx) + "/" + worst.nStages : "")) + "</span>");
+    }
+    if (st.posts.total) parts.push('<span class="cc-st' + (st.posts.late ? " late" : (st.posts.done === st.posts.total ? " ok" : "")) + '">โพสต์ ' + st.posts.done + "/" + st.posts.total + "</span>");
+    if (st.others.length) {
+      var od = st.others.filter(function (x) { return x.status === "done"; }).length;
+      parts.push('<span class="cc-st' + (st.others.some(function (x) { return x.late; }) ? " late" : (od === st.others.length ? " ok" : "")) + '">งาน ' + od + "/" + st.others.length + "</span>");
+    }
+    return parts.join("");
+  }
+  var TASK_STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
+  /* บล็อกสถานะเต็มในการ์ด: funnel จุดต่องานป้าย · โพสต์ · งานอื่น — กดแต่ละบรรทัดไปงานนั้น */
+  function statusBlock(it) {
+    var st = stOf(it);
+    if (!st || (!st.signs.length && !st.others.length && !st.posts.total)) {
+      return '<div class="cc-stblk empty">ยังไม่มีงานป้าย/โพสต์ผูกกับโปรฯ นี้ — <a href="' + TASKS_BASE + '#/new?campaign=' + it.id + '">สั่งงาน</a></div>';
+    }
+    var h = '<div class="cc-stblk">';
+    st.signs.forEach(function (x) {
+      h += '<a class="cc-strow" href="' + TASKS_BASE + '#/task/' + x.id + '"><span class="cc-stname">' + esc(x.title) + "</span>" +
+        '<span class="cc-fun">' + x.stages.map(function (sg, i) {
+          return '<i class="' + (sg.done ? "on" : (i === x.stageIdx ? "now" : "")) + (sg.review ? " rev" : "") + '" title="' + esc(sg.th) + '"></i>';
+        }).join("") + "</span>" +
+        '<span class="cc-stlbl' + (x.late ? " late" : (x.status === "done" ? " ok" : "")) + '">' + esc(x.stageTh) + (x.late ? " · เลยกำหนด" : "") + "</span></a>";
+    });
+    if (st.posts.total) h += '<a class="cc-strow" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '"><span class="cc-stname">โพสต์</span><span></span>' +
+      '<span class="cc-stlbl' + (st.posts.late ? " late" : (st.posts.done === st.posts.total ? " ok" : "")) + '">ลงแล้ว ' + st.posts.done + "/" + st.posts.total + (st.posts.late ? " · เลยวัน " + st.posts.late : "") + "</span></a>";
+    st.others.forEach(function (x) {
+      h += '<a class="cc-strow" href="' + TASKS_BASE + '#/task/' + x.id + '"><span class="cc-stname">' + esc(x.title) + "</span><span></span>" +
+        '<span class="cc-stlbl' + (x.late ? " late" : (x.status === "done" ? " ok" : "")) + '">' + (TASK_STATUS_TH[x.status] || x.status) + (x.late ? " · เลยกำหนด" : "") + "</span></a>";
+    });
+    return h + "</div>";
+  }
+
   async function loadAll() {
     try {
       var data = await api("/campaigns");
       items = data.campaigns || [];
       online = true;
+      await loadStatus();
     } catch (e) {
       online = false;
       try {
@@ -278,7 +326,8 @@
         return '<button class="cc-bar' + (b.contL ? " contl" : "") + (b.contR ? " contr" : "") + '" data-open="' + it.id +
           '" style="grid-column:' + (b.c0 + 1) + ' / ' + (b.c1 + 2) + ';grid-row:' + (b.lane + 2) + ';background:' + tint(col, .16) + ';color:' + col + ';border-left-color:' + col + '"' +
           ' title="' + esc(it.name) + " · " + fullRange(it) + '">' + kindDot(it) + "<b>" + esc(shortName(it.name)) + "</b>" +
-          (it.branches && it.branches.length && b.c1 - b.c0 >= 2 ? '<small>' + esc(it.branches.join(" · ")) + "</small>" : "") + "</button>";
+          (b.c1 - b.c0 >= 1 ? statusBrief(it) : "") +
+          (it.branches && it.branches.length && b.c1 - b.c0 >= 3 ? '<small>' + esc(it.branches.join(" · ")) + "</small>" : "") + "</button>";
       }).join("");
       weeks += '<div class="cc-week" style="grid-template-rows:auto repeat(' + nLanes + ', auto) minmax(18px, 1fr)">' + cells + nums + barsH + mores + "</div>";
     }
@@ -448,6 +497,7 @@
     if (!hoverEl) {
       hoverEl = document.createElement("div");
       hoverEl.className = "cc-hover";
+      hoverEl.addEventListener("mouseleave", function () { if (!pinned) hideHover(400); });
       document.body.appendChild(hoverEl);
     }
     return hoverEl;
@@ -479,11 +529,12 @@
           "<b>" + esc(it.name) + "</b>" +
           '<div class="cc-hover-date">' + fullRange(it) + "</div>" +
           (it.branches && it.branches.length ? '<div class="cc-hover-meta">' + it.branches.map(esc).join(" · ") + "</div>" : "") +
-          (it.channels && it.channels.length ? '<div class="cc-hover-meta">ช่องทาง: ' + it.channels.map(esc).join(" · ") + "</div>" : "") +
           (it.owner ? '<div class="cc-hover-meta">ผู้รับผิดชอบ: ' + esc(it.owner) + "</div>" : "") +
-          (it.note ? '<div class="cc-hover-note">' + esc(it.note) + "</div>" : "") +
+          /* สถานะงานขึ้นก่อน รายละเอียดย่อไว้ 2 บรรทัด (นนท์: รายละเอียดไม่จำเป็น อยากเห็นสถานะ) */
+          statusBlock(it) +
+          (it.note ? '<div class="cc-hover-note clamp">' + esc(it.note.replace(/^\[[^\]]*\]\s*/, "")) + "</div>" : "") +
           (linkLine(it) ? '<div class="cc-hover-meta">' + linkLine(it) + "</div>" : "") +
-          '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn" data-open="' + it.id + '">ดูงานป้าย · โพสต์ · สถานะ</button>' +
+          '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn ghost" data-open="' + it.id + '">เปิดหน้าเต็ม</button>' +
           '<button type="button" class="cc-hover-btn ghost" data-edit="' + it.id + '">แก้ไขรายละเอียด</button></div>' +
         "</div>";
     } else {
@@ -496,7 +547,8 @@
                  (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" decoding="async">' : "") +
                  '<span class="cc-hover-itemtext"><b>' + esc(shortName(it.name)) + "</b>" +
                  '<span class="cc-hover-meta">' + fmtRange(it) +
-                 (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span></span>" +
+                 (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(" · ") : "") + "</span>" +
+                 (statusBrief(it) ? '<span class="cc-hover-meta">' + statusBrief(it) + "</span>" : "") + "</span>" +
                  '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span>" +
                  "</button>";
         }).join("") + "</div>";
@@ -518,10 +570,13 @@
   }
 
   var closeTimer = null;
-  function hideHover(delay) {
+  var pinned = false;   /* กดแถบ = การ์ดค้างไว้จนกว่าจะกดที่อื่น (นนท์: เมาส์ค้างแล้วยังไม่ทันกดมันหาย) */
+  function hideHover(delay, force) {
     clearTimeout(hoverTimer);
     clearTimeout(closeTimer);
     if (!hoverEl) return;
+    if (pinned && !force) return;
+    if (force) pinned = false;
     if (delay) closeTimer = setTimeout(function () { hoverEl.classList.remove("show"); }, delay);
     else hoverEl.classList.remove("show");
   }
@@ -544,6 +599,7 @@
     var t = e.target.closest("[data-edit],[data-open],[data-daypeek]");
     if (!t) return;
     if (t.closest(".cc-hover")) { keepHover(); return; }   // อยู่ในการ์ดเอง อย่าปิด
+    if (pinned) return;                                     // ปักไว้ ไม่สลับตามเมาส์
     var found = peekTargets(t);
     if (!found) return;
     clearTimeout(hoverTimer);
@@ -552,9 +608,10 @@
   });
   document.addEventListener("mouseout", function (e) {
     if (e.target.closest(".cc-hover")) return;
-    if (e.target.closest("[data-edit],[data-open],[data-daypeek]")) hideHover(260);
+    if (e.target.closest("[data-edit],[data-open],[data-daypeek]")) hideHover(700);
   });
-  document.addEventListener("scroll", function () { hideHover(); }, true);
+  document.addEventListener("scroll", function () { if (!pinned) hideHover(); }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && pinned) hideHover(0, true); });
 
   /* มือถือ: แตะค้าง 450ms = ดูรายละเอียด (ไม่เปิดฟอร์ม) */
   document.addEventListener("touchstart", function (e) {
@@ -992,9 +1049,16 @@
     if (e.target.closest("#ccBack")) { view.mode = "year"; view.month = null; render(); return; }
     if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
     var op = e.target.closest("[data-open]");
-    if (op) { location.href = TASKS_BASE + "#/campaign/" + encodeURIComponent(op.dataset.open); return; }
+    if (op) {
+      /* ปุ่ม "เปิดหน้าเต็ม" ในการ์ด → หน้าสถานะเต็ม · กดแถบ/รายการในปฏิทิน → ปักการ์ดสถานะไว้ตรงนี้ */
+      if (op.classList.contains("cc-hover-btn")) { location.href = TASKS_BASE + "#/campaign/" + encodeURIComponent(op.dataset.open); return; }
+      var f1 = peekTargets(op);
+      if (f1) { clearTimeout(hoverTimer); pinned = false; showHover(f1.list, op, f1.day); pinned = true; }
+      return;
+    }
+    if (pinned && !e.target.closest(".cc-hover")) { hideHover(0, true); }
     var dop = e.target.closest("[data-dayopen]");
-    if (dop) { var f0 = peekTargets(dop); if (f0) { clearTimeout(hoverTimer); showHover(f0.list, dop, f0.day); } return; }
+    if (dop) { var f0 = peekTargets(dop); if (f0) { clearTimeout(hoverTimer); pinned = false; showHover(f0.list, dop, f0.day); pinned = true; } return; }
     var day = e.target.closest("[data-day]");
     if (day) { openDrawer(null, day.dataset.day, "range"); return; }
     if (e.target.closest("[data-new]")) {

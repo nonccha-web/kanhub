@@ -56,7 +56,7 @@ function cleanFlow(list) {
   }
   return { value: out };
 }
-async function loadFlows(db) {
+export async function loadFlows(db) {
   let flows = null;
   try {
     const row = await db.prepare("SELECT value FROM task_settings WHERE key = 'flows'").first();
