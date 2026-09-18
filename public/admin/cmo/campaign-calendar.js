@@ -85,9 +85,14 @@
   }
   function stOf(it) { return STATUS[it.id] || null; }
   /* ข้อความสั้นบนแถบ: "ป้าย ผลิต 3/6 · โพสต์ 2/5 · งาน 1/3" — ว่าง = ยังไม่มีงานผูก */
+  function hasMedia(st) { return !!(st && (st.signs.length || st.others.length || st.posts.total)); }
   function statusBrief(it) {
-    var st = stOf(it); if (!st) return "";
+    var st = stOf(it);
+    /* โปรฯ ทุกอันต้องมีสื่ออย่างน้อย LINE — ไม่มีอะไรผูกเลย = เตือนบนแถบ */
+    if (!hasMedia(st)) return '<span class="cc-st warn">ยังไม่มีสื่อ</span>';
     var parts = [];
+    var line = st.chan && st.chan.line;
+    if (!line) parts.push('<span class="cc-st warn">LINE ✗</span>');
     if (st.signs.length) {
       var worst = st.signs.slice().sort(function (a, b) { return a.stageIdx - b.stageIdx; })[0];
       var doneN = st.signs.filter(function (x) { return x.status === "done"; }).length;
@@ -103,12 +108,25 @@
   }
   var TASK_STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
   /* บล็อกสถานะเต็มในการ์ด: funnel จุดต่องานป้าย · โพสต์ · งานอื่น — กดแต่ละบรรทัดไปงานนั้น */
+  var CHAN_TH = { line: "LINE", fb: "Facebook", tiktok: "TikTok", ig: "Instagram", other: "ช่องอื่น" };
   function statusBlock(it) {
-    var st = stOf(it);
-    if (!st || (!st.signs.length && !st.others.length && !st.posts.total)) {
-      return '<div class="cc-stblk empty">ยังไม่มีงานป้าย/โพสต์ผูกกับโปรฯ นี้ — <a href="' + TASKS_BASE + '#/new?campaign=' + it.id + '">สั่งงาน</a></div>';
-    }
+    var st = stOf(it) || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 }, chan: {} };
     var h = '<div class="cc-stblk">';
+    /* เช็คลิสต์สื่อ: LINE ต้องมีเสมอ · ช่องอื่นโชว์เมื่อมี · ป้ายโชว์เสมอ (บางโปรฯ ต้องมี) */
+    var chan = st.chan || {};
+    var line = chan.line;
+    h += '<div class="cc-media">' +
+      '<a class="cc-mchip' + (line ? (line.late ? " late" : (line.done === line.total ? " ok" : " some")) : " miss") + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '" title="โพสต์ LINE">' +
+        (line ? "LINE " + line.done + "/" + line.total : "LINE ✗ ยังไม่มี") + "</a>" +
+      Object.keys(chan).filter(function (k) { return k !== "line"; }).map(function (k) {
+        var c = chan[k];
+        return '<a class="cc-mchip' + (c.late ? " late" : (c.done === c.total ? " ok" : " some")) + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '">' + CHAN_TH[k] + " " + c.done + "/" + c.total + "</a>";
+      }).join("") +
+      (st.signs.length ? "" : '<a class="cc-mchip miss" href="' + TASKS_BASE + '#/new?campaign=' + it.id + '&ttype=signage" title="ยังไม่มีงานป้าย">ป้าย ✗</a>') +
+      "</div>";
+    if (!hasMedia(st)) {
+      return h + '<div class="cc-stnote">ยังไม่มีสื่อผูกกับโปรฯ นี้เลย — เพิ่มโพสต์ LINE ในตารางโพสต์ (เลือกปฏิทินการตลาดในแถว) หรือ <a href="' + TASKS_BASE + '#/new?campaign=' + it.id + '">สั่งงาน</a></div></div>';
+    }
     st.signs.forEach(function (x) {
       h += '<a class="cc-strow" href="' + TASKS_BASE + '#/task/' + x.id + '"><span class="cc-stname">' + esc(x.title) + "</span>" +
         '<span class="cc-fun">' + x.stages.map(function (sg, i) {
@@ -326,7 +344,7 @@
         return '<button class="cc-bar' + (b.contL ? " contl" : "") + (b.contR ? " contr" : "") + '" data-open="' + it.id +
           '" style="grid-column:' + (b.c0 + 1) + ' / ' + (b.c1 + 2) + ';grid-row:' + (b.lane + 2) + ';background:' + tint(col, .16) + ';color:' + col + ';border-left-color:' + col + '"' +
           ' title="' + esc(it.name) + " · " + fullRange(it) + '">' + kindDot(it) + "<b>" + esc(shortName(it.name)) + "</b>" +
-          (b.c1 - b.c0 >= 1 ? statusBrief(it) : "") +
+          (b.c1 - b.c0 >= 1 ? statusBrief(it) : (hasMedia(stOf(it)) ? "" : '<span class="cc-st warn" title="ยังไม่มีสื่อ">!</span>')) +
           (it.branches && it.branches.length && b.c1 - b.c0 >= 3 ? '<small>' + esc(it.branches.join(" · ")) + "</small>" : "") + "</button>";
       }).join("");
       weeks += '<div class="cc-week" style="grid-template-rows:auto repeat(' + nLanes + ', auto) minmax(18px, 1fr)">' + cells + nums + barsH + mores + "</div>";

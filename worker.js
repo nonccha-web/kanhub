@@ -239,14 +239,14 @@ async function handleApi(request, env, url) {
     const subs = await db.prepare(
       "SELECT parent_id, stage, status FROM tasks WHERE stage IS NOT NULL AND parent_id IN (SELECT id FROM tasks WHERE campaign_id IS NOT NULL AND parent_id IS NULL)"
     ).all();
+    /* โพสต์แยกช่องทาง — โปรฯ ทุกอันต้องมีสื่ออย่างน้อย LINE (นนท์ 19 ก.ย. 69) */
     const posts = await db.prepare(
-      "SELECT campaign_id, COUNT(*) AS n, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS n_done, " +
-      "SUM(CASE WHEN status <> 'done' AND post_date < ? THEN 1 ELSE 0 END) AS n_late FROM posts WHERE campaign_id IS NOT NULL GROUP BY campaign_id"
-    ).bind(todayTh).all();
+      "SELECT campaign_id, status, post_date, channels FROM posts WHERE campaign_id IS NOT NULL"
+    ).all();
     const subBy = {};
     for (const r of (subs.results || [])) (subBy[r.parent_id] = subBy[r.parent_id] || []).push(r);
     const out = {};
-    const bucket = (cid) => (out[cid] = out[cid] || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 } });
+    const bucket = (cid) => (out[cid] = out[cid] || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 }, chan: {} });
     for (const t of (mains.results || [])) {
       const b = bucket(t.campaign_id);
       const late = t.status !== "done" && !!t.due_at && t.due_at < nowIso;
@@ -266,7 +266,20 @@ async function handleApi(request, env, url) {
         b.others.push({ id: t.id, title: t.title, type: t.task_type, status: t.status, late, dueAt: t.due_at });
       }
     }
-    for (const r of (posts.results || [])) { const b = bucket(r.campaign_id); b.posts = { total: r.n || 0, done: r.n_done || 0, late: r.n_late || 0 }; }
+    for (const r of (posts.results || [])) {
+      const b = bucket(r.campaign_id);
+      const done = r.status === "done", late = r.status !== "done" && r.status !== "skip" && r.post_date < todayTh;
+      if (r.status === "skip") continue;
+      b.posts.total++; if (done) b.posts.done++; if (late) b.posts.late++;
+      let chans = [];
+      try { chans = JSON.parse(r.channels || "[]"); } catch (e) { chans = []; }
+      if (!chans.length) chans = ["อื่น ๆ"];
+      for (const c0 of chans) {
+        const k = /line/i.test(c0) ? "line" : (/facebook|fb/i.test(c0) ? "fb" : (/tiktok/i.test(c0) ? "tiktok" : (/instagram|ig/i.test(c0) ? "ig" : "other")));
+        const c = (b.chan[k] = b.chan[k] || { total: 0, done: 0, late: 0 });
+        c.total++; if (done) c.done++; if (late) c.late++;
+      }
+    }
     return json({ status: out, generated: nowIso });
   }
 
