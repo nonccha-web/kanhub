@@ -6,6 +6,9 @@
 // ตัว cron ตั้งใน wrangler.jsonc เป็นเวลา UTC (ไทย −7 ชม.)
 // ทดสอบด้วยมือ: GET /api/lark/preview (หัวหน้า) ดูข้อความโดยไม่ส่ง
 //               POST /api/lark/send    (หัวหน้า) ส่งจริงทันที
+// ถาม-ตอบในแชท: พิมพ์ "นักล่า เช็ค" (หรือ @บอต) → ตอบสรุปชุดเดียวกันทันที
+//               ใช้ Lark App (ไม่ใช่ webhook) secret: LARK_APP_ID / LARK_APP_SECRET
+//               ตัวเลือก: LARK_VERIFY_TOKEN / LARK_ENCRYPT_KEY  · event → POST /api/lark/event
 // ============================================================
 
 const TH = 7 * 3600000;
@@ -113,7 +116,7 @@ export function formatDigest(g, slot) {
     parts.push("");
   }
   if (!g.late.length && !g.dueToday.length && !g.stale.length && !g.routineOpen.length) {
-    parts.push("✅ วันนี้ไม่มีอะไรค้าง เยี่ยม");
+    parts.push(g.person ? "✅ " + g.person + " ไม่มีงานค้าง เยี่ยม" : "✅ วันนี้ไม่มีอะไรค้าง เยี่ยม");
     parts.push("");
   }
   parts.push("อัปเดตที่ admin.kan-hub.com/tasks");
@@ -161,4 +164,136 @@ export async function handleLarkApi(request, env, url, me) {
     return new Response(JSON.stringify({ ok: true, sent: text.length }), { headers: { "content-type": "application/json; charset=utf-8" } });
   }
   return new Response("Not found", { status: 404 });
+}
+
+/* ============================================================
+   โหมดถาม-ตอบ — "นักล่า เช็ค" ในกลุ่ม / @บอต / ทักบอตตรง
+   Lark ยิง event im.message.receive_v1 มาที่ POST /api/lark/event
+   ต้องตอบ 200 ใน 3 วิ ไม่งั้นยิงซ้ำ → ตอบก่อน แล้วค่อยส่งข้อความผ่าน ctx.waitUntil
+   ============================================================ */
+const LARK_API = "https://open.larksuite.com/open-apis";
+
+/* ชื่อเล่นที่คนพิมพ์ → คำแรกของชื่อใน staff (ที่ digest ใช้) */
+const NICK = {
+  "พิซซ่า": "Pizza", "pizza": "Pizza", "จุฬาลักษณ์": "Pizza",
+  "เติ้ล": "Title", "title": "Title", "ฐิติมา": "Title",
+  "ต้น": "Ton", "ton": "Ton",
+  "ออน": "Aon", "aon": "Aon",
+  "นนท์": "Nont", "nont": "Nont",
+};
+function personFrom(text) {
+  const t = text.toLowerCase();
+  for (const k of Object.keys(NICK)) if (t.indexOf(k) >= 0) return NICK[k];
+  return null;
+}
+function filterPerson(g, name) {
+  const has = (t) => t.who && t.who.indexOf(name) >= 0;
+  return Object.assign({}, g, {
+    person: name,
+    late: g.late.filter(has), dueToday: g.dueToday.filter(has), stale: g.stale.filter(has),
+    review: g.review.filter(has), blocked: g.blocked.filter(has), routineOpen: g.routineOpen.filter(has),
+  });
+}
+
+/* Lark เข้ารหัส payload ถ้าตั้ง Encrypt Key: AES-256-CBC, key = sha256(encryptKey), iv = 16 ไบต์แรก */
+async function decryptLark(encryptKey, b64) {
+  const keyBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(encryptKey));
+  const data = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({ name: "AES-CBC", iv: data.slice(0, 16) }, key, data.slice(16));
+  return new TextDecoder().decode(plain);
+}
+
+async function tenantToken(env) {
+  const r = await fetch(LARK_API + "/auth/v3/tenant_access_token/internal", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ app_id: env.LARK_APP_ID, app_secret: env.LARK_APP_SECRET }),
+  });
+  const j = await r.json();
+  if (j.code !== 0) throw new Error("Lark token: " + JSON.stringify(j).slice(0, 200));
+  return j.tenant_access_token;
+}
+async function larkCall(env, method, path, body) {
+  const tok = await tenantToken(env);
+  const r = await fetch(LARK_API + path, {
+    method, headers: { "content-type": "application/json", authorization: "Bearer " + tok },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json();
+  if (j.code !== 0) throw new Error("Lark " + path + ": " + JSON.stringify(j).slice(0, 200));
+  return j;
+}
+/* ตอบเป็น reply ใต้ข้อความที่ถาม */
+function replyLark(env, messageId, text) {
+  return larkCall(env, "POST", "/im/v1/messages/" + messageId + "/reply", { msg_type: "text", content: JSON.stringify({ text }) });
+}
+/* open_id ของบอตเอง ไว้เช็คว่าโดน @ หรือเปล่า (เรียกเฉพาะตอนข้อความมี @ ใครสักคน) */
+async function botOpenId(env) {
+  try { const j = await larkCall(env, "GET", "/bot/v3/info"); return (j.bot && j.bot.open_id) || null; } catch (e) { return null; }
+}
+
+const HELP = [
+  "พิมพ์ได้แบบนี้ครับ",
+  "• นักล่า เช็ค — งานค้างทั้งทีม",
+  "• นักล่า เช็ค พิซซ่า — เฉพาะของคนนั้น (พิซซ่า / เติ้ล / ต้น / ออน / นนท์)",
+  "• ทักบอตตรง ๆ แล้วพิมพ์ เช็ค ก็ได้",
+].join("\n");
+
+async function answerLark(env, msg, clean) {
+  try {
+    if (/ช่วย|help|วิธี/i.test(clean) && !/เช็ค|เช็ก|check/i.test(clean)) return await replyLark(env, msg.message_id, HELP);
+    let g = await buildDigest(env.KAN_ERP);
+    const who = personFrom(clean.replace(/นักล่า/g, ""));
+    if (who) g = filterPerson(g, who);
+    const now = g.now;
+    const slot = "เช็ค " + String(now.getUTCHours()).padStart(2, "0") + ":" + String(now.getUTCMinutes()).padStart(2, "0") + (who ? " · " + who : "");
+    await replyLark(env, msg.message_id, formatDigest(g, slot));
+  } catch (e) {
+    console.error("lark answer", e && e.message);
+  }
+}
+
+const jsonRes = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { "content-type": "application/json; charset=utf-8" } });
+
+export async function handleLarkEvent(request, env, ctx) {
+  if (request.method !== "POST") return jsonRes({ error: "POST only" }, 405);
+  if (!env.LARK_APP_ID || !env.LARK_APP_SECRET) return jsonRes({ error: "ยังไม่ได้ตั้ง LARK_APP_ID/LARK_APP_SECRET" }, 500);
+  let body = await request.json().catch(() => null);
+  if (!body) return jsonRes({ error: "bad json" }, 400);
+  if (body.encrypt) {
+    if (!env.LARK_ENCRYPT_KEY) return jsonRes({ error: "Lark ส่งแบบเข้ารหัส แต่ worker ไม่มี LARK_ENCRYPT_KEY" }, 400);
+    try { body = JSON.parse(await decryptLark(env.LARK_ENCRYPT_KEY, body.encrypt)); } catch (e) { return jsonRes({ error: "decrypt fail" }, 400); }
+  }
+  const token = body.token || (body.header && body.header.token) || "";
+  if (env.LARK_VERIFY_TOKEN && token !== env.LARK_VERIFY_TOKEN) return jsonRes({ error: "token ไม่ตรง" }, 403);
+
+  /* ตอนกด save Request URL ใน Lark — ต้องส่ง challenge กลับ */
+  if (body.type === "url_verification") return jsonRes({ challenge: body.challenge });
+
+  const h = body.header || {};
+  if (h.event_type !== "im.message.receive_v1") return jsonRes({ ok: true, skip: h.event_type || "no-event" });
+  const msg = (body.event && body.event.message) || {};
+  if (msg.message_type !== "text") return jsonRes({ ok: true, skip: "not-text" });
+
+  /* กันยิงซ้ำ (Lark ส่งซ้ำถ้าไม่ได้ 200 ทันเวลา) */
+  const db = env.KAN_ERP;
+  await db.prepare("CREATE TABLE IF NOT EXISTS lark_events (id TEXT PRIMARY KEY, at TEXT NOT NULL)").run();
+  const ins = await db.prepare("INSERT OR IGNORE INTO lark_events (id, at) VALUES (?, ?)").bind(h.event_id || msg.message_id, new Date().toISOString()).run();
+  if (ins.meta && ins.meta.changes === 0) return jsonRes({ ok: true, dup: true });
+
+  let text = "";
+  try { text = JSON.parse(msg.content || "{}").text || ""; } catch (e) { /* ว่าง */ }
+  const clean = text.replace(/@_user_\d+/g, " ").replace(/\s+/g, " ").trim();
+  const mentions = msg.mentions || [];
+
+  let ask = msg.chat_type === "p2p";                                     /* ทักบอตตรง — ตอบทุกข้อความ */
+  if (!ask && /นักล่า/.test(clean) && /เช็ค|เช็ก|check|สรุป|ช่วย|help/i.test(clean)) ask = true;   /* "นักล่า เช็ค" */
+  if (!ask && mentions.length) {                                          /* @บอต … */
+    const me = await botOpenId(env);
+    ask = !!me && mentions.some((m) => m.id && m.id.open_id === me);
+  }
+  if (!ask) return jsonRes({ ok: true, skip: "not-for-me" });
+
+  ctx.waitUntil(answerLark(env, msg, clean));
+  return jsonRes({ ok: true });
 }

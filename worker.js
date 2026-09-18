@@ -5,7 +5,7 @@
 
 import { handleTaskApi, ensureTaskSchema, authFor, canSee } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
-import { runScheduled, handleLarkApi } from "./worker-lark.js";
+import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -354,9 +354,14 @@ export default {
     await ensureTaskSchema(env.KAN_ERP);
     ctx.waitUntil(runScheduled(event, env));
   },
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const host = url.hostname;
+    /* Lark ยิง event มาที่นี่ตอนมีคนพิมพ์ในแชท — ไม่ผ่านล็อกอิน ตรวจ verification token ของ Lark แทน */
+    if (url.pathname === "/api/lark/event") {
+      await ensureTaskSchema(env.KAN_ERP);
+      return handleLarkEvent(request, env, ctx);
+    }
     const isAdminHost = host.indexOf("admin.") === 0 || host.endsWith(".workers.dev") ||
                         host === "localhost" || host === "127.0.0.1"; // localhost = ตอน wrangler dev
 
