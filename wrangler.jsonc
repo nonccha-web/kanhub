@@ -11,6 +11,9 @@
       "database_id": "c45f9c3f-7e4d-45a2-b318-af22bf2ac87d"
     }
   ],
+  // บอต Lark แจ้งงาน 3 รอบ/วัน เวลาไทย 10:00 / 14:30 / 17:30 (UTC = ไทย −7)
+  // webhook อยู่ใน secret LARK_KAN_WEBHOOK ไม่ใช่ที่นี่
+  "triggers": { "crons": ["0 3 * * *", "30 7 * * *", "30 10 * * *"] },
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",

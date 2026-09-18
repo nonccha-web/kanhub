@@ -5,6 +5,7 @@
 
 import { handleTaskApi, ensureTaskSchema, authFor, canSee } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
+import { runScheduled, handleLarkApi } from "./worker-lark.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -128,6 +129,11 @@ async function handleApi(request, env, url) {
   // ---- ระบบมอบหมายงานทีม (/api/t/*) — โค้ดอยู่ worker-tasks.js ----
   if (path === "/t" || path.indexOf("/t/") === 0) {
     return handleTaskApi(request, env, url, path.slice(2) || "/", method);
+  }
+  // ---- บอต Lark: ดูตัวอย่าง/ส่งด้วยมือ (หัวหน้า) — ตัวจริงยิงตาม cron ใน wrangler.jsonc ----
+  if (path === "/lark/preview" || path === "/lark/send") {
+    await ensureTaskSchema(db);
+    return handleLarkApi(request, env, url, await authFor(request, env));
   }
   await ensureCampaignSchema(db, env);
 
@@ -343,6 +349,11 @@ async function serveAdmin(request, env, url) {
 }
 
 export default {
+  /* cron จาก wrangler.jsonc — แจ้งงานเข้ากลุ่ม Lark 3 รอบ/วัน */
+  async scheduled(event, env, ctx) {
+    await ensureTaskSchema(env.KAN_ERP);
+    ctx.waitUntil(runScheduled(event, env));
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     const host = url.hostname;
