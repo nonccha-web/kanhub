@@ -11,6 +11,7 @@ const SESSION_DAYS = 30;
    เวลานับ "ตรงเวลา" ใช้ตอนส่งรอตรวจ (submitted_at) ไม่ใช่ตอนหัวหน้ากดผ่าน
    ไม่งั้นหัวหน้าตรวจช้าแล้วน้องโดนนับว่าส่งช้า */
 const STATUSES = ["todo", "doing", "review", "done", "blocked"];
+const STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
 /* งานรูทีน = ทำซ้ำประจำ · งานตามสั่ง = สั่งเพิ่มเป็นครั้ง ๆ (ค่าเริ่มต้น) */
 const TASK_KINDS = ["ondemand", "routine"];
 /* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
@@ -275,9 +276,10 @@ function thDate(iso) {
 }
 /* กติกาเดียวที่ใช้ทั้งสองทางเข้า (PUT /tasks/:id และ POST /updates)
    คนที่ไม่ใช่หัวหน้าและไม่ใช่คนสั่งงาน กด "เสร็จแล้ว" = ส่งรอตรวจ ไม่ใช่ปิดงานเอง
-   งานประจำ (รูทีน) ไม่ต้องตรวจ — ตอบแชททุกวันแล้วให้หัวหน้ามานั่งกดผ่านทุกวันคือทรมาน */
+   รวมงานประจำด้วย — นนท์บอกว่างานของเขาคือตรวจงานน้องทุกงาน (18 ก.ย. 69)
+   ตรวจจากหน้ารายการได้ทีละคลิก ไม่ต้องเข้าไปในงาน */
 function needsReview(task, canApprove) {
-  return !canApprove && !task.repeat;
+  return !canApprove;
 }
 function statusFor(want, task, canApprove) {
   return want === "done" && needsReview(task, canApprove) ? "review" : want;
@@ -1591,14 +1593,17 @@ export async function handleTaskApi(request, env, url, path, method) {
           .bind(status, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, id));
         stmts2.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
           .bind(newId("u_"), id, me.id, "status", mine ? "" : "อัปเดตแทน", status, now));
-        /* ส่งรอตรวจ = เด้งเข้ากระดิ่งหัวหน้าทุกคน ให้รู้ว่ามีของรอตรวจ */
-        if (status === "review") {
+        /* น้องเปลี่ยนสถานะอะไรก็ตาม → เด้งหาหัวหน้าทุกคน + คนสั่งงาน (นนท์ต้องเห็นทุกอัปเดต) */
+        if (status !== task.status) {
           const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
-          for (const o of (owners.results || [])) {
-            if (o.id === me.id) continue;
+          const tell2 = new Set((owners.results || []).map((o) => o.id));
+          if (task.createdBy) tell2.add(task.createdBy);
+          tell2.delete(me.id);
+          const what2 = status === "review" ? "ส่งงานให้ตรวจ" : "เปลี่ยนเป็น " + (STATUS_TH[status] || status);
+          for (const sid of tell2) {
             stmts2.push(db.prepare(
               "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
-            ).bind(newId("m_"), id, "", o.id, me.id, "ส่งงานให้ตรวจ: " + String(task.title).slice(0, 200), now));
+            ).bind(newId("m_"), id, "", sid, me.id, (what2 + ": " + String(task.title)).slice(0, 300), now));
           }
         }
       }
@@ -1634,7 +1639,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (status && !(canApprove || mine || canUpdateOthers)) {
         return json({ error: "เปลี่ยนสถานะได้เฉพาะคนที่รับงานหรือหัวหน้า" }, 403);
       }
-      /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ (งานประจำไม่ต้องตรวจ) */
+      /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ ทุกงานรวมงานประจำ */
       const newStatus = status ? statusFor(status, task, canApprove) : null;
       const now = nowIso();
       const uid = newId("u_");
@@ -1662,14 +1667,26 @@ export async function handleTaskApi(request, env, url, path, method) {
           "VALUES (?,?,?,?,?,?,?,?,'link',?,?)"
         ).bind(fid, id, uid, parsed.host, "text/uri-list", 0, "", now, parsed.url, parsed.title));
       }
-      /* @ชื่อ ในคอมเมนต์ → เข้ากระดิ่งของคนนั้น */
+      /* ใครต้องรู้: คนที่ถูก @ชื่อ + หัวหน้าทุกคน + คนสั่งงาน (ถ้าคนอัปเดตไม่ใช่หัวหน้า)
+         นนท์ต้องเห็นทุกอัปเดตของน้อง ไม่ใช่รอให้น้องนึกได้ว่าต้อง @ (18 ก.ย. 69) */
+      const tell = new Set();
       if (note) {
         const all = await db.prepare("SELECT id,name,aliases FROM staff WHERE active = 1").all();
-        for (const sid of findMentions(note, all.results || [], me.id)) {
-          stmts.push(db.prepare(
-            "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
-          ).bind(newId("m_"), id, uid, sid, me.id, note.slice(0, 300), now));
-        }
+        for (const sid of findMentions(note, all.results || [], me.id)) tell.add(sid);
+      }
+      if (!canApprove) {
+        const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
+        for (const o of (owners.results || [])) tell.add(o.id);
+        if (task.createdBy) tell.add(task.createdBy);
+      }
+      tell.delete(me.id);
+      const what = newStatus === "review" ? "ส่งงานให้ตรวจ"
+        : (newStatus && newStatus !== task.status ? "เปลี่ยนเป็น " + (STATUS_TH[newStatus] || newStatus)
+        : ((files.length || links.length) ? "แนบไฟล์" : "อัปเดต"));
+      for (const sid of tell) {
+        stmts.push(db.prepare(
+          "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
+        ).bind(newId("m_"), id, uid, sid, me.id, (what + ": " + (note || task.title)).slice(0, 300), now));
       }
 
       /* งานประจำกดเสร็จซ้ำได้ทุกวัน — ต้องเขียน done_at ใหม่ ไม่งั้นหน้าเว็บนึกว่ายังเป็นรอบเก่า */
@@ -1677,15 +1694,6 @@ export async function handleTaskApi(request, env, url, path, method) {
         const st = stampsFor(newStatus, task, now, me.id);
         stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
           .bind(newStatus, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, id));
-        if (newStatus === "review") {
-          const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
-          for (const o of (owners.results || [])) {
-            if (o.id === me.id) continue;
-            stmts.push(db.prepare(
-              "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
-            ).bind(newId("m_"), id, uid, o.id, me.id, "ส่งงานให้ตรวจ: " + String(task.title).slice(0, 200), now));
-          }
-        }
       } else {
         stmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id));
       }
