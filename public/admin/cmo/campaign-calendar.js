@@ -119,6 +119,44 @@
     }
     return parts.join("");
   }
+  /* สร้างสื่อที่ขาดจากการ์ดทันที (นนท์ 19 ก.ย. 69: "ไม่มี LINE/ป้าย ควรมีปุ่มเพิ่ม task ให้เลย")
+     LINE → แถวโพสต์ในตารางโพสต์ ช่องทาง Line OA เพจตามสาขา วันก่อนเริ่มโปรฯ (ถ้าเลยแล้วใช้วันนี้)
+     ป้าย → งานป้าย 1 งานต่อสาขา มอบพิซซ่า กำหนดส่ง 18:00 วันก่อนเริ่มโปรฯ · ขั้นงาน 6 ขั้นสร้างเองที่ worker */
+  var PAGE_OF = { "ชุมพร": "pg_kst1", "สุราษฎร์": "pg_kst3", "Kan Fashion": "pg_fashion", "Kan Hub": "pg_hub" };
+  var SIGN_OWNER = "s_julalak";
+  function dayBefore(startISO) { var d = parseISO(startISO); d.setDate(d.getDate() - 1); var t = todayISO(); var r = iso(d.getFullYear(), d.getMonth(), d.getDate()); return r < t ? t : r; }
+  async function makeMedia(kind, it, btn) {
+    var brs = (it.branches || []).filter(function (b) { return PAGE_OF[b]; });
+    if (!brs.length) brs = ["สุราษฎร์"];
+    btn.disabled = true; btn.textContent = "กำลังสร้าง…";
+    try {
+      var when = dayBefore(it.start);
+      if (kind === "line") {
+        var posts = brs.map(function (b) {
+          return { date: when, time: "10.00", pageId: PAGE_OF[b], kind: "promo", status: "plan", channels: ["Line OA"],
+                   topic: "แจ้งโปรฯ " + it.name + " (LINE)", campaignId: it.id, note: "สร้างจากปฏิทินการตลาด" };
+        });
+        await api("/t/posts", { method: "POST", body: JSON.stringify({ posts: posts }) });
+        toast("สร้างโพสต์ LINE " + posts.length + " แถว (" + brs.join(", ") + ") ในตารางโพสต์แล้ว");
+      } else {
+        var due = new Date(parseISO(when)); due.setHours(18, 0, 0, 0);
+        var tasks = brs.map(function (b) {
+          return { title: "ป้ายโปรฯ " + it.name + " — " + b, taskType: "signage", assignees: [SIGN_OWNER], dueAt: due.toISOString(),
+                   campaignId: it.id, signBranch: b, detail: "สร้างจากปฏิทินการตลาด · โปรฯ " + fmtRange(it) };
+        });
+        await api("/t/tasks", { method: "POST", body: JSON.stringify({ tasks: tasks }) });
+        toast("สร้างงานป้าย " + tasks.length + " งาน (" + brs.join(", ") + ") มอบพิซซ่าแล้ว");
+      }
+      await loadStatus();
+      render();
+      /* วาดการ์ดใหม่ให้เห็นสถานะที่เพิ่งสร้าง */
+      var anchor = document.querySelector('[data-open="' + it.id + '"]');
+      if (anchor) { pinned = false; showHover([it], anchor, null); pinned = true; }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "สร้างไม่สำเร็จ — ลองใหม่";
+      toast("สร้างไม่สำเร็จ: " + e.message);
+    }
+  }
   /* บล็อกสถานะเต็มในการ์ด: funnel จุดต่องานป้าย · โพสต์ · งานอื่น — กดแต่ละบรรทัดไปงานนั้น */
   function statusBlock(it) {
     var st = stOf(it) || { signs: [], others: [], posts: { total: 0, done: 0, late: 0 }, chan: {} };
@@ -127,16 +165,17 @@
     var chan = st.chan || {};
     var line = chan.line;
     h += '<div class="cc-media">' +
-      '<a class="cc-mchip' + (line ? (line.late ? " late" : (line.done === line.total ? " ok" : " some")) : " miss") + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '" title="โพสต์ LINE">' +
-        (line ? "LINE ลงแล้ว " + line.done + "/" + line.total + (line.late ? " · เลยวัน " + line.late : "") : "LINE ✗ ยังไม่มี") + "</a>" +
+      (line
+        ? '<a class="cc-mchip' + (line.late ? " late" : (line.done === line.total ? " ok" : " some")) + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '" title="โพสต์ LINE">LINE ลงแล้ว ' + line.done + "/" + line.total + (line.late ? " · เลยวัน " + line.late : "") + "</a>"
+        : '<button type="button" class="cc-mchip miss" data-mk="line" data-mkid="' + it.id + '" title="สร้างแถวโพสต์ LINE ในตารางโพสต์ให้ทุกสาขาของโปรฯ นี้ทันที">LINE ✗ — + สร้างโพสต์ LINE</button>') +
       Object.keys(chan).filter(function (k) { return k !== "line"; }).map(function (k) {
         var c = chan[k];
         return '<a class="cc-mchip' + (c.late ? " late" : (c.done === c.total ? " ok" : " some")) + '" href="' + TASKS_BASE + '#/posts?campaign=' + it.id + '">' + CHAN_TH[k] + " ลงแล้ว " + c.done + "/" + c.total + (c.late ? " · เลยวัน " + c.late : "") + "</a>";
       }).join("") +
-      (st.signs.length ? "" : '<a class="cc-mchip miss" href="' + TASKS_BASE + '#/new?campaign=' + it.id + '&ttype=signage" title="ยังไม่มีงานป้าย">ป้าย ✗</a>') +
+      (st.signs.length ? "" : '<button type="button" class="cc-mchip miss" data-mk="sign" data-mkid="' + it.id + '" title="สร้างงานป้าย 6 ขั้นให้ทุกสาขาของโปรฯ นี้ทันที (มอบพิซซ่า เปลี่ยนได้)">ป้าย ✗ — + สร้างงานป้าย</button>') +
       "</div>";
     if (!hasMedia(st)) {
-      return h + '<div class="cc-stnote">ยังไม่มีสื่อผูกกับโปรฯ นี้เลย — เพิ่มโพสต์ LINE ในตารางโพสต์ (เลือกปฏิทินการตลาดในแถว) หรือ <a href="' + TASKS_BASE + '#/new?campaign=' + it.id + '">สั่งงาน</a></div></div>';
+      return h + '<div class="cc-stnote">ยังไม่มีสื่อผูกกับโปรฯ นี้เลย — กดปุ่มด้านบนสร้างได้ทันที หรือ <a href="' + TASKS_BASE + '#/new?campaign=' + it.id + '">สั่งงานอื่น</a></div></div>';
     }
     st.signs.forEach(function (x) {
       h += '<a class="cc-strow" href="' + TASKS_BASE + '#/task/' + x.id + '"><span class="cc-stname">' + esc(x.title) + "</span>" +
@@ -1105,6 +1144,8 @@
     if (mo) { view.mode = "month"; view.month = +mo.dataset.month; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
     if (e.target.closest("#ccBack")) { view.mode = "year"; view.month = null; render(); return; }
     if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
+    var mk = e.target.closest("[data-mk]");
+    if (mk) { var itm = byId(mk.dataset.mkid); if (itm) makeMedia(mk.dataset.mk, itm, mk); return; }
     var op = e.target.closest("[data-open]");
     if (op) {
       /* ปุ่ม "เปิดหน้าเต็ม" ในการ์ด → หน้าสถานะเต็ม · กดแถบ/รายการในปฏิทิน → ปักการ์ดสถานะไว้ตรงนี้ */
