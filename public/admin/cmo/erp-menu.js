@@ -31,9 +31,12 @@
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
         { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
-        { icon: 'clock',     label: 'ประวัติการแก้ไข', tasks: '#/history' },
         { icon: 'users',     label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' }
-      ]}
+      ]},
+
+      /* เมนูของตัวเอง ไม่ต้องกางกลุ่ม — นนท์ขอให้แยกออกมาเลย (20 ก.ย. 69) */
+      { direct: true, icon: 'clock', label: 'ประวัติการแก้ไข', note: 'ใครแก้อะไร · ย้อนเวอร์ชันได้',
+        items: [{ icon: 'clock', label: 'ประวัติการแก้ไข', tasks: '#/history' }] }
 
     ]},
 
@@ -225,6 +228,7 @@
       SECTIONS.forEach(function (sec) {
         sec.groups.forEach(function (g) {
           if (!visible(g.sec, opts)) { return; }
+          if (g.direct) { return; }   /* ลิงก์เดี่ยวไม่เข้าลำดับกลุ่มพับ */
           if (g.items.some(function (it) { return visible(it.sec || g.sec, opts); })) { shownGroups.push(g); }
         });
       });
@@ -275,6 +279,16 @@
         }
         h += '<div class="erp-sec ' + sec.id + '">' + esc(sec.label) + '</div>';
         groups.forEach(function (g) {
+          /* กลุ่มลิงก์เดี่ยว: แสดงเป็นเมนูเดียวเลย ไม่มีหัวพับ/ลูกศร */
+          if (g.direct) {
+            var it0 = g.items[0];
+            var onD = keyOf(it0) === opts.active ? ' on' : '';
+            h += '<a class="erp-acc erp-direct' + onD + '" href="' + href(it0, opts) + '">' +
+                 '<span class="erp-gico">' + svgIco(g.icon || it0.icon) + '</span>' +
+                 '<span class="erp-glabel">' + esc(g.label) +
+                   (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</span></a>';
+            return;
+          }
           gi++;
           var isOpen = gi === openIdx;
           h += '<div class="erp-acc' + (isOpen ? ' open' : '') +

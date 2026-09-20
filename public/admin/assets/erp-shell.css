@@ -202,3 +202,14 @@ html.tour-on .erp-scrim{ pointer-events:none; }
   padding:6px 14px; border-radius:999px; cursor:pointer; }
 .tour-b.ghost{ background:none; color:var(--k-ink); border-color:var(--k-line); }
 .tour-b:focus-visible, .tour-x:focus-visible{ outline:2px solid var(--k-bad); outline-offset:2px; }
+
+/* เมนูลิงก์เดี่ยว (ไม่ใช่กลุ่มพับ) — เช่น ประวัติการแก้ไข */
+.erp-direct{ display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border-radius:10px;
+  text-decoration:none; color:var(--k-soft); border:0; background:none; font:inherit; }
+.erp-direct:hover{ background:var(--k-hair); color:var(--k-ink); }
+.erp-direct.on{ background:var(--k-ink); color:var(--k-paper); }
+.erp-direct.on .erp-glabel small{ color:color-mix(in srgb, var(--k-paper) 70%, transparent); }
+.erp-direct .erp-glabel{ display:flex; flex-direction:column; gap:1px; font-size:13.5px; font-weight:500; text-align:left; }
+.erp-direct .erp-glabel small{ font-size:10.5px; font-weight:400; color:var(--k-mut); }
+html.erp-collapsed .erp-sidebar:not(:hover) .erp-direct .erp-glabel,
+html.erp-collapsed .layout > aside:not(:hover) .erp-direct .erp-glabel{ display:none; }
