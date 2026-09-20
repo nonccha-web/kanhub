@@ -705,7 +705,7 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .attrm:hover{ background:var(--k-bad); }
 
 /* ── ตารางโพสต์ ── */
-.postrow{ display:grid; grid-template-columns:22px 62px minmax(0,1fr) 190px auto; align-items:center; gap:12px;
+.postrow{ display:grid; grid-template-columns:16px 22px 62px minmax(0,1fr) 190px auto; align-items:center; gap:12px;
   padding:11px 18px; border-bottom:1px solid var(--k-hair); transition:background .14s; }
 .postrow:last-child{ border-bottom:0; }
 .postrow:hover{ background:var(--k-hair); }
@@ -723,7 +723,7 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .purl{ font-size:12px; padding:5px 9px; }
 .pedit{ font-size:11.5px; white-space:nowrap; }
 @media (max-width:900px){
-  .postrow{ grid-template-columns:22px 56px minmax(0,1fr); }
+  .postrow{ grid-template-columns:16px 22px 56px minmax(0,1fr); }
   .postrow .plink, .postrow .purl{ grid-column:2 / -1; }
   .postrow .pedit{ grid-column:3; justify-self:end; margin-top:-24px; }
   .pt{ white-space:normal; }
@@ -1311,3 +1311,14 @@ a.htitle:hover{ text-decoration:underline; }
   .hwhen{ grid-column:1 / -1; flex-direction:row; align-items:baseline; gap:8px; }
   .hfk{ min-width:auto; }
 }
+
+/* ── เลือกหลายโพสต์ในตารางโพสต์ ── */
+.postrow{ position:relative; }
+.postrow .pmain{ min-width:0; }
+.psel{ width:16px; height:16px; border-radius:50%; border:1.5px solid var(--k-line); display:inline-grid; place-items:center;
+  cursor:pointer; flex:none; align-self:center; color:var(--k-paper); font-size:10px; }
+.psel:hover{ border-color:var(--k-ink); }
+.psel.on{ background:var(--k-ink); border-color:var(--k-ink); }
+.psel.on::after{ content:'✓'; }
+.psel:focus-visible{ outline:2px solid var(--k-info); outline-offset:2px; }
+.postrow.selected{ box-shadow:inset 3px 0 0 0 var(--k-ink); }

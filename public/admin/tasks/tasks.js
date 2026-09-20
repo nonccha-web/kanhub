@@ -3602,6 +3602,7 @@
           var dd = new Date(P.day + 'T00:00:00');
           h += '<div class="group"><div class="group-h' + (sameDay(dd, new Date()) ? ' late' : '') + '"><h3>' +
             esc(DAY_TH[dd.getDay()] + ' ' + fmtDate(dd, true)) + '</h3><span>' + dayItems.length + '</span>' +
+            '<span class="gsel" role="checkbox" tabindex="0" data-pgsel title="เลือกทั้งวัน"></span>' +
             '<button type="button" class="btn-text" style="margin-left:auto" data-day="">ดูทั้งเดือน</button></div>' +
             (dayItems.length
               ? '<div class="tlist">' + dayItems.map(postRow).join('') + '</div>'
@@ -3646,7 +3647,8 @@
           var dd = new Date(dt + 'T00:00:00');
           var isToday = sameDay(dd, new Date());
           h += '<div class="group"><div class="group-h' + (isToday ? ' late' : '') + '"><h3>' +
-            (isToday ? 'วันนี้ · ' : '') + esc(DAY_TH[dd.getDay()] + ' ' + fmtDate(dd, true)) + '</h3><span>' + byDate[dt].length + '</span></div>' +
+            (isToday ? 'วันนี้ · ' : '') + esc(DAY_TH[dd.getDay()] + ' ' + fmtDate(dd, true)) + '</h3><span>' + byDate[dt].length + '</span>' +
+            '<span class="gsel" role="checkbox" tabindex="0" data-pgsel title="เลือกทั้งวัน"></span></div>' +
             '<div class="tlist">' + byDate[dt].map(postRow).join('') + '</div></div>';
         });
       }
@@ -3655,6 +3657,7 @@
       h += '<div class="sheet-log page-log" id="postLog"><div class="lg-empty">กำลังอ่านประวัติ…</div></div>';
 
       view.innerHTML = h;
+      syncPsel();
 
       $('#newPost').addEventListener('click', function () { openPostSheet(); });
 
@@ -4028,7 +4031,11 @@
   function postRow(x) {
     var st = x.status, tone = postTone(x);
     var mark = st === 'done' ? '✓' : (st === 'skip' ? '–' : '');
-    return '<div class="postrow ' + esc(st) + ' t-' + tone + '" data-post="' + esc(x.id) + '" title="' + esc(TONE_TH[tone]) + '">' +
+    var sel = !!PSEL[x.id];
+    /* ช่องติ๊กเลือกหน้าแถว (เลือกหลายโพสต์แล้วสั่งทีเดียว — นนท์ 20 ก.ย. 69: บางอัน auto มา อยากลบเป็นชุด)
+       ปุ่มกลมตัวเดิมยังใช้ติ๊ก "โพสต์แล้ว" เหมือนเดิม */
+    return '<div class="postrow ' + esc(st) + ' t-' + tone + (sel ? ' selected' : '') + '" data-post="' + esc(x.id) + '" title="' + esc(TONE_TH[tone]) + '">' +
+      '<span class="psel' + (sel ? ' on' : '') + '" role="checkbox" tabindex="0" aria-checked="' + (sel ? 'true' : 'false') + '" data-psel="' + esc(x.id) + '" title="เลือกโพสต์นี้ (Shift = เลือกเป็นช่วง)"></span>' +
       '<button type="button" class="subcheck tone-' + tone + '" data-post-toggle="' + esc(x.id) + '" aria-label="ติ๊กว่าโพสต์แล้ว">' + mark + '</button>' +
       '<button type="button" class="ptime" data-post-edit="' + esc(x.id) + '" title="กดเพื่อแก้เวลา">' + esc(x.time || 'ใส่เวลา') + '</button>' +
       '<span class="pmain"><span class="pt">' + esc(x.topic || '(ยังไม่ใส่หัวข้อ)') + '</span>' +
@@ -4044,6 +4051,90 @@
 
   /* ---------- ประวัติการแก้ตารางโพสต์ (ใต้ตารางในหน้าต่างเพิ่มโพสต์) ----------
      นนท์: "ถ้าผมบันทึกผิด ผมจะได้รู้ว่าผมแก้อะไรไปเมื่อไหร่ แล้วจะลบยังไง" */
+  /* ---------- เลือกหลายโพสต์ ---------- */
+  var PSEL = {}, PSEL_LAST = null;
+  function pselIds() { return Object.keys(PSEL); }
+  function pselToggle(id, range) {
+    if (range && PSEL_LAST && PSEL_LAST !== id) {
+      var all = $$('[data-psel]').map(function (el) { return el.getAttribute('data-psel'); });
+      var a = all.indexOf(PSEL_LAST), b = all.indexOf(id);
+      if (a !== -1 && b !== -1) {
+        for (var i = Math.min(a, b); i <= Math.max(a, b); i++) PSEL[all[i]] = 1;
+        PSEL_LAST = id; paintPsel(); return;
+      }
+    }
+    if (PSEL[id]) delete PSEL[id]; else PSEL[id] = 1;
+    PSEL_LAST = id; paintPsel();
+  }
+  function syncPsel() {
+    var on = {};
+    $$('[data-psel]').forEach(function (el) { on[el.getAttribute('data-psel')] = 1; });
+    pselIds().forEach(function (id) { if (!on[id]) delete PSEL[id]; });
+    paintPsel();
+  }
+  function paintPsel() {
+    $$('[data-psel]').forEach(function (el) {
+      var o = !!PSEL[el.getAttribute('data-psel')];
+      el.classList.toggle('on', o);
+      el.setAttribute('aria-checked', o ? 'true' : 'false');
+      var row = el.closest('.postrow'); if (row) row.classList.toggle('selected', o);
+    });
+    $$('[data-pgsel]').forEach(function (g) {
+      var grp = g.closest('.group');
+      var all = $$('[data-psel]', grp), n = all.filter(function (el) { return PSEL[el.getAttribute('data-psel')]; }).length;
+      g.classList.toggle('on', all.length > 0 && n === all.length);
+      g.classList.toggle('some', n > 0 && n < all.length);
+    });
+    renderPBulk();
+  }
+  function renderPBulk() {
+    var bar = $('#pbulk'), ids = pselIds();
+    if (!ids.length) { if (bar) bar.remove(); document.body.classList.remove('has-bulk'); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'pbulk'; bar.className = 'bulkbar'; bar.setAttribute('role', 'toolbar'); document.body.appendChild(bar); }
+    document.body.classList.add('has-bulk');
+    bar.innerHTML = '<span class="bn"><b>' + ids.length + '</b> โพสต์ที่เลือก</span>' +
+      '<button type="button" class="btn sm" data-pb="done">โพสต์แล้ว</button>' +
+      '<button type="button" class="btn-ghost sm" data-pb="plan">ยังไม่โพสต์</button>' +
+      '<button type="button" class="btn-ghost sm" data-pb="skip">ไม่โพสต์</button>' +
+      '<button type="button" class="btn-ghost sm" data-pb="move">ย้ายวัน</button>' +
+      '<button type="button" class="btn-ghost sm danger" data-pb="del">ลบ</button>' +
+      '<button type="button" class="bx" data-pb="clear" title="ยกเลิกการเลือก" aria-label="ยกเลิกการเลือก">✕</button>';
+  }
+  function pbulkRun(fn, label) {
+    var ids = pselIds();
+    var bar = $('#pbulk'); if (bar) bar.classList.add('busy');
+    var okN = 0, errs = [];
+    /* ยิงทีละ 6 ตัวพร้อมกัน ไม่ให้ worker แน่น */
+    var queue = ids.slice();
+    function next() {
+      if (!queue.length) return Promise.resolve();
+      var batch = queue.splice(0, 6);
+      return Promise.all(batch.map(function (id) {
+        return fn(id).then(function () { okN++; }).catch(function (e) { errs.push(e.message); });
+      })).then(next);
+    }
+    return next().then(function () {
+      PSEL = {};
+      toast(label + ' ' + okN + ' โพสต์' + (errs.length ? ' · ไม่สำเร็จ ' + errs.length + ' (' + errs[0] + ')' : ''), !!errs.length && !okN);
+      renderPosts();
+    });
+  }
+  function pbulkClick(k) {
+    if (k === 'clear') { PSEL = {}; paintPsel(); return; }
+    if (k === 'del') {
+      if (!confirm('ลบ ' + pselIds().length + ' โพสต์ที่เลือกออกจากตาราง? ย้อนได้ที่หน้าประวัติการแก้ไข')) return;
+      return pbulkRun(function (id) { return api('/posts/' + id, 'DELETE'); }, 'ลบแล้ว');
+    }
+    if (k === 'move') {
+      var d = prompt('ย้ายโพสต์ที่เลือกไปวันไหน (รูปแบบ ปปปป-ดด-วว)', P.day || todayIso());
+      if (!d) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast('รูปแบบวันไม่ถูกต้อง', true); return; }
+      return pbulkRun(function (id) { return api('/posts/' + id, 'PUT', { date: d }); }, 'ย้ายไป ' + thaiShort(d) + ' แล้ว');
+    }
+    var th = { done: 'ทำเป็นโพสต์แล้ว', plan: 'ทำเป็นยังไม่โพสต์', skip: 'ทำเป็นไม่โพสต์' }[k];
+    return pbulkRun(function (id) { return api('/posts/' + id, 'PUT', { status: k }); }, th);
+  }
+
   var LOG_ACT = { create: 'เพิ่ม', update: 'แก้', delete: 'ลบ' };
   var LOG_FIELD_TH = { date: 'วันที่', time: 'เวลา', pageId: 'เพจ', kind: 'ชนิด', channels: 'ช่องทาง',
                        topic: 'หัวข้อ', status: 'สถานะ', url: 'ลิงก์', note: 'หมายเหตุ' };
@@ -4907,7 +4998,7 @@
   function render() {
     S.route = parseRoute();
     popClose();
-    if (S.lastRoute !== S.route.name) { SEL = {}; S.lastRoute = S.route.name; renderBulk(); }
+    if (S.lastRoute !== S.route.name) { SEL = {}; PSEL = {}; S.lastRoute = S.route.name; renderBulk(); renderPBulk(); }
     if (!S.me) { renderLogin(); return; }
     renderSidebar();
     renderHeaderUser();
@@ -5089,6 +5180,16 @@
       P.day = (P.day === dv) ? '' : dv;
       renderPosts(); return;
     }
+    if ((b = ev.target.closest('[data-psel]'))) { ev.preventDefault(); ev.stopPropagation(); pselToggle(b.getAttribute('data-psel'), ev.shiftKey); return; }
+    if ((b = ev.target.closest('[data-pgsel]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      var grp0 = b.closest('.group');
+      var ids0 = $$('[data-psel]', grp0).map(function (el) { return el.getAttribute('data-psel'); });
+      var allOn0 = ids0.length && ids0.every(function (id) { return PSEL[id]; });
+      ids0.forEach(function (id) { if (allOn0) delete PSEL[id]; else PSEL[id] = 1; });
+      paintPsel(); return;
+    }
+    if ((b = ev.target.closest('[data-pb]'))) { pbulkClick(b.getAttribute('data-pb')); return; }
     if ((b = ev.target.closest('[data-post-toggle]'))) {
       var pid = b.getAttribute('data-post-toggle');
       var next = b.className.indexOf('done') !== -1 ? 'plan' : 'done';
