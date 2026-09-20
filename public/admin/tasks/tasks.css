@@ -538,7 +538,8 @@ html.tour-on .erp-scrim{ pointer-events:none; }
   .sec-h p{ text-align:left; max-width:none; }
   .sec-b{ padding:16px; }
   .draft-b .row, .grid2, .grid3{ grid-template-columns:1fr; }
-  .trow{ grid-template-columns:22px minmax(0,1fr) auto; gap:10px; padding:12px 14px; }
+  /* iPad/แท็บเล็ต: เหลือ 4 ช่อง (ซ่อนลูกศร) — ของเดิมเหลือ 3 ช่องทั้งที่แถวมี 5 ชิ้น ปุ่ม ⋯ เลยตกไปบรรทัดใหม่ แถวดูเคลื่อน (นนท์ 20 ก.ย. 69) */
+  .trow{ grid-template-columns:22px minmax(0,1fr) auto 26px; gap:10px; padding:12px 14px; }
   .trow .arr{ display:none; }
   .trow .t{ white-space:normal; }
   .okr{ grid-template-columns:1fr; }
@@ -1255,3 +1256,20 @@ body.has-bulk .toast{ bottom:92px; }
 .empty.small{ padding:16px 4px; text-align:left; font-size:13px; }
 .empty.small a{ color:var(--k-ink); }
 table.rpt tr.late td{ color:var(--k-warn); }
+
+/* ── จอสัมผัส (iPad): ปุ่มที่เดิมโผล่ตอนชี้เมาส์ ต้องเห็นตลอด ── */
+@media (hover:none){
+  .tpen{ opacity:1; }
+  .kitem .kadd{ display:block; }
+  .ksubs:not(:has(.ksub)){ padding-top:6px; border-left-color:var(--k-line); }
+  .rowmenu{ color:var(--k-soft); }
+  .trow .edt, .trow .tpen{ -webkit-tap-highlight-color:transparent; }
+}
+/* ── แตะค้างแล้วลากการ์ดบนบอร์ด ── */
+.kcard.tdrag{ opacity:.35; }
+.kcard.kghost{ position:fixed; z-index:300; pointer-events:none; margin:0; box-shadow:0 14px 34px rgba(0,0,0,.24);
+  transform:scale(1.02); transition:none; opacity:.97; }
+body.tdragging{ -webkit-user-select:none; user-select:none; }
+body.tdragging .kban{ touch-action:none; }
+.kcol.over{ outline:2px solid var(--kc, var(--k-ink)); outline-offset:-2px; }
+.khint b{ font-weight:600; color:var(--k-ink); }

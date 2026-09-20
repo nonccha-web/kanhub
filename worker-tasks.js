@@ -1722,7 +1722,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         continue;
       }
       if (action === "assign") {
-        if (!canApproveT(t)) { skip(t, "แก้คนรับได้เฉพาะหัวหน้าหรือคนสั่ง"); continue; }
+        /* เปลี่ยนคนรับผิดชอบ = ทุกคนในทีมทำได้ */
         if (!sets) sets = await loadIdSets(db);
         const want = Array.from(new Set((Array.isArray(body.assignees) ? body.assignees : []).map(String).filter((x) => sets.staffIds.has(x)))).slice(0, 20);
         stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(t.id));
@@ -1921,7 +1921,38 @@ export async function handleTaskApi(request, env, url, path, method) {
       /* ผู้รับงาน (หรือคนที่ได้สิทธิ์ติ๊กแทนคนอื่น): เปลี่ยนได้แค่สถานะ
          กับ "ใส่กำหนดส่งให้งานที่ยังไม่เคยมีวัน" ซึ่งพิซซ่าขอไว้ —
          งานที่มีวันแล้วยังเลื่อนเองไม่ได้ ต้องให้หัวหน้าเลื่อน */
-      if (!mine && !canUpdateOthers) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
+      /* เปลี่ยนคนรับอย่างเดียว ทำได้ทุกคนในทีม (นนท์ 20 ก.ย. 69) · แตะสถานะ/วัน ต้องเป็นคนรับงานหรือมีสิทธิ์อัปเดตแทน */
+      const onlyAssign = Array.isArray(body.assignees) && body.status === undefined && body.dueAt === undefined;
+      if (!mine && !canUpdateOthers && !onlyAssign) return json({ error: "งานนี้ไม่ได้มอบหมายให้คุณ" }, 403);
+      /* เปลี่ยนคนรับผิดชอบ — ทุกคนในทีมทำได้ บันทึกไว้ในไทม์ไลน์ว่าใครเปลี่ยนจากใครเป็นใคร */
+      let assignStmts = null;
+      if (Array.isArray(body.assignees)) {
+        const sets0 = await loadIdSets(db);
+        const want0 = Array.from(new Set(body.assignees.map(String).filter((x) => sets0.staffIds.has(x)))).slice(0, 20);
+        const same0 = want0.length === task.assignees.length && want0.every((x) => task.assignees.indexOf(x) !== -1);
+        if (!same0) {
+          const nameOf = async (ids) => {
+            if (!ids.length) return "ยังไม่มอบหมาย";
+            const r = await db.prepare("SELECT name FROM staff WHERE id IN (" + ids.map(() => "?").join(",") + ")").bind(...ids).all();
+            return (r.results || []).map((x) => String(x.name).split(/\s+/)[0]).join(", ");
+          };
+          const before0 = await nameOf(task.assignees), after0 = await nameOf(want0);
+          assignStmts = [db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id)];
+          for (const sid of want0) assignStmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
+          assignStmts.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+            .bind(newId("u_"), id, me.id, "note", "เปลี่ยนคนรับผิดชอบ: " + before0 + " → " + after0, null, now));
+          const tell0 = new Set(want0.filter((x) => task.assignees.indexOf(x) === -1));
+          const ow0 = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
+          for (const o of (ow0.results || [])) tell0.add(o.id);
+          if (task.createdBy) tell0.add(task.createdBy);
+          tell0.delete(me.id);
+          for (const sid of tell0) {
+            assignStmts.push(db.prepare("INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)")
+              .bind(newId("m_"), id, "", sid, me.id, ("เปลี่ยนคนรับผิดชอบเป็น " + after0 + ": " + String(task.title)).slice(0, 300), now));
+          }
+          assignStmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id));
+        }
+      }
       /* ใส่วันให้งานที่ยังไม่เคยมี = ทำได้ทุกคนที่แตะงานนี้ได้
          เลื่อนวันที่มีอยู่แล้ว = ต้องมีสิทธิ์ can_reschedule และถูกบันทึกว่าเลื่อนจากวันไหน */
       const wantDue = body.dueAt !== undefined && body.dueAt;
@@ -1932,12 +1963,13 @@ export async function handleTaskApi(request, env, url, path, method) {
         return json({ error: "เลื่อนกำหนดส่งเองไม่ได้ — กด “ขอเลื่อน” เพื่อส่งให้หัวหน้าอนุมัติ" }, 403);
       }
       const want = STATUSES.indexOf(body.status) !== -1 ? body.status : null;
-      if (!want && !backfill && !moveIt) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+      if (!want && !backfill && !moveIt && !assignStmts) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
       if (want && (want === "done" || want === "review") && task.stage && await stageNeedsPic(db, task)) {
         const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ?").bind(id).first();
         if (!pic || !pic.n) return json({ error: "ปิดขั้น “" + ((stageDef(await flowFor(db, task.taskType), task.stage) || {}).th || task.stage) + "” ต้องแนบรูปยืนยันก่อน — เข้าไปในงานแล้วแนบรูปพร้อมกดส่ง" }, 400);
       }
       const stmts2 = [];
+      if (assignStmts) stmts2.push(...assignStmts);
       if (backfill || moveIt) {
         const iso = new Date(body.dueAt).toISOString();
         const same = task.dueAt && new Date(task.dueAt).getTime() === new Date(iso).getTime();

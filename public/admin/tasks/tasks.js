@@ -132,6 +132,8 @@
     return canApprove(t) || mineTask(t) || (S.me && S.me.canUpdateOthers);
   }
   /* แก้กำหนดส่งจากแถว: หัวหน้า/คนสั่งแก้ได้เสมอ · คนรับใส่วันให้งานที่ยังไม่มีวันได้ · เลื่อนวันที่มีแล้วต้องมี can_reschedule */
+  /* เปลี่ยนคนรับผิดชอบ — ทุกคนในทีมทำได้ (นนท์ 20 ก.ย. 69) */
+  function canAssign() { return !readOnly() && !!S.me; }
   function canDue(t) {
     if (readOnly() || !S.me) return false;
     if (canEditRow(t)) return true;
@@ -786,13 +788,13 @@
     /* วงกลมหน้าแถว = ติ๊กเลือก (เลือกหลายงานแล้วสั่งจากแถบล่างทีเดียว — นนท์ขอ 18 ก.ย. 69)
        ปุ่มติ๊กเสร็จ/ตรวจผ่านของงานเดี่ยวย้ายไปอยู่ในเมนู ⋯ ท้ายแถว */
     var sel = !!SEL[t.id];
-    var canMenu = canEditRow(t) || canTick(t);
+    var canMenu = canEditRow(t) || canTick(t) || canAssign();
     return '<a class="trow ' + esc(es) + (sel ? ' selected' : '') + '" href="#/task/' + esc(t.id) + '">' +
       selCircle(t, st, mark, sel) +
       '<span class="main"><span class="tline"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
       (canEditRow(t) ? '<i class="tpen" role="button" tabindex="0" data-tedit="' + esc(t.id) + '" title="แก้ชื่องาน" aria-label="แก้ชื่องาน">✎</i>' : '') + '</span>' +
       '<span class="m">' +
-      (canEditRow(t) ? '<span class="edt" role="button" tabindex="0" data-aedit="' + esc(t.id) + '" title="เปลี่ยนคนรับ">' + avatars(t.assignees) + '</span>' : avatars(t.assignees)) +
+      (canAssign() ? '<span class="edt" role="button" tabindex="0" data-aedit="' + esc(t.id) + '" title="เปลี่ยนคนรับ">' + avatars(t.assignees) + '</span>' : avatars(t.assignees)) +
       typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
       (es === 'review' ? '<span class="pill review">รอตรวจ</span>' : '') +
@@ -901,7 +903,7 @@
       (stages.length ? '<span class="kcnt" title="ขั้นงาน">' + svgIcon('flow') + stDone + '/' + stages.length + '</span>' : '') +
       (subs.length ? '<span class="kcnt" title="งานย่อย">' + svgIcon('sub') + subs.filter(function (x) { return effStatus(x) === 'done'; }).length + '/' + subs.length + '</span>' : '') +
       (t.nFiles ? '<span class="kcnt" title="รูป">' + svgIcon('pic') + t.nFiles + '</span>' : '') +
-      (canEditRow(t) || canTick(t) ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="เมนูงานนี้">⋯</span>' : '') +
+      (canEditRow(t) || canTick(t) || canAssign() ? '<span class="rowmenu" role="button" tabindex="0" data-rowmenu="' + esc(t.id) + '" title="เมนูงานนี้">⋯</span>' : '') +
       '</div>' +
       (model.byStage && !stages.length && flowHas && !readOnly() ? '<div class="knote"><button type="button" class="btn-text" data-mkstages="' + esc(t.id) + '">ยังไม่มีขั้นงาน — สร้าง ' + flowOf(t.taskType).length + ' ขั้น</button></div>' : '') +
       '</article>';
@@ -955,8 +957,93 @@
     }).join('');
     return typeTabs + '<div class="kban">' + cols + '</div>' +
       '<p class="khint">' + (model.byStage ? 'ลากการ์ดไปคอลัมน์ถัดไป = ปิดขั้นปัจจุบัน (ขั้นที่ต้องมีรูปจะไม่ผ่านจนกว่าจะแนบรูปในงาน) · ' : 'ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ · ') +
-      'กดที่การ์ดเพื่อเปิดงาน · วงกลม = เลือกหลายงาน</p>';
+      'กดที่การ์ดเพื่อเปิดงาน · วงกลม = เลือกหลายงาน · บน iPad/มือถือ <b>แตะการ์ดค้างแป๊บนึงแล้วลาก</b></p>';
   }
+  /* ---------- แตะค้างแล้วลากการ์ดบนบอร์ด (iPad/มือถือ) ----------
+     HTML drag-and-drop ใช้กับนิ้วไม่ได้ ต้องทำเอง: แตะค้าง 350ms = จับการ์ดขึ้นมา (สั่นเบา ๆ ถ้าเครื่องรองรับ)
+     แล้วลากไปวางคอลัมน์ไหนก็ได้ · เลื่อนนิ้วก่อนครบเวลา = สกรอลล์ตามปกติ ไม่จับการ์ด */
+  var TD = null;
+  function kcolAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el && el.closest ? el.closest('.kcol') : null;
+  }
+  function tdDrop(col, id) {
+    if (!col || !id) return;
+    var t = taskById(id);
+    if (!t) { render(); return; }
+    if (col.hasAttribute('data-kstage')) { moveToStage(t, col.getAttribute('data-kstage'), Number(col.getAttribute('data-kidx'))); return; }
+    var want = col.getAttribute('data-kcol');
+    if (!want || effStatus(t) === want) { render(); return; }
+    var req = (want === 'done' && effStatus(t) === 'review' && canApprove(t))
+      ? api('/tasks/' + t.id + '/review', 'POST', { pass: true })
+      : api('/tasks/' + t.id, 'PUT', { status: want });
+    req.then(function (j) {
+      S.tasks = null;
+      toast(j && j.status === 'review' && want === 'done' ? 'ส่งให้หัวหน้าตรวจแล้ว' : 'ย้ายไป “' + (STATUS_TH[want] || want) + '” แล้ว');
+      render();
+    }).catch(function (e) { toast(e.message, true); render(); });
+  }
+  function tdEnd(commit) {
+    if (!TD) return;
+    var col = commit && TD.on ? TD.on : null;
+    if (TD.ghost) TD.ghost.remove();
+    if (TD.card) TD.card.classList.remove('tdrag');
+    $$('.kcol.over').forEach(function (x) { x.classList.remove('over'); });
+    document.body.classList.remove('tdragging');
+    clearTimeout(TD.timer);
+    var had = TD.active, id = TD.id;
+    TD = null;
+    if (commit && had) tdDrop(col, id);
+  }
+  document.addEventListener('touchstart', function (ev) {
+    if (ev.touches.length !== 1) { tdEnd(false); return; }
+    var card = ev.target.closest && ev.target.closest('.kcard[draggable="true"]');
+    if (!card) return;
+    if (ev.target.closest('[data-sel],[data-rowmenu],[data-mkstages],a,button,input')) return;
+    var t0 = ev.touches[0];
+    TD = { id: card.getAttribute('data-kid'), card: card, x0: t0.clientX, y0: t0.clientY, active: false, on: null, ghost: null, timer: null };
+    TD.timer = setTimeout(function () {
+      if (!TD) return;
+      TD.active = true;
+      var r = card.getBoundingClientRect();
+      var g = card.cloneNode(true);
+      g.className = 'kcard kghost';
+      g.style.width = r.width + 'px';
+      g.style.left = r.left + 'px';
+      g.style.top = r.top + 'px';
+      document.body.appendChild(g);
+      TD.ghost = g; TD.dx = TD.x0 - r.left; TD.dy = TD.y0 - r.top;
+      card.classList.add('tdrag');
+      document.body.classList.add('tdragging');
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
+    }, 350);
+  }, { passive: true });
+  document.addEventListener('touchmove', function (ev) {
+    if (!TD) return;
+    var t0 = ev.touches[0];
+    if (!TD.active) {
+      /* ยังไม่ครบเวลา แล้วนิ้วขยับเกิน 10px = ตั้งใจสกรอลล์ ไม่ใช่ลาก */
+      if (Math.abs(t0.clientX - TD.x0) > 10 || Math.abs(t0.clientY - TD.y0) > 10) { clearTimeout(TD.timer); TD = null; }
+      return;
+    }
+    ev.preventDefault();   /* จับการ์ดแล้ว ห้ามหน้าเลื่อนตาม */
+    TD.ghost.style.transform = 'translate(' + (t0.clientX - TD.x0) + 'px,' + (t0.clientY - TD.y0) + 'px)';
+    var col = kcolAt(t0.clientX, t0.clientY);
+    if (col !== TD.on) {
+      $$('.kcol.over').forEach(function (x) { x.classList.remove('over'); });
+      if (col) col.classList.add('over');
+      TD.on = col;
+    }
+    /* ลากไปชิดขอบจอ = เลื่อนบอร์ดตามแนวนอน */
+    var wrap = $('.kban');
+    if (wrap) {
+      if (t0.clientX > window.innerWidth - 60) wrap.scrollLeft += 12;
+      else if (t0.clientX < 60) wrap.scrollLeft -= 12;
+    }
+  }, { passive: false });
+  document.addEventListener('touchend', function () { tdEnd(true); }, { passive: true });
+  document.addEventListener('touchcancel', function () { tdEnd(false); }, { passive: true });
+
   /* ผูก drag ครั้งเดียวที่ document — การ์ดถูกวาดใหม่ทุกรอบ ผูกรายตัวจะหลุด */
   var KDRAG = null;
   document.addEventListener('dragstart', function (ev) {
@@ -2036,7 +2123,7 @@
     if (anyTick) h += '<button type="button" class="btn-ghost sm" data-bulk="done">' + (allApprove ? 'เสร็จแล้ว' : 'เสร็จแล้ว → ส่งตรวจ') + '</button>';
     if (anyTick) h += '<select class="select" data-bulk-status aria-label="เปลี่ยนสถานะ"><option value="">เปลี่ยนสถานะ…</option>' +
       ['todo', 'doing', 'blocked'].map(function (k) { return '<option value="' + k + '">' + STATUS_TH[k] + '</option>'; }).join('') + '</select>';
-    if (allEdit) h += '<button type="button" class="btn-ghost sm" data-bulk="assign">คนรับ</button>';
+    if (canAssign()) h += '<button type="button" class="btn-ghost sm" data-bulk="assign">คนรับ</button>';
     if (anyDue) h += '<button type="button" class="btn-ghost sm" data-bulk="due">เลื่อนส่ง</button>';
     if (ts.some(canEditRow)) h += '<button type="button" class="btn-ghost sm danger" data-bulk="delete">ลบ</button>';
     h += '<button type="button" class="bx" data-bulk="clear" title="ยกเลิกการเลือก" aria-label="ยกเลิกการเลือก">✕</button>';
@@ -2205,6 +2292,8 @@
       : (canApprove(t) ? 'ปิดงาน — เสร็จแล้ว' : 'เสร็จแล้ว — ส่งให้หัวหน้าตรวจ'));
     var h = '<div class="pmenu">';
     if (canTick(t) && act) h += '<button type="button" data-tick="' + esc(id) + '" data-act="' + act + '">' + esc(tickLbl) + '</button>';
+    if (canAssign()) h += '<button type="button" data-pm="assign">เปลี่ยนคนรับผิดชอบ…</button>';
+    if (canDue(t)) h += '<button type="button" data-pm="due">แก้กำหนดส่ง…</button>';
     if (canEditRow(t)) h += '<button type="button" data-pm="edit">แก้ไขรายละเอียด…</button>';
     h += '<button type="button" data-pm="open">เปิดงานเต็ม</button>';
     if (canEditRow(t)) h += '<button type="button" class="danger" data-pm="del">' + (t.parentId ? 'ลบงานย่อยนี้' : 'ลบงานนี้') + '</button>';
@@ -2214,7 +2303,9 @@
       var b = ev.target.closest('[data-pm]'); if (!b) return;
       var k = b.getAttribute('data-pm');
       popClose();
-      if (k === 'edit') quickEdit(id);
+      if (k === 'assign') assignPop(anchor, [id]);
+      else if (k === 'due') duePop(anchor, [id]);
+      else if (k === 'edit') quickEdit(id);
       else if (k === 'open') location.hash = '#/task/' + id;
       else if (k === 'del') delTask(t);
     });
@@ -4779,6 +4870,7 @@
     }
     if ((b = ev.target.closest('[data-kadd]'))) { ev.preventDefault(); ev.stopPropagation(); if (!ev.target.closest('input')) kaddOpen(b); return; }
     /* กดที่ตัวการ์ด/งานย่อย = เปิดงาน (ยกเว้นปุ่มในการ์ด) */
+    if (document.body.classList.contains('tdragging')) { ev.preventDefault(); return; }
     if ((b = ev.target.closest('[data-kopen]')) && !ev.target.closest('[data-sel],[data-rowmenu],[data-mkstages],a,button,input')) {
       location.hash = '#/task/' + b.getAttribute('data-kopen'); return;
     }
