@@ -579,7 +579,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { history: '#/history', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -2316,6 +2316,125 @@
     api('/tasks/' + t.id, 'DELETE')
       .then(function () { S.tasks = null; toast('ลบงานแล้ว'); render(); })
       .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+  }
+
+  /* ============================================================
+     ประวัติการแก้ไข — ใครแก้อะไรเมื่อไหร่ · ค้นหา · ย้อนเวอร์ชันเหมือน Google Sheet
+     ============================================================ */
+  var H = { q: '', who: '', entity: '', days: 30, items: [], more: false, next: null, busy: false };
+  var ENTITY_TH = { task: 'งาน', post: 'โพสต์', campaign: 'ปฏิทินการตลาด', staff: 'ทีม + สิทธิ์', flow: 'ขั้นงาน' };
+  var ACTION_TH = { create: 'สร้างใหม่', update: 'แก้ไข', delete: 'ลบ', revert: 'ย้อนเวอร์ชัน' };
+  function histUrl(more) {
+    var p = ['limit=60'];
+    if (H.q) p.push('q=' + encodeURIComponent(H.q));
+    if (H.who) p.push('who=' + encodeURIComponent(H.who));
+    if (H.entity) p.push('entity=' + encodeURIComponent(H.entity));
+    if (H.days) p.push('days=' + H.days);
+    if (more && H.next) p.push('before=' + encodeURIComponent(H.next));
+    return '/history?' + p.join('&');
+  }
+  function histLoad(more) {
+    H.busy = true;
+    return api(histUrl(more)).then(function (j) {
+      H.items = more ? H.items.concat(j.items || []) : (j.items || []);
+      H.more = !!j.more; H.next = j.nextBefore; H.busy = false;
+      return j;
+    }).catch(function (e) { H.busy = false; throw e; });
+  }
+  /* ค่าดิบในฐานข้อมูล → ข้อความที่คนอ่านรู้เรื่อง */
+  function histVal(k, v) {
+    if (v === '' || v == null) return '—';
+    if (k === 'status') return STATUS_TH[v] || v;
+    if (k === 'task_type') return TASK_TYPE_TH[v] || v;
+    if (k === 'task_kind') return KIND_TH[v] || v;
+    if (k === 'repeat') { var m = { daily: 'ทุกวัน', weekly: 'ทุกสัปดาห์', monthly: 'ทุกเดือน' }; return m[v] || 'ครั้งเดียว'; }
+    if (k === 'support') return v === '1' ? 'ใช่' : 'ไม่ใช่';
+    if (k === 'priority') return v === '1' ? 'ด่วน' : 'ปกติ';
+    if (k === 'kpi_id') { var kp = kpiById(v); return kp ? kp.code : v; }
+    if (k === 'campaign_id') { var c = campaignById(v); return c ? c.name : v; }
+    if (k === '__assignees') return String(v).split(',').filter(Boolean).map(function (id) { var st2 = staffById(id); return st2 ? shortName(st2) : id; }).join(', ') || '—';
+    if (k === 'due_at' || k === 'posted_at') { var d = new Date(v); return isNaN(d) ? v : fmtFull(v); }
+    if (k === 'post_date') { return thaiShort(v); }
+    if (k === 'page_id') return pageName(v) || v;
+    if (k === 'channels') { try { return JSON.parse(v).join(', ') || '—'; } catch (e) { return v; } }
+    return String(v).length > 90 ? String(v).slice(0, 90) + '…' : String(v);
+  }
+  function histLink(x) {
+    if (x.entity === 'task') return '#/task/' + x.entityId;
+    if (x.entity === 'post') return '#/posts';
+    if (x.entity === 'campaign') return null;
+    return null;
+  }
+  function histRow(x) {
+    var st = staffById(x.by);
+    var link = histLink(x);
+    var fields = (x.fields || []).map(function (f) {
+      return '<div class="hf"><span class="hfk">' + esc(f.th) + '</span>' +
+        '<span class="hfv from">' + esc(histVal(f.k, f.from)) + '</span><span class="harr">→</span>' +
+        '<span class="hfv to">' + esc(histVal(f.k, f.to)) + '</span></div>';
+    }).join('');
+    return '<div class="hrow' + (x.revertedAt ? ' undone' : '') + '" data-h="' + esc(x.id) + '">' +
+      '<span class="hwhen"><b>' + esc(fmtAgo(x.at)) + '</b><small>' + esc(fmtFull(x.at)) + '</small></span>' +
+      '<span class="hmain">' +
+        '<span class="hhead">' + avatar(st) + '<b>' + esc(st ? shortName(st) : x.by) + '</b>' +
+        '<span class="hact ' + esc(x.action) + '">' + esc(ACTION_TH[x.action] || x.action) + '</span>' +
+        '<span class="hent">' + esc(ENTITY_TH[x.entity] || x.entity) + '</span></span>' +
+        (link ? '<a class="htitle" href="' + link + '">' + esc(x.title || '(ไม่มีชื่อ)') + '</a>'
+              : '<span class="htitle">' + esc(x.title || '(ไม่มีชื่อ)') + '</span>') +
+        (fields ? '<span class="hfields">' + fields + '</span>'
+                : (x.summary ? '<span class="hsum">' + esc(x.summary) + '</span>' : '')) +
+        (x.revertedAt ? '<span class="hsum undone">ย้อนไปแล้วเมื่อ ' + esc(fmtAgo(x.revertedAt)) + '</span>' : '') +
+      '</span>' +
+      (x.canRevert && !readOnly() ? '<button type="button" class="btn-ghost sm hundo" data-hundo="' + esc(x.id) + '">ย้อนเวอร์ชันนี้</button>' : '<span></span>') +
+      '</div>';
+  }
+  function renderHistory() {
+    var view = $('#view');
+    view.className = 'page';
+    if (!H.items.length && !H.busy) { view.innerHTML = '<div class="loading">กำลังโหลด…</div>'; }
+    histLoad(false).then(function () { paintHistory(); }).catch(function (e) { showError(e); });
+  }
+  function paintHistory() {
+    var view = $('#view');
+    var h = '<div class="top"><div><span class="kicker">ประวัติการแก้ไข</span><h1>ใครแก้อะไรไว้บ้าง</h1>' +
+      '<p>ทุกการเปลี่ยนแปลงของงานและตารางโพสต์ · ค้นหาด้วยชื่องาน/หัวข้อโพสต์ · กด “ย้อนเวอร์ชันนี้” เพื่อคืนค่าก่อนการแก้ครั้งนั้น</p></div></div>';
+    h += '<div class="tbar">' +
+      '<input class="input hsearch" id="hq" placeholder="ค้นหาชื่องาน หัวข้อโพสต์ หรือสิ่งที่แก้…" value="' + esc(H.q) + '">' +
+      '<div class="seg">' + [['', 'ทุกอย่าง'], ['task', 'งาน'], ['post', 'โพสต์']].map(function (p) {
+        return '<button type="button" class="' + (H.entity === p[0] ? 'on' : '') + '" data-h-f="entity" data-v="' + p[0] + '">' + p[1] + '</button>';
+      }).join('') + '</div>' +
+      '<div class="seg">' + [[7, '7 วัน'], [30, '30 วัน'], [90, '3 เดือน'], [0, 'ทั้งหมด']].map(function (p) {
+        return '<button type="button" class="' + (H.days === p[0] ? 'on' : '') + '" data-h-f="days" data-v="' + p[0] + '">' + p[1] + '</button>';
+      }).join('') + '</div>' +
+      '<div class="seg">' + [['', 'ทุกคน']].concat(activeStaff().map(function (x) { return [x.id, shortName(x)]; })).map(function (p) {
+        return '<button type="button" class="' + (H.who === p[0] ? 'on' : '') + '" data-h-f="who" data-v="' + esc(p[0]) + '">' + esc(p[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<span class="tbar-n">' + H.items.length + ' รายการ</span></div>';
+    h += H.items.length
+      ? '<div class="hlist">' + H.items.map(histRow).join('') + '</div>' +
+        (H.more ? '<div class="hmore"><button type="button" class="btn-ghost" data-h-more>โหลดเพิ่ม</button></div>' : '')
+      : '<div class="sec"><div class="empty"><b>ไม่พบประวัติในเงื่อนไขนี้</b>ลองขยายช่วงเวลา หรือล้างคำค้น</div></div>';
+    view.innerHTML = h;
+    var q = $('#hq');
+    if (q) {
+      q.addEventListener('input', function () {
+        H.q = this.value.trim();
+        clearTimeout(H._t);
+        H._t = setTimeout(function () { histLoad(false).then(paintHistory).catch(function (e) { toast(e.message, true); }); }, 350);
+      });
+      if (H._focus) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); H._focus = false; }
+    }
+  }
+  function histUndo(id, btn) {
+    var x = H.items.filter(function (y) { return y.id === id; })[0];
+    if (!confirm('ย้อน “' + ((x && x.title) || 'รายการนี้') + '” กลับไปเป็นค่าก่อนการแก้ครั้งนี้?' +
+      (x && x.action === 'create' ? '\n(รายการนี้คือการสร้างใหม่ — ย้อน = ลบออกจากระบบ)' : ''))) return;
+    btn.disabled = true;
+    api('/history/' + id + '/revert', 'POST', {}).then(function (j) {
+      S.tasks = null;
+      toast(j.note || 'ย้อนเวอร์ชันแล้ว');
+      histLoad(false).then(paintHistory);
+    }).catch(function (e) { btn.disabled = false; toast(e.message, true); });
   }
 
   /* ---------- แก้ไขงานเร็วจากหน้ารายการ ---------- */
@@ -4804,6 +4923,7 @@
       case 'campaign': return S.route.id ? renderCampaign(S.route.id) : renderAll();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
+      case 'history': return renderHistory();
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
@@ -4859,6 +4979,14 @@
     if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
     if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
     if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
+    if ((b = ev.target.closest('[data-h-f]'))) {
+      var hk = b.getAttribute('data-h-f'), hv = b.getAttribute('data-v');
+      H[hk] = hk === 'days' ? Number(hv) : hv;
+      histLoad(false).then(paintHistory).catch(function (e) { toast(e.message, true); });
+      return;
+    }
+    if (ev.target.closest('[data-h-more]')) { histLoad(true).then(paintHistory).catch(function (e) { toast(e.message, true); }); return; }
+    if ((b = ev.target.closest('[data-hundo]'))) { histUndo(b.getAttribute('data-hundo'), b); return; }
     if ((b = ev.target.closest('[data-btype]'))) { B.type = b.getAttribute('data-btype'); try { localStorage.setItem('kan-board-type', B.type); } catch (e) {} renderAll(); return; }
     if (ev.target.closest('[data-flow-edit]')) { flowEditor(B.type); return; }
     if ((b = ev.target.closest('[data-mkstages]'))) {

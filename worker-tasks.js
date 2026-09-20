@@ -250,6 +250,13 @@ const ALTERS = [
   "CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id)",
   "CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)",
   "CREATE INDEX IF NOT EXISTS idx_task_mentions_task ON task_mentions(task_id)",
+  /* ประวัติการแก้ไขทั้งระบบ + ย้อนเวอร์ชันแบบ Google Sheet (นนท์ 20 ก.ย. 69)
+     before_json = สภาพก่อนแก้ ใช้กดย้อนกลับ · after_json = หลังแก้ ไว้เทียบ */
+  "CREATE TABLE IF NOT EXISTS audit_log (id TEXT PRIMARY KEY, at TEXT NOT NULL, staff_id TEXT NOT NULL, " +
+    "entity TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', " +
+    "summary TEXT NOT NULL DEFAULT '', before_json TEXT, after_json TEXT, reverted_at TEXT, reverted_by TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id)",
   /* งานป้าย (18 ก.ย. 69): ขนาด จำนวนใบ สาขา + ขั้นตอนของงานย่อย */
   "ALTER TABLE tasks ADD COLUMN sign_w REAL",
   "ALTER TABLE tasks ADD COLUMN sign_h REAL",
@@ -631,6 +638,64 @@ function logStmt(db, me, action, info, changes) {
 }
 
 /* ---------- rows → JSON ---------- */
+/* ============================================================
+   ประวัติการแก้ไข (audit log) — เก็บสภาพก่อน/หลังของทุกการเปลี่ยนแปลง
+   เพื่อให้ย้อนเวอร์ชันได้ทีหลัง · เขียนแยกจาก batch หลัก งานหลักล้มเหลวจะไม่มีประวัติค้าง
+   ============================================================ */
+const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน" };
+const AUDIT_ACTION_TH = { create: "สร้าง", update: "แก้ไข", delete: "ลบ", revert: "ย้อนเวอร์ชัน" };
+/* สภาพของงาน 1 ชิ้น (รวมคนรับ) ไว้ทั้งเทียบและคืนค่า */
+async function snapTask(db, id) {
+  const r = await db.prepare("SELECT * FROM tasks WHERE id = ?").bind(id).first();
+  if (!r) return null;
+  const a = await db.prepare("SELECT staff_id FROM task_assignees WHERE task_id = ?").bind(id).all();
+  const o = {};
+  for (const k of Object.keys(r)) o[k] = r[k];
+  o.__assignees = (a.results || []).map((x) => x.staff_id);
+  return o;
+}
+async function snapPost(db, id) {
+  const r = await db.prepare("SELECT * FROM posts WHERE id = ?").bind(id).first();
+  if (!r) return null;
+  const o = {}; for (const k of Object.keys(r)) o[k] = r[k];
+  return o;
+}
+const AUDIT_SKIP = { updated_at: 1, created_at: 1, updated_by: 1, created_by: 1, done_at: 1, submitted_at: 1, approved_at: 1, approved_by: 1, posted_at: 1 };
+const FIELD_TH = {
+  title: "ชื่องาน", detail: "รายละเอียด", status: "สถานะ", due_at: "กำหนดส่ง", repeat: "ความถี่",
+  kpi_id: "KPI", task_type: "ประเภทงาน", task_kind: "ชนิดงาน", hours: "ชั่วโมง", support: "งานซัพพอร์ต",
+  priority: "ความสำคัญ", campaign_id: "ปฏิทินการตลาด", parent_id: "งานหลัก", stage: "ขั้นงาน",
+  sign_w: "กว้าง", sign_h: "สูง", sign_qty: "จำนวนใบ", sign_branch: "สาขา", __assignees: "คนรับผิดชอบ",
+  post_date: "วันที่", post_time: "เวลา", page_id: "เพจ", channels: "ช่องทาง", topic: "หัวข้อ", kind: "ประเภท", url: "ลิงก์", note: "หมายเหตุ",
+};
+function diffSnap(before, after) {
+  const out = [];
+  const keys = new Set(Object.keys(before || {}).concat(Object.keys(after || {})));
+  for (const k of keys) {
+    if (AUDIT_SKIP[k] || k === "id") continue;
+    const a = before ? before[k] : undefined, b = after ? after[k] : undefined;
+    const sa = Array.isArray(a) ? a.slice().sort().join(",") : (a == null ? "" : String(a));
+    const sb = Array.isArray(b) ? b.slice().sort().join(",") : (b == null ? "" : String(b));
+    if (sa !== sb) out.push({ k, th: FIELD_TH[k] || k, from: sa, to: sb });
+  }
+  return out;
+}
+async function logChange(db, o) {
+  try {
+    const fields = o.action === "update" ? diffSnap(o.before, o.after) : [];
+    if (o.action === "update" && !fields.length) return null;
+    const summary = o.summary || (o.action === "update"
+      ? fields.map((f) => f.th).join(", ")
+      : (AUDIT_ACTION_TH[o.action] || o.action));
+    const id = newId("h_");
+    await db.prepare(
+      "INSERT INTO audit_log (id,at,staff_id,entity,entity_id,action,title,summary,before_json,after_json) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(id, o.at || nowIso(), o.by, o.entity, String(o.entityId), o.action, String(o.title || "").slice(0, 300),
+           String(summary).slice(0, 500), o.before ? JSON.stringify(o.before) : null, o.after ? JSON.stringify(o.after) : null).run();
+    return id;
+  } catch (e) { return null; }   /* ประวัติพังต้องไม่ทำให้งานหลักพัง */
+}
+
 function rowToPost(r) {
   let channels = [];
   try { channels = JSON.parse(r.channels || "[]"); } catch (e) { channels = []; }
@@ -1027,6 +1092,14 @@ export async function handleTaskApi(request, env, url, path, method) {
       }
     }
     if (stmts.length) await db.batch(stmts);
+    /* ประวัติ: บันทึกเฉพาะตอนแก้จริง (สร้างใหม่/เปลี่ยนค่า) — วางทับ 500 แถวจากสเปรดชีตจะได้ไม่บวมเกินจำเป็น */
+    for (const pid of ids.slice(0, 120)) {
+      const now2 = await snapPost(db, pid);
+      if (!now2) continue;
+      const old2 = before[pid] || null;
+      await logChange(db, { by: me.id, entity: "post", entityId: pid, action: old2 ? "update" : "create",
+        title: now2.topic || now2.post_date, before: old2, after: now2, at: now });
+    }
     return json({ ids, blank });
   }
 
@@ -1200,6 +1273,8 @@ export async function handleTaskApi(request, env, url, path, method) {
         time: (after || row).post_time, topic: (after || row).topic,
       }, changes).run();
     }
+    await logChange(db, { by: me.id, entity: "post", entityId: row.id, action: "update",
+      title: (after || row).topic || (after || row).post_date, before: row, after: after || row, at: now });
     return json({ ok: true });
   }
   if (postMatch && method === "DELETE") {
@@ -1207,6 +1282,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (!row) return json({ ok: true });
     /* หัวหน้าลบได้ทุกอัน · คนอื่นลบได้เฉพาะโพสต์ที่ตัวเองสร้าง (ของเก่าที่ยังไม่มีคนสร้าง = หัวหน้าเท่านั้น) */
     if (!isOwner && row.created_by !== me.id) return json({ error: "ลบได้เฉพาะโพสต์ที่ตัวเองเพิ่มไว้" }, 403);
+    await logChange(db, { by: me.id, entity: "post", entityId: row.id, action: "delete", title: row.topic || row.post_date, before: row, summary: "ลบโพสต์" });
     await db.batch([
       db.prepare("DELETE FROM posts WHERE id = ?").bind(row.id),
       logStmt(db, me, "delete", {
@@ -1636,6 +1712,11 @@ export async function handleTaskApi(request, env, url, path, method) {
       ).bind(newId("u_"), id, me.id, "create", "", v.status, now));
     }
     await db.batch(stmts);
+    /* ประวัติ: สร้างงาน (งานย่อยของขั้นไม่ต้องบันทึก จะได้ไม่รก) */
+    for (let i = 0; i < ids.length; i++) {
+      const snap = await snapTask(db, ids[i]);
+      if (snap) await logChange(db, { by: me.id, entity: "task", entityId: ids[i], action: "create", title: snap.title, after: snap, at: now });
+    }
     /* ประเภทที่มีขั้นงาน (ป้ายเป็นค่าเริ่มต้น) ได้งานย่อยตามขั้นทันที วันคาดว่าเสร็จถอยหลังจากกำหนดส่ง */
     const flowsNow = await loadFlows(db);
     const stagesFor = [];
@@ -1645,6 +1726,110 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (flowsNow[tt]) { await ensureSignStages(db, mid, me.id, now); stagesFor.push(mid); }
     }
     return json({ ids, stagesFor });
+  }
+
+  /* ============================================================
+     ประวัติการแก้ไข — ใครแก้อะไรเมื่อไหร่ · ค้นหา/กรองได้ · กดย้อนเวอร์ชันได้ (นนท์ 20 ก.ย. 69)
+     GET  /history?q=&who=&entity=&days=&limit=&before=
+     POST /history/:id/revert   → คืนค่าตามสภาพก่อนการแก้ครั้งนั้น
+     ============================================================ */
+  if (path === "/history" && method === "GET") {
+    const q = String(url.searchParams.get("q") || "").trim().slice(0, 80);
+    const who = String(url.searchParams.get("who") || "").slice(0, 40);
+    const ent = String(url.searchParams.get("entity") || "").slice(0, 20);
+    const days = Math.max(0, Math.min(365, Number(url.searchParams.get("days") || 0)));
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 60)));
+    const before = String(url.searchParams.get("before") || "");
+    const where = [], bind = [];
+    if (q) { where.push("(title LIKE ? OR summary LIKE ?)"); bind.push("%" + q + "%", "%" + q + "%"); }
+    if (who) { where.push("staff_id = ?"); bind.push(who); }
+    if (ent) { where.push("entity = ?"); bind.push(ent); }
+    if (days) { where.push("at >= ?"); bind.push(new Date(Date.now() - days * 86400000).toISOString()); }
+    if (before) { where.push("at < ?"); bind.push(before); }
+    const sql = "SELECT id,at,staff_id,entity,entity_id,action,title,summary,before_json,after_json,reverted_at,reverted_by FROM audit_log" +
+      (where.length ? " WHERE " + where.join(" AND ") : "") + " ORDER BY at DESC LIMIT " + (limit + 1);
+    const r = await db.prepare(sql).bind(...bind).all();
+    const rows = (r.results || []);
+    const more = rows.length > limit;
+    const items = rows.slice(0, limit).map((x) => {
+      let fields = [];
+      if (x.action === "update" && x.before_json && x.after_json) {
+        try { fields = diffSnap(JSON.parse(x.before_json), JSON.parse(x.after_json)).slice(0, 12); } catch (e) { fields = []; }
+      }
+      return { id: x.id, at: x.at, by: x.staff_id, entity: x.entity, entityId: x.entity_id, action: x.action,
+        title: x.title, summary: x.summary, fields,
+        canRevert: !x.reverted_at && (x.entity === "task" || x.entity === "post") && !!(x.before_json || x.action === "create"),
+        revertedAt: x.reverted_at || null, revertedBy: x.reverted_by || null };
+    });
+    return json({ items, more, nextBefore: more ? rows[limit - 1].at : null,
+      entities: Object.keys(AUDIT_ENTITY_TH).map((k) => ({ k, th: AUDIT_ENTITY_TH[k] })) });
+  }
+
+  const revMatch = path.match(/^\/history\/([A-Za-z0-9_-]{1,40})\/revert$/);
+  if (revMatch && method === "POST") {
+    const row = await db.prepare("SELECT * FROM audit_log WHERE id = ?").bind(revMatch[1]).first();
+    if (!row) return json({ error: "ไม่พบประวัติรายการนี้" }, 404);
+    if (row.reverted_at) return json({ error: "รายการนี้ถูกย้อนไปแล้ว" }, 409);
+    if (row.entity !== "task" && row.entity !== "post") return json({ error: "ย้อนได้เฉพาะงานกับโพสต์" }, 400);
+    /* สิทธิ์: หัวหน้าย้อนได้ทุกอัน · คนอื่นย้อนได้เฉพาะสิ่งที่ตัวเองแก้ */
+    if (!isOwner && row.staff_id !== me.id) return json({ error: "ย้อนได้เฉพาะรายการที่ตัวเองแก้ หรือให้หัวหน้าย้อนให้" }, 403);
+    const before = row.before_json ? JSON.parse(row.before_json) : null;
+    const now = nowIso();
+    const stmts = [];
+    let note = "";
+
+    if (row.entity === "task") {
+      const cur = await snapTask(db, row.entity_id);
+      if (row.action === "create") {
+        if (!cur) return json({ error: "งานนี้ถูกลบไปแล้ว" }, 409);
+        const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(row.entity_id).all();
+        for (const tid of [row.entity_id].concat((kids.results || []).map((k) => k.id))) {
+          stmts.push(db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(tid));
+          stmts.push(db.prepare("DELETE FROM task_updates WHERE task_id = ?").bind(tid));
+          stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(tid));
+          stmts.push(db.prepare("DELETE FROM task_mentions WHERE task_id = ?").bind(tid));
+          stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
+        }
+        note = "ย้อน: ลบงานที่เพิ่งสร้าง";
+      } else {
+        if (!before) return json({ error: "ไม่มีข้อมูลก่อนแก้ ย้อนไม่ได้" }, 400);
+        const rows0 = [before].concat(Array.isArray(before.__kids) ? before.__kids : []);
+        for (const b of rows0) {
+          const cols = Object.keys(b).filter((k) => k !== "__assignees" && k !== "__kids");
+          stmts.push(db.prepare(
+            "INSERT OR REPLACE INTO tasks (" + cols.join(",") + ") VALUES (" + cols.map(() => "?").join(",") + ")"
+          ).bind(...cols.map((k) => b[k])));
+          stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(b.id));
+          for (const sid of (b.__assignees || [])) {
+            stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(b.id, sid));
+          }
+        }
+        stmts.push(db.prepare("UPDATE tasks SET updated_at = ? WHERE id = ?").bind(now, before.id));
+        note = row.action === "delete" ? "ย้อน: กู้งานที่ลบไป" : "ย้อนกลับเป็นค่าก่อนแก้";
+        stmts.push(db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(newId("u_"), before.id, me.id, "note", note + " (" + (row.summary || "") + ")", null, now));
+      }
+    } else {
+      const cur = await snapPost(db, row.entity_id);
+      if (row.action === "create") {
+        if (!cur) return json({ error: "โพสต์นี้ถูกลบไปแล้ว" }, 409);
+        stmts.push(db.prepare("DELETE FROM posts WHERE id = ?").bind(row.entity_id));
+        note = "ย้อน: ลบโพสต์ที่เพิ่งเพิ่ม";
+      } else {
+        if (!before) return json({ error: "ไม่มีข้อมูลก่อนแก้ ย้อนไม่ได้" }, 400);
+        const cols = Object.keys(before);
+        stmts.push(db.prepare(
+          "INSERT OR REPLACE INTO posts (" + cols.join(",") + ") VALUES (" + cols.map(() => "?").join(",") + ")"
+        ).bind(...cols.map((k) => before[k])));
+        note = row.action === "delete" ? "ย้อน: กู้โพสต์ที่ลบไป" : "ย้อนกลับเป็นค่าก่อนแก้";
+      }
+    }
+    await db.batch(stmts);
+    await db.prepare("UPDATE audit_log SET reverted_at = ?, reverted_by = ? WHERE id = ?").bind(now, me.id, row.id).run();
+    /* บันทึกการย้อนเป็นประวัติอีกชั้น จะได้เห็นว่าใครกดย้อนตอนไหน */
+    await logChange(db, { by: me.id, entity: row.entity, entityId: row.entity_id, action: "revert",
+      title: row.title, summary: note, before: row.after_json ? JSON.parse(row.after_json) : null, after: before, at: now });
+    return json({ ok: true, note });
   }
 
   /* ---- ทำหลายงานพร้อมกันจากหน้ารายการ (ติ๊กเลือกแล้วสั่งครั้งเดียว) ----
@@ -1786,7 +1971,16 @@ export async function handleTaskApi(request, env, url, path, method) {
         stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
       }
     }
+    /* ประวัติ: เก็บสภาพก่อนไว้แล้วค่อยเทียบหลังยิง batch */
+    const auditPre = {};
+    if (changed.length) for (const c of changed) auditPre[c.id] = await snapTask(db, c.id);
     if (stmts.length) await db.batch(stmts);
+    for (const c of changed) {
+      const b0 = auditPre[c.id];
+      if (!b0) continue;
+      if (action === "delete") await logChange(db, { by: me.id, entity: "task", entityId: c.id, action: "delete", title: b0.title, before: b0, summary: "ลบงาน (เลือกหลายงาน)" });
+      else await logChange(db, { by: me.id, entity: "task", entityId: c.id, action: "update", title: b0.title, before: b0, after: await snapTask(db, c.id), at: now });
+    }
     const missing = ids.filter((id) => !tasks.some((t) => t.id === id)).length;
     return json({ ok: true, done: changed.length, changed, skipped, missing });
   }
@@ -1843,6 +2037,7 @@ export async function handleTaskApi(request, env, url, path, method) {
     if (!sub && method === "PUT") {
       const body = await readBody(request);
       const now = nowIso();
+      const auditBefore = await snapTask(db, id);
       if (isOwner || task.createdBy === me.id) {
         const sets = await loadIdSets(db);
         const merged = {
@@ -1916,6 +2111,7 @@ export async function handleTaskApi(request, env, url, path, method) {
             if (fix.length) await db.batch(fix);
           }
         }
+        await logChange(db, { by: me.id, entity: "task", entityId: id, action: "update", title: v.title, before: auditBefore, after: await snapTask(db, id), at: now });
         return json({ ok: true });
       }
       /* ผู้รับงาน (หรือคนที่ได้สิทธิ์ติ๊กแทนคนอื่น): เปลี่ยนได้แค่สถานะ
@@ -2006,6 +2202,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         }
       }
       await db.batch(stmts2);
+      await logChange(db, { by: me.id, entity: "task", entityId: id, action: "update", title: task.title, before: auditBefore, after: await snapTask(db, id), at: now });
       return json({ ok: true, status: want ? statusFor(want, task, false) : task.status });
     }
 
@@ -2015,6 +2212,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       /* ลบงานหลัก = ลบงานย่อยของมันด้วย ไม่งั้นงานย่อยลอยหาพ่อแม่ไม่เจอ */
       const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(id).all();
       const ids = [id].concat((kids.results || []).map((r) => r.id));
+      const auditDel = await snapTask(db, id);
+      const auditKids = [];
+      for (const kid of ids.slice(1)) { const k = await snapTask(db, kid); if (k) auditKids.push(k); }
       const stmts = [];
       for (const tid of ids) {
         stmts.push(db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(tid));
@@ -2024,6 +2224,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
       }
       await db.batch(stmts);
+      if (auditDel) { auditDel.__kids = auditKids; await logChange(db, { by: me.id, entity: "task", entityId: id, action: "delete", title: auditDel.title, before: auditDel, summary: "ลบงาน" + (auditKids.length ? " + งานย่อย " + auditKids.length : "") }); }
       return json({ ok: true, deleted: ids.length });
     }
 

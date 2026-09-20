@@ -31,6 +31,7 @@
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
         { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
+        { icon: 'clock',     label: 'ประวัติการแก้ไข', tasks: '#/history' },
         { icon: 'users',     label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' }
       ]}
 
@@ -127,6 +128,7 @@
 
   /* ไอคอน Lucide (แทน emoji) — แก้/เพิ่มที่นี่ */
   var ICONS = {
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="14" width="3" height="3" rx="1"/>',
     dashboard:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
     store:'<path d="M4 4h16l1 5a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 12v8h14v-8"/><path d="M10 20v-5h4v5"/>',
