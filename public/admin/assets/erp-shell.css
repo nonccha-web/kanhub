@@ -167,3 +167,38 @@ html.erp-collapsed .erp-sidebar:not(:hover) .erp-powered, html.erp-collapsed .la
 .erp-bell i{ position:absolute; top:0; right:-1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
   background:#F06400; color:#fff; font:700 9.5px/16px var(--k-display, inherit); font-style:normal; text-align:center;
   box-shadow:0 0 0 2px var(--k-paper); }
+
+/* ปุ่มพาทัวร์ในหัวหน้า CMO */
+.erp-tour{ display:inline-flex; align-items:center; gap:7px; border:1px solid var(--k-line); border-radius:999px;
+  background:var(--k-paper); color:var(--k-soft); font:inherit; font-size:12.5px; padding:6px 13px; cursor:pointer; }
+.erp-tour:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+.erp-tour svg{ width:15px; height:15px; }
+@media (max-width:900px){ .erp-tour span{ display:none; } .erp-tour{ padding:6px 9px; } }
+
+/* ── overlay พาทัวร์ — ใช้ร่วมทุกหน้า (ย้ายมาจาก tasks.css 20 ก.ย. 69) ── */
+.tour-hole{ position:fixed; z-index:1000; border-radius:6px; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(11,11,10,.55), 0 0 0 2px var(--k-paper);
+  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease; }
+html.tour-on .erp-scrim{ pointer-events:none; }
+.tour-card{ position:fixed; z-index:1001; width:min(360px, calc(100vw - 24px)); border:1px solid var(--k-line); background:var(--k-paper);
+  color:var(--k-ink); box-shadow:0 18px 50px rgba(0,0,0,.24); padding:14px 16px 14px; font-size:13.5px; line-height:1.6; }
+.tour-card.tour-center{ left:50%!important; top:50%!important; transform:translate(-50%,-50%); width:min(420px, calc(100vw - 24px)); }
+.tour-card.tour-sheet{ left:12px!important; right:12px; top:auto!important; bottom:12px; width:auto; }
+.tour-h{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.tour-n{ font-family:var(--k-display); font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--k-mut); font-variant-numeric:tabular-nums; }
+.tour-name{ font-size:11px; color:var(--k-mut); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tour-x{ border:0; background:none; color:var(--k-mut); font:inherit; font-size:14px; cursor:pointer; padding:2px 4px; }
+.tour-x:hover{ color:var(--k-ink); }
+.tour-card h3{ margin:0 0 4px; font-size:15px; font-weight:600; line-height:1.35; }
+.tour-card p{ margin:0; color:var(--k-soft); }
+.tour-card p b{ color:var(--k-ink); font-weight:600; }
+.tour-miss{ color:var(--k-warn); }
+.tour-f{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.tour-dots{ display:flex; gap:4px; flex-wrap:wrap; }
+.tour-dots i{ width:6px; height:6px; border-radius:50%; background:var(--k-line); }
+.tour-dots i.on{ background:var(--k-ink); }
+.tour-btns{ display:flex; gap:6px; }
+.tour-b{ border:1px solid var(--k-ink); background:var(--k-ink); color:var(--k-paper); font:inherit; font-size:12.5px; font-weight:500;
+  padding:6px 14px; border-radius:999px; cursor:pointer; }
+.tour-b.ghost{ background:none; color:var(--k-ink); border-color:var(--k-line); }
+.tour-b:focus-visible, .tour-x:focus-visible{ outline:2px solid var(--k-bad); outline-offset:2px; }

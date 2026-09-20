@@ -36,6 +36,7 @@ try {
       <div class="topacts">
         <button class="btn pro" id="proBtn" type="button" aria-pressed="false"></button>
         <button class="btn guide" id="guideBtn">📖 คู่มือใช้งาน</button>
+        <button class="btn guide" id="tourBtn" type="button">🧭 พาทัวร์หน้านี้</button>
       </div>
     </div>
 
@@ -54,7 +55,7 @@ try {
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=30',
+  v: '?v=31',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/task-add.js', 'assets/suggest.js',
             'assets/rules.js', 'data/sales-insight.js', 'data/promo-analysis.js', 'assets/views.js', 'assets/suggest-sales.js', 'assets/views-extra.js',

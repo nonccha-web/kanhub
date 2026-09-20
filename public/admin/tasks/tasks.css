@@ -2,7 +2,7 @@
    KAN Admin — งานทีม (Task) · หน้าตาชุดเดียวกับหลังบ้าน M CRM
    โทเคนสี/sidebar/แถบบน มาจาก ../assets/erp-shell.css
    ============================================================ */
-@import url('../assets/erp-shell.css?v=9');
+@import url('../assets/erp-shell.css?v=11');
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
 
 *{ box-sizing:border-box; margin:0; padding:0; }
@@ -395,32 +395,6 @@ button.st.tick.busy{ opacity:.45; pointer-events:none; }
 .tour-menu[hidden]{ display:none; }
 
 /* ช่องสว่างเจาะทับของที่ชี้ — เงาใหญ่รอบ ๆ ทำหน้าที่เป็นม่านมืดทั้งจอ */
-.tour-hole{ position:fixed; z-index:1000; border-radius:6px; pointer-events:none;
-  box-shadow:0 0 0 9999px rgba(11,11,10,.55), 0 0 0 2px var(--k-paper);
-  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease; }
-html.tour-on .erp-scrim{ pointer-events:none; }
-.tour-card{ position:fixed; z-index:1001; width:min(360px, calc(100vw - 24px)); border:1px solid var(--k-line); background:var(--k-paper);
-  color:var(--k-ink); box-shadow:0 18px 50px rgba(0,0,0,.24); padding:14px 16px 14px; font-size:13.5px; line-height:1.6; }
-.tour-card.tour-center{ left:50%!important; top:50%!important; transform:translate(-50%,-50%); width:min(420px, calc(100vw - 24px)); }
-.tour-card.tour-sheet{ left:12px!important; right:12px; top:auto!important; bottom:12px; width:auto; }
-.tour-h{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-.tour-n{ font-family:var(--k-display); font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--k-mut); font-variant-numeric:tabular-nums; }
-.tour-name{ font-size:11px; color:var(--k-mut); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.tour-x{ border:0; background:none; color:var(--k-mut); font:inherit; font-size:14px; cursor:pointer; padding:2px 4px; }
-.tour-x:hover{ color:var(--k-ink); }
-.tour-card h3{ margin:0 0 4px; font-size:15px; font-weight:600; line-height:1.35; }
-.tour-card p{ margin:0; color:var(--k-soft); }
-.tour-card p b{ color:var(--k-ink); font-weight:600; }
-.tour-miss{ color:var(--k-warn); }
-.tour-f{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
-.tour-dots{ display:flex; gap:4px; flex-wrap:wrap; }
-.tour-dots i{ width:6px; height:6px; border-radius:50%; background:var(--k-line); }
-.tour-dots i.on{ background:var(--k-ink); }
-.tour-btns{ display:flex; gap:6px; }
-.tour-b{ border:1px solid var(--k-ink); background:var(--k-ink); color:var(--k-paper); font:inherit; font-size:12.5px; font-weight:500;
-  padding:6px 14px; border-radius:999px; cursor:pointer; }
-.tour-b.ghost{ background:none; color:var(--k-ink); border-color:var(--k-line); }
-.tour-b:focus-visible, .tour-x:focus-visible{ outline:2px solid var(--k-bad); outline-offset:2px; }
 @media (max-width:760px){ .tour-btn span{ display:none; } .tour-btn{ padding:0 9px; } }
 @media (prefers-reduced-motion:reduce){ .tour-hole{ transition:none; } }
 

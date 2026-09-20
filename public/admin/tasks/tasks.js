@@ -645,7 +645,8 @@
     tb.textContent = shortName(S.me);
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
-  var PAGE_TOUR = { me: 'me', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', report: 'report' };
+  var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team',
+                    report: 'report', signage: 'signage', history: 'history', campaign: 'calendar', inbox: 'overview' };
   function toggleTourMenu() {
     var m = $('#tourMenu'), T = global.KAN_TOUR;
     if (!m || !T) return;
@@ -922,9 +923,10 @@
     if (k === 'pic') return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-8 7"/></svg>';
     return '';
   }
-  function kanban(list) {
+  function kanban(list, opts) {
+    opts = opts || {};
     var model = boardColumns();
-    var pool = B.type ? list.filter(function (t) { return (t.taskType || 'other') === B.type; }) : list;
+    var pool = (B.type && !opts.noFilter) ? list.filter(function (t) { return (t.taskType || 'other') === B.type; }) : list;
     var by = {};
     pool.forEach(function (t) {
       var k;
@@ -935,7 +937,7 @@
       } else k = effStatus(t);
       (by[k] = by[k] || []).push(t);
     });
-    var typeTabs = '<div class="kbar"><div class="seg">' +
+    var typeTabs = opts.hideTabs ? '' : '<div class="kbar"><div class="seg">' +
       '<button type="button" class="' + (!B.type ? 'on' : '') + '" data-btype="">ทุกงาน · ตามสถานะ</button>' +
       TASK_TYPE_KEYS.map(function (k) {
         var n = flowOf(k).length;
@@ -943,6 +945,7 @@
       }).join('') + '</div>' +
       (amOwner() ? '<button type="button" class="btn-ghost sm" data-flow-edit>ตั้งค่าขั้นงาน</button>' : '') +
       '<span class="kbar-n">' + pool.length + ' งาน' + (model.byStage ? ' · ' + model.flow.length + ' ขั้น' : '') + '</span></div>';
+    if (opts.hideTabs) typeTabs = '';
     var cols = model.cols.map(function (c, i) {
       var items = by[c.k] || [];
       var hrs = items.reduce(function (a, t) { return a + (t.hours || 0); }, 0);
@@ -2670,12 +2673,14 @@
 
   /* ---------- หน้างานป้าย: funnel รวม + funnel รายป้าย + ตาราง ----------
      เปิดมาเห็นก่อนว่าของกองอยู่ขั้นไหน แล้วค่อยไล่ทีละป้าย · ป้ายเยอะสลับเป็นตารางได้ */
-  var SG = { view: 'cards', stage: '', branch: '', showDone: false };
+  /* มุมมองเริ่มต้นของหน้างานป้าย = ไปป์ไลน์ (การ์ดชุดเดียวกับหน้างานทั้งหมด — นนท์ 20 ก.ย. 69) */
+  var SG = { view: 'board', stage: '', branch: '', showDone: false };
   function renderSignage() {
     var view = $('#view');
     view.className = 'page';
     view.innerHTML = '<div class="loading">กำลังโหลดงานป้าย…</div>';
-    api('/signage').then(function (j) {
+    Promise.all([api('/signage'), loadTasks(), loadFlows(), loadCampaigns()]).then(function (rr) {
+      var j = rr[0];
       var all = j.tasks || [], stByParent = {};
       (j.stages || []).forEach(function (x) { (stByParent[x.parentId] = stByParent[x.parentId] || []).push(x); });
       /* ขั้นปัจจุบันของแต่ละป้าย = ขั้นแรกที่ยังไม่ผ่าน · ป้ายไม่มีขั้น = 'none' · ปิดแล้ว = 'done' */
@@ -2734,6 +2739,7 @@
 
       /* แถบกรอง + สลับมุมมอง */
       h += '<div class="tbar"><div class="seg">' +
+        '<button type="button" class="' + (SG.view === 'board' ? 'on' : '') + '" data-sg-view="board">ไปป์ไลน์</button>' +
         '<button type="button" class="' + (SG.view === 'cards' ? 'on' : '') + '" data-sg-view="cards">การ์ด</button>' +
         '<button type="button" class="' + (SG.view === 'table' ? 'on' : '') + '" data-sg-view="table">ตาราง</button></div>' +
         (Object.keys(branches).length ? '<span class="tbar-lbl">สาขา</span><div class="seg">' +
@@ -2747,6 +2753,13 @@
 
       if (!list.length) {
         h += '<div class="sec"><div class="empty"><b>ไม่มีป้ายตามเงื่อนไขนี้</b>ลองเลิกกรอง หรือกด “+ สั่งป้าย”</div></div>';
+      } else if (SG.view === 'board') {
+        /* การ์ด/คอลัมน์ชุดเดียวกับหน้างานทั้งหมด — ต่างกันแค่กรองเฉพาะงานป้ายไว้แล้ว */
+        var ids0 = {}; list.forEach(function (t) { ids0[t.id] = 1; });
+        var mine0 = (S.tasks || []).filter(function (t) { return ids0[t.id]; });
+        var keep0 = B.type; B.type = 'signage';
+        h += kanban(mine0.length ? mine0 : list, { hideTabs: true, noFilter: true });
+        B.type = keep0;
       } else if (SG.view === 'table') {
         h += '<div class="sec"><div class="sec-b tight"><div class="scrollx"><table class="rpt sgt"><thead><tr>' +
           '<th>ป้าย</th><th>สาขา</th><th class="n">กว้าง × สูง</th><th class="n">ใบ</th><th class="n">ตร.ม.</th><th>ขั้นตอน</th><th>ค้างที่</th><th>ติดตั้ง</th><th>คนทำ</th></tr></thead><tbody>' +
@@ -2783,6 +2796,7 @@
         }).join('') + '</div>';
       }
       view.innerHTML = h;
+      syncSel();
       var cb = $('#sgDone'); if (cb) cb.addEventListener('change', function () { SG.showDone = this.checked; renderSignage(); });
     }).catch(function (e) { showError(e); });
   }

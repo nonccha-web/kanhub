@@ -82,6 +82,10 @@
     head.innerHTML =
       '<div class="erp-head-t"><b>KAN Admin</b><small>' + esc(pageName) + ' · Internal operations</small></div>' +
       '<div class="erp-head-r">' +
+      /* ปุ่มพาทัวร์ของหน้านี้ (นนท์ 20 ก.ย. 69: ให้กดทัวร์ได้ทุกหน้าในเมนู) — tour.js โหลดแบบ lazy ตอนกด */
+      (me ? '<button type="button" class="erp-tour" id="erpTour" title="พาทัวร์หน้านี้">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg><span>พาทัวร์</span></button>' : '') +
       (me ? '<a class="erp-bell" id="erpBell" href="../tasks/#/inbox" title="แจ้งเตือน — คนแท็กถึงคุณ / งานส่งตรวจ">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
             '<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg></a>' : '') +
@@ -111,7 +115,24 @@
     scrim.setAttribute("data-erp-close", "1");
     document.body.insertBefore(scrim, document.body.firstChild);
 
+    /* ชื่อทัวร์ของแต่ละหน้า CMO — ต้องตรงกับ T.define() ใน tasks/tour.js */
+    var TOUR_OF = { "campaign-calendar": "calendar", "kpi": "kpi" };
+    function tourHere() {
+      var f = (location.pathname.split("/").pop() || "").replace(/\.html$/, "");
+      return TOUR_OF[f] || null;
+    }
     document.addEventListener("click", function (ev) {
+      if (ev.target.closest("#erpTour")) {
+        var name = tourHere() || "overview";
+        var go = function () { if (global.KAN_TOUR && global.KAN_TOUR.has(name)) global.KAN_TOUR.start(name); else location.href = "../tasks/#/all"; };
+        if (global.KAN_TOUR) { go(); return; }
+        var sc = document.createElement("script");
+        sc.src = "../tasks/tour.js?v=6";
+        sc.onload = go;
+        sc.onerror = function () { location.href = "../tasks/#/all"; };
+        document.head.appendChild(sc);
+        return;
+      }
       if (ev.target.closest("[data-logout]")) {
         fetch("/api/t/logout", { method: "POST", credentials: "same-origin" })
           .then(function () { location.href = "/tasks/"; })

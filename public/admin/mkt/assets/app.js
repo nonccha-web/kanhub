@@ -86,6 +86,21 @@
 
   /* ── render ────────────────────────────────────────────────────────────── */
 
+  /* พาทัวร์ของหน้านี้ — ใช้ tour.js ชุดเดียวกับระบบงาน (โหลดตอนกดครั้งแรก) */
+  var TOUR_OF = { ads: 'adsreport' };
+  function startTour() {
+    var name = TOUR_OF[KAN.currentView] || 'overview';
+    var go = function () {
+      if (window.KAN_TOUR && window.KAN_TOUR.has(name)) window.KAN_TOUR.start(name);
+      else window.location.href = '../tasks/#/all';
+    };
+    if (window.KAN_TOUR) return go();
+    var sc = document.createElement('script');
+    sc.src = '../tasks/tour.js?v=6';
+    sc.onload = go;
+    sc.onerror = function () { window.location.href = '../tasks/#/all'; };
+    document.head.appendChild(sc);
+  }
   function render() {
     var v = KAN.views[current] || KAN.views.overview;
     var range = KAN.range();
@@ -112,6 +127,8 @@
     var fh = document.getElementById('filterHost');
     if (v.noFilter) { fh.innerHTML = ''; fh.style.display = 'none'; }
     else { fh.style.display = ''; renderFilters(); }
+    var tb = document.getElementById('tourBtn');
+    if (tb && !tb._wired) { tb._wired = 1; tb.addEventListener('click', startTour); }
     document.getElementById('lastUpdated').innerHTML =
       '<span class="dot"></span>ข้อมูลพร้อมใช้<br>ถึง ' + fmt.thDate(D.meta.dataEnd);
     window.scrollTo({ top: 0, behavior: 'auto' });
