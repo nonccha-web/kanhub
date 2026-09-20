@@ -27,6 +27,8 @@
         { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' },
         /* งานของฉัน = สวิตช์ในหน้างานทั้งหมด · แจ้งเตือน = กระดิ่งมุมขวาบน (นนท์ 19 ก.ย. 69) */
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
+        /* ตรวจงานแบบปัดการ์ด — นนท์ 20 ก.ย. 69: ของที่ค้างที่หัวหน้าอยู่กองเดียว ปัดผ่าน/ตีกลับทีละใบ */
+        { icon: 'check',     label: 'ปัดตรวจงาน',      tasks: '#/review' },
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
@@ -142,6 +144,7 @@
     calendar:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
     users:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5M21.5 20a6 6 0 0 0-4-5.6"/>',
     shieldcheck:'<path d="M12 3 5 6v5c0 5 3.5 8 7 10 3.5-2 7-5 7-10V6z"/><path d="m9 12 2 2 4-4"/>',
+    check:'<circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/>',
     trophy:'<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 0-3 3M9 21h6M12 17v4"/>',
     network:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M6 17v-2h12v2"/>',
     clipboard:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><path d="M9 12h6M9 16h4"/>',

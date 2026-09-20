@@ -579,7 +579,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { history: '#/history', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { history: '#/history', review: '#/review', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -645,7 +645,7 @@
     tb.textContent = shortName(S.me);
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
-  var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team',
+  var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', review: 'review',
                     report: 'report', signage: 'signage', history: 'history', campaign: 'calendar', inbox: 'overview' };
   function toggleTourMenu() {
     var m = $('#tourMenu'), T = global.KAN_TOUR;
@@ -1239,7 +1239,8 @@
         return effStatus(t) === 'review' && canApprove(t) && t.assignees.indexOf(S.me.id) === -1;
       });
       if (toReview.length) {
-        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() + '</div>' +
+        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() +
+          '<a class="btn-text" style="margin-left:auto" href="#/review">ปัดตรวจทีเดียว</a>' + '</div>' +
           '<div class="tlist">' + toReview.map(taskRow).join('') + '</div></div>';
       }
       /* แถบตรวจโพสต์ของวันนี้ — งาน routine ที่หัวหน้าทำทุกวัน ไม่ต้องสร้างเป็น task รายโพสต์ */
@@ -1262,24 +1263,383 @@
       fillPostBar();
     }).catch(function (e) { showError(e); });
   }
+  /* แถบ "ค้างที่คุณ" ใต้ตัวเลขสรุป — เดิมนับแต่โพสต์ของวันนี้
+     ตั้งแต่ 20 ก.ย. 69 นับทุกอย่างที่ค้างอยู่ที่หัวหน้าจริง ๆ (งานรอตรวจ + โพสต์ + งานที่ปิดไปแล้วแต่ยังไม่ได้ตรวจ)
+     แล้วพาเข้าโหมดปัดที่ #/review ทีเดียวจบ ตัวเลขใช้ตัวนับชุดเดียวกับกองการ์ด จะได้ไม่ขัดกันเอง */
   function fillPostBar() {
       api('/posts/today').then(function (t) {
         var bar = $('#postBar');
         if (!bar) return;
-        if (!t.total) {
-          bar.className = 'postbar quiet';
-          bar.innerHTML = '<span class="pbi">วันนี้ยังไม่มีแผนโพสต์ในตาราง</span><a class="btn-text" href="#/posts">เปิดตารางโพสต์</a>';
+        var noLink = t.done - t.withUrl;
+        /* กองการ์ดฝั่งงานคิดจาก S.tasks ที่โหลดมาแล้ว ไม่ต้องยิงเพิ่ม · ฝั่งโพสต์ใช้ตัวเลขจาก /posts/today */
+        var deck = S.tasks ? buildDeck(S.tasks, []) : [];
+        var nRev = 0, nUnseen = 0;
+        deck.forEach(function (c) { if (c.lane === 'review') nRev++; else if (c.lane === 'unseen') nUnseen++; });
+        var waiting = nRev + t.left + nUnseen;
+        if (!waiting) {
+          bar.className = 'postbar' + (t.total ? (noLink > 0 ? ' warn' : ' ok') : ' quiet');
+          bar.innerHTML = '<span class="pbi">' + (t.total
+              ? '<b>โพสต์วันนี้ ' + t.done + '/' + t.total + ' · ครบแล้ว</b>' + (noLink > 0 ? ' · ไม่มีลิงก์ ' + noLink : '')
+              : 'วันนี้ยังไม่มีแผนโพสต์ในตาราง และไม่มีงานรอคุณตรวจ') + '</span>' +
+            '<a class="btn-text" href="#/posts">' + (noLink > 0 ? 'ไปใส่ลิงก์' : 'ดูตาราง') + '</a>';
           return;
         }
-        var noLink = t.done - t.withUrl;
-        bar.className = 'postbar' + (t.left ? ' warn' : (noLink > 0 ? ' warn' : ' ok'));
-        bar.innerHTML = '<span class="pbi"><b>โพสต์วันนี้ ' + t.done + '/' + t.total + '</b>' +
-          (t.left ? ' · ยังไม่ได้โพสต์ ' + t.left + ' รายการ' : ' · ครบแล้ว') +
-          (noLink > 0 ? ' · ไม่มีลิงก์ ' + noLink : '') + '</span>' +
-          '<a class="btn-text" href="#/posts">' + (t.left || noLink > 0 ? 'ไปตรวจ' : 'ดูตาราง') + '</a>';
+        bar.className = 'postbar warn';
+        bar.innerHTML = '<span class="pbi"><b>ค้างที่คุณ ' + waiting + ' รายการ</b> · ' + [
+            nRev ? 'งานรอตรวจ ' + nRev : '',
+            t.left ? 'โพสต์วันนี้ยังไม่ได้ติ๊ก ' + t.left : '',
+            nUnseen ? 'ปิดไปแล้วยังไม่ได้ตรวจ ' + nUnseen : ''
+          ].filter(Boolean).join(' · ') + '</span>' +
+          '<a class="btn sm" href="#/review">ปัดตรวจเลย</a>' +
+          '<a class="btn-text" href="#/posts">ดูตารางโพสต์</a>';
       }).catch(function () {
         var bar = $('#postBar'); if (bar) bar.remove();
       });
+  }
+
+  /* ---------- ตรวจงานแบบปัดการ์ด (#/review) -------------------------------
+     นนท์สั่ง 20 ก.ย. 69: "ลูกทีมส่งงานมาให้ตรวจ อยากตัดสินผ่าน/ไม่ผ่านแบบปัด Tinder"
+     กองเดียวรวมทุกอย่างที่ค้างอยู่ที่ "เรา" เรียงตามความเร่ง:
+       1) งานที่น้องกดส่งตรวจแล้ว (สถานะ review) — ค้างที่เราจริง ๆ ของเก่าสุดขึ้นก่อน
+       2) โพสต์ของวันนี้ที่ยังไม่ได้ติ๊ก — งานประจำที่หัวหน้าไล่ทุกวัน (แถบเดิมในหน้าแรก)
+       3) งานที่ปิดไปแล้วแต่ "เรา" ไม่เคยเป็นคนกดผ่าน (คนอื่นปิดให้ / ของก่อนมีระบบตรวจ)
+     ปัดขวา = ผ่าน · ปัดซ้าย = ตีกลับ (ต้องมีเหตุผล เซิร์ฟเวอร์บังคับ) · ปัดขึ้น = ข้ามไว้ก่อน
+     ตัดสินใบไหนยิง API ใบนั้นทันที — ปิดจอกลางคันแล้วของที่ปัดไปแล้วอยู่ครบ ไม่มี "กดบันทึกตอนจบ" */
+
+  var RV = { cards: [], i: 0, busy: false, last: null, det: {}, drag: null, nSkip: 0, nPass: 0, nRej: 0 };
+  /* กองที่ 3 มองย้อนแค่ 14 วัน ไม่งั้นเปิดครั้งแรกเจอของค้างเป็นร้อยใบจนไม่มีใครปัดจบ */
+  var RV_BACK_DAYS = 14;
+  var RV_REASONS = ['รูปไม่ชัด ขอรูปใหม่', 'ยังไม่ครบ ขาดของ', 'ผิดสาขา / ผิดข้อมูล',
+                    'แคปชันต้องแก้', 'ไม่มีลิงก์ / ลิงก์ผิด', 'ผิดโจทย์ ทำใหม่'];
+  var RV_LANE_TH = { review: 'ส่งมาให้ตรวจ', post: 'โพสต์วันนี้', unseen: 'ปิดไปแล้ว คุณยังไม่ได้ตรวจ' };
+
+  /* กองการ์ด — ใช้ร่วมกับแถบ "ตรวจงาน" ในหน้าแรก จะได้นับตรงกันเป๊ะ */
+  function buildDeck(all, posts) {
+    var lane1 = [], lane3 = [];
+    var back = new Date(Date.now() - RV_BACK_DAYS * 86400000);
+    all.forEach(function (t) {
+      if (mineTask(t) || !canApprove(t)) return;
+      var es = effStatus(t);
+      if (es === 'review') { lane1.push({ type: 'task', id: t.id, t: t, lane: 'review' }); return; }
+      /* งานประจำวนซ้ำทุกวัน ถ้านับด้วยจะมีของใหม่เข้ากองไม่รู้จบ — ตรวจที่ตัวงานเอาเอง */
+      if (es !== 'done' || t.repeat) return;
+      if (t.approvedBy === S.me.id) return;
+      if (!t.doneAt || new Date(t.doneAt) < back) return;
+      lane3.push({ type: 'task', id: t.id, t: t, lane: 'unseen' });
+    });
+    /* ค้างนานสุดขึ้นก่อน — คนที่รอผลตรวจมาสามวันไม่ควรไปอยู่ท้ายกอง */
+    lane1.sort(function (a, b) { return (a.t.submittedAt || a.t.updatedAt) < (b.t.submittedAt || b.t.updatedAt) ? -1 : 1; });
+    lane3.sort(function (a, b) { return (b.t.doneAt || '') < (a.t.doneAt || '') ? -1 : 1; });
+    var lane2 = (posts || []).filter(function (p) { return p.status === 'plan'; })
+      .map(function (p) { return { type: 'post', id: p.id, p: p, lane: 'post' }; });
+    return lane1.concat(lane2, lane3);
+  }
+  function rvTodayPosts() {
+    var d = todayIso();
+    return Promise.all([loadPages(), api('/posts?from=' + d + '&to=' + d)]).then(function (r) {
+      var live = {};
+      (S.pages || []).forEach(function (pg) { live[pg.id] = 1; });
+      /* เพจที่ปิดใช้งานแล้วยังมีแถวค้างในตาราง อย่าเอามาให้ตรวจ */
+      return (r[1].posts || []).filter(function (x) { return live[x.pageId]; });
+    });
+  }
+
+  function renderReview() {
+    if (readOnly()) { denyView('ตรวจงาน'); return; }
+    Promise.all([loadTasks(), rvTodayPosts()]).then(function (r) {
+      RV.cards = buildDeck(r[0], r[1]);
+      RV.i = 0; RV.last = null; RV.det = {}; RV.busy = false;
+      RV.nSkip = 0; RV.nPass = 0; RV.nRej = 0;
+      drawReview();
+    }).catch(showError);
+  }
+
+  function drawReview() {
+    var view = $('#view');
+    view.className = 'page rvpage';
+    var left = RV.cards.length - RV.i;
+    var byLane = { review: 0, post: 0, unseen: 0 };
+    RV.cards.slice(RV.i).forEach(function (c) { byLane[c.lane]++; });
+    var h = '<div class="top"><div><span class="kicker">ตรวจงาน</span><h1>ปัดตรวจ</h1>' +
+      '<p>' + (left
+        ? 'เหลือ ' + left + ' ใบ — ' + [
+            byLane.review ? 'ส่งมาให้ตรวจ ' + byLane.review : '',
+            byLane.post ? 'โพสต์วันนี้ ' + byLane.post : '',
+            byLane.unseen ? 'ปิดไปแล้วยังไม่ได้ตรวจ ' + byLane.unseen : ''
+          ].filter(Boolean).join(' · ')
+        : 'ไม่มีอะไรค้างที่คุณแล้ว') + '</p></div>' +
+      '<div class="top-r"><a class="btn-ghost" href="#/all">ไปหน้ารายการ</a></div></div>';
+
+    if (!left) {
+      h += '<div class="rvdone"><div class="rvdonei">✓</div><b>' +
+        (RV.nPass + RV.nRej ? 'ตรวจครบแล้ว' : 'ไม่มีอะไรรอตรวจ') + '</b>' +
+        '<p>' + (RV.nPass + RV.nRej + RV.nSkip
+          ? 'รอบนี้ผ่าน ' + RV.nPass + ' · ตีกลับ ' + RV.nRej + (RV.nSkip ? ' · ข้ามไว้ ' + RV.nSkip : '')
+          : 'พอน้องกดส่งงานมาตรวจ หรือมีโพสต์ของวันนี้ที่ยังไม่ได้ติ๊ก รายการจะมาโผล่ที่นี่') + '</p>' +
+        '<div class="acts">' + (RV.nSkip ? '<button type="button" class="btn" data-rv-again>ปัดของที่ข้ามไว้อีกรอบ</button>' : '') +
+        '<a class="btn-ghost" href="#/all">ดูงานทั้งหมด</a></div></div>';
+      view.innerHTML = h;
+      return;
+    }
+
+    /* วาดแค่ 3 ใบบนสุด ใบที่เหลือโผล่มาทีหลัง — DOM เบาและการ์ดซ้อนดูมีความหนา */
+    var stack = RV.cards.slice(RV.i, RV.i + 3);
+    h += '<div class="rvwrap"><div class="rvdeck" id="rvDeck">' +
+      stack.map(function (c, i) { return rvCard(c, i); }).reverse().join('') + '</div>' +
+      '<div class="rvbar">' +
+      '<button type="button" class="rvb rej" data-rv-act="reject" aria-label="ตีกลับ" title="ตีกลับ (ปัดซ้าย / ←)">✕</button>' +
+      '<button type="button" class="rvb skip" data-rv-act="skip" aria-label="ข้ามไว้ก่อน" title="ข้ามไว้ก่อน (ปัดขึ้น / ↑)">↷</button>' +
+      '<button type="button" class="rvb undo"' + (RV.last ? '' : ' disabled') + ' data-rv-act="undo" aria-label="ย้อนใบที่แล้ว" title="ย้อนใบที่แล้ว (Z)">↶</button>' +
+      '<button type="button" class="rvb pass" data-rv-act="pass" aria-label="ผ่าน" title="ตรวจผ่าน (ปัดขวา / →)">✓</button>' +
+      '</div>' +
+      '<p class="rvhint">ปัดขวา = ผ่าน · ปัดซ้าย = ตีกลับ · ปัดขึ้น = ข้ามไว้ก่อน — บนคอมใช้ปุ่มลูกศรก็ได้</p>' +
+      '</div>';
+    view.innerHTML = h;
+    wireReview();
+    rvPrefetch();
+  }
+
+  function rvCard(c, depth) {
+    /* ใบบนสุดอยู่ใน flow ปกติ (เป็นตัวกำหนดความสูงของกอง) ใบที่ซ้อนอยู่ข้างหลังเป็นการ์ดเปล่า
+       ไม่ใส่เนื้อ เพราะเห็นแค่ขอบอยู่แล้ว และกัน data-rv-work ซ้ำกันหลายใบใน DOM
+       ชื่อคลาสใช้ rvtop ไม่ใช่ top — .top เป็นคลาสหัวข้อหน้าที่เป็น flex อยู่แล้ว ชนกันแล้วการ์ดเพี้ยน */
+    if (depth) return '<article class="rvcard" data-rv-i="' + (RV.i + depth) + '" style="--d:' + depth + '"></article>';
+    return '<article class="rvcard rvtop" data-rv-i="' + (RV.i + depth) + '" style="--d:0">' +
+      '<span class="rvstamp pass">ผ่าน</span><span class="rvstamp rej">ตีกลับ</span><span class="rvstamp skip">ข้ามไว้</span>' +
+      (c.type === 'post' ? rvPostBody(c.p) : rvTaskBody(c.t, c.lane)) + '</article>';
+  }
+  function rvTaskBody(t, lane) {
+    var k = kpiById(t.kpiId), es = effStatus(t);
+    var when = lane === 'review'
+      ? 'ส่งเมื่อ ' + fmtAgo(t.submittedAt || t.updatedAt)
+      : 'ปิดเมื่อ ' + fmtAgo(t.doneAt || t.updatedAt) + (t.approvedBy ? ' โดย ' + esc(shortName(staffById(t.approvedBy))) : '');
+    return '<div class="rvlane ' + lane + '">' + RV_LANE_TH[lane] + '</div>' +
+      '<h2>' + esc(t.title) + '</h2>' +
+      '<div class="rvmeta">' + avatars(t.assignees) +
+        (k ? '<span class="pill">' + esc(k.code) + '</span>' : '') +
+        (t.dueAt ? '<span class="pill' + (isLate(t) ? ' late' : '') + '">' + esc(fmtDue(t)) + '</span>' : '') +
+        (es === 'review' ? '<span class="pill review">รอตรวจ</span>' : '') +
+      '</div>' +
+      '<div class="rvsub">' + when + '</div>' +
+      (t.detail ? '<div class="rvdetail rich">' + richText(t.detail) + '</div>' : '') +
+      '<div class="rvwork" data-rv-work="' + esc(t.id) + '"><span class="rvload">กำลังเปิดงานที่เขาส่งมา…</span></div>' +
+      '<a class="btn-text rvopen" href="#/task/' + esc(t.id) + '">เปิดงานเต็ม ๆ</a>';
+  }
+  function rvPostBody(p) {
+    return '<div class="rvlane post">' + RV_LANE_TH.post + '</div>' +
+      '<h2>' + esc(p.topic || '(ยังไม่ใส่หัวข้อ)') + '</h2>' +
+      '<div class="rvmeta"><span class="pill">' + esc(pageName(p.pageId)) + '</span>' +
+        (p.time ? '<span class="pill">' + esc(p.time) + ' น.</span>' : '') +
+        (p.channels || []).map(function (ch) { return '<span class="pill">' + esc(ch) + '</span>'; }).join('') +
+      '</div>' +
+      '<div class="rvsub">วันนี้ยังไม่ได้ติ๊กว่าโพสต์แล้ว</div>' +
+      (p.note ? '<div class="rvdetail rich">' + richText(p.note) + '</div>' : '') +
+      '<div class="rvwork open"><label class="label">วางลิงก์โพสต์ (วางแล้วนับว่าโพสต์แล้วเลย)</label>' +
+      '<input class="input" data-rv-url placeholder="https://…" autocomplete="off" inputmode="url"></div>' +
+      '<p class="rvsub dim">ปัดขวา = โพสต์แล้ว · ปัดซ้าย = วันนี้ไม่โพสต์</p>';
+  }
+
+  /* เนื้องานที่น้องส่งมา (อัปเดตล่าสุด + รูป) โหลดแยกทีละใบ แล้วยัดเข้าการ์ดที่วาดไว้แล้ว
+     โหลดล่วงหน้า 3 ใบ พอปัดใบบนออก ใบถัดไปมีของพร้อมอ่านทันที ไม่ต้องรอหมุน */
+  function rvPrefetch() {
+    RV.cards.slice(RV.i, RV.i + 3).forEach(function (c, depth) {
+      if (c.type !== 'task') return;
+      if (RV.det[c.id]) { if (!depth && RV.det[c.id] !== 'loading') rvFillWork(c.id); return; }
+      RV.det[c.id] = 'loading';
+      api('/tasks/' + c.id).then(function (j) {
+        RV.det[c.id] = j;
+        rvFillWork(c.id);
+      }).catch(function () { RV.det[c.id] = null; rvFillWork(c.id); });
+    });
+  }
+  function rvFillWork(id) {
+    var box = $('[data-rv-work="' + id + '"]');
+    if (!box) return;
+    var j = RV.det[id];
+    if (!j || j === 'loading') { box.innerHTML = '<span class="rvload dim">เปิดงานไม่ได้ — กด “เปิดงานเต็ม ๆ” ดูแทน</span>'; return; }
+    var ups = (j.updates || []).filter(function (u) { return u.note; });
+    var last = ups[0];
+    var files = j.files || [];
+    var h = '';
+    if (last) {
+      var s = staffById(last.staffId);
+      h += '<div class="rvup"><b>' + esc(s ? shortName(s) : '?') + '</b> <time>' + esc(fmtAgo(last.createdAt)) + '</time>' +
+        '<div class="rich">' + richText(last.note) + '</div></div>';
+    }
+    if (files.length) h += thumbsHtml(files.slice(0, 6));
+    if (!h) h += '<span class="rvload dim">เขาไม่ได้เขียนอะไรมาและไม่มีไฟล์แนบ</span>';
+    box.classList.add('open');
+    box.innerHTML = h;
+  }
+
+  /* ---- ปัด ---- */
+  function rvTop() { return $('.rvcard.rvtop'); }
+  function wireReview() {
+    var card = rvTop();
+    if (!card) return;
+    card.addEventListener('pointerdown', rvDown);
+  }
+  function rvDown(ev) {
+    if (RV.busy) return;
+    /* กดปุ่ม/ลิงก์/ช่องกรอกในการ์ด = ใช้งานของนั้น ไม่ใช่เริ่มปัด */
+    if (ev.target.closest('a, button, input, textarea, .att')) return;
+    var card = ev.currentTarget;
+    RV.drag = { card: card, x0: ev.clientX, y0: ev.clientY, dx: 0, dy: 0, id: ev.pointerId };
+    card.setPointerCapture(ev.pointerId);
+    card.classList.add('rvdrag');
+    card.addEventListener('pointermove', rvMove);
+    card.addEventListener('pointerup', rvUp);
+    card.addEventListener('pointercancel', rvUp);
+  }
+  function rvMove(ev) {
+    var d = RV.drag;
+    if (!d || ev.pointerId !== d.id) return;
+    d.dx = ev.clientX - d.x0;
+    d.dy = ev.clientY - d.y0;
+    d.card.style.transform = 'translate(' + d.dx + 'px,' + d.dy + 'px) rotate(' + (d.dx / 26) + 'deg)';
+    var up = d.dy < -60 && Math.abs(d.dx) < 70;
+    d.card.classList.toggle('to-pass', !up && d.dx > 40);
+    d.card.classList.toggle('to-rej', !up && d.dx < -40);
+    d.card.classList.toggle('to-skip', up);
+  }
+  function rvUp(ev) {
+    var d = RV.drag;
+    if (!d || ev.pointerId !== d.id) return;
+    d.card.removeEventListener('pointermove', rvMove);
+    d.card.removeEventListener('pointerup', rvUp);
+    d.card.removeEventListener('pointercancel', rvUp);
+    d.card.classList.remove('rvdrag', 'to-pass', 'to-rej', 'to-skip');
+    RV.drag = null;
+    /* เกณฑ์ตัดสิน: 1 ใน 4 ของความกว้างการ์ด หรืออย่างน้อย 80px — จอแคบจะได้ไม่ต้องลากสุดจอ */
+    var need = Math.max(80, d.card.offsetWidth * 0.25);
+    if (d.dy < -110 && Math.abs(d.dx) < 80) { rvAct('skip'); return; }
+    if (d.dx > need) { rvAct('pass'); return; }
+    if (d.dx < -need) { rvAct('reject'); return; }
+    d.card.style.transform = '';   /* ไม่ถึงเกณฑ์ = เด้งกลับที่เดิม */
+  }
+  function rvFly(dir, then) {
+    var card = rvTop();
+    if (!card) { then(); return; }
+    var w = window.innerWidth + 260;
+    card.style.transition = 'transform .28s ease, opacity .28s ease';
+    card.style.transform = dir === 'skip' ? 'translateY(-120vh)'
+      : 'translate(' + (dir === 'pass' ? w : -w) + 'px,40px) rotate(' + (dir === 'pass' ? 22 : -22) + 'deg)';
+    card.style.opacity = '0';
+    setTimeout(then, 240);
+  }
+
+  function rvAct(act) {
+    if (RV.busy) return;
+    var c = RV.cards[RV.i];
+    if (!c) return;
+    if (act === 'skip') {
+      RV.nSkip++;
+      /* ข้ามไม่ยิง API — ย้ายไปท้ายกองเฉย ๆ ให้วนกลับมาเจออีกรอบตอนท้าย */
+      rvFly('skip', function () {
+        var moved = RV.cards.splice(RV.i, 1)[0];
+        moved.skipped = true;
+        RV.cards.push(moved);
+        RV.last = null;
+        drawReview();
+      });
+      return;
+    }
+    if (act === 'reject') { rvAskReason(c); return; }
+    rvSend(c, true, '');
+  }
+
+  /* ตีกลับต้องมีเหตุผลเสมอ (เซิร์ฟเวอร์ปฏิเสธถ้าไม่มี) — ปุ่มสำเร็จรูปกดแล้วส่งเลย
+     พิมพ์เองก็ได้ถ้าเหตุผลไม่ตรงอันไหน · ปิดแผ่นนี้ = การ์ดอยู่ที่เดิม ยังไม่ถูกตีกลับ */
+  function rvAskReason(c) {
+    /* ปัดซ้ายค้างการ์ดไว้นอกจอตอนเปิดแผ่นเหตุผล ถ้ากดยกเลิกการ์ดจะค้างเบี้ยวอยู่อย่างนั้น
+       เด้งกลับที่เดิมก่อนเสมอ แล้วค่อยปล่อยให้บินออกตอนส่งจริง */
+    var back = rvTop();
+    if (back) { back.style.transition = 'transform .16s ease'; back.style.transform = ''; }
+    var wrap = document.createElement('div');
+    wrap.className = 'rvsheet';
+    wrap.innerHTML = '<div class="rvsheet-b" role="dialog" aria-label="เหตุผลที่ตีกลับ">' +
+      '<div class="rvsheet-h"><b>ตีกลับให้แก้ — บอกหน่อยว่าแก้อะไร</b>' +
+      '<button type="button" class="x" data-rv-close aria-label="ปิด">✕</button></div>' +
+      '<div class="chips">' + RV_REASONS.map(function (r) {
+        return '<button type="button" class="chip" data-rv-reason="' + esc(r) + '">' + esc(r) + '</button>';
+      }).join('') + '</div>' +
+      '<textarea class="textarea" rows="2" data-rv-note placeholder="หรือพิมพ์เอง — เขาจะเห็นข้อความนี้ในกระดิ่ง"></textarea>' +
+      '<div class="acts"><button type="button" class="btn" data-rv-send>ส่งกลับให้แก้</button>' +
+      '<button type="button" class="btn-ghost" data-rv-close>ยกเลิก</button></div></div>';
+    document.body.appendChild(wrap);
+    var ta = wrap.querySelector('[data-rv-note]');
+    var close = function () { wrap.remove(); document.removeEventListener('keydown', onKey); };
+    var onKey = function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } };
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', function (ev) {
+      if (ev.target === wrap || ev.target.closest('[data-rv-close]')) { close(); return; }
+      var chip = ev.target.closest('[data-rv-reason]');
+      if (chip) { close(); rvSend(c, false, chip.getAttribute('data-rv-reason')); return; }
+      if (ev.target.closest('[data-rv-send]')) {
+        var note = (ta.value || '').trim();
+        if (!note) { ta.focus(); toast('ตีกลับต้องบอกด้วยว่าให้แก้อะไร', true); return; }
+        close(); rvSend(c, false, note);
+      }
+    });
+    setTimeout(function () { ta.focus(); }, 40);
+  }
+
+  function rvSend(c, pass, note) {
+    RV.busy = true;
+    var prev = c.type === 'post' ? c.p.status : effStatus(c.t);
+    var req = c.type === 'post'
+      ? (function () {
+          /* วางลิงก์ไว้ในการ์ด = บันทึกลิงก์ไปด้วยเลย (เซิร์ฟเวอร์ถือว่าโพสต์แล้วอัตโนมัติ) */
+          var box = rvTop(), inp = box ? box.querySelector('[data-rv-url]') : null;
+          var u = inp && inp.value.trim();
+          var body = { status: pass ? 'done' : 'skip' };
+          if (pass && u) body.url = u;
+          return api('/posts/' + c.id, 'PUT', body);
+        }())
+      : api('/tasks/' + c.id + '/review', 'POST', pass ? { pass: true } : { pass: false, note: note });
+    req.then(function () {
+      RV.busy = false;
+      if (pass) RV.nPass++; else RV.nRej++;
+      S.tasks = null;    /* รายการหน้าอื่นต้องโหลดใหม่ สถานะเปลี่ยนไปแล้ว */
+      rvFly(pass ? 'pass' : 'reject', function () {
+        RV.last = { card: c, at: RV.i, prev: prev };
+        RV.i++;
+        drawReview();
+      });
+    }).catch(function (e) {
+      RV.busy = false;
+      toast(e.message, true);
+      var card = rvTop();
+      if (card) { card.style.transition = 'transform .18s ease'; card.style.transform = ''; }
+    });
+  }
+
+  /* ย้อนใบที่แล้ว — คืนสถานะเดิมให้ตรง ๆ แล้วดึงการ์ดกลับเข้ากอง (ปัดพลาดบนมือถือเกิดบ่อย) */
+  function rvUndo() {
+    var l = RV.last;
+    if (!l || RV.busy) return;
+    RV.busy = true;
+    var req = l.card.type === 'post'
+      ? api('/posts/' + l.card.id, 'PUT', { status: l.prev })
+      : api('/tasks/' + l.card.id, 'PUT', { status: l.prev });
+    req.then(function () {
+      RV.busy = false;
+      S.tasks = null;
+      RV.i = l.at;
+      RV.last = null;
+      toast('ย้อนกลับมาแล้ว');
+      drawReview();
+    }).catch(function (e) { RV.busy = false; toast(e.message, true); });
+  }
+
+  function rvKey(ev) {
+    if (S.route.name !== 'review' || RV.busy) return;
+    if (ev.target.closest('input, textarea, [contenteditable]')) return;
+    if ($('.rvsheet')) return;
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); rvAct('pass'); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); rvAct('reject'); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); rvAct('skip'); }
+    else if (ev.key === 'z' || ev.key === 'Z') { ev.preventDefault(); rvUndo(); }
   }
 
   /* ---------- งานทั้งหมด ---------- */
@@ -1368,7 +1728,8 @@
         return effStatus(t) === 'review' && canApprove(t) && t.assignees.indexOf(S.me.id) === -1;
       });
       if (toReview.length) {
-        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() + '</div>' +
+        h += '<div class="group"><div class="group-h review"><h3>รอคุณตรวจ</h3><span>' + toReview.length + '</span>' + gsel() +
+          '<a class="btn-text" style="margin-left:auto" href="#/review">ปัดตรวจทีเดียว</a>' + '</div>' +
           '<div class="tlist">' + toReview.map(taskRow).join('') + '</div></div>';
       }
       /* แถบตรวจโพสต์ของวันนี้ */
@@ -5029,6 +5390,7 @@
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'history': return renderHistory();
+      case 'review': return renderReview();
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
@@ -5060,6 +5422,12 @@
     var b;
     /* ชิปแคมเปญ → หน้าแคมเปญในระบบ (เห็นงาน+โพสต์ที่ผูกไว้) แทนกระโดดออกไปปฏิทิน */
     if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.hash = '#/campaign/' + b.getAttribute('data-cc'); return; }
+    if ((b = ev.target.closest('[data-rv-act]'))) {
+      var rva = b.getAttribute('data-rv-act');
+      if (rva === 'undo') rvUndo(); else rvAct(rva);
+      return;
+    }
+    if (ev.target.closest('[data-rv-again]')) { RV.i = 0; RV.nSkip = 0; RV.last = null; drawReview(); return; }
     if ((b = ev.target.closest('[data-tour-go]'))) { $('#tourMenu').hidden = true; global.KAN_TOUR.start(b.getAttribute('data-tour-go')); return; }
     if ((b = ev.target.closest('[data-sg-stage]'))) { SG.stage = SG.stage === b.getAttribute('data-sg-stage') ? '' : b.getAttribute('data-sg-stage'); renderSignage(); return; }
     if ((b = ev.target.closest('[data-sg-view]'))) { SG.view = b.getAttribute('data-sg-view'); renderSignage(); return; }
@@ -5270,6 +5638,7 @@
     if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('[data-post-url]')) {
       ev.preventDefault(); savePostUrl(ev.target);
     }
+    rvKey(ev);
   });
   document.addEventListener('blur', function (ev) {
     if (ev.target.matches && ev.target.matches('[data-post-url]')) savePostUrl(ev.target);

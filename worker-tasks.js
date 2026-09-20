@@ -2319,8 +2319,11 @@ export async function handleTaskApi(request, env, url, path, method) {
       const stmts = [
         db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
           .bind(uid, id, me.id, "status", note || (pass ? "ตรวจผ่านแล้ว" : ""), status, now),
+        /* งานที่ "ปิดไปแล้วแต่ยังไม่มีใครตรวจ" ถูกกดผ่านย้อนหลังได้ (โหมดปัดตรวจ #/review)
+           เวลาที่ปิดงานต้องเป็นของเดิม ไม่ใช่เวลาที่หัวหน้าเพิ่งมากดผ่าน ไม่งั้นรายงานรายเดือนเพี้ยน
+           งานที่ส่งมาตามปกติ (สถานะ review) done_at ยังว่าง ค่าที่ได้จึงเท่ากับ now เหมือนเดิม */
         db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, approved_at=?, approved_by=? WHERE id=?")
-          .bind(status, now, pass ? now : null, pass ? now : null, pass ? me.id : null, id),
+          .bind(status, now, pass ? (task.doneAt || now) : null, pass ? now : null, pass ? me.id : null, id),
       ];
       /* ขั้นของงานป้ายผ่านแล้ว → บันทึกขั้นล่าสุดไว้ที่งานหลัก จะได้เห็นในหน้ารายการโดยไม่ต้องโหลดงานย่อย */
       if (pass && task.stage && task.parentId) {

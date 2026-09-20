@@ -1296,3 +1296,96 @@ a.htitle:hover{ text-decoration:underline; }
 .psel.on::after{ content:'✓'; }
 .psel:focus-visible{ outline:2px solid var(--k-info); outline-offset:2px; }
 .postrow.selected{ box-shadow:inset 3px 0 0 0 var(--k-ink); }
+
+/* ── ตรวจงานแบบปัดการ์ด (#/review) ───────────────────────────────────────
+   การ์ดใบบนสุดอยู่ใน flow ปกติ = เป็นตัวกำหนดความสูงของกอง · ใบที่ซ้อนอยู่หลังลอยทับไว้
+   ทั้งการ์ดรับทัชเอง (touch-action:none) ไม่งั้นเบราว์เซอร์แย่งไปสกรอลล์หน้า
+   เนื้องานในการ์ดจึงไม่สกรอลล์ — ตัดที่ความสูงแล้วให้กด "เปิดงานเต็ม ๆ" ถ้าอยากดูหมด */
+.rvpage{ max-width:700px; }
+.rvwrap{ padding-bottom:20px; }
+.rvdeck{ position:relative; }
+.rvcard{ position:absolute; inset:0 0 auto; z-index:1; border:1px solid var(--k-line); background:var(--k-paper);
+  padding:22px 24px 18px; box-shadow:0 1px 0 var(--k-line);
+  transform:translateY(calc(var(--d) * 10px)) scale(calc(1 - var(--d) * .035));
+  transition:transform .2s ease;
+  /* ใบหลังห้ามรับคลิกและห้ามยื่นเกินความสูงของกอง — ใบที่เนื้อยาวกว่าเคยงอกลงไปทับปุ่ม ✓/✕
+     แล้วช่องกรอกของมันกินคลิกแทนปุ่ม (เจอตอนทดสอบ 20 ก.ย. 69) */
+  pointer-events:none; min-height:100%; max-height:100%; overflow:hidden; }
+.rvcard.rvtop{ position:relative; z-index:3; cursor:grab; touch-action:none; user-select:none;
+  pointer-events:auto; max-height:none; overflow:visible;
+  box-shadow:0 10px 30px rgba(11,11,10,.10); transition:none; }
+[data-theme="dark"] .rvcard.rvtop{ box-shadow:0 10px 34px rgba(0,0,0,.42); }
+.rvcard.rvtop.rvdrag{ cursor:grabbing; }
+.rvcard h2{ margin:10px 0 0; font-size:20px; font-weight:600; line-height:1.35; }
+.rvlane{ display:inline-block; padding:3px 9px; font-size:10.5px; font-weight:600; letter-spacing:.02em;
+  color:var(--k-paper); background:var(--k-info); }
+.rvlane.post{ background:var(--k-purple); }
+.rvlane.unseen{ background:var(--k-mut); }
+.rvmeta{ display:flex; flex-wrap:wrap; align-items:center; gap:7px 10px; margin-top:12px; font-size:12px; }
+.rvsub{ margin-top:9px; font-size:11.5px; color:var(--k-mut); }
+.rvsub.dim{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--k-line); }
+.rvdetail{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--k-soft);
+  max-height:104px; overflow:hidden; -webkit-mask-image:linear-gradient(#000 64px,transparent); mask-image:linear-gradient(#000 64px,transparent); }
+.rvwork{ margin-top:14px; }
+.rvwork.open{ padding-top:14px; border-top:1px solid var(--k-hair); max-height:236px; overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 180px,transparent); mask-image:linear-gradient(#000 180px,transparent); }
+.rvwork .input{ margin-top:6px; }
+.rvload{ font-size:12px; color:var(--k-soft); }
+.rvload.dim{ color:var(--k-mut); }
+.rvup b{ font-size:12.5px; font-weight:600; }
+.rvup time{ margin-left:7px; font-size:11px; color:var(--k-mut); }
+.rvup .rich{ margin-top:5px; font-size:13px; line-height:1.6; color:var(--k-soft); }
+.rvopen{ display:inline-block; margin-top:14px; }
+
+/* ป้ายคำตัดสินที่โผล่ตอนลากถึงเกณฑ์ — บอกล่วงหน้าว่าปล่อยแล้วจะเกิดอะไร */
+/* วางกลางการ์ดเสมอ ไม่ใช่มุมบน — มุมบนไปทับป้ายหมวด (ส่งมาให้ตรวจ ฯลฯ) จนอ่านไม่ออก
+   พื้นทึบเพราะการ์ดมีตัวหนังสืออยู่ข้างหลัง */
+.rvstamp{ position:absolute; top:44%; left:50%; z-index:5; padding:8px 22px; border:3px solid currentColor;
+  background:var(--k-paper); font-size:20px; font-weight:700; white-space:nowrap;
+  opacity:0; pointer-events:none; transition:opacity .1s ease; }
+.rvstamp.pass{ color:var(--k-ok); transform:translate(-50%,-50%) rotate(-10deg); }
+.rvstamp.rej{ color:var(--k-bad); transform:translate(-50%,-50%) rotate(10deg); }
+.rvstamp.skip{ color:var(--k-mut); transform:translate(-50%,-50%); }
+.rvcard.to-pass .rvstamp.pass, .rvcard.to-rej .rvstamp.rej, .rvcard.to-skip .rvstamp.skip{ opacity:1; }
+
+/* แถบปุ่ม — เผื่อคนที่ไม่ปัด (เมาส์/จอใหญ่) และเป็นที่อยู่ของปุ่มย้อน */
+.rvbar{ display:flex; justify-content:center; align-items:center; gap:14px; margin-top:22px; }
+.rvb{ width:58px; height:58px; border-radius:50%; border:1px solid var(--k-line); background:var(--k-paper);
+  font-size:22px; line-height:1; color:var(--k-soft); cursor:pointer; transition:transform .12s ease, border-color .12s ease, color .12s ease; }
+.rvb:hover:not(:disabled){ transform:translateY(-2px); }
+.rvb:disabled{ opacity:.35; cursor:default; }
+.rvb.pass{ width:66px; height:66px; font-size:26px; color:var(--k-ok); border-color:var(--k-ok); }
+.rvb.rej{ width:66px; height:66px; font-size:26px; color:var(--k-bad); border-color:var(--k-bad); }
+.rvb.skip, .rvb.undo{ width:48px; height:48px; font-size:18px; }
+.rvhint{ margin-top:14px; text-align:center; font-size:11.5px; color:var(--k-mut); line-height:1.6; }
+
+/* จอว่าง = ตรวจครบแล้ว */
+.rvdone{ padding:56px 24px; text-align:center; border:1px solid var(--k-line); background:var(--k-paper); }
+.rvdonei{ width:54px; height:54px; margin:0 auto 16px; border-radius:50%; background:var(--k-ok); color:#fff;
+  font-size:26px; line-height:54px; }
+.rvdone b{ display:block; font-size:18px; font-weight:600; }
+.rvdone p{ margin:8px auto 0; max-width:420px; font-size:13px; color:var(--k-mut); line-height:1.7; }
+.rvdone .acts{ display:flex; justify-content:center; gap:10px; margin-top:20px; }
+
+/* แผ่นเหตุผลตอนตีกลับ — เซิร์ฟเวอร์ไม่ยอมให้ตีกลับเปล่า ๆ กดชิปอันเดียวจบ ไม่ต้องพิมพ์ */
+.rvsheet{ position:fixed; inset:0; z-index:200; display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(11,11,10,.42); padding:0; }
+.rvsheet-b{ width:100%; max-width:520px; margin:0 12px 12px; padding:18px 20px 20px; background:var(--k-paper);
+  border:1px solid var(--k-line); box-shadow:0 -6px 30px rgba(11,11,10,.18); }
+.rvsheet-h{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+.rvsheet-h b{ font-size:15px; font-weight:600; }
+.rvsheet-h .x{ margin-left:auto; width:30px; height:30px; border:0; background:none; font-size:15px;
+  color:var(--k-mut); cursor:pointer; }
+.rvsheet .chips{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px; }
+.rvsheet .acts{ display:flex; gap:10px; margin-top:12px; }
+
+/* แถบ "ค้างที่คุณ" ในหน้ารายการ — ปุ่มเข้าโหมดปัดต้องอยู่ชิดขวา ไม่ใช่ลิงก์ตัวหนังสือ */
+.postbar .btn{ margin-left:auto; }
+.postbar .btn + .btn-text{ margin-left:0; }
+
+@media (max-width:700px){
+  .rvcard{ padding:18px 18px 16px; }
+  .rvcard h2{ font-size:18px; }
+  .rvb.pass, .rvb.rej{ width:60px; height:60px; }
+  .postbar .btn{ margin-left:0; }
+}
