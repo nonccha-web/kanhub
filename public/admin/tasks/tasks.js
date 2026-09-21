@@ -719,7 +719,7 @@
     if (!picked) loginPick = null;
 
     var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
-      '<p>' + (picked ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
+      '<p>' + (picked ? (picked.role === 'owner' ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'ใส่รหัสผ่านก่อนเข้า') : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
       (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
 
     if (!loginStaff) {
@@ -734,7 +734,7 @@
       h += '<div class="who-grid">' + loginStaff.map(function (x) {
         return '<button type="button" class="who-btn' + (x.needsPassword ? ' owner' : '') + '" data-login="' + esc(x.id) + '">' +
           avatar(x, 'lg') + '<b>' + esc(loginLabel(x)) + '</b>' +
-          '<small>' + (x.needsPassword ? 'หัวหน้า · ใส่รหัสผ่าน' : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
+          '<small>' + (x.needsPassword ? (x.role === 'owner' ? 'หัวหน้า · ใส่รหัสผ่าน' : 'ใส่รหัสผ่าน') : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
       }).join('') + '</div>' +
         '<p class="foot">ไม่ต้องใส่รหัส กดชื่อแล้วเข้าได้เลย · ไม่มีชื่อคุณในนี้ ให้หัวหน้าเพิ่มในหน้า "ทีม + สิทธิ์"</p>';
     }
