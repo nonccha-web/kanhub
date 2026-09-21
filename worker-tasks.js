@@ -201,6 +201,25 @@ const SCHEMA = [
     "id TEXT PRIMARY KEY, task_id TEXT NOT NULL, update_id TEXT NOT NULL, staff_id TEXT NOT NULL, " +
     "by_staff TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, read_at TEXT)",
   "CREATE INDEX IF NOT EXISTS idx_task_mentions_staff ON task_mentions(staff_id, read_at)",
+  /* ── CRM: ลีดที่ทักเข้ามาจากแอด/เพจ (นนท์ 21 ก.ย. 69) ──────────────────
+     ทีมการตลาดบันทึกลีด → ทีมขาย "รับลีด" แล้วไล่ปิด → ปิดได้แล้วส่งต่อบัญชี
+     สามคนละหน้าที่กัน ตารางจึงแยก created_by (คนบันทึก) กับ owner_id (คนไล่ปิด) คนละช่อง
+     ขั้นใช้คำเดียวกับ M CRM เป๊ะ ๆ จะได้ไม่ต้องแปลศัพท์เวลาคุยข้ามสองระบบ */
+  "CREATE TABLE IF NOT EXISTS leads (" +
+    "id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', line_id TEXT NOT NULL DEFAULT '', " +
+    "source TEXT NOT NULL DEFAULT 'other', source_detail TEXT NOT NULL DEFAULT '', " +
+    "interest TEXT NOT NULL DEFAULT '', branch TEXT NOT NULL DEFAULT '', " +
+    "status TEXT NOT NULL DEFAULT 'new', owner_id TEXT, est_value INTEGER NOT NULL DEFAULT 0, " +
+    "bought_before INTEGER NOT NULL DEFAULT 0, lost_reason TEXT NOT NULL DEFAULT '', next_at TEXT, " +
+    "handed_at TEXT, handed_by TEXT, " +
+    "created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_leads_owner ON leads(owner_id, status)",
+  /* ประวัติของลีดแต่ละใบ — โน้ต · เปลี่ยนขั้น · รับลีด · ส่งต่อบัญชี อยู่สายเดียวกัน */
+  "CREATE TABLE IF NOT EXISTS lead_activities (" +
+    "id TEXT PRIMARY KEY, lead_id TEXT NOT NULL, staff_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'note', " +
+    "body TEXT NOT NULL DEFAULT '', from_status TEXT, to_status TEXT, created_at TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_lead_act ON lead_activities(lead_id, created_at DESC)",
 ];
 
 /* คอลัมน์ที่เพิ่มทีหลัง — ตารางมีข้อมูลจริงแล้ว CREATE TABLE IF NOT EXISTS ไม่เติมให้
@@ -658,7 +677,7 @@ function logStmt(db, me, action, info, changes) {
    ประวัติการแก้ไข (audit log) — เก็บสภาพก่อน/หลังของทุกการเปลี่ยนแปลง
    เพื่อให้ย้อนเวอร์ชันได้ทีหลัง · เขียนแยกจาก batch หลัก งานหลักล้มเหลวจะไม่มีประวัติค้าง
    ============================================================ */
-const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน" };
+const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน", lead: "ลีด" };
 const AUDIT_ACTION_TH = { create: "สร้าง", update: "แก้ไข", delete: "ลบ", revert: "ย้อนเวอร์ชัน" };
 /* สภาพของงาน 1 ชิ้น (รวมคนรับ) ไว้ทั้งเทียบและคืนค่า */
 async function snapTask(db, id) {
@@ -683,6 +702,11 @@ const FIELD_TH = {
   priority: "ความสำคัญ", campaign_id: "ปฏิทินการตลาด", parent_id: "งานหลัก", stage: "ขั้นงาน",
   sign_w: "กว้าง", sign_h: "สูง", sign_qty: "จำนวนใบ", sign_branch: "สาขา", __assignees: "คนรับผิดชอบ",
   post_date: "วันที่", post_time: "เวลา", page_id: "เพจ", channels: "ช่องทาง", topic: "หัวข้อ", kind: "ประเภท", url: "ลิงก์", note: "หมายเหตุ",
+  /* CRM */
+  name: "ชื่อ", phone: "เบอร์", line_id: "LINE", source: "ช่องทางที่ทักมา", source_detail: "ที่มาเพิ่มเติม",
+  interest: "สนใจอะไร", branch: "สาขา", owner_id: "เซลส์ที่ดูแล", est_value: "ยอดที่คาด",
+  bought_before: "เคยซื้อแล้ว", lost_reason: "เหตุผลที่ไม่สำเร็จ", next_at: "ตามครั้งถัดไป",
+  handed_at: "ส่งต่อบัญชี", handed_by: "คนส่งต่อบัญชี",
 };
 function diffSnap(before, after) {
   const out = [];
@@ -710,6 +734,45 @@ async function logChange(db, o) {
            String(summary).slice(0, 500), o.before ? JSON.stringify(o.before) : null, o.after ? JSON.stringify(o.after) : null).run();
     return id;
   } catch (e) { return null; }   /* ประวัติพังต้องไม่ทำให้งานหลักพัง */
+}
+
+/* ขั้นของลีด — คำเดียวกับ M CRM (นนท์ยืนยัน 21 ก.ย. 69) ห้ามเปลี่ยนคำโดยไม่บอกอีกฝั่ง */
+const LEAD_STATUSES = ["new", "contacted", "qualified", "proposal", "won", "lost", "nurture"];
+const LEAD_STATUS_TH = {
+  new: "ใหม่", contacted: "ติดต่อแล้ว", qualified: "มีแนวโน้ม", proposal: "เสนอราคา",
+  won: "ปิดการขาย", lost: "ไม่สำเร็จ", nurture: "ติดตามต่อ",
+};
+const LEAD_SOURCES = ["fb", "ig", "line", "tiktok", "phone", "walkin", "referral", "other"];
+const LEAD_DONE = { won: 1, lost: 1 };   /* ขั้นที่ถือว่าจบเคสแล้ว ไม่ต้องตามต่อ */
+
+function rowToLead(r) {
+  return {
+    id: r.id, name: r.name, phone: r.phone || "", lineId: r.line_id || "",
+    source: r.source || "other", sourceDetail: r.source_detail || "",
+    interest: r.interest || "", branch: r.branch || "",
+    status: LEAD_STATUSES.indexOf(r.status) !== -1 ? r.status : "new",
+    ownerId: r.owner_id || null,
+    estValue: Number(r.est_value) || 0,
+    boughtBefore: r.bought_before ? 1 : 0,
+    lostReason: r.lost_reason || "", nextAt: r.next_at || null,
+    handedAt: r.handed_at || null, handedBy: r.handed_by || null,
+    createdBy: r.created_by, createdAt: r.created_at,
+    updatedAt: r.updated_at, updatedBy: r.updated_by || null,
+    nAct: r.n_act == null ? 0 : Number(r.n_act),
+    lastAct: r.last_act || null,
+  };
+}
+async function snapLead(db, id) {
+  const r = await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
+  if (!r) return null;
+  const o = {}; for (const k of Object.keys(r)) o[k] = r[k];
+  return o;
+}
+/* เขียนบรรทัดประวัติของลีด — เป็น statement ให้เอาไปใส่ batch รวมกับ UPDATE ได้ */
+function leadAct(db, leadId, meId, kind, body, from, to) {
+  return db.prepare(
+    "INSERT INTO lead_activities (id,lead_id,staff_id,kind,body,from_status,to_status,created_at) VALUES (?,?,?,?,?,?,?,?)"
+  ).bind(newId("la_"), leadId, meId, kind, String(body || "").slice(0, 2000), from || null, to || null, nowIso());
 }
 
 function rowToPost(r) {
@@ -1453,6 +1516,198 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       withUrl += r.withUrl || 0;
     }
     return json({ date: day, total, done, withUrl, left: total - done });
+  }
+
+  /* ============================================================
+     CRM — ลีดที่ทักเข้ามาจากแอด/เพจ  (/leads*)
+     ------------------------------------------------------------
+     สามทีมคนละหน้าที่ (นนท์ 21 ก.ย. 69):
+       ทีมการตลาด  บันทึกลีดเข้ามา            → created_by
+       ทีมขาย      "รับลีด" แล้วไล่ปิดการขาย   → owner_id
+       บัญชี        รับช่วงตอนปิดได้แล้ว        → handed_at / handed_by
+     ลีดที่ยังไม่มีเจ้าของ ใครขยับขั้นก็ได้ แล้วระบบถือว่าคนนั้นรับลีดไปเลย
+     (ไม่งั้นของกองอยู่ช่อง "ใหม่" เพราะทุกคนรอให้คนอื่นกดรับก่อน)
+     ============================================================ */
+
+  const leadFields = async (body, cur) => {
+    const pick = (k, max) => body[k] === undefined ? undefined : String(body[k] == null ? "" : body[k]).trim().slice(0, max);
+    const out = {};
+    const name = pick("name", 120);
+    if (name !== undefined) {
+      if (!name) return { error: "ต้องมีชื่อลีด" };
+      out.name = name;
+    } else if (!cur) return { error: "ต้องมีชื่อลีด" };
+    const simple = { phone: 40, lineId: 80, sourceDetail: 200, interest: 1000, branch: 60, lostReason: 300 };
+    const col = { phone: "phone", lineId: "line_id", sourceDetail: "source_detail", interest: "interest", branch: "branch", lostReason: "lost_reason" };
+    for (const k of Object.keys(simple)) { const v = pick(k, simple[k]); if (v !== undefined) out[col[k]] = v; }
+    if (body.source !== undefined) {
+      if (LEAD_SOURCES.indexOf(String(body.source)) === -1) return { error: "ช่องทางไม่ถูกต้อง" };
+      out.source = String(body.source);
+    }
+    if (body.status !== undefined) {
+      if (LEAD_STATUSES.indexOf(String(body.status)) === -1) return { error: "ขั้นไม่ถูกต้อง" };
+      out.status = String(body.status);
+    }
+    if (body.estValue !== undefined) out.est_value = Math.max(0, Math.min(99999999, Math.round(Number(body.estValue) || 0)));
+    if (body.boughtBefore !== undefined) out.bought_before = body.boughtBefore ? 1 : 0;
+    if (body.nextAt !== undefined) {
+      const v = String(body.nextAt || "").trim();
+      if (v && !isIsoDateTime(v)) return { error: "วันที่ตามครั้งถัดไปไม่ถูกต้อง" };
+      out.next_at = v ? new Date(v).toISOString() : null;
+    }
+    if (body.ownerId !== undefined) {
+      const v = String(body.ownerId || "").trim();
+      if (v && !(await db.prepare("SELECT 1 AS ok FROM staff WHERE id = ? AND active = 1").bind(v).first())) {
+        return { error: "ไม่พบคนที่เลือกเป็นเซลส์" };
+      }
+      out.owner_id = v || null;
+    }
+    return { value: out };
+  };
+
+  if (path === "/leads" && method === "GET") {
+    const res = await db.prepare(
+      "SELECT l.*, " +
+      "(SELECT COUNT(*) FROM lead_activities a WHERE a.lead_id = l.id) AS n_act, " +
+      "(SELECT MAX(created_at) FROM lead_activities a WHERE a.lead_id = l.id) AS last_act " +
+      "FROM leads l ORDER BY l.created_at DESC LIMIT 2000"
+    ).all();
+    return json({ leads: (res.results || []).map(rowToLead) });
+  }
+
+  if (path === "/leads" && method === "POST") {
+    const body = await readBody(request);
+    const f = await leadFields(body, null);
+    if (f.error) return json({ error: f.error }, 400);
+    const v = f.value;
+    const now = nowIso();
+    const id = newId("ld_");
+    /* คนบันทึกจะรับเป็นเจ้าของเองเลยก็ได้ (เซลส์หาลีดมาเอง) ไม่ใส่มา = ปล่อยว่างให้ทีมขายมากดรับ */
+    const owner = v.owner_id !== undefined ? v.owner_id : null;
+    await db.batch([
+      db.prepare(
+        "INSERT INTO leads (id,name,phone,line_id,source,source_detail,interest,branch,status,owner_id," +
+        "est_value,bought_before,lost_reason,next_at,created_by,created_at,updated_at,updated_by) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(id, v.name, v.phone || "", v.line_id || "", v.source || "other", v.source_detail || "",
+             v.interest || "", v.branch || "", v.status || "new", owner,
+             v.est_value || 0, v.bought_before || 0, v.lost_reason || "", v.next_at || null,
+             me.id, now, now, me.id),
+      leadAct(db, id, me.id, "create", "บันทึกลีดเข้าระบบ", null, v.status || "new"),
+    ]);
+    await logChange(db, { by: me.id, entity: "lead", entityId: id, action: "create", title: v.name, after: await snapLead(db, id), at: now });
+    return json({ ok: true, id });
+  }
+
+  const leadMatch = path.match(/^\/leads\/([A-Za-z0-9_-]{1,40})(\/activities|\/claim|\/hand)?$/);
+  if (leadMatch) {
+    const id = leadMatch[1];
+    const sub = leadMatch[2] || "";
+    const row = await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
+    if (!row) return json({ error: "ไม่พบลีดนี้" }, 404);
+    const lead = rowToLead(row);
+    /* ขยับลีดได้: หัวหน้า · เซลส์ที่ถือลีดใบนี้ · หรือใครก็ได้ถ้ายังไม่มีใครรับ */
+    const mayRun = isOwner || lead.ownerId === me.id || !lead.ownerId;
+
+    if (!sub && method === "GET") {
+      const acts = await db.prepare(
+        "SELECT id,staff_id,kind,body,from_status,to_status,created_at FROM lead_activities WHERE lead_id = ? ORDER BY created_at DESC LIMIT 200"
+      ).bind(id).all();
+      return json({
+        lead,
+        activities: (acts.results || []).map((a) => ({
+          id: a.id, staffId: a.staff_id, kind: a.kind, body: a.body || "",
+          fromStatus: a.from_status || null, toStatus: a.to_status || null, createdAt: a.created_at,
+        })),
+      });
+    }
+
+    if (!sub && method === "PUT") {
+      if (!mayRun) return json({ error: "ลีดนี้มีเซลส์ดูแลอยู่แล้ว — ให้เขาแก้ หรือให้หัวหน้าเปลี่ยนคนดูแลก่อน" }, 403);
+      const body = await readBody(request);
+      const f = await leadFields(body, row);
+      if (f.error) return json({ error: f.error }, 400);
+      const v = f.value;
+      if (!Object.keys(v).length) return json({ error: "ไม่มีข้อมูลที่จะแก้" }, 400);
+      /* ตีตกต้องบอกเหตุผล ไม่งั้นเดือนหน้าไม่มีใครรู้ว่าทำไมหลุด */
+      const wantLost = v.status === "lost" && row.status !== "lost";
+      if (wantLost && !String(v.lost_reason || row.lost_reason || "").trim()) {
+        return json({ error: "ปิดเป็น “ไม่สำเร็จ” ต้องบอกเหตุผลด้วย" }, 400);
+      }
+      const now = nowIso();
+      const sets = [], vals = [];
+      for (const k of Object.keys(v)) { sets.push(k + " = ?"); vals.push(v[k]); }
+      /* ขยับขั้นลีดที่ยังไม่มีเจ้าของ = คนที่ขยับรับไปเลย */
+      const claiming = v.status && v.status !== row.status && !row.owner_id && v.owner_id === undefined;
+      if (claiming) { sets.push("owner_id = ?"); vals.push(me.id); }
+      sets.push("updated_at = ?"); vals.push(now);
+      sets.push("updated_by = ?"); vals.push(me.id);
+      vals.push(id);
+      const stmts = [db.prepare("UPDATE leads SET " + sets.join(", ") + " WHERE id = ?").bind(...vals)];
+      if (claiming) stmts.push(leadAct(db, id, me.id, "claim", "รับลีดไปดูแล", null, null));
+      if (v.status && v.status !== row.status) {
+        stmts.push(leadAct(db, id, me.id, "status",
+          (LEAD_STATUS_TH[row.status] || row.status) + " → " + (LEAD_STATUS_TH[v.status] || v.status) +
+          (v.status === "lost" ? " · " + String(v.lost_reason || row.lost_reason || "") : ""),
+          row.status, v.status));
+      }
+      await db.batch(stmts);
+      await logChange(db, { by: me.id, entity: "lead", entityId: id, action: "update", title: row.name, before: row, after: await snapLead(db, id), at: now });
+      return json({ ok: true, status: v.status || row.status });
+    }
+
+    if (!sub && method === "DELETE") {
+      if (!(isOwner || row.created_by === me.id)) return json({ error: "ลบได้เฉพาะหัวหน้าหรือคนที่บันทึกลีดนี้" }, 403);
+      await logChange(db, { by: me.id, entity: "lead", entityId: id, action: "delete", title: row.name, before: row, summary: "ลบลีด" });
+      await db.batch([
+        db.prepare("DELETE FROM lead_activities WHERE lead_id = ?").bind(id),
+        db.prepare("DELETE FROM leads WHERE id = ?").bind(id),
+      ]);
+      return json({ ok: true });
+    }
+
+    /* รับลีด — กดได้เฉพาะตอนยังว่าง ป้องกันสองคนแย่งกันโทรหาคนเดียวกัน */
+    if (sub === "/claim" && method === "POST") {
+      const body = await readBody(request);
+      const give = String(body.staffId || me.id);
+      if (give !== me.id && !isOwner) return json({ error: "มอบลีดให้คนอื่นได้เฉพาะหัวหน้า" }, 403);
+      if (row.owner_id && row.owner_id !== me.id && !isOwner) {
+        return json({ error: "ลีดนี้ " + (row.owner_id === me.id ? "คุณ" : "คนอื่น") + "รับไปแล้ว" }, 409);
+      }
+      const now = nowIso();
+      await db.batch([
+        db.prepare("UPDATE leads SET owner_id = ?, updated_at = ?, updated_by = ? WHERE id = ?").bind(give, now, me.id, id),
+        leadAct(db, id, me.id, "claim", give === me.id ? "รับลีดไปดูแล" : "มอบลีดให้ทีมขาย", null, null),
+      ]);
+      return json({ ok: true, ownerId: give });
+    }
+
+    /* ส่งต่อบัญชี — ทำได้เฉพาะลีดที่ปิดการขายแล้ว ไม่งั้นบัญชีได้ของที่ยังไม่จบ */
+    if (sub === "/hand" && method === "POST") {
+      if (row.status !== "won") return json({ error: "ส่งต่อบัญชีได้เฉพาะลีดที่ปิดการขายแล้ว" }, 400);
+      if (!mayRun) return json({ error: "ส่งต่อได้เฉพาะเซลส์ที่ดูแลลีดนี้หรือหัวหน้า" }, 403);
+      if (row.handed_at) return json({ ok: true, handedAt: row.handed_at });
+      const now = nowIso();
+      await db.batch([
+        db.prepare("UPDATE leads SET handed_at = ?, handed_by = ?, updated_at = ?, updated_by = ? WHERE id = ?").bind(now, me.id, now, me.id, id),
+        leadAct(db, id, me.id, "hand", "ส่งต่อให้บัญชีแล้ว", null, null),
+      ]);
+      return json({ ok: true, handedAt: now });
+    }
+
+    if (sub === "/activities" && method === "POST") {
+      const body = await readBody(request);
+      const note = String(body.body || "").trim().slice(0, 2000);
+      const kind = ["note", "call", "line", "meeting"].indexOf(String(body.kind)) !== -1 ? String(body.kind) : "note";
+      if (!note) return json({ error: "ยังไม่ได้พิมพ์อะไรเลย" }, 400);
+      /* เขียนโน้ตได้ทุกคน — ทีมการตลาดต้องแปะข้อมูลเพิ่มให้เซลส์ได้แม้ไม่ได้ถือลีด */
+      const now = nowIso();
+      await db.batch([
+        leadAct(db, id, me.id, kind, note, null, null),
+        db.prepare("UPDATE leads SET updated_at = ?, updated_by = ? WHERE id = ?").bind(now, me.id, id),
+      ]);
+      return json({ ok: true });
+    }
   }
 
   /* พื้นที่ที่รูปกินไปจริง — D1 เก็บ base64 ขนาดบนดิสก์จึงมากกว่าไฟล์ต้นฉบับราว 1.33 เท่า */

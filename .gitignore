@@ -44,3 +44,7 @@ next-env.d.ts
 # AppleDouble (เกิดจากการแก้ไฟล์บน SSD ที่เป็น ExFAT)
 ._*
 .DS_Store
+
+# local state ของ wrangler dev (ฐานข้อมูล D1 จำลองตอนทดสอบ)
+/.wrangler/state/
+/.wrangler/tmp/

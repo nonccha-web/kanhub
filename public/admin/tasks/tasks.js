@@ -7,7 +7,7 @@
   'use strict';
 
   var API = '/api/t';
-  var S = { me: null, staff: [], kpis: [], tasks: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' }, viewAs: null, seq: [], seqFrom: '#/all' };
+  var S = { me: null, staff: [], kpis: [], tasks: null, leads: null, pages: null, campaigns: null, notif: { unread: 0, items: [] }, route: { name: 'me' }, viewAs: null, seq: [], seqFrom: '#/all' };
 
   /* ---------- KPI 2570 (จากเอกสาร Executive Offer CMO 2027 — ข้อความอ้างอิงในหน้า KPI) ---------- */
   var KPI_DOC = {
@@ -581,7 +581,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { history: '#/history', review: '#/review', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -647,7 +647,7 @@
     tb.textContent = shortName(S.me);
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
-  var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', review: 'review',
+  var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', review: 'review', leads: 'leads', lead: 'leads',
                     report: 'report', signage: 'signage', history: 'history', campaign: 'calendar', inbox: 'overview' };
   function toggleTourMenu() {
     var m = $('#tourMenu'), T = global.KAN_TOUR;
@@ -974,6 +974,8 @@
   }
   function tdDrop(col, id) {
     if (!col || !id) return;
+    /* บอร์ดลีดใช้คลาสเดียวกับบอร์ดงาน ตัวลากจึงใช้ร่วมกันได้ แยกทางตรงนี้ที่เดียว */
+    if (col.hasAttribute('data-lcol')) { leadDrop(id, col.getAttribute('data-lcol')); return; }
     var t = taskById(id);
     if (!t) { render(); return; }
     if (col.hasAttribute('data-kstage')) { moveToStage(t, col.getAttribute('data-kstage'), Number(col.getAttribute('data-kidx'))); return; }
@@ -1077,6 +1079,8 @@
     ev.preventDefault();
     var id = KDRAG;
     KDRAG = null;
+    /* บอร์ดลีดใช้คลาสเดียวกับบอร์ดงาน ตัวลากจึงใช้ร่วมกันได้ แยกทางตรงนี้ที่เดียว */
+    if (col.hasAttribute('data-lcol')) { leadDrop(id, col.getAttribute('data-lcol')); return; }
     var t = taskById(id);
     if (!t) { render(); return; }
     if (col.hasAttribute('data-kstage')) { moveToStage(t, col.getAttribute('data-kstage'), Number(col.getAttribute('data-kidx'))); return; }
@@ -1653,6 +1657,335 @@
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); rvAct('reject'); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); rvAct('skip'); }
     else if (ev.key === 'z' || ev.key === 'Z') { ev.preventDefault(); rvUndo(); }
+  }
+
+  /* ---------- CRM: ลีด (#/leads · #/lead/:id) ------------------------------
+     นนท์สั่ง 21 ก.ย. 69 — ลีดคือคนที่ทักมาจากแอด/เพจแล้วยังไม่ได้ซื้อ (เน้นรายคน ไม่ใช่ร้านค้าส่ง)
+     สามทีมคนละหน้าที่: การตลาดบันทึกลีด → ทีมขายกด "รับลีด" แล้วไล่ปิด → ปิดได้ส่งต่อบัญชี
+     บอร์ดใช้คลาสชุดเดียวกับงานป้าย (.kban/.kcol/.kcard) หน้าตาจึงเหมือนกันเป๊ะ ลากการ์ดได้เหมือนกัน
+     ชื่อขั้นกับสีตรงกับ M CRM ทุกตัว — สองระบบจะได้คุยกันรู้เรื่องโดยไม่ต้องแปลศัพท์ */
+
+  var LEAD_ST = [
+    { k: 'new',       th: 'ใหม่',        hint: 'ยังไม่ได้ติดต่อ',      color: '#8B8A84' },
+    { k: 'contacted', th: 'ติดต่อแล้ว',  hint: 'โทรหรือทักไปแล้ว',     color: '#8A14B4' },
+    { k: 'qualified', th: 'มีแนวโน้ม',   hint: 'สนใจหรือนัดคุยแล้ว',   color: '#DC3232' },
+    { k: 'proposal',  th: 'เสนอราคา',    hint: 'ส่งข้อเสนอแล้ว',       color: '#F06400' },
+    { k: 'won',       th: 'ปิดการขาย',   hint: 'เป็นลูกค้าแล้ว',       color: '#1FA968' },
+    { k: 'lost',      th: 'ไม่สำเร็จ',    hint: 'ปิดเคส',              color: '#B4B3AD' },
+    { k: 'nurture',   th: 'ติดตามต่อ',   hint: 'ยังไม่พร้อมตอนนี้',    color: '#C97A00' }
+  ];
+  var LEAD_ST_TH = {};
+  LEAD_ST.forEach(function (x) { LEAD_ST_TH[x.k] = x.th; });
+  var LEAD_DONE = { won: 1, lost: 1 };
+  var LEAD_SRC = [['fb', 'เพจ Facebook'], ['ig', 'Instagram'], ['line', 'LINE'], ['tiktok', 'TikTok'],
+                  ['phone', 'โทรเข้า'], ['walkin', 'เดินเข้าร้าน'], ['referral', 'เพื่อนแนะนำ'], ['other', 'อื่นๆ']];
+  var LEAD_SRC_TH = {};
+  LEAD_SRC.forEach(function (x) { LEAD_SRC_TH[x[0]] = x[1]; });
+  /* สาขาชุดเดียวกับปฏิทินการตลาด (cmo/campaign-calendar.js) — เพิ่มสาขาต้องแก้สองที่ */
+  var LEAD_BRANCH = ['Kan Hub', 'Kan Fashion', 'ชุมพร', 'สุราษฎร์', 'Central', 'สหไทย', 'อื่นๆ'];
+  var LEAD_ACT_TH = { create: 'บันทึกลีด', claim: 'รับลีด', status: 'เปลี่ยนขั้น', hand: 'ส่งต่อบัญชี',
+                      note: 'โน้ต', call: 'โทร', line: 'LINE', meeting: 'นัดเจอ' };
+
+  var LD = { who: '', src: '', branch: '', hideDone: true };
+
+  function loadLeads(force) {
+    if (S.leads && !force) return Promise.resolve(S.leads);
+    return api('/leads').then(function (j) { S.leads = j.leads || []; return S.leads; });
+  }
+  function leadById(id) { for (var i = 0; i < (S.leads || []).length; i++) if (S.leads[i].id === id) return S.leads[i]; return null; }
+  /* ขยับลีดได้: หัวหน้า · เซลส์ที่ถือใบนี้ · หรือใครก็ได้ถ้ายังไม่มีคนรับ (กันลีดกองอยู่ช่องแรก) */
+  function canRunLead(l) { return !readOnly() && !!S.me && (S.me.role === 'owner' || l.ownerId === S.me.id || !l.ownerId); }
+  function leadOverdue(l) { return !!l.nextAt && !LEAD_DONE[l.status] && new Date(l.nextAt) < new Date(); }
+  function fmtMoney(n) { return Number(n || 0).toLocaleString('th-TH'); }
+
+  function renderLeads() {
+    Promise.all([loadLeads(), refreshStaffIfNeeded()]).then(function () {
+      var all = S.leads || [];
+      var mine = all.filter(function (l) { return l.ownerId === S.me.id && !LEAD_DONE[l.status]; });
+      var free = all.filter(function (l) { return !l.ownerId && !LEAD_DONE[l.status]; });
+      var late = all.filter(leadOverdue);
+      var toHand = all.filter(function (l) { return l.status === 'won' && !l.handedAt; });
+
+      var shown = all.filter(function (l) {
+        if (LD.who === 'me' && l.ownerId !== S.me.id) return false;
+        if (LD.who === 'free' && l.ownerId) return false;
+        if (LD.src && l.source !== LD.src) return false;
+        if (LD.branch && l.branch !== LD.branch) return false;
+        if (LD.hideDone && LEAD_DONE[l.status]) return false;
+        return true;
+      });
+
+      var view = $('#view');
+      view.className = 'page';
+      var h = '<div class="top"><div><span class="kicker">CRM</span><h1>ลีด</h1>' +
+        '<p>คนที่ทักมาจากแอด/เพจแล้วยังไม่ได้ซื้อ — การตลาดบันทึกเข้ามา ทีมขายกดรับแล้วไล่ปิด ปิดได้แล้วส่งต่อบัญชี</p></div>' +
+        '<div class="top-r">' + (readOnly() ? '' : '<button type="button" class="btn" id="newLead">+ เพิ่มลีด</button>') + '</div></div>';
+
+      h += '<div class="cards">' +
+        '<article class="hot" data-lq="free"><span class="l">รอคนรับ</span><b>' + free.length + '</b><small>ยังไม่มีเซลส์ดูแล</small></article>' +
+        '<article' + (mine.length ? ' class="warn"' : '') + ' data-lq="me"><span class="l">ของฉันกำลังไล่</span><b>' + mine.length + '</b><small>ยังไม่จบเคส</small></article>' +
+        '<article' + (late.length ? ' class="bad"' : '') + ' data-lq="late"><span class="l">เลยวันตาม</span><b>' + late.length + '</b><small>ถึงคิวตามแล้ว</small></article>' +
+        '<article data-lq="hand"><span class="l">รอส่งบัญชี</span><b>' + toHand.length + '</b><small>ปิดการขายแล้ว</small></article></div>';
+
+      /* แถบกรอง — ชุดเดียวกับหน้างานทั้งหมด (seg + select) จะได้ไม่ต้องเรียนรู้ใหม่ */
+      h += '<div class="tbar"><div class="seg">' +
+        [['', 'ทั้งทีม'], ['me', 'ของฉัน'], ['free', 'ยังไม่มีคนรับ']].map(function (o) {
+          return '<button type="button" class="' + (LD.who === o[0] ? 'on' : '') + '" data-lf="who" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
+        }).join('') + '</div>' +
+        '<select class="input sm" data-lf="src"><option value="">ทุกช่องทาง</option>' +
+        LEAD_SRC.map(function (o) { return '<option value="' + o[0] + '"' + (LD.src === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>' +
+        '<select class="input sm" data-lf="branch"><option value="">ทุกสาขา</option>' +
+        LEAD_BRANCH.map(function (b) { return '<option value="' + esc(b) + '"' + (LD.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select>' +
+        '<label class="lchk"><input type="checkbox" data-lf="hideDone"' + (LD.hideDone ? ' checked' : '') + '> ซ่อนที่จบเคสแล้ว</label>' +
+        '<span class="kbar-n">' + shown.length + ' ลีด</span></div>';
+
+      h += leadBoard(shown);
+      view.innerHTML = h;
+      var nb = $('#newLead');
+      if (nb) nb.addEventListener('click', function () { leadSheet(null); });
+    }).catch(showError);
+  }
+
+  function leadBoard(list) {
+    var by = {};
+    list.forEach(function (l) { (by[l.status] = by[l.status] || []).push(l); });
+    var cols = LEAD_ST.map(function (c) {
+      var items = by[c.k] || [];
+      var money = items.reduce(function (a, l) { return a + (l.estValue || 0); }, 0);
+      var lateN = items.filter(leadOverdue).length;
+      return '<section class="kcol" data-lcol="' + c.k + '" style="--kc:' + c.color + '">' +
+        '<header class="khdr"><b>' + esc(c.th) + '</b><span>/ ' + items.length + '</span></header>' +
+        '<div class="ksum">' + (money ? '<b>' + fmtMoney(money) + '</b> บาท' : '<b>' + items.length + '</b> ลีด') +
+        (lateN ? '<em>เลยวันตาม ' + lateN + '</em>' : '') + '<small>' + esc(c.hint) + '</small></div>' +
+        '<div class="kbody">' + (items.length ? items.map(leadCard).join('') : '<p class="kempty">ไม่มีลีด</p>') + '</div></section>';
+    }).join('');
+    return '<div class="kban">' + cols + '</div>' +
+      '<p class="khint">ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนขั้น — ลากลีดที่ยังไม่มีคนรับ = คุณรับไปดูแลเลย · ' +
+      'กดที่การ์ดเพื่อเปิดลีด · บน iPad/มือถือ <b>แตะการ์ดค้างแป๊บนึงแล้วลาก</b></p>';
+  }
+
+  function leadCard(l) {
+    var late = leadOverdue(l);
+    var own = staffById(l.ownerId);
+    var chips = '<span class="kchip"><i></i>' + esc(LEAD_SRC_TH[l.source] || l.source) + '</span>';
+    if (l.branch) chips += '<span class="kchip"><i></i>' + esc(l.branch) + '</span>';
+    if (l.boughtBefore) chips += '<span class="kchip"><i></i>เคยซื้อแล้ว</span>';
+    if (l.estValue) chips += '<span class="kchip"><i></i>' + fmtMoney(l.estValue) + ' บาท</span>';
+    if (l.nextAt) chips += '<span class="kchip due' + (late ? ' late' : '') + '"><i></i>ตาม ' + esc(fmtDate(new Date(l.nextAt))) + '</span>';
+    if (l.status === 'won') chips += '<span class="kchip' + (l.handedAt ? '' : ' pri') + '"><i></i>' + (l.handedAt ? 'ส่งบัญชีแล้ว' : 'รอส่งบัญชี') + '</span>';
+    return '<div class="kitem"><article class="kcard' + (late ? ' late' : '') + '" draggable="' + (canRunLead(l) ? 'true' : 'false') +
+      '" data-kid="' + esc(l.id) + '" data-lopen="' + esc(l.id) + '">' +
+      '<div class="khead"><b>' + esc(l.name) + '</b></div>' +
+      '<div class="kchips">' + chips + '</div>' +
+      (l.interest ? '<p class="lint">' + esc(l.interest.slice(0, 90)) + (l.interest.length > 90 ? '…' : '') + '</p>' : '') +
+      '<div class="kfoot">' +
+      (own ? '<span class="avs">' + avatar(own) + '</span><span class="kwho">' + esc(shortName(own)) + '</span>'
+           : '<span class="kwho warn">ยังไม่มีคนรับ</span>') +
+      (l.nAct ? '<span class="kcnt" title="ประวัติ">' + svgIcon('chat') + l.nAct + '</span>' : '') +
+      '</div></article></div>';
+  }
+
+  /* ลากการ์ดลีด — ใช้ตัวลากชุดเดียวกับบอร์ดงาน แค่แยกตอนตกลงคอลัมน์ */
+  function leadDrop(id, want) {
+    var l = leadById(id);
+    if (!l) { render(); return; }
+    if (!want || l.status === want) { render(); return; }
+    if (!canRunLead(l)) { toast('ลีดนี้มีเซลส์ดูแลอยู่แล้ว', true); render(); return; }
+    /* ตีตกต้องมีเหตุผล — เซิร์ฟเวอร์ก็กัน ถามตรงนี้ก่อนจะได้ไม่ต้องเด้ง error */
+    if (want === 'lost' && !l.lostReason) {
+      var why = window.prompt('ปิดเป็น “ไม่สำเร็จ” เพราะอะไร');
+      if (why == null || !why.trim()) { render(); return; }
+      api('/leads/' + id, 'PUT', { status: 'lost', lostReason: why.trim() })
+        .then(function () { S.leads = null; toast('ปิดเคสแล้ว'); render(); })
+        .catch(function (e) { toast(e.message, true); render(); });
+      return;
+    }
+    api('/leads/' + id, 'PUT', { status: want }).then(function () {
+      S.leads = null;
+      toast('ย้ายไป “' + (LEAD_ST_TH[want] || want) + '” แล้ว' + (!l.ownerId ? ' · คุณรับลีดนี้แล้ว' : ''));
+      render();
+    }).catch(function (e) { toast(e.message, true); render(); });
+  }
+
+  /* ---------- หน้าลีดรายใบ ---------- */
+  function renderLead(id) {
+    Promise.all([api('/leads/' + id), refreshStaffIfNeeded()]).then(function (r) {
+      var j = r[0], l = j.lead, acts = j.activities || [];
+      var own = staffById(l.ownerId), by = staffById(l.createdBy);
+      var st = LEAD_ST.filter(function (x) { return x.k === l.status; })[0] || LEAD_ST[0];
+      var may = canRunLead(l);
+      var view = $('#view');
+      view.className = 'page';
+      var h = '<div class="top"><div><div class="crumbs"><a href="#/leads">ลีดทั้งหมด</a><span>›</span>' +
+        '<span class="pill" style="--kc:' + st.color + ';border-color:' + st.color + ';color:' + st.color + '">' + esc(st.th) + '</span></div>' +
+        '<h1>' + esc(l.name) + '</h1>' +
+        '<p>' + esc(LEAD_SRC_TH[l.source] || l.source) + (l.sourceDetail ? ' · ' + esc(l.sourceDetail) : '') +
+        ' · บันทึกโดย ' + esc(by ? shortName(by) : '—') + ' ' + esc(fmtAgo(l.createdAt)) + '</p></div>' +
+        '<div class="top-r">' +
+        (may ? '<button type="button" class="btn-ghost" data-ledit="' + esc(l.id) + '">แก้ไข</button>' : '') +
+        (!l.ownerId && !readOnly() ? '<button type="button" class="btn" data-lclaim="' + esc(l.id) + '">รับลีดนี้</button>' : '') +
+        (l.status === 'won' && !l.handedAt && may ? '<button type="button" class="btn" data-lhand="' + esc(l.id) + '">ส่งต่อบัญชี</button>' : '') +
+        '</div></div>';
+
+      /* ข้อมูลติดต่อ — กดโทร/เปิด LINE ได้เลยจากมือถือ ไม่ต้องก๊อป */
+      var rows = [];
+      if (l.phone) rows.push(['เบอร์', '<a href="tel:' + esc(l.phone.replace(/[^0-9+]/g, '')) + '">' + esc(l.phone) + '</a>']);
+      if (l.lineId) rows.push(['LINE', esc(l.lineId)]);
+      if (l.branch) rows.push(['สาขา', esc(l.branch)]);
+      rows.push(['เคยซื้อแล้ว', l.boughtBefore ? 'เคย' : 'ยังไม่เคย']);
+      if (l.estValue) rows.push(['ยอดที่คาด', fmtMoney(l.estValue) + ' บาท']);
+      rows.push(['เซลส์ที่ดูแล', own ? esc(own.name) : '<span class="warn">ยังไม่มีคนรับ</span>']);
+      if (l.nextAt) rows.push(['ตามครั้งถัดไป', '<span class="' + (leadOverdue(l) ? 'warn' : '') + '">' + esc(fmtDate(new Date(l.nextAt), true)) + '</span>']);
+      if (l.lostReason) rows.push(['เหตุผลที่ไม่สำเร็จ', esc(l.lostReason)]);
+      if (l.handedAt) rows.push(['ส่งต่อบัญชี', esc(fmtAgo(l.handedAt)) + ' โดย ' + esc(shortName(staffById(l.handedBy)))]);
+
+      h += '<div class="lgrid"><div>' +
+        '<div class="sec"><div class="sec-h"><h2>ข้อมูลลีด</h2></div><div class="sec-b">' +
+        '<dl class="ldl">' + rows.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' +
+        (l.interest ? '<div class="rich" style="margin-top:14px">' + richText(l.interest) + '</div>' : '') + '</div></div>';
+
+      /* เปลี่ยนขั้น — ชิปเรียงตามลำดับจริง กดทีเดียวจบ ไม่ต้องเปิดฟอร์ม */
+      if (may) {
+        h += '<div class="sec"><div class="sec-h"><h2>ขั้นของลีด</h2><p>กดเพื่อย้ายขั้น</p></div><div class="sec-b">' +
+          '<div class="chips">' + LEAD_ST.map(function (x) {
+            return '<button type="button" class="chip plain' + (l.status === x.k ? ' on' : '') + '" data-lst="' + x.k + '" title="' + esc(x.hint) + '">' + esc(x.th) + '</button>';
+          }).join('') + '</div></div></div>';
+      }
+
+      h += '</div><div>';
+      /* บันทึกความคืบหน้า */
+      if (!readOnly()) {
+        h += '<div class="sec"><div class="sec-h"><h2>บันทึกความคืบหน้า</h2><p>ใครก็เขียนได้ ไม่ต้องถือลีด</p></div>' +
+          '<div class="sec-b"><form id="lactForm" class="upl">' +
+          '<div class="chips" style="margin-bottom:10px">' +
+          [['note', 'โน้ต'], ['call', 'โทร'], ['line', 'LINE'], ['meeting', 'นัดเจอ']].map(function (o, i) {
+            return '<button type="button" class="chip plain' + (i === 0 ? ' on' : '') + '" data-lkind="' + o[0] + '">' + o[1] + '</button>';
+          }).join('') + '</div>' +
+          '<textarea class="textarea" name="body" rows="2" placeholder="คุยอะไรไป ลูกค้าว่าไง นัดเมื่อไหร่"></textarea>' +
+          '<div class="acts"><button type="submit" class="btn">บันทึก</button></div></form></div></div>';
+      }
+      h += '<div class="sec"><div class="sec-h"><h2>ประวัติ</h2><p>' + acts.length + ' รายการ</p></div><div class="sec-b"><div class="tl">' +
+        (acts.length ? acts.map(function (a) {
+          var s = staffById(a.staffId);
+          return '<div class="tl-i">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b>' +
+            '<span>' + esc(LEAD_ACT_TH[a.kind] || a.kind) + '</span><time>' + esc(fmtAgo(a.createdAt)) + '</time></div>' +
+            (a.body ? '<div class="n rich">' + richText(a.body) + '</div>' : '') + '</div></div>';
+        }).join('') : '<div class="empty">ยังไม่มีประวัติ</div>') + '</div></div></div>';
+
+      h += '</div></div>';
+      if (S.me.role === 'owner' || l.createdBy === S.me.id) {
+        h += '<div class="sec"><div class="sec-b"><button type="button" class="btn-ghost danger" data-ldel="' + esc(l.id) + '">ลบลีดนี้</button></div></div>';
+      }
+      view.innerHTML = h;
+      wireLead(l);
+    }).catch(showError);
+  }
+
+  function wireLead(l) {
+    var kind = 'note';
+    $$('[data-lkind]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        kind = b.getAttribute('data-lkind');
+        $$('[data-lkind]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      });
+    });
+    var f = $('#lactForm');
+    if (f) f.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var ta = f.querySelector('[name="body"]');
+      var body = (ta.value || '').trim();
+      if (!body) { ta.focus(); return; }
+      api('/leads/' + l.id + '/activities', 'POST', { kind: kind, body: body })
+        .then(function () { S.leads = null; toast('บันทึกแล้ว'); renderLead(l.id); })
+        .catch(function (e) { toast(e.message, true); });
+    });
+    $$('[data-lst]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var want = b.getAttribute('data-lst');
+        if (want === l.status) return;
+        if (want === 'lost' && !l.lostReason) {
+          var why = window.prompt('ปิดเป็น “ไม่สำเร็จ” เพราะอะไร');
+          if (why == null || !why.trim()) return;
+          api('/leads/' + l.id, 'PUT', { status: 'lost', lostReason: why.trim() })
+            .then(function () { S.leads = null; renderLead(l.id); }).catch(function (e) { toast(e.message, true); });
+          return;
+        }
+        api('/leads/' + l.id, 'PUT', { status: want })
+          .then(function () { S.leads = null; toast('ย้ายไป “' + (LEAD_ST_TH[want] || want) + '” แล้ว'); renderLead(l.id); })
+          .catch(function (e) { toast(e.message, true); });
+      });
+    });
+  }
+
+  /* ---------- ฟอร์มเพิ่ม/แก้ลีด ---------- */
+  function leadSheet(lead) {
+    var host = document.createElement('div');
+    host.className = 'modal';
+    var v = lead || { name: '', phone: '', lineId: '', source: 'fb', sourceDetail: '', interest: '',
+                      branch: '', estValue: 0, boughtBefore: 0, nextAt: null, ownerId: '' };
+    host.innerHTML = '<div class="modal-box qbox"><div class="sec-h"><h2>' + (lead ? 'แก้ไขลีด' : 'เพิ่มลีด') + '</h2>' +
+      '<p>ช่องที่ต้องมีคือชื่อกับช่องทางที่ทักมา ที่เหลือเติมทีหลังได้</p></div>' +
+      '<div class="qbody"><form id="leadForm" class="upl">' +
+      '<div class="field"><label class="label">ชื่อลีด <small>ชื่อที่ใช้เรียก ไม่รู้ชื่อจริงใส่ชื่อโปรไฟล์ไปก่อน</small></label>' +
+      '<input class="input" name="name" maxlength="120" required value="' + esc(v.name) + '" autocomplete="off"></div>' +
+      '<div class="lrow2">' +
+      '<div class="field"><label class="label">เบอร์</label><input class="input" name="phone" maxlength="40" inputmode="tel" value="' + esc(v.phone) + '"></div>' +
+      '<div class="field"><label class="label">LINE</label><input class="input" name="lineId" maxlength="80" value="' + esc(v.lineId) + '"></div></div>' +
+      '<div class="lrow2">' +
+      '<div class="field"><label class="label">ทักมาจากไหน</label><select class="input" name="source">' +
+      LEAD_SRC.map(function (o) { return '<option value="' + o[0] + '"' + (v.source === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label class="label">สาขาที่ใกล้</label><select class="input" name="branch"><option value="">—</option>' +
+      LEAD_BRANCH.map(function (b) { return '<option value="' + esc(b) + '"' + (v.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="field"><label class="label">ที่มาเพิ่มเติม <small>เช่น ชื่อแคมเปญ หรือโพสต์ที่เขาทักมา</small></label>' +
+      '<input class="input" name="sourceDetail" maxlength="200" value="' + esc(v.sourceDetail) + '"></div>' +
+      '<div class="field"><label class="label">สนใจอะไร</label>' +
+      '<textarea class="textarea" name="interest" rows="2" maxlength="1000">' + esc(v.interest) + '</textarea></div>' +
+      '<div class="lrow2">' +
+      '<div class="field"><label class="label">ยอดที่คาด (บาท)</label><input class="input" name="estValue" type="number" min="0" inputmode="numeric" value="' + esc(String(v.estValue || '')) + '"></div>' +
+      '<div class="field"><label class="label">ตามครั้งถัดไป</label><input class="input" name="nextAt" type="datetime-local" value="' + esc(v.nextAt ? toLocalInput(v.nextAt) : '') + '"></div></div>' +
+      '<div class="field"><label class="label">เซลส์ที่ดูแล <small>ว่างไว้ = ปล่อยให้ทีมขายมากดรับเอง</small></label>' +
+      '<select class="input" name="ownerId"><option value="">— ยังไม่มีคนรับ —</option>' +
+      S.staff.filter(function (x) { return x.active; }).map(function (x) {
+        return '<option value="' + esc(x.id) + '"' + (v.ownerId === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+      }).join('') + '</select></div>' +
+      '<label class="lchk"><input type="checkbox" name="boughtBefore"' + (v.boughtBefore ? ' checked' : '') + '> เคยซื้อของเราแล้ว</label>' +
+      '</form></div>' +
+      '<div class="qacts"><button type="button" class="btn-ghost" data-q-close>ยกเลิก</button>' +
+      '<button type="button" class="btn" id="leadSave">' + (lead ? 'บันทึก' : 'เพิ่มลีด') + '</button></div></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); document.removeEventListener('keydown', onKey); };
+    var onKey = function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } };
+    document.addEventListener('keydown', onKey);
+    host.addEventListener('click', function (ev) {
+      if (ev.target === host || ev.target.closest('[data-q-close]')) close();
+    });
+    $('#leadSave', host).addEventListener('click', function () {
+      var f = $('#leadForm', host);
+      var g = function (n) { return (f.querySelector('[name="' + n + '"]') || {}).value || ''; };
+      var body = {
+        name: g('name').trim(), phone: g('phone').trim(), lineId: g('lineId').trim(),
+        source: g('source'), sourceDetail: g('sourceDetail').trim(), interest: g('interest').trim(),
+        branch: g('branch'), estValue: Number(g('estValue')) || 0,
+        boughtBefore: f.querySelector('[name="boughtBefore"]').checked ? 1 : 0,
+        nextAt: g('nextAt') ? new Date(g('nextAt')).toISOString() : '',
+        ownerId: g('ownerId'),
+      };
+      if (!body.name) { f.querySelector('[name="name"]').focus(); toast('ใส่ชื่อลีดก่อน', true); return; }
+      var req = lead ? api('/leads/' + lead.id, 'PUT', body) : api('/leads', 'POST', body);
+      req.then(function (j) {
+        S.leads = null;
+        close();
+        toast(lead ? 'บันทึกแล้ว' : 'เพิ่มลีดแล้ว');
+        if (!lead && j && j.id) location.hash = '#/lead/' + j.id; else render();
+      }).catch(function (e) { toast(e.message, true); });
+    });
+    setTimeout(function () { var n = $('[name="name"]', host); if (n) n.focus(); }, 40);
+  }
+
+  /* หน้าลีดเปิดตรงจากลิงก์ได้ ต้องมั่นใจว่ามีรายชื่อทีมไว้แปลง id เป็นชื่อคน */
+  function refreshStaffIfNeeded() {
+    if (S.staff && S.staff.length) return Promise.resolve(S.staff);
+    return refreshMe().then(function () { return S.staff; });
   }
 
   /* ---------- งานทั้งหมด ---------- */
@@ -5404,6 +5737,8 @@
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'history': return renderHistory();
       case 'review': return renderReview();
+      case 'leads': return renderLeads();
+      case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
@@ -5435,6 +5770,43 @@
     var b;
     /* ชิปแคมเปญ → หน้าแคมเปญในระบบ (เห็นงาน+โพสต์ที่ผูกไว้) แทนกระโดดออกไปปฏิทิน */
     if ((b = ev.target.closest('.cchip[data-cc]'))) { ev.preventDefault(); location.hash = '#/campaign/' + b.getAttribute('data-cc'); return; }
+    /* ---- CRM: ลีด ---- */
+    if ((b = ev.target.closest('[data-lopen]'))) {
+      if (ev.target.closest('a, button, .rowmenu')) return;
+      location.hash = '#/lead/' + b.getAttribute('data-lopen');
+      return;
+    }
+    if ((b = ev.target.closest('[data-lq]'))) {
+      var lq = b.getAttribute('data-lq');
+      /* การ์ดตัวเลขด้านบนเป็นทางลัดไปยังชุดที่กรองไว้แล้ว */
+      LD.who = (lq === 'me' || lq === 'free') ? lq : '';
+      LD.hideDone = lq !== 'hand';
+      renderLeads();
+      return;
+    }
+    if ((b = ev.target.closest('[data-lclaim]'))) {
+      b.disabled = true;
+      api('/leads/' + b.getAttribute('data-lclaim') + '/claim', 'POST', {})
+        .then(function () { S.leads = null; toast('รับลีดแล้ว'); render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-lhand]'))) {
+      b.disabled = true;
+      api('/leads/' + b.getAttribute('data-lhand') + '/hand', 'POST', {})
+        .then(function () { S.leads = null; toast('ส่งต่อให้บัญชีแล้ว'); render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('button[data-lf]'))) { LD[b.getAttribute('data-lf')] = b.getAttribute('data-v'); renderLeads(); return; }
+    if ((b = ev.target.closest('[data-ledit]'))) { leadSheet(leadById(b.getAttribute('data-ledit')) || null); return; }
+    if ((b = ev.target.closest('[data-ldel]'))) {
+      if (!window.confirm('ลบลีดนี้ทิ้ง? ประวัติทั้งหมดของลีดจะหายไปด้วย')) return;
+      api('/leads/' + b.getAttribute('data-ldel'), 'DELETE')
+        .then(function () { S.leads = null; toast('ลบแล้ว'); location.hash = '#/leads'; })
+        .catch(function (e) { toast(e.message, true); });
+      return;
+    }
     if ((b = ev.target.closest('[data-rv-act]'))) {
       var rva = b.getAttribute('data-rv-act');
       if (rva === 'undo') rvUndo(); else rvAct(rva);
@@ -5642,6 +6014,13 @@
       .then(function () { toast('บันทึกลิงก์แล้ว'); renderPosts(); })
       .catch(function (e) { input.dataset.saving = ''; toast(e.message, true); });
   }
+  document.addEventListener('change', function (ev) {
+    var f = ev.target.closest && ev.target.closest('[data-lf]');
+    if (!f) return;
+    var k = f.getAttribute('data-lf');
+    LD[k] = f.type === 'checkbox' ? f.checked : f.value;
+    renderLeads();
+  });
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') {
       document.documentElement.classList.remove('erp-open');
