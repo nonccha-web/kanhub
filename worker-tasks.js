@@ -273,6 +273,8 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN can_update_others INTEGER NOT NULL DEFAULT 0",
   /* แก้กำหนดส่งได้ — เดิมมีแค่หัวหน้ากับคนสั่งงาน นนท์ขอเปิดให้พิซซ่าด้วย (15 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
+  /* บัญชีที่ต้องใส่รหัสผ่านทุกครั้ง (ฝ่ายขาย/คนนอกทีมหลัก) — คนเดิมยังกดชื่อเข้าได้เหมือนเดิม */
+  "ALTER TABLE staff ADD COLUMN require_pw INTEGER NOT NULL DEFAULT 0",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
   /* คิวรีรายการงานมี subquery 6 ตัวต่อหนึ่งแถว — ขาด index 3 ตัวนี้แล้วมันสแกนทั้งตารางต่อแถว
      ทำให้เปิดหน้ารายการครั้งเดียวอ่านเป็นแสนแถว จนชนเพดานรายวันของ D1 (เจอ 15 ก.ย. 69) */
@@ -333,7 +335,8 @@ const KPI_SEED = [
      sales = แอปยอดขาย/การตลาด ทั้งชุด (/admin/mkt/*) — ตัวเลขยอดขายทั้งหมดอยู่ในนี้
      kpi   = KPI 2570 + KPI Dashboard
    หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
-const SECTION_KEYS = ["tasks", "docs", "sales", "kpi"];
+/* crm = หน้าลีดอย่างเดียว (ต้น/ตาล ฝ่ายขาย — นนท์ 21 ก.ย. 69) */
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
 function sectionsOf(row) {
   if (!row) return [];
@@ -673,7 +676,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -685,7 +688,7 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
@@ -693,6 +696,7 @@ function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
+    needsPassword: r.role === "owner" || !!r.require_pw,
     canUpdateOthers: r.role === "owner" || !!r.can_update_others,
     canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
@@ -1001,11 +1005,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
   /* --- public: รายชื่อสำหรับหน้าล็อกอิน — needsPassword = หัวหน้าเท่านั้น --- */
   if (path === "/login" && method === "GET") {
-    const res = await db.prepare("SELECT id,name,aliases,role,pw_hash FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
+    const res = await db.prepare("SELECT id,name,aliases,role,pw_hash,require_pw FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
     return json({
       staff: (res.results || []).map((r) => ({
         id: r.id, name: r.name, aliases: r.aliases || "", role: r.role,
-        needsPassword: r.role === "owner", hasPassword: !!r.pw_hash,
+        needsPassword: r.role === "owner" || !!r.require_pw, hasPassword: !!r.pw_hash,
       })),
     });
   }
@@ -1018,10 +1022,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
     if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
 
-    if (row.role === "owner") {
-      /* หัวหน้ากดชื่อแล้วได้สิทธิ์ทุกอย่าง — เว็บนี้ใครก็เปิด URL ได้ จึงต้องมีรหัสผ่านกัน */
-      if (!row.pw_hash) return json({ error: "บัญชีหัวหน้ายังไม่มีรหัสผ่าน ให้ตั้งจากเครื่องที่ล็อกอินอยู่ (หน้า ทีม + สิทธิ์)" }, 409);
-      if (body.password == null) return json({ error: "หัวหน้าต้องใส่รหัสผ่าน", needPassword: true }, 401);
+    if (row.role === "owner" || row.require_pw) {
+      /* หัวหน้ากดชื่อแล้วได้สิทธิ์ทุกอย่าง — เว็บนี้ใครก็เปิด URL ได้ จึงต้องมีรหัสผ่านกัน
+         บัญชีที่ตั้ง require_pw ไว้ (เช่น ฝ่ายขายที่ดูแต่ลีด) ก็ต้องใส่รหัสเหมือนกัน */
+      if (!row.pw_hash) return json({ error: "บัญชีนี้ยังไม่มีรหัสผ่าน ให้หัวหน้าตั้งให้ในหน้า ทีม + สิทธิ์" }, 409);
+      if (body.password == null) return json({ error: "บัญชีนี้ต้องใส่รหัสผ่าน", needPassword: true }, 401);
 
       /* ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
       const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
@@ -1063,9 +1068,15 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const canUpdateOthers = isOwner || !!me.can_update_others;
   /* เลื่อนกำหนดส่งได้เอง — ปกติสงวนไว้ให้หัวหน้ากับคนสั่งงาน เปิดรายคนได้ */
   const canReschedule = isOwner || !!me.can_reschedule;
+  /* คนที่ได้เฉพาะหมวด CRM (ฝ่ายขาย) — แตะได้แค่ลีดกับของที่หน้าเว็บต้องใช้ตอนเปิดระบบ
+     กันที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนเมนู */
+  if (!canSee(me, "tasks")) {
+    const allowed = /^\/(leads|me$|me\/|logout|notifications|staff$|files\/)/.test(path);
+    if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
+  }
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */

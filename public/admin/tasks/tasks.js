@@ -610,9 +610,10 @@
     ['tasks', 'งานทีม + ตารางโพสต์ + ปฏิทินการตลาด'],
     ['docs',  'เอกสารแผนงาน · B2B · รายงานการรับสาย'],
     ['sales', 'ยอดขาย + การตลาด (ตัวเลขยอดขายทั้งหมด)'],
-    ['kpi',   'KPI 2570 + KPI Dashboard']
+    ['kpi',   'KPI 2570 + KPI Dashboard'],
+    ['crm',   'ลีด (CRM) — ฝ่ายขายที่ดูแค่ลีด ให้ติ๊กอันนี้อันเดียว']
   ];
-  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI' };
+  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI', crm: 'ลีด' };
   function renderSidebar() {
     var host = $('#sideHost');
     if (!host || !global.ERP_MENU) return;
@@ -5897,6 +5898,11 @@
   function render() {
     S.route = parseRoute();
     popClose();
+    /* คนที่มีเฉพาะหมวดลีด ให้อยู่แต่หน้าลีด (กันซ้ำกับด่านฝั่งเซิร์ฟเวอร์) */
+    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead'].indexOf(S.route.name) === -1) {
+      location.hash = '#/leads';
+      S.route = parseRoute();
+    }
     if (S.lastRoute !== S.route.name) { SEL = {}; PSEL = {}; S.lastRoute = S.route.name; renderBulk(); renderPBulk(); }
     if (!S.me) { renderLogin(); return; }
     renderSidebar();
@@ -5915,6 +5921,7 @@
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'history': return renderHistory();
       case 'review': return renderReview();
+      /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
       case 'leads': return renderLeads();
       case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
       case 'inbox': return renderInbox();
@@ -5934,7 +5941,8 @@
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
-        if (!location.hash) location.hash = S.me.role === 'owner' ? '#/all' : '#/me';
+        if (!location.hash) location.hash = (!canSee('tasks') && canSee('crm')) ? '#/leads'
+          : (S.me.role === 'owner' ? '#/all' : '#/me');
         Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {
           var T = global.KAN_TOUR;
           /* เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง) ไม่ต้องพาทัวร์ตอนนั้น */
