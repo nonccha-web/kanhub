@@ -25,6 +25,14 @@
     global.ERP_MENU.wire(host);
   }
 
+  /* ลิ้นชักเมนูบนมือถือ — ชุดเดียวกับ tasks.js / nav.js (หน้านี้เคยไม่มีเลย เมนูเลยโผล่แบบพังตอนจอแคบ) */
+  document.addEventListener('click', function (ev) {
+    if (ev.target.closest('[data-erp-toggle]')) { document.documentElement.classList.toggle('erp-open'); return; }
+    if (ev.target.closest('[data-erp-close]')) { document.documentElement.classList.remove('erp-open'); return; }
+    if (document.documentElement.classList.contains('erp-open') && ev.target.closest('.erp-sidebar a')) document.documentElement.classList.remove('erp-open');
+  });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') document.documentElement.classList.remove('erp-open'); });
+
   /* รู้ว่าใครล็อกอินอยู่ → เมนูโชว์เฉพาะหมวดที่มีสิทธิ์ (ตัวจริงกันที่ worker) */
   function loadMe() {
     fetch('/api/t/me', { credentials: 'same-origin' })

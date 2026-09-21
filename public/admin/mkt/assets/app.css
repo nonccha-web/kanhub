@@ -1,4 +1,4 @@
-@import url('../../assets/erp-shell.css?v=2');   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar */
+@import url('../../assets/erp-shell.css?v=12');   /* เลขต้องตรงกับ tasks.css / cmo/styles.css ไม่งั้นมือถือแคชเปลือกเก่าที่ไม่มีสไตล์เมนูใหม่ */   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar */
 :root{
   /* พื้น/กระดาษ/เส้น ชุดเดียวกับ M CRM · teal/indigo/amber ของกราฟคงเดิม · ตัวเลข Plex Mono */
   --bg:#F4F3EF; --card:#FFFFFF; --ink:#0B0B0A; --sub:#575652; --muted:#8B8A84;
@@ -397,12 +397,15 @@ table.plan .cell.off{background:#EDF1F4}
   .frow{grid-template-columns:1fr 1fr}
   .g3{grid-template-columns:1fr 1fr}
 }
+/* มือถือ: sidebar เป็นลิ้นชัก fixed ตาม erp-shell.css (จุดตัด 900px) — แถบบน 52px ทับเนื้อหา ต้องดันลง
+   ของเดิมตรงนี้เคยบังคับ aside เป็นแถวนอน (flex-direction:row;wrap) จากสมัยเมนูแนวนอนก่อนย้ายมาใช้เปลือก ERP
+   ผลคือเมนูโดนบีบเหลือ ~136px ทุกป้ายชื่อขึ้นบรรทัดใหม่ และ "Powered by" ลอยไปข้าง ๆ (นนท์ส่งจอมา 21 ก.ย. 69) */
+@media(max-width:900px){
+  main{padding-top:68px}
+}
 @media(max-width:820px){
-  .layout{flex-direction:column}
-  aside{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}
-  .nav{flex-direction:row;flex-wrap:wrap}
-  .navgroup,.side-foot{display:none}
-  main{padding:16px}
+  .side-foot{display:none}
+  main{padding:68px 16px 60px}
   .frow{grid-template-columns:1fr}
   .g3{grid-template-columns:1fr}
 }

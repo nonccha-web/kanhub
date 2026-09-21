@@ -242,7 +242,8 @@
       if (openIdx < 0) { openIdx = 0; }
 
       var h = '<div class="erp-top"><a class="erp-brand" href="' + homeHref + '">' +
-        '<img class="erp-k" src="../assets/kan-logo.png" alt="KAN" /><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
+        /* โลโก้อ้างจากโฟลเดอร์ของหน้าที่เรียก — หน้าที่ลึกอีกชั้น (mkt/sales/) ต้องส่ง assetsBase:'../../assets/' มา ไม่งั้นโลโก้แตก */
+        '<img class="erp-k" src="' + esc((opts.assetsBase || '../assets/') + 'kan-logo.png') + '" alt="KAN" /><span class="erp-brand-tx"><b>' + esc(this.brandTitle) + '</b>' +
         '<small>' + esc(this.brandSub) + '</small></span></a>' +
         '<button type="button" class="erp-pin" data-erp-collapse title="ย่อ/ขยายเมนู" aria-label="ย่อ/ขยายเมนู">' +
         svgIco('panel') + '</button></div><div class="erp-nav">';

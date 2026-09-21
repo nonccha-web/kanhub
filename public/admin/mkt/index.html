@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=28">
+<link rel="stylesheet" href="assets/app.css?v=30">
 <script>
 /* ธีม + สถานะย่อเมนู ใส่ก่อนวาดหน้า (ค่าเดียวกับฝั่ง CMO และงานทีม) */
 try {
@@ -18,9 +18,17 @@ try {
 </script>
 </head>
 <body>
+<!-- มือถือ: เมนูเป็นลิ้นชักชุดเดียวกับหน้างานทีม/CMO — ฉากดำกดปิด + แถบบนมีปุ่ม ≡ (เดสก์ท็อปซ่อนโดย erp-shell.css) -->
+<div class="erp-scrim" data-erp-close="1"></div>
+<div class="erp-topbar">
+  <button type="button" aria-label="เปิดเมนู" data-erp-toggle>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <img src="../assets/kan-logo.png" alt=""><b>KAN Admin</b>
+</div>
 <div class="layout">
 
-  <aside>
+  <aside class="erp-sidebar">
     <div id="sideHost"></div>
     <div class="side-foot" id="lastUpdated"></div>
     <div class="erp-powered" style="padding:0 8px 6px">Powered by <b>M Creation</b></div>
@@ -49,13 +57,13 @@ try {
 <div id="guideHost"></div>
 
 <script src="vendor/chart.umd.min.js?v=18"></script>
-<script src="../cmo/erp-menu.js?v=39"></script>
+<script src="../cmo/erp-menu.js?v=40"></script>
 <script src="assets/ingest.js?v=18"></script>
 <script>
 /* ชุดข้อมูลตั้งต้นโหลดก่อน แล้วให้ไฟล์ที่ผู้ใช้อัปโหลด (IndexedDB) ทับทับตามกฎใน
    ingest.js — ต้องเสร็จก่อน core.js จะอ่าน KAN_DATA จึงโหลดสคริปต์ที่เหลือทีหลัง */
 window.KAN_INGEST.boot({
-  v: '?v=31',
+  v: '?v=32',
   data: 'data/kan-data.js',
   scripts: ['assets/core.js', 'assets/daterange.js', 'assets/ui.js', 'assets/task-add.js', 'assets/suggest.js',
             'assets/rules.js', 'data/sales-insight.js', 'data/promo-analysis.js', 'assets/views.js', 'assets/suggest-sales.js', 'assets/views-extra.js',
