@@ -87,6 +87,48 @@ public/admin/
 
 ---
 
+## ขึ้นระบบ (deploy)
+
+**แก้โค้ดแล้วเว็บยังไม่เปลี่ยนจนกว่าจะ deploy** — repo นี้ไม่ได้ผูกกับ Cloudflare โดยตรง
+
+### ทางที่ 1 · จากมือถือ (ไม่ต้องเปิดคอม)
+1. แอป **GitHub** → แท็บ Pull requests → เปิด PR ที่ค้างอยู่ → **Merge**
+2. รอ ~2-3 นาที — GitHub Actions build แล้วปล่อยขึ้นให้เอง
+3. ถ้าตั้ง `LARK_DEPLOY_WEBHOOK` ไว้ จะมีข้อความเข้า Lark บอกว่าขึ้นแล้ว/พัง
+
+อยากปล่อยขึ้นใหม่เฉย ๆ โดยไม่มีโค้ดใหม่ → แท็บ **Actions** → `ขึ้นระบบ (deploy)` → **Run workflow**
+
+### ทางที่ 2 · จากเครื่อง (เหมือนเดิม)
+```bash
+npm run build && npx wrangler deploy
+```
+
+### ตัวท่ออยู่ที่ `.github/workflows/deploy.yml`
+- ทำงานเมื่อมีโค้ดเข้า `main` หรือกด Run workflow เอง
+- รันคำสั่งชุดเดียวกับที่รันบนเครื่องเป๊ะ ๆ ไม่มีขั้นตอนลับ
+- **มีด่านกันพลาด**: ถ้า build ออกมาไม่มี `out/index.html` หรือ `out/admin/tasks/` จะหยุดทันที ไม่ปล่อยขึ้น
+  (ถ้าปล่อยไฟล์ว่างขึ้นไป เว็บจะกลายเป็น 404 ทั้งเว็บ)
+- **build พัง = ของเดิมบนเว็บยังอยู่** Cloudflare ไม่ได้ถูกแตะเลย
+
+### secret ที่ต้องตั้งใน GitHub (ครั้งเดียว)
+Settings → Secrets and variables → Actions
+
+| ชื่อ | เอามาจากไหน |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → เทมเพลต **Edit Cloudflare Workers** |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare → Workers & Pages → มุมขวา **Account ID** |
+| `LARK_DEPLOY_WEBHOOK` | *(ไม่บังคับ)* webhook ของกลุ่ม Lark ที่อยากให้บอกผล |
+
+**secret ของ worker เอง** (`LARK_APP_ID` · `LARK_APP_SECRET` · `LARK_KAN_WEBHOOK` · `LARK_REVIEW_CHAT_ID`)
+อยู่ฝั่ง Cloudflare ตั้งด้วย `npx wrangler secret put` — **`wrangler deploy` ไม่ไปลบทิ้ง** ไม่ต้องเอามาใส่ใน GitHub
+
+### สิ่งที่ท่อนี้ไม่ทำให้
+- **แก้ schema D1** ยังต้องรันเอง: `npx wrangler d1 execute kan-erp --remote --file=d1/schema.sql`
+  (ยกเว้นตารางของระบบงานทีมกับประวัติการแก้ไข ที่ `worker-tasks.js` สร้างให้เองตอนรันครั้งแรก)
+- **ข้อมูลใน D1 ไม่ถูกแตะ** ตอน deploy — งาน โพสต์ รูป ทีม อยู่ครบ
+
+---
+
 ## แจ้งเตือนตรวจงานเข้า Lark (กลุ่ม "เตือนตรวจงาน")
 
 ส่งผ่าน **Lark App** (บอต "นักล่า Non Assistant") ไม่ใช่ webhook — บอตต้องถูกเชิญเข้ากลุ่มก่อน

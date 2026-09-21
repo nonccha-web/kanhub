@@ -1,0 +1,83 @@
+# ============================================================
+# ขึ้นระบบอัตโนมัติ — kan-hub.com + admin.kan-hub.com
+# ------------------------------------------------------------
+# ทำงานตอนไหน
+#   1) มีโค้ดเข้า main (กด Merge จากแอป GitHub บนมือถือก็นับ) → ขึ้นเองใน ~2-3 นาที
+#   2) กดปุ่ม "Run workflow" ที่แท็บ Actions → ขึ้นใหม่โดยไม่ต้องมี commit (ไว้รีดีพลอยเฉย ๆ)
+#
+# คำสั่งในนี้ = ชุดเดียวกับที่เคยรันบนเครื่อง (npm run build แล้ว wrangler deploy)
+# ไม่ได้เพิ่มขั้นตอนแปลกใหม่ ผลลัพธ์จึงเหมือนกดเองทุกอย่าง
+#
+# ต้องตั้ง secret ใน GitHub ก่อน (Settings → Secrets and variables → Actions)
+#   CLOUDFLARE_API_TOKEN   — โทเคนจาก Cloudflare (เทมเพลต "Edit Cloudflare Workers")
+#   CLOUDFLARE_ACCOUNT_ID  — Account ID ของ Cloudflare
+#   LARK_DEPLOY_WEBHOOK    — (ไม่บังคับ) webhook กลุ่ม Lark ไว้บอกผลว่าขึ้นแล้ว/พัง
+#
+# secret ของ worker เอง (LARK_APP_ID · LARK_KAN_WEBHOOK ฯลฯ) อยู่ฝั่ง Cloudflare
+# `wrangler deploy` ไม่ไปลบทิ้ง จึงไม่ต้องเอามาใส่ที่นี่
+# ============================================================
+name: ขึ้นระบบ (deploy)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# merge ติด ๆ กันสองที = เอาอันหลังพอ ไม่ต้องขึ้นซ้อนกัน
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LARK_HOOK: ${{ secrets.LARK_DEPLOY_WEBHOOK }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc   # Node เวอร์ชันเดียวกับที่โปรเจกต์ระบุไว้
+          cache: npm
+
+      - name: ลงแพ็กเกจ
+        run: npm ci
+
+      - name: build เว็บเป็นไฟล์นิ่งใน out/
+        run: npm run build
+
+      # กันพลาดหนักสุด: ถ้า out/ ว่างแล้วปล่อยขึ้นไป เว็บจะกลายเป็น 404 ทั้งเว็บ
+      - name: เช็คว่า build ออกมาจริงก่อนปล่อยขึ้น
+        run: |
+          test -f out/index.html || { echo "::error::ไม่มี out/index.html — เว็บหน้าบ้านไม่ได้ build"; exit 1; }
+          test -f out/admin/tasks/index.html || { echo "::error::ไม่มี out/admin/tasks/ — หลังบ้านหาย"; exit 1; }
+          echo "out/ มี $(find out -type f | wc -l) ไฟล์"
+
+      - name: ปล่อยขึ้น Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4"   # ล็อกที่ v4 กัน wrangler รุ่นใหญ่ใหม่ออกมาแล้วพังเอง
+          command: deploy
+
+      # ไม่ได้ตั้ง LARK_DEPLOY_WEBHOOK ก็ข้ามขั้นนี้ไปเงียบ ๆ
+      # ค่าจาก github.* ส่งผ่าน env ไม่แปะลงสคริปต์ตรง ๆ กันคนแอบยัดคำสั่งมาในชื่อ commit
+      - name: บอกผลเข้า Lark
+        if: always() && env.LARK_HOOK != ''
+        env:
+          STATUS: ${{ job.status }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          SUBJECT="$(git log -1 --pretty=%s)"
+          if [ "$STATUS" = "success" ]; then
+            MSG="ขึ้นระบบแล้ว — admin.kan-hub.com"$'\n'"$SUBJECT"$'\n'"โดย $ACTOR"
+          else
+            MSG="ขึ้นระบบไม่สำเร็จ — ของเดิมบนเว็บยังอยู่ ไม่ได้พัง"$'\n'"$SUBJECT"$'\n'"ดูสาเหตุ: $RUN_URL"
+          fi
+          curl -sS -X POST "$LARK_HOOK" -H 'content-type: application/json' \
+            --data "$(jq -nc --arg t "$MSG" '{msg_type:"text",content:{text:$t}}')" || true
