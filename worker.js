@@ -121,7 +121,7 @@ const LIST_SQL =
   "FROM campaigns c LEFT JOIN attachments a ON a.campaign_id = c.id " +
   "GROUP BY c.id ORDER BY c.start_date ASC";
 
-async function handleApi(request, env, url) {
+async function handleApi(request, env, url, ctx) {
   const db = env.KAN_ERP;
   if (!db) return json({ error: "ยังไม่ได้ผูกฐานข้อมูล" }, 503);
 
@@ -130,10 +130,10 @@ async function handleApi(request, env, url) {
 
   // ---- ระบบมอบหมายงานทีม (/api/t/*) — โค้ดอยู่ worker-tasks.js ----
   if (path === "/t" || path.indexOf("/t/") === 0) {
-    return handleTaskApi(request, env, url, path.slice(2) || "/", method);
+    return handleTaskApi(request, env, url, path.slice(2) || "/", method, ctx);
   }
   // ---- บอต Lark: ดูตัวอย่าง/ส่งด้วยมือ (หัวหน้า) — ตัวจริงยิงตาม cron ใน wrangler.jsonc ----
-  if (path === "/lark/preview" || path === "/lark/send") {
+  if (path === "/lark/preview" || path === "/lark/send" || path === "/lark/chats" || path === "/lark/review") {
     await ensureTaskSchema(db);
     return handleLarkApi(request, env, url, await authFor(request, env));
   }
@@ -449,7 +449,7 @@ export default {
     if (url.pathname.indexOf("/api/") === 0) {
       if (!isAdminHost) return new Response("Not found", { status: 404 });
       try {
-        return await handleApi(request, env, url);
+        return await handleApi(request, env, url, ctx);
       } catch (err) {
         return json({ error: "เซิร์ฟเวอร์ผิดพลาด: " + (err && err.message ? err.message : String(err)) }, 500);
       }

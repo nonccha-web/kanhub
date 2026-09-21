@@ -123,7 +123,9 @@
   /* ตัวตนที่ใช้ตัดสินสิทธิ์ — โหมด "ดูในมุมของ" จะกลายเป็นอ่านอย่างเดียว */
   function amOwner() { return !S.viewAs && S.me && S.me.role === 'owner'; }
   function readOnly() { return !!S.viewAs; }
-  function canApprove(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
+  /* ตรวจผ่าน = หัวหน้าคนเดียว (นนท์ 21 ก.ย. 69) — คนสั่งงานตรวจงานที่ตัวเองสั่งไม่ได้แล้ว
+     ส่วน canEditRow (แก้/ลบ) ยังเป็นของหัวหน้าหรือคนสั่งเหมือนเดิม คนละเรื่องกัน */
+  function canApprove() { return !readOnly() && !!S.me && S.me.role === 'owner'; }
   function mineTask(t) { return S.me && t.assignees.indexOf(S.me.id) !== -1; }
   /* แก้/ลบ จากหน้ารายการ: หัวหน้าหรือคนสั่งงาน (เหมือนสิทธิ์แก้ไขในหน้ารายละเอียด) */
   function canEditRow(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
@@ -1275,7 +1277,7 @@
         var deck = S.tasks ? buildDeck(S.tasks, []) : [];
         var nRev = 0, nUnseen = 0;
         deck.forEach(function (c) { if (c.lane === 'review') nRev++; else if (c.lane === 'unseen') nUnseen++; });
-        var waiting = nRev + t.left + nUnseen;
+        var waiting = canApprove() ? nRev + t.left + nUnseen : 0;
         if (!waiting) {
           bar.className = 'postbar' + (t.total ? (noLink > 0 ? ' warn' : ' ok') : ' quiet');
           bar.innerHTML = '<span class="pbi">' + (t.total
@@ -1330,9 +1332,20 @@
     /* ค้างนานสุดขึ้นก่อน — คนที่รอผลตรวจมาสามวันไม่ควรไปอยู่ท้ายกอง */
     lane1.sort(function (a, b) { return (a.t.submittedAt || a.t.updatedAt) < (b.t.submittedAt || b.t.updatedAt) ? -1 : 1; });
     lane3.sort(function (a, b) { return (b.t.doneAt || '') < (a.t.doneAt || '') ? -1 : 1; });
-    var lane2 = (posts || []).filter(function (p) { return p.status === 'plan'; })
-      .map(function (p) { return { type: 'post', id: p.id, p: p, lane: 'post' }; });
+    /* โพสต์ก็เป็นของที่ "ค้างที่หัวหน้า" เหมือนกัน — คนที่ตรวจงานไม่ได้ต้องไม่เห็นกองนี้เลย
+       ไม่งั้นเติ้ล/พิซซ่าเปิด #/review แล้วเจอการ์ดโพสต์ ทั้งที่หน้านี้เป็นหน้าของหัวหน้า */
+    var lane2 = canApprove() ? (posts || []).filter(function (p) { return p.status === 'plan'; })
+      .map(function (p) { return { type: 'post', id: p.id, p: p, lane: 'post' }; }) : [];
     return lane1.concat(lane2, lane3);
+  }
+  /* ไม่ใช่หัวหน้า = ไม่มีอะไรให้ตรวจ บอกตรง ๆ ว่าหน้านี้ไม่ใช่ของเขา ดีกว่าโชว์กองว่างให้งง */
+  function denyReview() {
+    var view = $('#view');
+    view.className = 'page';
+    view.innerHTML = '<div class="top"><div><span class="kicker">ตรวจงาน</span><h1>ปัดตรวจ</h1>' +
+      '<p>หน้านี้เป็นของหัวหน้า — งานที่ส่งมาจะไปเข้าคิวให้หัวหน้าตรวจ ไม่ต้องตรวจกันเองแล้ว</p></div>' +
+      '<div class="top-r"><a class="btn" href="#/me">ไปงานของฉัน</a></div></div>';
+    renderSidebar();
   }
   function rvTodayPosts() {
     var d = todayIso();
@@ -1345,7 +1358,7 @@
   }
 
   function renderReview() {
-    if (readOnly()) { denyView('ตรวจงาน'); return; }
+    if (readOnly() || !canApprove()) { denyReview(); return; }
     Promise.all([loadTasks(), rvTodayPosts()]).then(function (r) {
       RV.cards = buildDeck(r[0], r[1]);
       RV.i = 0; RV.last = null; RV.det = {}; RV.busy = false;

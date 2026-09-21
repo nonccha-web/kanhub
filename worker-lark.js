@@ -137,18 +137,118 @@ export async function sendLark(webhook, text) {
   return j;
 }
 
+/* ============================================================
+   กลุ่ม "เตือนตรวจงาน" — เด้งเข้ามือถือหัวหน้าทันทีที่มีคนส่งงานมาตรวจ
+   ------------------------------------------------------------
+   ส่งผ่าน Lark App (บอต "นักล่า Non Assistant" ที่เชิญเข้ากลุ่มแล้ว) ไม่ใช่ webhook
+   เพราะ webhook ผูกกลุ่มเดียวและต้องไปก๊อป URL มาใส่ secret ใหม่ทุกครั้งที่เปลี่ยนกลุ่ม
+   chat_id ของกลุ่มหาเองจากชื่อกลุ่ม แล้วจำไว้ใน task_settings (ครั้งแรกครั้งเดียว)
+   อยากล็อกกลุ่มตายตัว → ตั้ง secret LARK_REVIEW_CHAT_ID · เปลี่ยนชื่อกลุ่ม → LARK_REVIEW_CHAT_NAME
+   ============================================================ */
+
+const REVIEW_CHAT_KEY = "lark_review_chat_id";
+const REVIEW_CHAT_NAME = "เตือนตรวจงาน";
+const REVIEW_LINK = "https://admin.kan-hub.com/tasks/#/review";
+
+function reviewOn(env) { return !!(env.LARK_APP_ID && env.LARK_APP_SECRET); }
+
+export async function reviewChatId(env, db, force) {
+  if (env.LARK_REVIEW_CHAT_ID) return env.LARK_REVIEW_CHAT_ID;
+  if (!force) {
+    const row = await db.prepare("SELECT value FROM task_settings WHERE key = ?").bind(REVIEW_CHAT_KEY).first();
+    if (row && row.value) return row.value;
+  }
+  const want = env.LARK_REVIEW_CHAT_NAME || REVIEW_CHAT_NAME;
+  const j = await larkCall(env, "GET", "/im/v1/chats?page_size=100");
+  const items = (j.data && j.data.items) || [];
+  /* ชื่อตรงเป๊ะก่อน ไม่เจอค่อยเอาที่มีคำนั้นอยู่ (เผื่อมี emoji หรือเว้นวรรคต่อท้าย) */
+  const hit = items.find((c) => c.name === want) ||
+              items.find((c) => String(c.name || "").indexOf(want) >= 0);
+  if (!hit) {
+    throw new Error('ไม่เจอกลุ่มชื่อ "' + want + '" ที่บอตอยู่ด้วย (เห็น ' + items.length +
+      ' กลุ่ม: ' + items.map((c) => c.name).join(", ").slice(0, 200) + ') — เชิญบอตเข้ากลุ่มแล้วหรือยัง');
+  }
+  await db.prepare("INSERT OR REPLACE INTO task_settings (key,value) VALUES (?,?)").bind(REVIEW_CHAT_KEY, hit.chat_id).run();
+  return hit.chat_id;
+}
+
+async function sendToChat(env, chatId, text) {
+  return larkCall(env, "POST", "/im/v1/messages?receive_id_type=chat_id",
+    { receive_id: chatId, msg_type: "text", content: JSON.stringify({ text }) });
+}
+
+/* @ทุกคนในกลุ่ม — กลุ่มนี้มีแค่หัวหน้ากับบอต การ @ จึงเท่ากับเตือนหัวหน้า
+   และ Lark จะดัน push ขึ้นมือถือให้ (ข้อความธรรมดาบางทีเงียบถ้าปิดแจ้งเตือนกลุ่มไว้) */
+const AT_ALL = '<at user_id="all"></at>';
+
+function waited(iso) {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 60) return m + " นาที";
+  if (m < 1440) return Math.floor(m / 60) + " ชม.";
+  return Math.floor(m / 1440) + " วัน";
+}
+
+/* เรียกตอนมีคนกดส่งงานให้ตรวจ — ห้าม throw ออกไป ไม่งั้นการบันทึกงานพังตามไปด้วย */
+export async function notifyReviewSubmitted(env, db, item) {
+  if (!reviewOn(env)) return;
+  try {
+    const chat = await reviewChatId(env, db);
+    await sendToChat(env, chat, [
+      AT_ALL + " มีงานส่งมาให้ตรวจ",
+      "• " + item.title + " — " + short(item.by),
+      "ปัดตรวจ: " + REVIEW_LINK,
+    ].join("\n"));
+  } catch (e) {
+    console.error("lark review ping:", e && e.message);
+  }
+}
+
+/* รอบเตือนซ้ำ (20:00 ไทย) — ส่งเฉพาะตอนมีของดองจริง ไม่มีของค้างก็เงียบ ไม่ต้องรายงานว่าว่าง */
+export async function reviewReminder(env) {
+  if (!reviewOn(env)) return { sent: false, why: "ยังไม่ได้ตั้ง LARK_APP_ID/LARK_APP_SECRET" };
+  const db = env.KAN_ERP;
+  if (!db) return { sent: false, why: "ยังไม่ได้ผูกฐานข้อมูล" };
+  const rows = await db.prepare(
+    "SELECT t.id, t.title, t.submitted_at, t.updated_at, " +
+    "(SELECT GROUP_CONCAT(s.name, '|') FROM task_assignees a JOIN staff s ON s.id = a.staff_id WHERE a.task_id = t.id) AS who " +
+    "FROM tasks t WHERE t.status = 'review' ORDER BY COALESCE(t.submitted_at, t.updated_at)"
+  ).all();
+  const list = rows.results || [];
+  if (!list.length) return { sent: false, why: "ไม่มีงานรอตรวจ" };
+  const text = [
+    AT_ALL + " ยังไม่ได้ตรวจ " + list.length + " งาน",
+    ...list.slice(0, 15).map((r) => {
+      const who = r.who ? String(r.who).split("|").map(short).join(", ") : "ไม่มีคนรับ";
+      return "• " + r.title + " — " + who + " · ค้างมา " + waited(r.submitted_at || r.updated_at);
+    }),
+    list.length > 15 ? "…และอีก " + (list.length - 15) + " งาน" : "",
+    "งานพวกนี้จะยังไม่สมบูรณ์จนกว่าจะตรวจ",
+    "ปัดตรวจ: " + REVIEW_LINK,
+  ].filter(Boolean).join("\n");
+  const chat = await reviewChatId(env, db);
+  await sendToChat(env, chat, text);
+  return { sent: true, count: list.length, text };
+}
+
 /* ---------- ตัวจับเวลา: 03:00 / 07:30 / 10:30 UTC = 10:00 / 14:30 / 17:30 ไทย ---------- */
 export async function runScheduled(event, env) {
+  const h = new Date(event.scheduledTime + TH).getUTCHours();
+  /* 20:00 ไทย = รอบเตือนงานที่ดองรอตรวจ เข้ากลุ่ม "เตือนตรวจงาน" คนละช่องกับ digest ทีม */
+  if (h === 20) {
+    try { await reviewReminder(env); } catch (e) { console.error("lark review reminder:", e && e.message); }
+    return;
+  }
   if (!env.LARK_KAN_WEBHOOK) return;
   const db = env.KAN_ERP;
   const g = await buildDigest(db);
-  const h = new Date(event.scheduledTime + TH).getUTCHours();
   const slot = h === 10 ? "เช้า 10:00" : (h === 14 ? "บ่าย 14:30" : (h === 17 ? "เย็น 17:30" : null));
   /* เสาร์อาทิตย์ส่งเฉพาะรอบเช้า พอให้รู้ว่ามีอะไรค้าง */
   const dow = g.now.getUTCDay();
   if ((dow === 0 || dow === 6) && h !== 10) return;
   await sendLark(env.LARK_KAN_WEBHOOK, formatDigest(g, slot));
 }
+
+const jsonRes = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { "content-type": "application/json; charset=utf-8" } });
 
 /* ---------- ทดสอบด้วยมือ (หัวหน้าเท่านั้น) ---------- */
 export async function handleLarkApi(request, env, url, me) {
@@ -162,6 +262,20 @@ export async function handleLarkApi(request, env, url, me) {
     if (!env.LARK_KAN_WEBHOOK) return new Response(JSON.stringify({ error: "ยังไม่ได้ตั้ง LARK_KAN_WEBHOOK" }), { status: 500, headers: { "content-type": "application/json; charset=utf-8" } });
     await sendLark(env.LARK_KAN_WEBHOOK, text);
     return new Response(JSON.stringify({ ok: true, sent: text.length }), { headers: { "content-type": "application/json; charset=utf-8" } });
+  }
+  /* ตั้งค่ากลุ่ม "เตือนตรวจงาน": ดูว่าบอตเห็นกลุ่มไหนบ้าง / จับ chat_id ใหม่ / ยิงเตือนทดสอบ */
+  if (url.pathname === "/api/lark/chats") {
+    if (!env.LARK_APP_ID || !env.LARK_APP_SECRET) return jsonRes({ error: "ยังไม่ได้ตั้ง LARK_APP_ID/LARK_APP_SECRET" }, 500);
+    try {
+      const j = await larkCall(env, "GET", "/im/v1/chats?page_size=100");
+      const items = ((j.data && j.data.items) || []).map((c) => ({ chatId: c.chat_id, name: c.name }));
+      let picked = null, err = null;
+      try { picked = await reviewChatId(env, env.KAN_ERP, url.searchParams.get("refresh") === "1"); } catch (e) { err = e.message; }
+      return jsonRes({ chats: items, reviewChatId: picked, error: err });
+    } catch (e) { return jsonRes({ error: e.message }, 500); }
+  }
+  if (url.pathname === "/api/lark/review" && request.method === "POST") {
+    try { return jsonRes(await reviewReminder(env)); } catch (e) { return jsonRes({ error: e.message }, 500); }
   }
   return new Response("Not found", { status: 404 });
 }
@@ -252,8 +366,6 @@ async function answerLark(env, msg, clean) {
     console.error("lark answer", e && e.message);
   }
 }
-
-const jsonRes = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { "content-type": "application/json; charset=utf-8" } });
 
 export async function handleLarkEvent(request, env, ctx) {
   if (request.method !== "POST") return jsonRes({ error: "POST only" }, 405);

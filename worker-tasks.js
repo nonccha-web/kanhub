@@ -1,3 +1,5 @@
+import { notifyReviewSubmitted } from "./worker-lark.js";
+
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
 //  - ล็อกอิน: สมาชิกกดชื่อตัวเองแล้วเข้าเลย ไม่มีรหัส (นนท์สั่ง 17 ก.ย. 69 — พิซซ่ากับเติ้ลจำ user/รหัสไม่ได้)
@@ -344,6 +346,16 @@ const STAFF_SEED = [
   { id: "s_pizza", name: "Pizza", aliases: "Pizza,พิซซ่า", role: "member" },
 ];
 
+/* งานเข้าคิว "รอตรวจ" → เด้งเข้ากลุ่ม Lark "เตือนตรวจงาน" ทันที (นนท์ 21 ก.ย. 69)
+   ยิงหลัง db.batch สำเร็จแล้วเท่านั้น จะได้ไม่เตือนงานที่บันทึกไม่ผ่าน
+   ใส่ใน waitUntil เพื่อไม่ให้คนกดส่งงานต้องรอ Lark ตอบก่อนถึงจะเห็นหน้าเว็บขยับ */
+function pingReview(ctx, env, db, list) {
+  if (!ctx || !list || !list.length) return;
+  ctx.waitUntil((async () => {
+    for (const it of list) await notifyReviewSubmitted(env, db, it);
+  })());
+}
+
 /* ---------- helpers ---------- */
 function json(data, status = 200, extraHeaders) {
   const headers = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -411,11 +423,15 @@ function thDate(iso) {
    คนที่ไม่ใช่หัวหน้าและไม่ใช่คนสั่งงาน กด "เสร็จแล้ว" = ส่งรอตรวจ ไม่ใช่ปิดงานเอง
    รวมงานประจำด้วย — นนท์บอกว่างานของเขาคือตรวจงานน้องทุกงาน (18 ก.ย. 69)
    ตรวจจากหน้ารายการได้ทีละคลิก ไม่ต้องเข้าไปในงาน */
-function needsReview(task, canApprove) {
-  return !canApprove;
+/* "งานสมบูรณ์" ตัดสินโดยหัวหน้าคนเดียว (นนท์สั่ง 21 ก.ย. 69)
+   ของเดิมคนสั่งงานกดผ่านงานที่ตัวเองสั่งได้ → เติ้ลสั่งงานตัวเอง ทำเอง แล้วกดปิดเองได้
+   งานเลยจบโดยที่หัวหน้าไม่เคยเห็น · ตอนนี้ใครที่ไม่ใช่หัวหน้ากด "เสร็จแล้ว" = ไปเข้าคิว "รอตรวจ" เสมอ
+   สิทธิ์อื่น (แก้ ลบ เปลี่ยนวัน) ยังเป็นของคนสั่งงานเหมือนเดิม เปลี่ยนเฉพาะการปิดงาน */
+function needsReview(task, isOwner) {
+  return !isOwner;
 }
-function statusFor(want, task, canApprove) {
-  return want === "done" && needsReview(task, canApprove) ? "review" : want;
+function statusFor(want, task, isOwner) {
+  return want === "done" && needsReview(task, isOwner) ? "review" : want;
 }
 /* คอลัมน์เวลาที่ต้องเขียนตามสถานะใหม่ — ส่งรอตรวจจับเวลาไว้ที่ submitted_at
    เพราะ "ตรงเวลา" นับตอนน้องส่ง ไม่ใช่ตอนหัวหน้าตรวจ */
@@ -856,7 +872,7 @@ function cleanLink(input) {
 }
 
 /* ---------- main router ---------- */
-export async function handleTaskApi(request, env, url, path, method) {
+export async function handleTaskApi(request, env, url, path, method, ctx) {
   const db = env.KAN_ERP;
   if (!db) return json({ error: "ยังไม่ได้ผูกฐานข้อมูล" }, 503);
   await ensureSchema(db, env);
@@ -1868,7 +1884,9 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (!owners) { const o = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all(); owners = (o.results || []).map((x) => x.id); }
       return owners;
     };
+    const pings = [];
     const setStatus = async (t, status, note) => {
+      if (status === "review" && status !== t.status) pings.push({ title: t.title, by: me.name, id: t.id });
       const st = stampsFor(status, t, now, me.id);
       stmts.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
         .bind(status, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, t.id));
@@ -1949,10 +1967,10 @@ export async function handleTaskApi(request, env, url, path, method) {
       let want = action === "approve" ? "done" : (action === "done" ? "done" : String(body.status || ""));
       if (STATUSES.indexOf(want) === -1) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
       if (action === "approve") {
-        if (!canApproveT(t)) { skip(t, "ตรวจได้เฉพาะหัวหน้าหรือคนสั่ง"); continue; }
+        if (!isOwner) { skip(t, "ตรวจผ่านได้เฉพาะหัวหน้า"); continue; }
         if (t.status !== "review") { skip(t, "ยังไม่ได้ส่งตรวจ"); continue; }
       } else if (!canTickT(t)) { skip(t, "ไม่ใช่งานของคุณ"); continue; }
-      const status = statusFor(want, t, canApproveT(t));
+      const status = statusFor(want, t, isOwner);
       if ((status === "done" || status === "review") && t.stage && !picCount[t.id] && await stageNeedsPic(db, t)) { skip(t, "ขั้นนี้ต้องแนบรูปก่อนปิด"); continue; }
       if (status === t.status && !(t.repeat && status === "done")) { skip(t, "เป็น " + (STATUS_TH[status] || status) + " อยู่แล้ว"); continue; }
       await setStatus(t, status, action === "approve" ? "ตรวจผ่านแล้ว" : "");
@@ -1981,6 +1999,7 @@ export async function handleTaskApi(request, env, url, path, method) {
       if (action === "delete") await logChange(db, { by: me.id, entity: "task", entityId: c.id, action: "delete", title: b0.title, before: b0, summary: "ลบงาน (เลือกหลายงาน)" });
       else await logChange(db, { by: me.id, entity: "task", entityId: c.id, action: "update", title: b0.title, before: b0, after: await snapTask(db, c.id), at: now });
     }
+    pingReview(ctx, env, db, pings);
     const missing = ids.filter((id) => !tasks.some((t) => t.id === id)).length;
     return json({ ok: true, done: changed.length, changed, skipped, missing });
   }
@@ -2181,7 +2200,9 @@ export async function handleTaskApi(request, env, url, path, method) {
         }
       }
       if (want) {
-        const status = statusFor(want, task, false);
+        /* ต้องใช้ isOwner ชุดเดียวกับที่ตอบกลับหน้าเว็บด้านล่าง ไม่งั้น DB เก็บ "รอตรวจ"
+           แต่หน้าเว็บโชว์ "เสร็จแล้ว" (ของเดิมฮาร์ดโค้ด false ไว้ หัวหน้าลากการ์ดไปช่องเสร็จก็ยังเด้งเป็นรอตรวจ) */
+        const status = statusFor(want, task, isOwner);
         const st = stampsFor(status, task, now, me.id);
         stmts2.push(db.prepare("UPDATE tasks SET status=?, updated_at=?, done_at=?, submitted_at=?, approved_at=?, approved_by=? WHERE id=?")
           .bind(status, now, st.doneAt, st.submitted, st.approvedAt, st.approvedBy, id));
@@ -2202,8 +2223,11 @@ export async function handleTaskApi(request, env, url, path, method) {
         }
       }
       await db.batch(stmts2);
+      if (want && statusFor(want, task, isOwner) === "review" && task.status !== "review") {
+        pingReview(ctx, env, db, [{ title: task.title, by: me.name, id }]);
+      }
       await logChange(db, { by: me.id, entity: "task", entityId: id, action: "update", title: task.title, before: auditBefore, after: await snapTask(db, id), at: now });
-      return json({ ok: true, status: want ? statusFor(want, task, false) : task.status });
+      return json({ ok: true, status: want ? statusFor(want, task, isOwner) : task.status });
     }
 
     if (!sub && method === "DELETE") {
@@ -2240,7 +2264,7 @@ export async function handleTaskApi(request, env, url, path, method) {
         return json({ error: "เปลี่ยนสถานะได้เฉพาะคนที่รับงานหรือหัวหน้า" }, 403);
       }
       /* น้องกด "เสร็จแล้ว" = ส่งรอตรวจ ทุกงานรวมงานประจำ */
-      const newStatus = status ? statusFor(status, task, canApprove) : null;
+      const newStatus = status ? statusFor(status, task, isOwner) : null;
       /* ขั้นของงานป้าย: ปิดโดยไม่มีรูปไม่ได้ (นับรูปที่แนบมารอบนี้ + ที่มีอยู่แล้ว) */
       if (newStatus && (newStatus === "done" || newStatus === "review") && task.stage && !files.length && await stageNeedsPic(db, task)) {
         const pic = await db.prepare("SELECT COUNT(*) AS n FROM task_files WHERE task_id = ? AND kind = 'file'").bind(id).first();
@@ -2279,7 +2303,8 @@ export async function handleTaskApi(request, env, url, path, method) {
         const all = await db.prepare("SELECT id,name,aliases FROM staff WHERE active = 1").all();
         for (const sid of findMentions(note, all.results || [], me.id)) tell.add(sid);
       }
-      if (!canApprove) {
+      /* ใครก็ตามที่ไม่ใช่หัวหน้าแตะงาน → หัวหน้าต้องรู้ (เดิมคนสั่งงานอัปเดตเองแล้วเงียบ) */
+      if (!isOwner) {
         const owners = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all();
         for (const o of (owners.results || [])) tell.add(o.id);
         if (task.createdBy) tell.add(task.createdBy);
@@ -2303,12 +2328,15 @@ export async function handleTaskApi(request, env, url, path, method) {
         stmts.push(db.prepare("UPDATE tasks SET updated_at=? WHERE id=?").bind(now, id));
       }
       await db.batch(stmts);
+      if (newStatus === "review" && task.status !== "review") {
+        pingReview(ctx, env, db, [{ title: task.title, by: me.name, id }]);
+      }
       return json({ id: uid, fileIds, status: newStatus || task.status });
     }
 
-    /* ---- ตรวจงาน: หัวหน้า (หรือคนสั่งงาน) กดผ่าน / ส่งกลับแก้ ---- */
+    /* ---- ตรวจงาน: หัวหน้ากดผ่าน / ส่งกลับแก้ (คนสั่งงานตรวจแทนไม่ได้แล้ว) ---- */
     if (sub === "/review" && method === "POST") {
-      if (!(isOwner || task.createdBy === me.id)) return json({ error: "ตรวจงานได้เฉพาะหัวหน้าหรือคนสั่งงาน" }, 403);
+      if (!isOwner) return json({ error: "ตรวจผ่านได้เฉพาะหัวหน้า" }, 403);
       const body = await readBody(request);
       const pass = body.pass !== false;
       const note = String(body.note || "").trim().slice(0, 2000);
