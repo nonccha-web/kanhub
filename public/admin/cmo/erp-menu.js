@@ -66,8 +66,8 @@
         { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo', sec: 'sales' },
         { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales', sec: 'sales' },
         { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads', sec: 'sales' },
-        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html' },
-        { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html' },
+        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html', sec: 'docs' },
+        { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html', sec: 'docs' },
         { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan', sec: 'sales' }
       ]}
 

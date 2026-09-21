@@ -697,8 +697,12 @@
     var n = String(x.name || '').replace(/\(.*?\)/g, ' ').trim();
     return n.split(/\s+/)[0] || x.name;
   }
-  function afterLogin() {
+  function afterLogin(me0) {
     loginPick = null;
+    /* ฝ่ายขายที่เห็นเฉพาะลีด — เข้าหน้าลีดเลย ไม่ต้องผ่านปฏิทิน (นนท์ 21 ก.ย. 69) */
+    var secs = (me0 && me0.sections) || [];
+    var crmOnly = secs.indexOf('crm') !== -1 && secs.indexOf('tasks') === -1;
+    if (crmOnly) { location.hash = '#/leads'; return boot(); }
     /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
     var next = nextParam();
     if (next) { location.href = next; return; }
@@ -721,7 +725,7 @@
     if (!loginStaff) {
       h += '<div class="who-grid"><p class="hint">กำลังโหลดรายชื่อ…</p></div>';
     } else if (picked) {
-      h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + ' · หัวหน้า</small></div></div>' +
+      h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + (picked.role === 'owner' ? ' · หัวหน้า' : '') + '</small></div></div>' +
         '<form id="loginForm">' +
         '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" autofocus required></div>' +
         '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button>' +
@@ -755,7 +759,7 @@
       return fetch(API + '/login', {
         method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
       }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
-        .then(afterLogin)
+        .then(function (j) { return afterLogin(j && j.me); })
         .catch(function (e) { renderLogin(e.message); });
     }
 

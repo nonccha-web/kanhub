@@ -371,6 +371,8 @@ function pathGate(p) {
   if (/^\/admin\/cmo\/styles\.css$/.test(p)) return null;
   if (p.indexOf("/admin/mkt") === 0) return "sales";           // แอปยอดขาย/การตลาดทั้งชุด
   if (/^\/admin\/cmo\/kpi(\.html|\.js)?$/.test(p)) return "kpi";
+  /* หน้าเอกสาร/แผนงานฝั่ง CMO — ฝ่ายขายที่ได้เฉพาะหมวด CRM ไม่ต้องเห็น (21 ก.ย. 69) */
+  if (p.indexOf("/admin/cmo/") === 0) return "docs";
   if (p.indexOf("/admin") === 0) return "login";
   return null;
 }
@@ -409,6 +411,11 @@ async function serveAdmin(request, env, url) {
   }
   if (!canSee(me, need)) {
     if (!wantsHtml) return new Response("ไม่มีสิทธิ์", { status: 403, headers: { "cache-control": "no-store" } });
+    /* ฝ่ายขายที่ดูแต่ลีด — พาไปหน้าลีดเลย ไม่ต้องเจอหน้า "ไม่มีสิทธิ์" */
+    if (canSee(me, "crm") && !canSee(me, "tasks")) {
+      const pre = new URL(request.url).pathname.indexOf("/admin") === 0 ? "/admin" : "";
+      return new Response(null, { status: 302, headers: { location: pre + "/tasks/#/leads", "cache-control": "no-store" } });
+    }
     const home = (new URL(request.url).pathname.indexOf("/admin") === 0 ? "/admin" : "") + "/tasks/";
     return denyPage("ไม่มีสิทธิ์เข้าหน้านี้",
       "บัญชีของคุณยังไม่ได้เปิดสิทธิ์หมวดนี้ ถ้าต้องใช้ให้บอกหัวหน้าทีมเปิดให้ในหน้า “ทีม + สิทธิ์”",
