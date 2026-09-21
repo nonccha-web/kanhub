@@ -210,6 +210,9 @@ const SCHEMA = [
     "source TEXT NOT NULL DEFAULT 'other', source_detail TEXT NOT NULL DEFAULT '', " +
     "interest TEXT NOT NULL DEFAULT '', branch TEXT NOT NULL DEFAULT '', " +
     "status TEXT NOT NULL DEFAULT 'new', owner_id TEXT, est_value INTEGER NOT NULL DEFAULT 0, " +
+    /* received_at = วันที่ลูกค้าทักเข้ามาจริง ไม่ใช่วันที่พิมพ์เข้าระบบ — นาฬิกา SLA เดินจากตัวนี้
+       ลีดที่อิมพอร์ตย้อนหลังถ้านับจาก created_at จะดูเหมือนเพิ่งเข้ามา ของที่ดองอยู่จะหายจากรายงาน */
+    "received_at TEXT, fb_name TEXT NOT NULL DEFAULT '', " +
     "bought_before INTEGER NOT NULL DEFAULT 0, lost_reason TEXT NOT NULL DEFAULT '', next_at TEXT, " +
     "handed_at TEXT, handed_by TEXT, " +
     "created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT)",
@@ -226,6 +229,11 @@ const SCHEMA = [
    รันซ้ำจะได้ error "duplicate column" ซึ่งกลืนทิ้งได้ */
 const ALTERS = [
   "ALTER TABLE tasks ADD COLUMN parent_id TEXT",
+  "ALTER TABLE leads ADD COLUMN received_at TEXT",
+  "ALTER TABLE leads ADD COLUMN fb_name TEXT NOT NULL DEFAULT ''",
+  /* ดัชนีที่อ้างคอลัมน์ซึ่งเพิ่มทีหลัง ต้องอยู่ "หลัง" ALTER เสมอ ห้ามย้ายขึ้นไปใน SCHEMA
+     SCHEMA รันเป็น batch เดียว ถ้าตารางเก่ายังไม่มีคอลัมน์ ทั้ง batch จะล้ม = ทั้งระบบ 500 */
+  "CREATE INDEX IF NOT EXISTS idx_leads_recv ON leads(received_at)",
   /* email/username/pw_* เหลือใช้แค่รหัสผ่านของหัวหน้า — สมาชิกกดชื่อเข้าเลย (17 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN email TEXT",
   "ALTER TABLE staff ADD COLUMN pw_salt TEXT",
@@ -479,6 +487,52 @@ async function readBody(request) {
   return request.json().catch(() => ({}));
 }
 
+/* ---------- นำเข้าลีดชุดแรก ครั้งเดียวตลอดกาล ----------
+   ไฟล์ leads-seed.json มาจากชีตที่นนท์ส่งมา 21 ก.ย. 69 (ลีดทักเพจวันอาทิตย์ 20 ก.ย.)
+   ใช้วิธีเดียวกับตารางโพสต์: อ่านผ่าน env.ASSETS + ธงกันซ้ำใน task_settings
+   ลบลีดทิ้งทีหลังก็จะไม่กลับมาเอง เพราะธงถูกปักไว้แล้ว */
+async function seedLeadsOnce(db, env) {
+  const flag = await db.prepare("SELECT value FROM task_settings WHERE key = 'leads_seeded'").first();
+  if (flag && flag.value) return;
+  if (!env || !env.ASSETS) return;
+
+  let data = null;
+  try {
+    const res = await env.ASSETS.fetch(new Request("https://kan.local/admin/tasks/leads-seed.json"));
+    if (!res.ok) return;
+    data = await res.json();
+  } catch (e) { return; }
+  if (!data || !Array.isArray(data.leads) || !data.leads.length) return;
+
+  /* ลงชื่อหัวหน้าเป็นคนบันทึก — ลีดชุดนี้มาจากไฟล์ ไม่ได้มีใครนั่งพิมพ์ */
+  const own = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1 ORDER BY id").first();
+  const by = (own && own.id) || "s_nont";
+  const now = nowIso();
+  const recv = data.receivedAt && isIsoDateTime(data.receivedAt) ? new Date(data.receivedAt).toISOString() : now;
+  const src = LEAD_SOURCES.indexOf(String(data.source)) !== -1 ? String(data.source) : "fb";
+
+  const stmts = [];
+  for (const L of data.leads.slice(0, 500)) {
+    const name = String(L.name || "").trim().slice(0, 120);
+    if (!name) continue;
+    const id = newId("ld_");
+    stmts.push(db.prepare(
+      "INSERT INTO leads (id,name,phone,line_id,source,source_detail,interest,branch,status,owner_id," +
+      "est_value,bought_before,lost_reason,next_at,received_at,fb_name,created_by,created_at,updated_at,updated_by) " +
+      "VALUES (?,?,?,?,?,?,?,?,'new',NULL,0,0,'',NULL,?,?,?,?,?,?)"
+    ).bind(id, name, String(L.phone || "").slice(0, 40), String(L.lineId || "").slice(0, 80),
+           src, String(data.sourceDetail || "").slice(0, 200),
+           String(L.interest || "").slice(0, 1000), String(L.branch || "").slice(0, 60),
+           recv, String(L.fbName || "").slice(0, 120), by, now, now, by));
+    stmts.push(leadAct(db, id, by, "create", "นำเข้าจากไฟล์ลีด", null, "new"));
+  }
+  if (!stmts.length) return;
+  /* ยิงทีละ 100 statement กันก้อนใหญ่เกินที่ D1 รับไหว (เหมือนตอน seed โพสต์) */
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
+  await db.prepare("INSERT OR REPLACE INTO task_settings (key,value) VALUES ('leads_seeded', ?)")
+    .bind(String(data.leads.length)).run();
+}
+
 /* ---------- นำเข้าตารางโพสต์ตั้งต้น ครั้งเดียวตลอดกาล ----------
    ไฟล์ posts-seed.json ถูก deploy ไปพร้อมเว็บอยู่แล้ว จึงอ่านผ่าน env.ASSETS ได้เลย
    ทำฝั่งเซิร์ฟเวอร์เพราะ API ต้องใช้สิทธิ์เจ้าของ และเจ้าของตั้งรหัสผ่านของตัวเองไปแล้ว
@@ -539,6 +593,7 @@ async function ensureSchema(db, env) {
         ).bind(r.id, r.sort, r.code, r.title, r.weight, r.target, r.keywords, r.color)));
       }
       await seedPostsOnce(db, env).catch(() => {});
+      await seedLeadsOnce(db, env).catch(() => {});
       await mergePizzaOnce(db).catch(() => {});
       /* สาขานคร (KST#2) เลิกดูแลแล้ว 9 ก.ย. 2569 — ปิดเพจทุกครั้งที่ isolate ตื่น จะได้ไม่ต้องพึ่ง owner กดเอง */
       await db.prepare("UPDATE post_pages SET active = 0 WHERE id = 'pg_kst2' AND active = 1").run().catch(() => {});
@@ -704,6 +759,7 @@ const FIELD_TH = {
   post_date: "วันที่", post_time: "เวลา", page_id: "เพจ", channels: "ช่องทาง", topic: "หัวข้อ", kind: "ประเภท", url: "ลิงก์", note: "หมายเหตุ",
   /* CRM */
   name: "ชื่อ", phone: "เบอร์", line_id: "LINE", source: "ช่องทางที่ทักมา", source_detail: "ที่มาเพิ่มเติม",
+  received_at: "วันที่ได้ลีดมา", fb_name: "ชื่อโปรไฟล์ Facebook",
   interest: "สนใจอะไร", branch: "สาขา", owner_id: "เซลส์ที่ดูแล", est_value: "ยอดที่คาด",
   bought_before: "เคยซื้อแล้ว", lost_reason: "เหตุผลที่ไม่สำเร็จ", next_at: "ตามครั้งถัดไป",
   handed_at: "ส่งต่อบัญชี", handed_by: "คนส่งต่อบัญชี",
@@ -749,6 +805,9 @@ function rowToLead(r) {
   return {
     id: r.id, name: r.name, phone: r.phone || "", lineId: r.line_id || "",
     source: r.source || "other", sourceDetail: r.source_detail || "",
+    fbName: r.fb_name || "",
+    /* ลีดเก่าที่ยังไม่มี received_at ให้ถือว่าได้มาวันที่บันทึก จะได้ไม่หลุดจากรายงาน SLA */
+    receivedAt: r.received_at || r.created_at,
     interest: r.interest || "", branch: r.branch || "",
     status: LEAD_STATUSES.indexOf(r.status) !== -1 ? r.status : "new",
     ownerId: r.owner_id || null,
@@ -1537,8 +1596,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       if (!name) return { error: "ต้องมีชื่อลีด" };
       out.name = name;
     } else if (!cur) return { error: "ต้องมีชื่อลีด" };
-    const simple = { phone: 40, lineId: 80, sourceDetail: 200, interest: 1000, branch: 60, lostReason: 300 };
-    const col = { phone: "phone", lineId: "line_id", sourceDetail: "source_detail", interest: "interest", branch: "branch", lostReason: "lost_reason" };
+    const simple = { phone: 40, lineId: 80, sourceDetail: 200, interest: 1000, branch: 60, lostReason: 300, fbName: 120 };
+    const col = { phone: "phone", lineId: "line_id", sourceDetail: "source_detail", interest: "interest", branch: "branch", lostReason: "lost_reason", fbName: "fb_name" };
     for (const k of Object.keys(simple)) { const v = pick(k, simple[k]); if (v !== undefined) out[col[k]] = v; }
     if (body.source !== undefined) {
       if (LEAD_SOURCES.indexOf(String(body.source)) === -1) return { error: "ช่องทางไม่ถูกต้อง" };
@@ -1550,6 +1609,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     }
     if (body.estValue !== undefined) out.est_value = Math.max(0, Math.min(99999999, Math.round(Number(body.estValue) || 0)));
     if (body.boughtBefore !== undefined) out.bought_before = body.boughtBefore ? 1 : 0;
+    if (body.receivedAt !== undefined) {
+      const v = String(body.receivedAt || "").trim();
+      if (v && !isIsoDateTime(v)) return { error: "วันที่ได้ลีดมาไม่ถูกต้อง" };
+      out.received_at = v ? new Date(v).toISOString() : null;
+    }
     if (body.nextAt !== undefined) {
       const v = String(body.nextAt || "").trim();
       if (v && !isIsoDateTime(v)) return { error: "วันที่ตามครั้งถัดไปไม่ถูกต้อง" };
@@ -1587,11 +1651,13 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     await db.batch([
       db.prepare(
         "INSERT INTO leads (id,name,phone,line_id,source,source_detail,interest,branch,status,owner_id," +
-        "est_value,bought_before,lost_reason,next_at,created_by,created_at,updated_at,updated_by) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "est_value,bought_before,lost_reason,next_at,received_at,fb_name,created_by,created_at,updated_at,updated_by) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.name, v.phone || "", v.line_id || "", v.source || "other", v.source_detail || "",
              v.interest || "", v.branch || "", v.status || "new", owner,
              v.est_value || 0, v.bought_before || 0, v.lost_reason || "", v.next_at || null,
+             /* ไม่ระบุวันที่ได้ลีดมา = ถือว่าทักเข้ามาตอนที่บันทึก */
+             v.received_at !== undefined ? v.received_at : now, v.fb_name || "",
              me.id, now, now, me.id),
       leadAct(db, id, me.id, "create", "บันทึกลีดเข้าระบบ", null, v.status || "new"),
     ]);

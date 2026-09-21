@@ -164,6 +164,14 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .task-hero .crumbs a{ text-decoration:none; color:var(--k-soft); border-bottom:1px solid var(--k-line); }
 .task-hero .crumbs a:hover{ color:var(--k-ink); border-bottom-color:var(--k-ink); }
 .task-hero h1{ font-size:24px; font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+/* ปุ่มแก้ไขงานย้ายมามุมขวาบนของหัวงาน (นนท์ 21 ก.ย. 69) — หาง่ายกว่าซ่อนอยู่ในหัวข้อ "รายละเอียด"
+   จอแคบให้ไหลลงมาเป็นแถวปกติ ไม่งั้นทับเส้นทางกลับ/ชื่องาน */
+.task-hero .hero-acts{ position:absolute; top:22px; right:22px; display:flex; gap:8px; z-index:1; }
+.task-hero h1{ padding-right:120px; }
+@media (max-width:700px){
+  .task-hero .hero-acts{ position:static; margin:0 0 10px; }
+  .task-hero h1{ padding-right:0; }
+}
 .task-hero .meta{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 20px; margin-top:20px; padding-top:18px; border-top:1px solid var(--k-hair); }
 .task-hero .meta > div{ min-width:0; }
 .task-hero .meta .k{ display:block; font-size:11px; color:var(--k-mut); margin-bottom:5px; }
@@ -478,6 +486,17 @@ button.st.tick.busy{ opacity:.45; pointer-events:none; }
 .lb-bar .w{ padding:0 12px; font-size:12.5px; }
 .lb-bar .x{ margin-left:auto; font-size:15px; }
 .lb-bar .lb-link{ font-size:12.5px; }
+/* เลื่อนรูปถัดไป/ก่อนหน้า (นนท์ 21 ก.ย. 69) — ปุ่มลอยกลางขอบซ้าย-ขวา นิ้วโป้งเอื้อมถึงบนมือถือ */
+.lb-bar .lb-n{ font-size:12.5px; font-variant-numeric:tabular-nums; color:rgba(255,255,255,.72); padding:0 4px; }
+.lb-nav{ position:absolute; top:50%; transform:translateY(-50%); z-index:2;
+  width:46px; height:64px; display:grid; place-items:center; font-size:30px; line-height:1;
+  color:#fff; border:1px solid rgba(255,255,255,.22); background:rgba(11,11,10,.45);
+  cursor:pointer; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+.lb-nav:hover{ background:rgba(11,11,10,.75); }
+.lb-nav:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.lb-nav.prev{ left:8px; }
+.lb-nav.next{ right:8px; }
+@media (max-width:700px){ .lb-nav{ width:38px; height:54px; font-size:24px; } }
 .lb-stage{ flex:1; min-height:0; position:relative; overflow:hidden; touch-action:none;
   display:grid; place-items:center; cursor:grab; }
 .lb-stage.pan{ cursor:grabbing; }
@@ -1411,3 +1430,59 @@ a.htitle:hover{ text-decoration:underline; }
 .tbar .kbar-n{ margin-left:auto; }
 /* เส้นทางกลับ + ชิปขั้น บนหัวหน้าลีด — .crumbs เดิมออกแบบไว้สำหรับหน้างาน ที่นี่ต้องเว้นช่องเอง */
 .top .crumbs{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; font-size:12px; }
+
+/* แถวปุ่มท้ายการ์ดปัดตรวจ — เปิดงานเต็ม / ลบของซ้ำ */
+.rvacts{ display:flex; align-items:center; gap:14px; margin-top:14px; }
+.rvacts .danger{ color:var(--k-bad); margin-left:auto; }
+
+/* ── รายงานสรุปลีด (หน้า CRM) ── */
+.postbar.bad{ border-left-color:var(--k-bad); }
+.postbar .btn.sm{ margin-left:auto; }
+@media (max-width:700px){ .postbar .btn.sm{ margin-left:0; } }
+/* การ์ดตัวเลขบนหน้าลีดกดได้ — ใบที่กรองอยู่ต้องเห็นชัดว่าเป็นใบไหน */
+.cards article[data-lq]{ cursor:pointer; }
+.cards article[data-lq]:hover{ background:var(--k-hair); }
+.cards article.hot[data-lq]:hover{ background:#1a1917; }
+.cards article[data-lq].on::after{ content:''; position:absolute; inset:auto 0 0; height:3px; background:var(--k-ink); }
+.cards article.hot[data-lq].on::after{ background:var(--k-paper); }
+
+/* บล็อกตัวเลข 4 ช่อง — อัตราติดต่อ/ปิดการขาย/ที่ยังเปิดอยู่/มูลค่าไปป์ไลน์ */
+.lstat{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px 22px; }
+@media (max-width:760px){ .lstat{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:420px){ .lstat{ grid-template-columns:1fr; } }
+.lstat > div{ min-width:0; }
+.lstat .k{ display:block; font-size:11.5px; color:var(--k-mut); }
+.lstat b{ display:block; margin-top:7px; font-family:var(--k-display); font-size:26px; font-weight:700;
+  line-height:1; letter-spacing:-.03em; color:var(--k-ink); font-variant-numeric:tabular-nums; }
+.lstat b i{ font-style:normal; font-size:13px; font-weight:500; color:var(--k-mut); letter-spacing:0; }
+.lstat small{ display:block; margin-top:7px; font-size:10.5px; color:var(--k-mut); line-height:1.45; }
+
+/* แถบสัดส่วนขั้น — ความกว้างแต่ละช่วงคือจำนวนลีดจริง กดเพื่อกรองเฉพาะขั้นนั้น */
+.lbar{ display:flex; gap:3px; margin-top:20px; }
+.lbseg{ display:block; min-width:0; border:0; background:none; padding:0; cursor:pointer; text-align:left; font:inherit; }
+.lbseg i{ display:block; height:8px; border-radius:2px; background:var(--kc,var(--k-line)); opacity:.85; transition:opacity .15s; }
+.lbseg span{ display:block; margin-top:7px; font-size:10.5px; color:var(--k-mut); line-height:1.35;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lbseg:hover i, .lbseg.on i{ opacity:1; }
+.lbseg.on span{ color:var(--k-ink); font-weight:600; }
+.lbseg.on i{ box-shadow:0 0 0 2px var(--k-paper), 0 0 0 3px var(--k-ink); }
+/* จอแคบ: แถบเดียวกันบีบจนอ่านชื่อขั้นไม่ออก เปลี่ยนเป็นรายการสองคอลัมน์แทน
+   (แถบสัดส่วนที่ไม่มีป้ายกำกับ = ดูไม่รู้เรื่อง สู้บอกเป็นตัวเลขตรง ๆ ดีกว่า) */
+@media (max-width:620px){
+  .lbar{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px 16px; }
+  .lbseg{ display:flex; align-items:center; gap:9px; }
+  .lbseg i{ width:4px; height:22px; border-radius:2px; }
+  .lbseg span{ margin-top:0; font-size:11.5px; color:var(--k-soft); }
+  .lbseg.on i{ box-shadow:none; outline:2px solid var(--k-ink); outline-offset:1px; }
+}
+
+/* บรรทัดช่องทางที่ทักมา */
+.lsrc{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-top:22px;
+  padding-top:16px; border-top:1px solid var(--k-hair); font-size:11.5px; color:var(--k-mut); }
+.lsrc span{ color:var(--k-soft); }
+.lsrc b{ color:var(--k-ink); font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* ชิป "ได้มาเมื่อไหร่" บนการ์ดลีด — เปลี่ยนสีเมื่อค้างเกินกรอบ */
+.kchip.age.warn{ color:var(--k-warn); } .kchip.age.warn i{ background:var(--k-warn); }
+.kchip.age.late{ color:var(--k-bad); } .kchip.age.late i{ background:var(--k-bad); }
+.ldl .mut{ color:var(--k-mut); }

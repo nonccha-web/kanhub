@@ -15,7 +15,7 @@ try {
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="tasks.css?v=48">
+<link rel="stylesheet" href="tasks.css?v=49">
 </head>
 <body>
 <div class="erp-scrim" data-erp-close="1"></div>
@@ -59,6 +59,7 @@ try {
 <div id="lightbox" class="lightbox" hidden>
   <div class="lb-bar">
     <span class="lb-z" id="lbZoom">100%</span>
+    <span class="lb-n" id="lbCount" hidden></span>
     <button type="button" data-lb="out" aria-label="ย่อ" title="ย่อ (−)">−</button>
     <button type="button" data-lb="fit" class="w" title="พอดีจอ (กด 0)">พอดีจอ</button>
     <button type="button" data-lb="full" class="w" title="ขนาดจริง (กด 1)">ขนาดจริง</button>
@@ -67,12 +68,15 @@ try {
     <button type="button" data-lb="close" class="x" aria-label="ปิด" title="ปิด (Esc)">✕</button>
   </div>
   <div class="lb-stage" id="lbStage"><img alt="" draggable="false"></div>
+  <!-- เลื่อนดูรูปถัดไป/ก่อนหน้าในชุดเดียวกัน — ซ่อนเองถ้ามีรูปเดียว -->
+  <button type="button" class="lb-nav prev" id="lbPrev" data-lb="prev" aria-label="รูปก่อนหน้า" title="รูปก่อนหน้า (←)" hidden>‹</button>
+  <button type="button" class="lb-nav next" id="lbNext" data-lb="next" aria-label="รูปถัดไป" title="รูปถัดไป (→)" hidden>›</button>
   <div class="lb-hint" id="lbHint">ลากเพื่อเลื่อน · สกรอลล์หรือบีบนิ้วเพื่อย่อ–ขยาย · ดับเบิลคลิกสลับขนาด</div>
 </div>
 
 <script src="../cmo/erp-menu.js?v=41"></script>
 <script src="grid.js?v=3"></script>
 <script src="tour.js?v=8"></script>
-<script src="tasks.js?v=55"></script>
+<script src="tasks.js?v=56"></script>
 </body>
 </html>

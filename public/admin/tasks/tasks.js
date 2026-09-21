@@ -822,7 +822,8 @@
   function seqNav(id) {
     var ids = S.seq || [], i = ids.indexOf(id);
     var back = S.seqFrom || '#/all';
-    var lbl = back.indexOf('#/me') === 0 ? 'งานของฉัน' : (back.indexOf('#/campaign') === 0 ? 'แคมเปญ' : (back.indexOf('#/signage') === 0 ? 'งานป้าย' : 'งานทั้งหมด'));
+    var lbl = back.indexOf('#/review') === 0 ? 'ปัดตรวจ'
+      : (back.indexOf('#/me') === 0 ? 'งานของฉัน' : (back.indexOf('#/campaign') === 0 ? 'แคมเปญ' : (back.indexOf('#/signage') === 0 ? 'งานป้าย' : 'งานทั้งหมด')));
     var btn = function (to, txt, dis) {
       return dis ? '<span class="btn-ghost sm disabled">' + txt + '</span>'
                  : '<a class="btn-ghost sm" href="#/task/' + esc(to) + '">' + txt + '</a>';
@@ -1312,7 +1313,7 @@
      ปัดขวา = ผ่าน · ปัดซ้าย = ตีกลับ (ต้องมีเหตุผล เซิร์ฟเวอร์บังคับ) · ปัดขึ้น = ข้ามไว้ก่อน
      ตัดสินใบไหนยิง API ใบนั้นทันที — ปิดจอกลางคันแล้วของที่ปัดไปแล้วอยู่ครบ ไม่มี "กดบันทึกตอนจบ" */
 
-  var RV = { cards: [], i: 0, busy: false, last: null, det: {}, drag: null, nSkip: 0, nPass: 0, nRej: 0 };
+  var RV = { cards: [], i: 0, busy: false, last: null, det: {}, drag: null, resume: null, nSkip: 0, nPass: 0, nRej: 0 };
   /* กองที่ 3 มองย้อนแค่ 14 วัน ไม่งั้นเปิดครั้งแรกเจอของค้างเป็นร้อยใบจนไม่มีใครปัดจบ */
   var RV_BACK_DAYS = 14;
   var RV_REASONS = ['รูปไม่ชัด ขอรูปใหม่', 'ยังไม่ครบ ขาดของ', 'ผิดสาขา / ผิดข้อมูล',
@@ -1366,6 +1367,14 @@
     Promise.all([loadTasks(), rvTodayPosts()]).then(function (r) {
       RV.cards = buildDeck(r[0], r[1]);
       RV.i = 0; RV.last = null; RV.det = {}; RV.busy = false;
+      /* กดเปิดงานเต็มแล้วกลับมา ต้องอยู่ใบเดิม ไม่ใช่เด้งกลับไปใบแรกแล้วปัดซ้ำทั้งกอง */
+      if (RV.resume) {
+        var ri = RV.cards.map(function (c) { return c.id; }).indexOf(RV.resume);
+        if (ri !== -1) RV.i = ri;
+        RV.resume = null;
+      }
+      /* ผูกลำดับไว้ให้หน้างานเต็มมีปุ่ม "← กลับไปปัดตรวจ" + ก่อนหน้า/ถัดไป ตามลำดับในกอง */
+      markSeq(RV.cards.filter(function (c) { return c.type === 'task'; }), '#/review');
       RV.nSkip = 0; RV.nPass = 0; RV.nRej = 0;
       drawReview();
     }).catch(showError);
@@ -1440,7 +1449,11 @@
       '<div class="rvsub">' + when + '</div>' +
       (t.detail ? '<div class="rvdetail rich">' + richText(t.detail) + '</div>' : '') +
       '<div class="rvwork" data-rv-work="' + esc(t.id) + '"><span class="rvload">กำลังเปิดงานที่เขาส่งมา…</span></div>' +
-      '<a class="btn-text rvopen" href="#/task/' + esc(t.id) + '">เปิดงานเต็ม ๆ</a>';
+      '<div class="rvacts"><a class="btn-text rvopen" href="#/task/' + esc(t.id) + '" data-rv-open="' + esc(t.id) + '">เปิดงานเต็ม ๆ</a>' +
+      /* บางใบเป็นงานซ้ำที่สั่งมาสองรอบ — ลบทิ้งจากตรงนี้ได้เลย ไม่ต้องออกไปหน้างาน */
+      (S.me && (S.me.role === 'owner' || t.createdBy === S.me.id)
+        ? '<button type="button" class="btn-text danger" data-rv-del="' + esc(t.id) + '">ลบงานซ้ำนี้</button>' : '') +
+      '</div>';
   }
   function rvPostBody(p) {
     return '<div class="rvlane post">' + RV_LANE_TH.post + '</div>' +
@@ -1450,6 +1463,8 @@
         (p.channels || []).map(function (ch) { return '<span class="pill">' + esc(ch) + '</span>'; }).join('') +
       '</div>' +
       '<div class="rvsub">วันนี้ยังไม่ได้ติ๊กว่าโพสต์แล้ว</div>' +
+      (S.me && S.me.role === 'owner'
+        ? '<div class="rvacts"><button type="button" class="btn-text danger" data-rv-delpost="' + esc(p.id) + '">ลบโพสต์ซ้ำนี้</button></div>' : '') +
       (p.note ? '<div class="rvdetail rich">' + richText(p.note) + '</div>' : '') +
       '<div class="rvwork open"><label class="label">วางลิงก์โพสต์ (วางแล้วนับว่าโพสต์แล้วเลย)</label>' +
       '<input class="input" data-rv-url placeholder="https://…" autocomplete="off" inputmode="url"></div>' +
@@ -1543,6 +1558,16 @@
       : 'translate(' + (dir === 'pass' ? w : -w) + 'px,40px) rotate(' + (dir === 'pass' ? 22 : -22) + 'deg)';
     card.style.opacity = '0';
     setTimeout(then, 240);
+  }
+
+  /* เอาการ์ดใบหนึ่งออกจากกอง แล้ววาดใหม่ — ใช้ตอนลบของซ้ำ ไม่ต้องโหลดกองใหม่ให้เสียตำแหน่ง */
+  function rvDropCard(id) {
+    var i = RV.cards.map(function (c) { return c.id; }).indexOf(id);
+    if (i === -1) { render(); return; }
+    RV.cards.splice(i, 1);
+    if (i < RV.i) RV.i--;
+    RV.last = null;
+    drawReview();
   }
 
   function rvAct(act) {
@@ -1686,7 +1711,16 @@
   var LEAD_ACT_TH = { create: 'บันทึกลีด', claim: 'รับลีด', status: 'เปลี่ยนขั้น', hand: 'ส่งต่อบัญชี',
                       note: 'โน้ต', call: 'โทร', line: 'LINE', meeting: 'นัดเจอ' };
 
-  var LD = { who: '', src: '', branch: '', hideDone: true };
+  /* st = กรองเฉพาะขั้นเดียว (กดจากแถบสรุป) · flag = ชุดลัดจากการ์ดตัวเลขด้านบน */
+  var LD = { who: '', src: '', branch: '', st: '', flag: '', hideDone: true };
+  var LD_FLAG_TH = { untouched: 'ยังไม่ได้ติดต่อ', sla: 'เลยกรอบตอบกลับ', late: 'เลยวันนัดตาม', hand: 'รอส่งบัญชี' };
+  function leadFlagged(l, f) {
+    if (f === 'untouched') return leadUntouched(l);
+    if (f === 'sla') return !!leadSla(l);
+    if (f === 'late') return leadOverdue(l);
+    if (f === 'hand') return l.status === 'won' && !l.handedAt;
+    return true;
+  }
 
   function loadLeads(force) {
     if (S.leads && !force) return Promise.resolve(S.leads);
@@ -1696,6 +1730,26 @@
   /* ขยับลีดได้: หัวหน้า · เซลส์ที่ถือใบนี้ · หรือใครก็ได้ถ้ายังไม่มีคนรับ (กันลีดกองอยู่ช่องแรก) */
   function canRunLead(l) { return !readOnly() && !!S.me && (S.me.role === 'owner' || l.ownerId === S.me.id || !l.ownerId); }
   function leadOverdue(l) { return !!l.nextAt && !LEAD_DONE[l.status] && new Date(l.nextAt) < new Date(); }
+  /* กรอบเวลาที่นนท์ตั้ง (21 ก.ย. 69): ทักมาแล้วควรติดต่อกลับภายใน 1 วัน ไม่เกิน 3 วัน
+     นับจาก "วันที่ได้ลีดมา" ไม่ใช่วันที่พิมพ์เข้าระบบ ไม่งั้นของที่อิมพอร์ตย้อนหลังดูเหมือนเพิ่งเข้ามา */
+  var LEAD_SLA_WARN = 1, LEAD_SLA_LATE = 3;
+  function leadAgeDays(l) {
+    var t = Date.parse(l.receivedAt || l.createdAt);
+    return isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000);
+  }
+  /* "ยังไม่ได้ติดต่อ" = ยังอยู่ขั้นแรก · ขยับไปขั้นไหนก็ตามถือว่าแตะแล้ว */
+  function leadUntouched(l) { return l.status === 'new'; }
+  function leadSla(l) {
+    if (!leadUntouched(l)) return '';
+    var d = leadAgeDays(l);
+    if (d >= LEAD_SLA_LATE) return 'late';
+    if (d >= LEAD_SLA_WARN) return 'warn';
+    return '';
+  }
+  function leadAgeTh(l) {
+    var d = leadAgeDays(l);
+    return d <= 0 ? 'วันนี้' : (d === 1 ? 'เมื่อวาน' : d + ' วันก่อน');
+  }
   function fmtMoney(n) { return Number(n || 0).toLocaleString('th-TH'); }
 
   function renderLeads() {
@@ -1711,9 +1765,23 @@
         if (LD.who === 'free' && l.ownerId) return false;
         if (LD.src && l.source !== LD.src) return false;
         if (LD.branch && l.branch !== LD.branch) return false;
+        if (LD.st && l.status !== LD.st) return false;
+        if (LD.flag && !leadFlagged(l, LD.flag)) return false;
         if (LD.hideDone && LEAD_DONE[l.status]) return false;
         return true;
       });
+
+      /* กลุ่มตาม SLA — ของที่ต้องโทรวันนี้กับของที่ปล่อยเกินกรอบไปแล้ว */
+      var slaLate = all.filter(function (l) { return leadSla(l) === 'late'; });
+      var slaWarn = all.filter(function (l) { return leadSla(l) === 'warn'; });
+      var untouched = all.filter(leadUntouched);
+      var contacted = all.filter(function (l) { return !leadUntouched(l); });
+      var won = all.filter(function (l) { return l.status === 'won'; });
+      var lost = all.filter(function (l) { return l.status === 'lost'; });
+      var closed = won.length + lost.length;
+      var openLeads = all.filter(function (l) { return !LEAD_DONE[l.status]; });
+      var pipeline = openLeads.reduce(function (a, l) { return a + (l.estValue || 0); }, 0);
+      var pct = function (n, d) { return d ? Math.round(n / d * 100) : 0; };
 
       var view = $('#view');
       view.className = 'page';
@@ -1721,11 +1789,51 @@
         '<p>คนที่ทักมาจากแอด/เพจแล้วยังไม่ได้ซื้อ — การตลาดบันทึกเข้ามา ทีมขายกดรับแล้วไล่ปิด ปิดได้แล้วส่งต่อบัญชี</p></div>' +
         '<div class="top-r">' + (readOnly() ? '' : '<button type="button" class="btn" id="newLead">+ เพิ่มลีด</button>') + '</div></div>';
 
+      /* แถบเตือนบนสุด — ขึ้นเฉพาะตอนมีของต้องโทร ไม่มีก็ไม่ต้องรก */
+      if (slaLate.length || slaWarn.length) {
+        h += '<div class="postbar ' + (slaLate.length ? 'bad' : 'warn') + '"><span class="pbi">' +
+          (slaLate.length ? '<b>' + slaLate.length + ' ราย เลยกรอบ ' + LEAD_SLA_LATE + ' วันแล้ว</b> ยังไม่ได้ติดต่อเลย' : '') +
+          (slaLate.length && slaWarn.length ? ' · ' : '') +
+          (slaWarn.length ? '<b>' + slaWarn.length + ' ราย ควรติดต่อกลับวันนี้</b>' : '') +
+          ' — ทักมาแล้วควรตอบใน ' + LEAD_SLA_WARN + ' วัน ไม่เกิน ' + LEAD_SLA_LATE + ' วัน</span>' +
+          '<button type="button" class="btn sm" data-lq="sla">ดูเฉพาะที่ต้องโทร</button></div>';
+      }
+
+      var cardCls = function (base, q) {
+        var on = (q === 'me' || q === 'free') ? LD.who === q : LD.flag === q;
+        var c = (base ? base + ' ' : '') + (on ? 'on' : '');
+        return c.trim() ? ' class="' + c.trim() + '"' : '';
+      };
       h += '<div class="cards">' +
-        '<article class="hot" data-lq="free"><span class="l">รอคนรับ</span><b>' + free.length + '</b><small>ยังไม่มีเซลส์ดูแล</small></article>' +
-        '<article' + (mine.length ? ' class="warn"' : '') + ' data-lq="me"><span class="l">ของฉันกำลังไล่</span><b>' + mine.length + '</b><small>ยังไม่จบเคส</small></article>' +
-        '<article' + (late.length ? ' class="bad"' : '') + ' data-lq="late"><span class="l">เลยวันตาม</span><b>' + late.length + '</b><small>ถึงคิวตามแล้ว</small></article>' +
-        '<article data-lq="hand"><span class="l">รอส่งบัญชี</span><b>' + toHand.length + '</b><small>ปิดการขายแล้ว</small></article></div>';
+        '<article' + cardCls('hot', 'untouched') + ' data-lq="untouched"><span class="l">ยังไม่ได้ติดต่อ</span><b>' + untouched.length + '</b><small>' +
+          (slaLate.length ? 'เลยกรอบแล้ว ' + slaLate.length + ' ราย' : 'ทั้งหมดยังอยู่ในกรอบ') + '</small></article>' +
+        '<article' + cardCls(mine.length ? 'warn' : '', 'me') + ' data-lq="me"><span class="l">ของฉันกำลังไล่</span><b>' + mine.length + '</b><small>ยังไม่จบเคส</small></article>' +
+        '<article' + cardCls(late.length ? 'bad' : '', 'late') + ' data-lq="late"><span class="l">เลยวันนัดตาม</span><b>' + late.length + '</b><small>ถึงคิวตามแล้ว</small></article>' +
+        '<article' + cardCls('', 'hand') + ' data-lq="hand"><span class="l">รอส่งบัญชี</span><b>' + toHand.length + '</b><small>ปิดการขายแล้ว</small></article></div>';
+
+      /* รายงานสรุป — ตัวเลขที่ CRM ทั่วไปดูกัน: อัตราติดต่อ · อัตราปิด · มูลค่าที่ยังเปิดอยู่ · แยกตามขั้นและช่องทาง */
+      var bySrc = {};
+      all.forEach(function (l) { bySrc[l.source] = (bySrc[l.source] || 0) + 1; });
+      var stCount = {};
+      all.forEach(function (l) { stCount[l.status] = (stCount[l.status] || 0) + 1; });
+
+      h += '<div class="sec"><div class="sec-h"><h2>สรุปลีด</h2><p>' + all.length + ' ราย · รอคนรับ ' + free.length + '</p></div><div class="sec-b">' +
+        '<div class="lstat">' +
+        '<div><span class="k">ติดต่อแล้ว</span><b>' + contacted.length + '<i>/' + all.length + '</i></b><small>' + pct(contacted.length, all.length) + '% ของลีดทั้งหมด</small></div>' +
+        '<div><span class="k">ปิดการขาย</span><b>' + won.length + '</b><small>' + (closed ? pct(won.length, closed) + '% ของที่จบเคสแล้ว (' + closed + ' ราย)' : 'ยังไม่มีเคสที่จบ') + '</small></div>' +
+        '<div><span class="k">ยังเปิดอยู่</span><b>' + openLeads.length + '</b><small>ยังไล่ปิดได้</small></div>' +
+        '<div><span class="k">มูลค่าในไปป์ไลน์</span><b>' + fmtMoney(pipeline) + '<i> บาท</i></b><small>เฉพาะที่ยังไม่จบเคส</small></div>' +
+        '</div>' +
+        /* แถบขั้น — สัดส่วนจริงตามจำนวน กดแล้วกรองเฉพาะขั้นนั้น */
+        '<div class="lbar">' + LEAD_ST.map(function (x) {
+          var n = stCount[x.k] || 0;
+          if (!n) return '';
+          return '<button type="button" class="lbseg' + (LD.st === x.k ? ' on' : '') + '" data-lst-filter="' + x.k + '" title="' + esc(x.th + ' · ' + n + ' ราย') +
+            '" style="--kc:' + x.color + ';flex:' + n + '"><i></i><span>' + esc(x.th) + ' ' + n + '</span></button>';
+        }).join('') + '</div>' +
+        '<div class="lsrc">ช่องทางที่ทักมา: ' + Object.keys(bySrc).sort(function (a, b) { return bySrc[b] - bySrc[a]; })
+          .map(function (k) { return '<span>' + esc(LEAD_SRC_TH[k] || k) + ' <b>' + bySrc[k] + '</b></span>'; }).join('') + '</div>' +
+        '</div></div>';
 
       /* แถบกรอง — ชุดเดียวกับหน้างานทั้งหมด (seg + select) จะได้ไม่ต้องเรียนรู้ใหม่ */
       h += '<div class="tbar"><div class="seg">' +
@@ -1737,6 +1845,8 @@
         '<select class="input sm" data-lf="branch"><option value="">ทุกสาขา</option>' +
         LEAD_BRANCH.map(function (b) { return '<option value="' + esc(b) + '"' + (LD.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select>' +
         '<label class="lchk"><input type="checkbox" data-lf="hideDone"' + (LD.hideDone ? ' checked' : '') + '> ซ่อนที่จบเคสแล้ว</label>' +
+        ((LD.st || LD.flag) ? '<button type="button" class="chip on" data-lclear="1">' +
+          esc(LD.st ? LEAD_ST_TH[LD.st] : LD_FLAG_TH[LD.flag]) + ' ✕</button>' : '') +
         '<span class="kbar-n">' + shown.length + ' ลีด</span></div>';
 
       h += leadBoard(shown);
@@ -1767,13 +1877,18 @@
   function leadCard(l) {
     var late = leadOverdue(l);
     var own = staffById(l.ownerId);
-    var chips = '<span class="kchip"><i></i>' + esc(LEAD_SRC_TH[l.source] || l.source) + '</span>';
+    var sla = leadSla(l);
+    /* ชิปแรกคือ "ได้มาเมื่อไหร่" เสมอ — เป็นตัวเลขที่ต้องเห็นก่อนตัดสินใจว่าจะโทรใบไหน */
+    var chips = '<span class="kchip age' + (sla ? ' ' + sla : '') + '" title="' +
+      esc('ได้ลีดมา ' + fmtDate(new Date(l.receivedAt || l.createdAt), true)) + '"><i></i>' +
+      (sla ? 'ค้าง ' + leadAgeDays(l) + ' วัน' : 'ได้มา ' + esc(leadAgeTh(l))) + '</span>' +
+      '<span class="kchip"><i></i>' + esc(LEAD_SRC_TH[l.source] || l.source) + '</span>';
     if (l.branch) chips += '<span class="kchip"><i></i>' + esc(l.branch) + '</span>';
     if (l.boughtBefore) chips += '<span class="kchip"><i></i>เคยซื้อแล้ว</span>';
     if (l.estValue) chips += '<span class="kchip"><i></i>' + fmtMoney(l.estValue) + ' บาท</span>';
     if (l.nextAt) chips += '<span class="kchip due' + (late ? ' late' : '') + '"><i></i>ตาม ' + esc(fmtDate(new Date(l.nextAt))) + '</span>';
     if (l.status === 'won') chips += '<span class="kchip' + (l.handedAt ? '' : ' pri') + '"><i></i>' + (l.handedAt ? 'ส่งบัญชีแล้ว' : 'รอส่งบัญชี') + '</span>';
-    return '<div class="kitem"><article class="kcard' + (late ? ' late' : '') + '" draggable="' + (canRunLead(l) ? 'true' : 'false') +
+    return '<div class="kitem"><article class="kcard' + (late || sla === 'late' ? ' late' : '') + '" draggable="' + (canRunLead(l) ? 'true' : 'false') +
       '" data-kid="' + esc(l.id) + '" data-lopen="' + esc(l.id) + '">' +
       '<div class="khead"><b>' + esc(l.name) + '</b></div>' +
       '<div class="kchips">' + chips + '</div>' +
@@ -1829,6 +1944,12 @@
 
       /* ข้อมูลติดต่อ — กดโทร/เปิด LINE ได้เลยจากมือถือ ไม่ต้องก๊อป */
       var rows = [];
+      var lsla = leadSla(l);
+      rows.push(['ได้ลีดมาเมื่อ', esc(fmtDate(new Date(l.receivedAt || l.createdAt), true)) +
+        ' <span class="' + (lsla ? 'warn' : 'mut') + '">(' + esc(leadAgeTh(l)) +
+        (lsla === 'late' ? ' · เลยกรอบ ' + LEAD_SLA_LATE + ' วันแล้ว ยังไม่ได้ติดต่อ'
+         : lsla === 'warn' ? ' · ควรติดต่อกลับวันนี้' : '') + ')</span>']);
+      if (l.fbName) rows.push(['ชื่อที่ทักเข้ามา', esc(l.fbName)]);
       if (l.phone) rows.push(['เบอร์', '<a href="tel:' + esc(l.phone.replace(/[^0-9+]/g, '')) + '">' + esc(l.phone) + '</a>']);
       if (l.lineId) rows.push(['LINE', esc(l.lineId)]);
       if (l.branch) rows.push(['สาขา', esc(l.branch)]);
@@ -1922,7 +2043,8 @@
     var host = document.createElement('div');
     host.className = 'modal';
     var v = lead || { name: '', phone: '', lineId: '', source: 'fb', sourceDetail: '', interest: '',
-                      branch: '', estValue: 0, boughtBefore: 0, nextAt: null, ownerId: '' };
+                      branch: '', estValue: 0, boughtBefore: 0, nextAt: null, ownerId: '',
+                      fbName: '', receivedAt: new Date().toISOString() };
     host.innerHTML = '<div class="modal-box qbox"><div class="sec-h"><h2>' + (lead ? 'แก้ไขลีด' : 'เพิ่มลีด') + '</h2>' +
       '<p>ช่องที่ต้องมีคือชื่อกับช่องทางที่ทักมา ที่เหลือเติมทีหลังได้</p></div>' +
       '<div class="qbody"><form id="leadForm" class="upl">' +
@@ -1936,6 +2058,11 @@
       LEAD_SRC.map(function (o) { return '<option value="' + o[0] + '"' + (v.source === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label class="label">สาขาที่ใกล้</label><select class="input" name="branch"><option value="">—</option>' +
       LEAD_BRANCH.map(function (b) { return '<option value="' + esc(b) + '"' + (v.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="lrow2">' +
+      '<div class="field"><label class="label">ชื่อที่ทักเข้ามา <small>ชื่อโปรไฟล์ในเพจ/LINE</small></label>' +
+      '<input class="input" name="fbName" maxlength="120" value="' + esc(v.fbName || '') + '"></div>' +
+      '<div class="field"><label class="label">ได้ลีดมาเมื่อ <small>ใช้นับกรอบ ' + LEAD_SLA_WARN + '–' + LEAD_SLA_LATE + ' วัน</small></label>' +
+      '<input class="input" name="receivedAt" type="datetime-local" value="' + esc(v.receivedAt ? toLocalInput(v.receivedAt) : '') + '"></div></div>' +
       '<div class="field"><label class="label">ที่มาเพิ่มเติม <small>เช่น ชื่อแคมเปญ หรือโพสต์ที่เขาทักมา</small></label>' +
       '<input class="input" name="sourceDetail" maxlength="200" value="' + esc(v.sourceDetail) + '"></div>' +
       '<div class="field"><label class="label">สนใจอะไร</label>' +
@@ -1968,7 +2095,8 @@
         branch: g('branch'), estValue: Number(g('estValue')) || 0,
         boughtBefore: f.querySelector('[name="boughtBefore"]').checked ? 1 : 0,
         nextAt: g('nextAt') ? new Date(g('nextAt')).toISOString() : '',
-        ownerId: g('ownerId'),
+        ownerId: g('ownerId'), fbName: g('fbName').trim(),
+        receivedAt: g('receivedAt') ? new Date(g('receivedAt')).toISOString() : '',
       };
       if (!body.name) { f.querySelector('[name="name"]').focus(); toast('ใส่ชื่อลีดก่อน', true); return; }
       var req = lead ? api('/leads/' + lead.id, 'PUT', body) : api('/leads', 'POST', body);
@@ -3222,11 +3350,12 @@
   /* ---------- ดูรูป: ย่อ–ขยาย–ลากได้ ----------
      ของเดิมพึ่ง max-height:100% ใน grid ซึ่งไม่ทำงาน รูปสูง ๆ เลยทะลุจอ เลื่อนลงไม่ได้ ย่อไม่ได้
      รอบนี้คำนวณสเกลเองแล้วสั่งผ่าน transform: พอดีจอเสมอตอนเปิด แล้วซูมต่อได้ถึง 8 เท่า */
-  var LB = { on:false, scale:1, fit:1, x:0, y:0, pts:{}, pinch:null, moved:false, sx:0, sy:0 };
+  var LB = { on:false, scale:1, fit:1, x:0, y:0, pts:{}, pinch:null, moved:false, sx:0, sy:0, list:[], i:0 };
 
   function lbEls() {
     return { box:$('#lightbox'), img:$('#lightbox img'), stage:$('#lbStage'),
-             zoom:$('#lbZoom'), link:$('#lbOpen'), hint:$('#lbHint') };
+             zoom:$('#lbZoom'), link:$('#lbOpen'), hint:$('#lbHint'),
+             prev:$('#lbPrev'), next:$('#lbNext'), count:$('#lbCount') };
   }
   function lbApply() {
     var e = lbEls();
@@ -3279,17 +3408,50 @@
     LB.fit = Math.min(st.width / nw, st.height / nh, 1);
     lbSet(LB.fit, 0, 0);
   }
-  function lbOpen(src) {
+  /* รูปทุกใบที่อยู่บนหน้าตอนนั้น เรียงตามที่ตาเห็น — ตัดตัวซ้ำออก (รูปเดียวกันโผล่ทั้งในอัปเดตและในไฟล์แนบทั้งหมด) */
+  function lbCollect() {
+    var out = [], seen = {};
+    $$('.att.img[data-src]').forEach(function (el) {
+      var u = el.getAttribute('data-src');
+      if (u && !seen[u]) { seen[u] = 1; out.push(u); }
+    });
+    return out;
+  }
+  function lbShow(src) {
     var e = lbEls();
-    if (!e.box || !e.img) return;
-    LB.on = true;
-    LB.pts = {}; LB.pinch = null;
-    e.box.hidden = false;
     if (e.link) e.link.href = src;
     e.img.removeAttribute('style');
     e.img.src = src;
     if (e.img.complete && e.img.naturalWidth) lbFit();
     else e.img.onload = function () { lbFit(); };
+    lbNav();
+  }
+  /* ปุ่มซ้าย/ขวา + ตัวนับ — มีรูปเดียวก็ซ่อนไปเลย ไม่ต้องมีปุ่มกดแล้วไม่เกิดอะไร */
+  function lbNav() {
+    var e = lbEls(), many = LB.list.length > 1;
+    if (e.prev) e.prev.hidden = !many;
+    if (e.next) e.next.hidden = !many;
+    if (e.count) {
+      e.count.hidden = !many;
+      e.count.textContent = (LB.i + 1) + ' / ' + LB.list.length;
+    }
+  }
+  /* วนรอบ — รูปสุดท้ายกดถัดไปแล้วกลับไปใบแรก ไล่ดูรัว ๆ ได้ไม่ต้องหยุด */
+  function lbGo(d) {
+    if (LB.list.length < 2) return;
+    LB.i = (LB.i + d + LB.list.length) % LB.list.length;
+    lbShow(LB.list[LB.i]);
+  }
+  function lbOpen(src) {
+    var e = lbEls();
+    if (!e.box || !e.img) return;
+    LB.on = true;
+    LB.pts = {}; LB.pinch = null;
+    LB.list = lbCollect();
+    LB.i = Math.max(0, LB.list.indexOf(src));
+    if (!LB.list.length) LB.list = [src];
+    e.box.hidden = false;
+    lbShow(src);
   }
   function lbClose() {
     var e = lbEls();
@@ -3308,6 +3470,8 @@
       if (b) {
         var a = b.getAttribute('data-lb'), st = e.stage.getBoundingClientRect();
         if (a === 'close') lbClose();
+        else if (a === 'prev') lbGo(-1);
+        else if (a === 'next') lbGo(1);
         else if (a === 'fit') lbFit();
         else if (a === 'full') lbSet(1, 0, 0);
         else lbZoomAt(LB.scale * (a === 'in' ? 1.4 : 1 / 1.4), st.left + st.width / 2, st.top + st.height / 2);
@@ -3359,9 +3523,17 @@
       lbSet(LB.scale, LB.x + dx, LB.y + dy);
     });
     var up = function (ev) {
+      var alone = Object.keys(LB.pts).length === 1;
       delete LB.pts[ev.pointerId];
       if (Object.keys(LB.pts).length < 2) LB.pinch = null;
       if (!Object.keys(LB.pts).length) e.stage.classList.remove('pan');
+      /* ยังไม่ซูม = ปัดแนวนอนเพื่อเปลี่ยนรูป · ซูมอยู่ = ลากเพื่อเลื่อนดูในรูปเหมือนเดิม
+         เทียบกับแนวตั้งด้วย ไม่งั้นสะบัดนิ้วขึ้นลงนิดเดียวรูปก็เปลี่ยน */
+      var dx = ev.clientX - LB.sx, dy = ev.clientY - LB.sy;
+      if (alone && LB.list.length > 1 && LB.scale <= LB.fit + 0.01 &&
+          Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        lbGo(dx < 0 ? 1 : -1);
+      }
       setTimeout(function () { LB.moved = false; }, 0);
     };
     e.stage.addEventListener('pointerup', up);
@@ -3371,6 +3543,8 @@
     window.addEventListener('keydown', function (ev) {
       if (!LB.on) return;
       if (ev.key === 'Escape') { ev.preventDefault(); lbClose(); }
+      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); lbGo(-1); }
+      else if (ev.key === 'ArrowRight') { ev.preventDefault(); lbGo(1); }
       else if (ev.key === '0') { ev.preventDefault(); lbFit(); }
       else if (ev.key === '1') { ev.preventDefault(); lbSet(1, 0, 0); }
       else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); lbSet(LB.scale * 1.4); }
@@ -3726,6 +3900,7 @@
           (t.repeat === 'daily'
             ? (es === 'done' ? 'อัปเดตแล้ววันนี้' : 'งานประจำวัน · ยังไม่อัปเดตวันนี้')
             : (es === 'done' ? 'อัปเดตแล้วสัปดาห์นี้' : 'งานประจำสัปดาห์')) + '</span>' : '') + '</div>' +
+        (canEdit ? '<div class="hero-acts"><button type="button" class="btn-ghost sm" id="editBtn">แก้ไขงาน</button></div>' : '') +
         '<h1>' + (t.priority ? '★ ' : '') + esc(t.title) + '</h1>' +
         '<div class="meta"><div><span class="k">ผู้รับผิดชอบ</span><div class="v">' + avatars(t.assignees) + '</div></div>' +
         '<div><span class="k">กำหนดส่ง</span><div class="v' + (late ? ' late' : '') + '">' + esc(fmtDue(t)) +
@@ -3741,7 +3916,7 @@
         '<div><span class="k">สั่งโดย</span><div class="v">' + (by ? avatar(by) + ' ' + esc(shortName(by)) : '—') + ' <small style="color:var(--k-mut);font-weight:400">' + esc(fmtAgo(t.createdAt)) + '</small></div></div></div></div>';
 
       h += '<div class="two"><div>';
-      h += '<div class="sec"><div class="sec-h"><h2>รายละเอียด</h2>' + (canEdit ? '<button type="button" class="btn-text" id="editBtn">แก้ไขงาน</button>' : '') + '</div>' +
+      h += '<div class="sec"><div class="sec-h"><h2>รายละเอียด</h2></div>' +
         '<div class="sec-b"><div class="task-detail" id="detailText">' + richText(t.detail) + '</div>' +
         (canEdit ? '<form id="editForm" hidden style="display:grid;gap:12px;margin-top:12px">' +
           '<div class="field"><label class="label">ชื่องาน</label><input class="input" name="title" value="' + esc(t.title) + '"></div>' +
@@ -3792,61 +3967,8 @@
           ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' +
           (t.stage === 'approved' ? ' · ขั้นนี้หัวหน้าเป็นคนกดผ่าน' : '') + '</div>';
       }
-      /* งานย่อย — เฉพาะงานหลัก (งานย่อยไม่ซ้อนอีกชั้น จะได้ไม่กลายเป็นต้นไม้ที่ตามไม่ทัน) */
-      subs = plainSubs;
-      if (!t.parentId) {
-        var doneSub = subs.filter(function (x) { return effStatus(x) === 'done'; }).length;
-        h += '<div class="sec"><div class="sec-h"><h2>งานย่อย</h2>' +
-          (subs.length ? '<p>เสร็จ ' + doneSub + ' จาก ' + subs.length + '</p>' : '<p>ซอยงานใหญ่เป็นขั้น ๆ ให้ทีมเก็บทีละอัน</p>') + '</div>';
-        if (subs.length) {
-          h += '<div class="sec-b tight"><div class="subbar"><i style="width:' + Math.round(doneSub / subs.length * 100) + '%"></i></div>' +
-            '<div class="tlist sublist">' + subs.map(function (x) {
-              var xs = effStatus(x);
-              return '<div class="subrow' + (xs === 'done' ? ' done' : '') + '">' +
-                (canStatus ? '<button type="button" class="subcheck ' + esc(xs) + '" data-subtoggle="' + esc(x.id) + '" aria-label="สลับสถานะ">' + (xs === 'done' ? '✓' : '') + '</button>'
-                           : '<span class="subcheck ' + esc(xs) + '">' + (xs === 'done' ? '✓' : '') + '</span>') +
-                '<a class="subt" href="#/task/' + esc(x.id) + '">' + esc(x.title) + '</a>' +
-                '<span class="subm">' + avatars(x.assignees) + (x.dueAt ? '<span>' + esc(fmtDue(x)) + '</span>' : '') +
-                (x.nFiles ? '<span>📷 ' + x.nFiles + '</span>' : '') + '</span></div>';
-            }).join('') + '</div></div>';
-        }
-        h += '<div class="sec-b' + (subs.length ? ' subadd' : '') + '"><form id="subForm" class="subnew">' +
-          '<input class="input" name="title" placeholder="เพิ่มงานย่อย แล้วกด Enter" autocomplete="off">' +
-          '<button type="submit" class="btn-ghost sm">เพิ่ม</button></form>' +
-          '<p class="hint">งานย่อยมอบหมายคนและกำหนดวันแยกได้ กดที่ชื่อเพื่อเปิดรายละเอียด</p></div></div>';
-      }
-
-      h += '<div class="sec"><div class="sec-h"><h2>ความคืบหน้า</h2><p>' + ups.length + ' รายการ · ' + files.length + ' รูป</p></div><div class="sec-b tight"><div class="tl">' +
-        (ups.length ? ups.map(function (u) {
-          var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
-          var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
-          /* ลบได้: หัวหน้าลบได้ทุกอัน · สมาชิกลบเฉพาะของตัวเอง · ยกเว้นรายการ "สร้างงาน" */
-          var canDelUp = u.kind !== 'create' && (S.me.role === 'owner' || u.staffId === S.me.id);
-          /* แก้ข้อความได้เฉพาะหัวหน้า (นนท์สั่ง) · คนอื่นถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่ */
-          var canEditUp = u.kind !== 'create' && S.me.role === 'owner' && u.note;
-          return '<div class="tl-i" data-upd="' + esc(u.id) + '">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) +
-            (u.editedAt ? ' · แก้ไขแล้ว' : '') + '</time>' +
-            (canEditUp ? '<button type="button" class="tl-edit" data-edit-upd="' + esc(u.id) + '" title="แก้ข้อความ">แก้</button>' : '') +
-            (canDelUp ? '<button type="button" class="tl-del" data-del-upd="' + esc(u.id) + '" title="ลบรายการนี้" aria-label="ลบความคืบหน้า">✕</button>' : '') + '</div>' +
-            (u.note ? '<div class="n rich" data-note>' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
-        }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
-      h += '</div><div>';
-
-      /* งานรอตรวจ: หัวหน้าเห็นกล่องตรวจก่อนอย่างอื่น — นนท์ขอให้เด้งเข้ามาที่ตัวเอง */
-      if (es === 'review' && canApprove(t)) {
-        h += '<div class="sec reviewbox"><div class="sec-h"><h2>งานนี้ส่งมาให้คุณตรวจ</h2>' +
-          '<p>' + esc(t.assignees.map(function (x) { return shortName(staffById(x)); }).join(', ')) +
-          ' ส่งเมื่อ ' + esc(fmtAgo(t.submittedAt || t.updatedAt)) + '</p></div>' +
-          '<div class="sec-b"><form id="reviewForm" style="display:grid;gap:10px">' +
-          '<textarea class="textarea" name="note" data-rich rows="2" placeholder="ผ่านเลยก็ไม่ต้องพิมพ์ · ถ้าส่งกลับแก้ ต้องบอกว่าให้แก้อะไร"></textarea>' +
-          '<div class="acts"><button type="submit" class="btn" data-pass="1">ตรวจผ่าน</button>' +
-          '<button type="button" class="btn-ghost" id="rejectBtn">ส่งกลับแก้</button></div>' +
-          '</form></div></div>';
-      }
-      if (es === 'review' && !canApprove(t)) {
-        h += '<div class="postbar warn">ส่งให้หัวหน้าตรวจแล้ว รอผลตรวจอยู่ — ถ้าต้องแก้จะมีแจ้งเตือนกลับมา</div>';
-      }
-
+      /* ฟอร์มอัปเดตงานย้ายมาอยู่เหนือ "ความคืบหน้า" (นนท์ 21 ก.ย. 69)
+         เขียนอัปเดตแล้วเห็นเส้นเวลาต่อท้ายทันที ไม่ต้องกวาดตาข้ามคอลัมน์ */
       /* โหมดดูมุมคนอื่น = อ่านอย่างเดียว ไม่ให้เผลอโพสต์อัปเดตในชื่อคนอื่น */
       h += readOnly()
         ? '<div class="sec"><div class="sec-h"><h2>อัปเดตงาน</h2></div>' +
@@ -3880,6 +4002,62 @@
         (canStatus && es !== 'done'
           ? '<button type="button" class="btn-ghost" id="doneBtn">✓ ' + (t.repeat ? (t.repeat === 'daily' ? 'อัปเดตครบวันนี้' : 'อัปเดตครบสัปดาห์นี้') : 'เสร็จแล้ว') + '</button>'
           : '') + '</div></form></div></div>';
+      h += '<div class="sec"><div class="sec-h"><h2>ความคืบหน้า</h2><p>' + ups.length + ' รายการ · ' + files.length + ' รูป</p></div><div class="sec-b tight"><div class="tl">' +
+        (ups.length ? ups.map(function (u) {
+          var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
+          var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
+          /* ลบได้: หัวหน้าลบได้ทุกอัน · สมาชิกลบเฉพาะของตัวเอง · ยกเว้นรายการ "สร้างงาน" */
+          var canDelUp = u.kind !== 'create' && (S.me.role === 'owner' || u.staffId === S.me.id);
+          /* แก้ข้อความได้เฉพาะหัวหน้า (นนท์สั่ง) · คนอื่นถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่ */
+          var canEditUp = u.kind !== 'create' && S.me.role === 'owner' && u.note;
+          return '<div class="tl-i" data-upd="' + esc(u.id) + '">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) +
+            (u.editedAt ? ' · แก้ไขแล้ว' : '') + '</time>' +
+            (canEditUp ? '<button type="button" class="tl-edit" data-edit-upd="' + esc(u.id) + '" title="แก้ข้อความ">แก้</button>' : '') +
+            (canDelUp ? '<button type="button" class="tl-del" data-del-upd="' + esc(u.id) + '" title="ลบรายการนี้" aria-label="ลบความคืบหน้า">✕</button>' : '') + '</div>' +
+            (u.note ? '<div class="n rich" data-note>' + richText(u.note) + '</div>' : '') + (fl.length ? thumbsHtml(fl) : '') + '</div></div>';
+        }).join('') : '<div class="empty">ยังไม่มีความคืบหน้า</div>') + '</div></div></div>';
+      h += '</div><div>';
+
+      /* งานรอตรวจ: หัวหน้าเห็นกล่องตรวจก่อนอย่างอื่น — นนท์ขอให้เด้งเข้ามาที่ตัวเอง */
+      if (es === 'review' && canApprove(t)) {
+        h += '<div class="sec reviewbox"><div class="sec-h"><h2>งานนี้ส่งมาให้คุณตรวจ</h2>' +
+          '<p>' + esc(t.assignees.map(function (x) { return shortName(staffById(x)); }).join(', ')) +
+          ' ส่งเมื่อ ' + esc(fmtAgo(t.submittedAt || t.updatedAt)) + '</p></div>' +
+          '<div class="sec-b"><form id="reviewForm" style="display:grid;gap:10px">' +
+          '<textarea class="textarea" name="note" data-rich rows="2" placeholder="ผ่านเลยก็ไม่ต้องพิมพ์ · ถ้าส่งกลับแก้ ต้องบอกว่าให้แก้อะไร"></textarea>' +
+          '<div class="acts"><button type="submit" class="btn" data-pass="1">ตรวจผ่าน</button>' +
+          '<button type="button" class="btn-ghost" id="rejectBtn">ส่งกลับแก้</button></div>' +
+          '</form></div></div>';
+      }
+      if (es === 'review' && !canApprove(t)) {
+        h += '<div class="postbar warn">ส่งให้หัวหน้าตรวจแล้ว รอผลตรวจอยู่ — ถ้าต้องแก้จะมีแจ้งเตือนกลับมา</div>';
+      }
+
+      /* งานย่อยย้ายมาคอลัมน์ขวา แทนที่ฟอร์มอัปเดตงานที่ย้ายไปซ้าย */
+      /* งานย่อย — เฉพาะงานหลัก (งานย่อยไม่ซ้อนอีกชั้น จะได้ไม่กลายเป็นต้นไม้ที่ตามไม่ทัน) */
+      subs = plainSubs;
+      if (!t.parentId) {
+        var doneSub = subs.filter(function (x) { return effStatus(x) === 'done'; }).length;
+        h += '<div class="sec"><div class="sec-h"><h2>งานย่อย</h2>' +
+          (subs.length ? '<p>เสร็จ ' + doneSub + ' จาก ' + subs.length + '</p>' : '<p>ซอยงานใหญ่เป็นขั้น ๆ ให้ทีมเก็บทีละอัน</p>') + '</div>';
+        if (subs.length) {
+          h += '<div class="sec-b tight"><div class="subbar"><i style="width:' + Math.round(doneSub / subs.length * 100) + '%"></i></div>' +
+            '<div class="tlist sublist">' + subs.map(function (x) {
+              var xs = effStatus(x);
+              return '<div class="subrow' + (xs === 'done' ? ' done' : '') + '">' +
+                (canStatus ? '<button type="button" class="subcheck ' + esc(xs) + '" data-subtoggle="' + esc(x.id) + '" aria-label="สลับสถานะ">' + (xs === 'done' ? '✓' : '') + '</button>'
+                           : '<span class="subcheck ' + esc(xs) + '">' + (xs === 'done' ? '✓' : '') + '</span>') +
+                '<a class="subt" href="#/task/' + esc(x.id) + '">' + esc(x.title) + '</a>' +
+                '<span class="subm">' + avatars(x.assignees) + (x.dueAt ? '<span>' + esc(fmtDue(x)) + '</span>' : '') +
+                (x.nFiles ? '<span>📷 ' + x.nFiles + '</span>' : '') + '</span></div>';
+            }).join('') + '</div></div>';
+        }
+        h += '<div class="sec-b' + (subs.length ? ' subadd' : '') + '"><form id="subForm" class="subnew">' +
+          '<input class="input" name="title" placeholder="เพิ่มงานย่อย แล้วกด Enter" autocomplete="off">' +
+          '<button type="submit" class="btn-ghost sm">เพิ่ม</button></form>' +
+          '<p class="hint">งานย่อยมอบหมายคนและกำหนดวันแยกได้ กดที่ชื่อเพื่อเปิดรายละเอียด</p></div></div>';
+      }
+
       if (files.length) {
         h += '<div class="sec"><div class="sec-h"><h2>ไฟล์แนบทั้งหมด</h2><p>' + files.length + ' รายการ</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
       }
@@ -5778,12 +5956,26 @@
     }
     if ((b = ev.target.closest('[data-lq]'))) {
       var lq = b.getAttribute('data-lq');
-      /* การ์ดตัวเลขด้านบนเป็นทางลัดไปยังชุดที่กรองไว้แล้ว */
-      LD.who = (lq === 'me' || lq === 'free') ? lq : '';
-      LD.hideDone = lq !== 'hand';
+      /* การ์ดตัวเลขด้านบนเป็นทางลัดไปยังชุดที่กรองไว้แล้ว — กดใบเดิมซ้ำ = ล้างกรอง */
+      var wasOn = (lq === 'me' || lq === 'free') ? LD.who === lq : LD.flag === lq;
+      LD.who = (!wasOn && (lq === 'me' || lq === 'free')) ? lq : '';
+      LD.flag = (!wasOn && lq !== 'me' && lq !== 'free') ? lq : '';
+      LD.st = '';
+      /* "รอส่งบัญชี" อยู่ขั้นปิดการขายแล้ว ถ้ายังซ่อนที่จบเคสอยู่จะไม่เห็นอะไรเลย */
+      LD.hideDone = LD.flag !== 'hand';
       renderLeads();
       return;
     }
+    /* แถบสัดส่วนขั้นในรายงาน — กดเพื่อดูเฉพาะขั้นนั้น กดซ้ำเพื่อเลิกกรอง */
+    if ((b = ev.target.closest('[data-lst-filter]'))) {
+      var lsf = b.getAttribute('data-lst-filter');
+      LD.st = LD.st === lsf ? '' : lsf;
+      LD.flag = '';
+      if (LEAD_DONE[LD.st]) LD.hideDone = false;
+      renderLeads();
+      return;
+    }
+    if ((b = ev.target.closest('[data-lclear]'))) { LD.st = ''; LD.flag = ''; renderLeads(); return; }
     if ((b = ev.target.closest('[data-lclaim]'))) {
       b.disabled = true;
       api('/leads/' + b.getAttribute('data-lclaim') + '/claim', 'POST', {})
@@ -5805,6 +5997,32 @@
       api('/leads/' + b.getAttribute('data-ldel'), 'DELETE')
         .then(function () { S.leads = null; toast('ลบแล้ว'); location.hash = '#/leads'; })
         .catch(function (e) { toast(e.message, true); });
+      return;
+    }
+    /* เปิดงานเต็มจากการ์ด — จำไว้ว่าเปิดใบไหน กลับมาแล้วจะได้อยู่ที่เดิม */
+    if ((b = ev.target.closest('[data-rv-open]'))) { RV.resume = b.getAttribute('data-rv-open'); return; }
+    /* ลบงาน/โพสต์ซ้ำจากกองปัดตรวจ — ถามยืนยันก่อนเสมอ ลบแล้วเอาคืนไม่ได้ */
+    if ((b = ev.target.closest('[data-rv-del]'))) {
+      var rvd = b.getAttribute('data-rv-del');
+      var rvc = RV.cards.filter(function (c) { return c.id === rvd; })[0];
+      if (!window.confirm('ลบ “' + ((rvc && rvc.t && rvc.t.title) || 'งานนี้') + '” ออกจากระบบ?\n\nงานย่อย รูป และประวัติจะหายไปด้วย ย้อนกลับไม่ได้')) return;
+      b.disabled = true;
+      api('/tasks/' + rvd, 'DELETE').then(function () {
+        S.tasks = null;
+        rvDropCard(rvd);
+        toast('ลบงานซ้ำแล้ว');
+      }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-rv-delpost]'))) {
+      var rvp = b.getAttribute('data-rv-delpost');
+      var rvpc = RV.cards.filter(function (c) { return c.id === rvp; })[0];
+      if (!window.confirm('ลบโพสต์ “' + ((rvpc && rvpc.p && rvpc.p.topic) || 'นี้') + '” ออกจากตาราง?\n\nย้อนกลับไม่ได้')) return;
+      b.disabled = true;
+      api('/posts/' + rvp, 'DELETE').then(function () {
+        rvDropCard(rvp);
+        toast('ลบโพสต์ซ้ำแล้ว');
+      }).catch(function (e) { b.disabled = false; toast(e.message, true); });
       return;
     }
     if ((b = ev.target.closest('[data-rv-act]'))) {
