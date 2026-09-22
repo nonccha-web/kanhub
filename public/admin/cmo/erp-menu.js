@@ -38,6 +38,10 @@
         { icon: 'users',     label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' }
       ]},
 
+      /* หัวหน้าเท่านั้น — ตารางงานประจำของทีม ไว้ดูว่าใครว่างช่วงไหน (นนท์ 22 ก.ย. 69) */
+      { direct: true, icon: 'network', label: 'งานประจำของทีม', sec: 'admin', note: 'ดูทีละคน/เทียบ 4 คน · หาช่องที่ยังว่าง',
+        items: [{ icon: 'network', label: 'งานประจำของทีม', tasks: '#/routine', sec: 'admin' }] },
+
       /* ฝ่ายขายที่เห็นเฉพาะ CRM — เมนูเดี่ยว ไม่ต้องกางกลุ่มงานทีม */
       { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ · ไล่ปิดการขาย',
         items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm' }] },

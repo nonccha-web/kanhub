@@ -1486,3 +1486,30 @@ a.htitle:hover{ text-decoration:underline; }
 .kchip.age.warn{ color:var(--k-warn); } .kchip.age.warn i{ background:var(--k-warn); }
 .kchip.age.late{ color:var(--k-bad); } .kchip.age.late i{ background:var(--k-bad); }
 .ldl .mut{ color:var(--k-mut); }
+
+/* ── ตารางงานประจำของทีม ── */
+.rtab{ width:100%; border-collapse:collapse; background:var(--k-paper); border:1px solid var(--k-line); }
+.rtab th, .rtab td{ border:1px solid var(--k-hair); padding:8px 10px; vertical-align:top; text-align:left; }
+.rtab thead th{ background:var(--k-hair); font-size:12.5px; font-weight:600; white-space:nowrap; position:sticky; top:0; z-index:2; }
+.rtab thead th .av{ margin-right:6px; }
+.rtab th.rtd, .rtab td.rtd{ width:78px; background:var(--k-hair); font-size:13px; vertical-align:middle; }
+.rtab th.rtb, .rtab td.rtb{ width:74px; font-size:11.5px; color:var(--k-mut); white-space:nowrap; }
+.rtab td.rtb small{ display:block; font-size:10px; opacity:.8; }
+.rtab tr.dstart td{ border-top:2px solid var(--k-line); }
+.rtab tr.we td.rtd, .rtab tr.we td.rtb{ color:var(--k-warn); }
+.rtab td.rtempty{ background:repeating-linear-gradient(135deg, transparent, transparent 7px, var(--k-hair) 7px, var(--k-hair) 14px); }
+.rtab td.rtempty a{ font-size:11px; color:var(--k-mut); text-decoration:none; }
+.rtab td.rtempty a:hover{ color:var(--k-ink); text-decoration:underline; }
+.rtchip{ display:block; margin-bottom:5px; padding:5px 8px; border:1px solid var(--k-line); border-left:3px solid var(--k-ink);
+  border-radius:5px; background:var(--k-ground); text-decoration:none; color:inherit; font-size:11.5px; line-height:1.4; }
+.rtchip:last-child{ margin-bottom:0; }
+.rtchip:hover{ border-color:var(--k-ink); }
+.rtchip b{ font-family:var(--k-display); font-size:10.5px; color:var(--k-mut); margin-right:5px; font-variant-numeric:tabular-nums; }
+.rtchip span{ font-weight:500; }
+.rtchip i{ display:block; font-style:normal; font-size:10px; color:var(--k-mut); margin-top:1px; }
+@media (max-width:900px){
+  .rtab th, .rtab td{ padding:6px; }
+  .rtab th.rtd, .rtab td.rtd{ width:56px; font-size:12px; }
+  .rtab th.rtb, .rtab td.rtb{ width:52px; }
+  .rtchip{ font-size:11px; }
+}

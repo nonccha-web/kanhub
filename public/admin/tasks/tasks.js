@@ -581,7 +581,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -3159,6 +3159,110 @@
     api('/tasks/' + t.id, 'DELETE')
       .then(function () { S.tasks = null; toast('ลบงานแล้ว'); render(); })
       .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+  }
+
+  /* ============================================================
+     ตารางงานประจำของทีม (Routine) — ดูทีละคนหรือเทียบพร้อมกัน เห็นช่องที่ยังว่าง
+     นนท์ 22 ก.ย. 69: "จะได้รู้ว่าตรงไหนฟันหลอ ต้องเติมงาน" · หน้านี้หัวหน้าเห็นคนเดียว
+     ============================================================ */
+  var RT = { who: [], band: 'all' };
+  var DOW_FULL = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+  var BANDS = [
+    { k: 'morning', th: 'เช้า', sub: '06–12', from: 6, to: 12 },
+    { k: 'afternoon', th: 'บ่าย', sub: '12–16', from: 12, to: 16 },
+    { k: 'evening', th: 'เย็น', sub: '16–23', from: 16, to: 23 }
+  ];
+  function rtHour(t) { return t.dueAt ? new Date(t.dueAt).getHours() : 9; }
+  function rtBand(t) {
+    var h = rtHour(t);
+    for (var i = 0; i < BANDS.length; i++) if (h >= BANDS[i].from && h < BANDS[i].to) return BANDS[i].k;
+    return 'evening';
+  }
+  /* งานประจำนี้ตกวันไหนบ้าง (0=จันทร์..6=อาทิตย์) · รายเดือนแยกไปอยู่ใต้ตาราง */
+  function rtDays(t) {
+    if (t.repeat === 'daily') return [0, 1, 2, 3, 4, 5, 6];
+    if (t.repeat === 'weekly') { var d = t.dueAt ? new Date(t.dueAt).getDay() : 1; return [(d + 6) % 7]; }
+    return [];
+  }
+  function rtPeople(routines) {
+    var act = activeStaff().filter(function (x) { return x.role !== 'owner'; });
+    if (RT.who.length) return act.filter(function (x) { return RT.who.indexOf(x.id) !== -1; });
+    /* ค่าเริ่มต้น = คนที่มีงานประจำจริง เรียงจากมากไปน้อย (ไม่งั้นติดคนที่ยังไม่มีงานมาเต็มตาราง) */
+    var n = {};
+    act.forEach(function (x) { n[x.id] = (routines || []).filter(function (t) { return t.assignees.indexOf(x.id) !== -1; }).length; });
+    var has = act.filter(function (x) { return n[x.id]; }).sort(function (a, b) { return n[b.id] - n[a.id]; });
+    return (has.length ? has : act).slice(0, 4);
+  }
+  function renderRoutine() {
+    var view = $('#view');
+    view.className = 'page';
+    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    loadTasks().then(function (all) {
+      var routines = all.filter(function (t) { return t.repeat && !t.parentId; });
+      var people = rtPeople(routines);
+      var byPerson = {};
+      people.forEach(function (p) { byPerson[p.id] = routines.filter(function (t) { return t.assignees.indexOf(p.id) !== -1; }); });
+
+      var h = '<div class="top"><div><span class="kicker">โครงสร้างงานทีม</span><h1>งานประจำของแต่ละคน</h1>' +
+        '<p>ใครทำอะไรซ้ำ ๆ ทุกวัน/ทุกสัปดาห์ · ช่องว่างคือเวลาที่ยังไม่มีงานประจำ กดเติมได้เลย · เลือกดูทีละคนหรือเทียบพร้อมกันได้ถึง 4 คน</p></div>' +
+        '<div class="top-r"><a class="btn" href="#/new">+ สั่งงานประจำ</a></div></div>';
+
+      h += '<div class="cards">' + people.map(function (p) {
+        var list = byPerson[p.id] || [];
+        var perWeek = list.reduce(function (a, t) { return a + (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
+        var hrs = list.reduce(function (a, t) { return a + (t.hours || 0) * (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
+        var gaps = 0;
+        DOW_FULL.forEach(function (_, di) {
+          BANDS.forEach(function (b) {
+            if (!list.some(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })) gaps++;
+          });
+        });
+        return '<article' + (!list.length ? ' class="bad"' : (gaps > 14 ? ' class="warn"' : '')) + '>' +
+          '<span class="l">' + esc(shortName(p)) + '</span><b>' + Math.round(perWeek) + '</b>' +
+          '<small>ครั้ง/สัปดาห์ · ' + (Math.round(hrs * 10) / 10) + ' ชม. · ช่องว่าง ' + gaps + '/21</small></article>';
+      }).join('') + '</div>';
+
+      h += '<div class="tbar"><span class="tbar-lbl">ดูของ</span><div class="seg">' +
+        '<button type="button" class="' + (!RT.who.length ? 'on' : '') + '" data-rt-who="">4 คนแรก</button>' +
+        activeStaff().filter(function (x) { return x.role !== 'owner'; }).map(function (x) {
+          return '<button type="button" class="' + (RT.who.indexOf(x.id) !== -1 ? 'on' : '') + '" data-rt-who="' + esc(x.id) + '">' + esc(shortName(x)) + '</button>';
+        }).join('') + '</div>' +
+        '<span class="tbar-lbl">ช่วงเวลา</span><div class="seg">' +
+        [['all', 'ทั้งวัน']].concat(BANDS.map(function (b) { return [b.k, b.th]; })).map(function (p) {
+          return '<button type="button" class="' + (RT.band === p[0] ? 'on' : '') + '" data-rt-band="' + p[0] + '">' + p[1] + '</button>';
+        }).join('') + '</div>' +
+        '<span class="tbar-n">' + routines.length + ' งานประจำ</span></div>';
+
+      var bands = RT.band === 'all' ? BANDS : BANDS.filter(function (b) { return b.k === RT.band; });
+      h += '<div class="scrollx"><table class="rtab"><thead><tr><th class="rtd">วัน</th><th class="rtb">ช่วง</th>' +
+        people.map(function (p) { return '<th>' + avatar(p) + '<span>' + esc(shortName(p)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
+      DOW_FULL.forEach(function (dname, di) {
+        bands.forEach(function (b, bi) {
+          h += '<tr' + (di >= 5 ? ' class="we"' : '') + (bi === 0 ? ' class="dstart' + (di >= 5 ? ' we' : '') + '"' : '') + '>' +
+            (bi === 0 ? '<td class="rtd" rowspan="' + bands.length + '"><b>' + dname + '</b></td>' : '') +
+            '<td class="rtb">' + b.th + '<small>' + b.sub + '</small></td>' +
+            people.map(function (p) {
+              var items = (byPerson[p.id] || []).filter(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })
+                .sort(function (x, y) { return rtHour(x) - rtHour(y); });
+              if (!items.length) return '<td class="rtempty"><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
+              return '<td>' + items.map(function (t) {
+                return '<a class="rtchip" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + (t.hours ? ' · ' + t.hours + ' ชม.' : '') + '">' +
+                  '<b>' + esc(fmtTime(new Date(t.dueAt))) + '</b><span>' + esc(t.title) + '</span>' +
+                  (t.hours ? '<i>' + t.hours + ' ชม.</i>' : '') + '</a>';
+              }).join('') + '</td>';
+            }).join('') + '</tr>';
+        });
+      });
+      h += '</tbody></table></div>';
+
+      var monthly = routines.filter(function (t) { return t.repeat === 'monthly'; });
+      if (monthly.length) {
+        h += '<div class="group"><div class="group-h"><h3>งานประจำเดือน</h3><span>' + monthly.length + '</span>' + gsel() + '</div>' +
+          '<div class="tlist">' + monthly.map(taskRow).join('') + '</div></div>';
+      }
+      view.innerHTML = h;
+      syncSel();
+    }).catch(function (e) { showError(e); });
   }
 
   /* ============================================================
@@ -5923,6 +6027,7 @@
       case 'campaign': return S.route.id ? renderCampaign(S.route.id) : renderAll();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
+      case 'routine': return amOwner() ? renderRoutine() : denyView('ตารางงานประจำของทีม');
       case 'history': return renderHistory();
       case 'review': return renderReview();
       /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
@@ -6067,6 +6172,13 @@
     if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
     if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
     if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
+    if ((b = ev.target.closest('[data-rt-who]'))) {
+      var rid = b.getAttribute('data-rt-who');
+      if (!rid) RT.who = [];
+      else { var i0 = RT.who.indexOf(rid); if (i0 === -1) { if (RT.who.length < 4) RT.who.push(rid); else toast('เทียบได้ทีละไม่เกิน 4 คน', true); } else RT.who.splice(i0, 1); }
+      renderRoutine(); return;
+    }
+    if ((b = ev.target.closest('[data-rt-band]'))) { RT.band = b.getAttribute('data-rt-band'); renderRoutine(); return; }
     if ((b = ev.target.closest('[data-h-f]'))) {
       var hk = b.getAttribute('data-h-f'), hv = b.getAttribute('data-v');
       H[hk] = hk === 'days' ? Number(hv) : hv;
