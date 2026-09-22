@@ -457,6 +457,64 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 .cc-linkbtn.warn b{ color:var(--warn); }
 .cc-linkline{ display:inline-flex; gap:10px; font-size:11px; color:var(--text-muted); margin-top:3px; }
 .cc-linkline b{ font-weight:600; color:var(--text-secondary); }
+
+/* ── มุมมองตาราง (แบบ Lark Base) ── */
+.cc-viewbar{ margin-top:-4px; }
+.cc-grplbl{ margin-left:10px; padding-left:10px; border-left:1px solid var(--bg-glass-border); }
+/* แถวเลือกเดือนตอนดูทั้งปีในมุมมองตาราง */
+.cc-gmonths{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+.cc-gmonths .cc-kind{ padding:5px 10px; font-size:12px; }
+.cc-gallmo{ font-size:12px; color:var(--text-muted); }
+
+.cc-gridwrap{ overflow:visible; }
+.cc-gtab{ min-width:960px; }
+.cc-gtab td{ vertical-align:middle; }
+.cc-gtab td[data-cell]{ cursor:text; }
+.cc-gtab td[data-cell="kind"], .cc-gtab td[data-cell="status"],
+.cc-gtab td[data-cell="range"], .cc-gtab td[data-cell="branches"], .cc-gtab td[data-cell="channels"]{ cursor:pointer; }
+.cc-gtab td[data-cell]:hover{ box-shadow:inset 0 0 0 1.5px var(--accent); border-radius:3px; }
+.cc-gname{ font-weight:500; }
+.cc-gmute{ color:var(--text-muted); }
+.cc-gend{ white-space:nowrap; text-align:right; }
+.cc-gend .cc-gst{ display:inline-flex; flex-wrap:wrap; gap:4px; vertical-align:middle; margin-right:6px; }
+.cc-gin{ width:100%; min-width:80px; font-family:inherit; font-size:13.5px; padding:5px 7px; border-radius:4px;
+  border:1.5px solid var(--accent); background:var(--bg-input); color:var(--text-primary); outline:none; }
+
+/* หัวกลุ่ม — พับได้ บอกจำนวนกับงบรวมของกลุ่ม */
+.cc-grp td{ padding:0; border-top:1px solid var(--bg-glass-border); background:var(--bg-card-subtle); }
+.cc-grpb{ display:flex; align-items:center; gap:9px; width:100%; font-family:inherit; font-size:13px; text-align:left;
+  padding:9px 12px; border:0; background:none; color:var(--text-primary); cursor:pointer; }
+.cc-grpb:hover{ background:var(--bg-card-hover); }
+.cc-grpcar{ width:14px; height:14px; flex:none; transform:rotate(90deg); transition:transform .15s; color:var(--text-muted); }
+.cc-grp.off .cc-grpcar{ transform:rotate(0deg); }
+.cc-grpsub{ font-size:11.5px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.cc-grpsum{ margin-left:auto; font-size:11.5px; color:var(--text-tertiary); font-variant-numeric:tabular-nums; }
+
+/* แถวพิมพ์เพิ่ม */
+.cc-gadd td{ padding:0; border-top:1px solid var(--bg-row-divider); }
+.cc-gaddb{ display:block; width:100%; text-align:left; font-family:inherit; font-size:12.5px; padding:8px 12px;
+  border:0; background:none; color:var(--text-muted); cursor:pointer; }
+.cc-gaddb:hover{ background:var(--bg-card-hover); color:var(--accent-text); }
+.cc-gaddrow{ display:flex; align-items:center; gap:8px; padding:6px 10px; }
+.cc-gaddrow .cc-gin{ max-width:340px; }
+.cc-gaddmore{ font-family:inherit; font-size:12px; padding:5px 10px; border-radius:6px; border:1px solid var(--bg-glass-border);
+  background:var(--bg-input); color:var(--text-secondary); cursor:pointer; white-space:nowrap; }
+.cc-gaddmore:hover{ border-color:var(--text-primary); color:var(--text-primary); }
+.cc-ghint{ margin-top:10px; font-size:11.5px; color:var(--text-muted); line-height:1.6; }
+
+/* เมนูเล็กในช่อง (สถานะ / ประเภท) */
+.cc-gpick{ position:fixed; z-index:120; min-width:150px; padding:4px; border-radius:8px;
+  border:1px solid var(--bg-glass-border); background:var(--bg-glass); box-shadow:var(--shadow-card-hover); }
+.cc-gpick button{ display:block; width:100%; text-align:left; font-family:inherit; font-size:13px; padding:7px 10px;
+  border:0; border-radius:5px; background:none; color:var(--text-primary); cursor:pointer; }
+.cc-gpick button:hover{ background:var(--bg-card-hover); }
+.cc-gpick button.on{ background:var(--accent-faint); color:var(--accent-text-dark); font-weight:600; }
+
+@media (max-width:700px){
+  .cc-gridwrap{ overflow-x:auto; }
+  .cc-grplbl{ margin-left:0; padding-left:0; border-left:0; width:100%; margin-top:4px; }
+  .cc-gend .cc-gst{ display:none; }
+}
 </style>
 </head>
 <body>
@@ -498,6 +556,7 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
   <div class="cc-kindbar" id="ccKindBar"></div>
   <div class="cc-kindbar" id="ccBranchBar" style="margin-top:-6px"></div>
   <div class="cc-stats" id="ccStats"></div>
+  <div class="cc-kindbar cc-viewbar" id="ccViewBar"></div>
   <div id="ccView"></div>
   <div class="cc-soon" id="ccSoon"></div>
   <div class="cc-list" id="ccList"></div>
@@ -585,6 +644,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=41"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=15"></script>
+<script src="campaign-calendar.js?v=16"></script>
 </body>
 </html>

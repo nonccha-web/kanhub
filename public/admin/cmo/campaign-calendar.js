@@ -48,9 +48,17 @@
   var items = [];
   var year = new Date().getFullYear();
   /* เปิดมาเห็นเดือนนี้ก่อน (นนท์: "เอามาแค่โปรโมชั่นของเดือนนี้ก็พอ" 18 ก.ย. 69) — ปุ่มย้อนกลับพาไปดูทั้งปี */
-  var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"" };
+  /* layout = ปฏิทิน หรือ ตาราง (แบบ Lark Base) · group = ตารางจัดกลุ่มตามอะไร
+     ตัวกรองประเภท/สาขาใช้ร่วมกันทั้งสองมุมมอง จะได้ไม่ต้องตั้งใหม่ตอนสลับ */
+  var GROUPS = [["week", "สัปดาห์"], ["month", "เดือน"], ["kind", "ประเภท"], ["branch", "สาขา"], ["status", "สถานะ"]];
+  var GROUP_KEYS = GROUPS.map(function (g) { return g[0]; });
+  var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"", layout:"cal", group:"week" };
   try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
   try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}
+  try { view.layout = localStorage.getItem("kan-cc-layout") === "grid" ? "grid" : "cal"; } catch (e) {}
+  try { var _g = localStorage.getItem("kan-cc-group"); view.group = GROUP_KEYS.indexOf(_g) !== -1 ? _g : "week"; } catch (e) {}
+  /* กลุ่มที่พับไว้ — จำแค่ในหน้านี้ ปิดแท็บแล้วกลับมากางใหม่หมด */
+  var collapsed = {};
   function inBranch(it, b) {
     if (!b) return true;
     if (b === NO_BRANCH) return !it.branches || !it.branches.length;
@@ -229,6 +237,24 @@
     });
   }
   function baht(n) { return Number(n || 0).toLocaleString("th-TH"); }
+  /* ---- สัปดาห์: เริ่มวันอาทิตย์ ชุดเดียวกับหัวตารางปฏิทิน (DOW เริ่ม "อา")
+     นับเป็นจำนวนวันเต็ม ไม่ใช่ลบมิลลิวินาที — ข้ามเส้นเวลาออมแสงแล้วเพี้ยนได้ ---- */
+  function dayNum(d) { return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); }
+  function weekStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()); }
+  function weekNo(d) {
+    var w = weekStart(d), y = w.getFullYear();
+    /* สัปดาห์ที่ 1 = สัปดาห์ที่มี 1 ม.ค. อยู่ — ปลายธันวาบางปีจึงตกไปเป็นสัปดาห์ที่ 1 ของปีถัดไป */
+    var base = weekStart(new Date(y, 0, 1));
+    var n = Math.floor((dayNum(w) - dayNum(base)) / 7) + 1;
+    if (n > 52) {
+      var nextBase = weekStart(new Date(y + 1, 0, 1));
+      if (dayNum(w) >= dayNum(nextBase)) return 1;
+    }
+    return n;
+  }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function isoOf(d) { return iso(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function shortDay(d) { return d.getDate() + " " + MONTHS_SHORT[d.getMonth()]; }
   function covers(it, dayISO) { return it.start <= dayISO && dayISO <= (it.end || it.start); }
   function isMonthPlan(it) { return it.scope === "month"; }
   function fmtRange(it) {
@@ -282,11 +308,38 @@
   function render() {
     renderKindBar();
     renderBranchBar();
+    renderViewBar();
     renderSoon();
     $("ccYear").innerHTML = be(year) + "<small>ค.ศ. " + year + "</small>";
     renderStats();
+    if (view.layout === "grid") {
+      renderGrid();
+      /* ตารางด้านล่างซ้ำกับตารางหลักแล้ว ซ่อนไปเลยจะได้ไม่ต้องเลื่อนผ่านของเดิมสองรอบ */
+      $("ccList").innerHTML = "";
+      return;
+    }
     if (view.mode === "year") renderYear(); else renderMonth();
     renderList();
+  }
+
+  /* ---------- แถบสลับมุมมอง: ปฏิทิน / ตาราง (+ จัดกลุ่มตามอะไร) ---------- */
+  function renderViewBar() {
+    var el = $("ccViewBar");
+    if (!el) return;
+    var seg = [["cal", "ปฏิทิน"], ["grid", "ตาราง"]].map(function (p) {
+      return '<button type="button" class="cc-kind' + (view.layout === p[0] ? " on" : "") + '" data-layout="' + p[0] + '">' + p[1] + "</button>";
+    }).join("");
+    var grp = view.layout !== "grid" ? "" :
+      '<span class="cc-kindlbl cc-grplbl">จัดกลุ่มตาม</span>' + GROUPS.filter(function (g) {
+        /* จัดกลุ่มตามเดือนในมุมมองเดือนเดียวไม่มีประโยชน์ — ได้กลุ่มเดียวเสมอ */
+        return !(g[0] === "month" && view.mode === "month");
+      }).map(function (g) {
+        return '<button type="button" class="cc-kind' + (groupMode() === g[0] ? " on" : "") + '" data-group="' + g[0] + '">' + g[1] + "</button>";
+      }).join("");
+    el.innerHTML = '<span class="cc-kindlbl">มุมมอง</span>' + seg + grp;
+  }
+  function groupMode() {
+    return (view.group === "month" && view.mode === "month") ? "week" : view.group;
   }
 
   function renderStats() {
@@ -421,6 +474,278 @@
       '<div class="cc-cal"><div class="cc-dow">' + DOW.map(function (x) { return "<div>" + x + "</div>"; }).join("") +
       '</div><div class="cc-weeks">' + cells + "</div></div>" +
       renderBranchBoard(list);
+  }
+
+
+  /* ============================================================
+     มุมมองตาราง (แบบ Lark Base) — จัดกลุ่มได้ พับได้ พิมพ์เพิ่มในกลุ่มได้เลย
+     ต่างจากตารางเดิมด้านล่างหน้าตรงที่ตารางนี้ "แก้ได้" ไม่ใช่แค่อ่าน
+     ============================================================ */
+
+  /* ช่วงวันตั้งต้นของรายการที่เพิ่มจากกลุ่มนี้ — อยู่ในช่วงที่มองอยู่เสมอ
+     ไม่งั้นพิมพ์เพิ่มเสร็จแล้วแถวหายไปจากจอ เพราะตกนอกเดือนที่เปิดอยู่ */
+  function defaultStart() {
+    var t = todayISO();
+    if (view.mode === "month") {
+      var a = iso(year, view.month, 1), b = iso(year, view.month, daysIn(year, view.month));
+      return (t >= a && t <= b) ? t : a;
+    }
+    return t.slice(0, 4) === String(year) ? t : iso(year, 0, 1);
+  }
+
+  /* กลุ่มของตาราง: {key, label, sub, items, preset}
+     preset = ค่าที่เติมให้อัตโนมัติเวลาเพิ่มรายการในกลุ่มนั้น (นี่คือหัวใจของ Lark Base) */
+  function gridGroups(list) {
+    var mode = groupMode(), out = [], map = {};
+    function bucket(key, label, sub, preset, sort) {
+      if (!map[key]) { map[key] = { key: key, label: label, sub: sub || "", items: [], preset: preset || {}, sort: sort }; out.push(map[key]); }
+      return map[key];
+    }
+    if (mode === "week") {
+      /* แผนทั้งเดือนไม่มี "สัปดาห์ที่เท่าไหร่" แยกไว้กลุ่มบนสุด ไม่ปนกับโปรฯ รายสัปดาห์ */
+      var plans = list.filter(isMonthPlan);
+      if (plans.length) {
+        var g0 = bucket("w:month", "แผนทั้งเดือน", "ไม่ผูกกับสัปดาห์ไหน", { scope: "month" }, "0");
+        g0.items = plans;
+      }
+      list.filter(function (it) { return !isMonthPlan(it); }).forEach(function (it) {
+        var ws = weekStart(parseISO(it.start)), we = addDays(ws, 6);
+        var key = "w:" + isoOf(ws);
+        bucket(key, "สัปดาห์ที่ " + weekNo(ws), shortDay(ws) + " – " + shortDay(we),
+               { start: isoOf(ws), end: isoOf(we) }, isoOf(ws)).items.push(it);
+      });
+      /* สัปดาห์นี้ต้องมีช่องให้พิมพ์เสมอ ถึงยังไม่มีโปรฯ สักอัน */
+      var nw = weekStart(new Date());
+      if (String(nw.getFullYear()) === String(year) && (view.mode !== "month" || nw.getMonth() === view.month || addDays(nw, 6).getMonth() === view.month)) {
+        bucket("w:" + isoOf(nw), "สัปดาห์ที่ " + weekNo(nw), shortDay(nw) + " – " + shortDay(addDays(nw, 6)),
+               { start: isoOf(nw), end: isoOf(addDays(nw, 6)) }, isoOf(nw));
+      }
+      out.sort(function (a, b) { return a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0; });
+    } else if (mode === "month") {
+      for (var m = 0; m < 12; m++) {
+        var mine = list.filter(function (it) {
+          return parseISO(it.start) <= new Date(year, m, daysIn(year, m)) && parseISO(it.end || it.start) >= new Date(year, m, 1);
+        });
+        if (!mine.length && m !== new Date().getMonth()) continue;
+        var g = bucket("m:" + m, MONTHS[m], "", { start: iso(year, m, 1) });
+        g.items = mine;
+      }
+    } else if (mode === "kind") {
+      (view.kind ? [view.kind] : KINDS).forEach(function (k) { bucket("k:" + k, KIND_LABEL[k], "", { kind: k }); });
+      list.forEach(function (it) { var g = map["k:" + kindOf(it)]; if (g) g.items.push(it); });
+    } else if (mode === "branch") {
+      (view.branch && view.branch !== NO_BRANCH ? [view.branch] : BRANCHES).forEach(function (b) { bucket("b:" + b, b, "", { branch: b }); });
+      var loose = [];
+      list.forEach(function (it) {
+        var brs = (it.branches || []).filter(function (b) { return map["b:" + b]; });
+        /* งานข้ามสาขาโผล่ในทุกสาขาที่เกี่ยว — ตรงกับที่ทีมถามว่า "สาขาฉันเดือนนี้มีอะไร" */
+        if (brs.length) brs.forEach(function (b) { map["b:" + b].items.push(it); });
+        else loose.push(it);
+      });
+      if (loose.length || view.branch === NO_BRANCH) bucket("b:none", "ยังไม่ระบุสาขา", "", {}).items = loose;
+    } else {
+      ["plan", "live", "done"].forEach(function (st) { bucket("s:" + st, STATUS_LABEL[st], "", { status: st }); });
+      list.forEach(function (it) { var g = map["s:" + (it.status || "plan")]; if (g) g.items.push(it); });
+    }
+    return out;
+  }
+
+  var GRID_COLS = 9;
+  function gridRow(it) {
+    var brs = (it.branches || []), chs = (it.channels || []);
+    return '<tr data-gid="' + it.id + '" style="border-left:3px solid ' + colorOf(it) + '">' +
+      '<td class="nm" data-cell="name" title="กดเพื่อแก้ชื่อ">' + kindDot(it) + '<span class="cc-gname">' + esc(it.name) + "</span>" +
+        linkLine(it) + (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + "</td>" +
+      '<td data-cell="kind" title="กดเพื่อเปลี่ยนประเภท">' + kindPill(it) + "</td>" +
+      '<td class="dt" data-cell="range" title="กดเพื่อแก้ช่วงวัน">' + fmtRange(it) + "</td>" +
+      '<td data-cell="status" title="กดเพื่อเปลี่ยนสถานะ"><span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></td>" +
+      '<td data-cell="branches" title="กดเพื่อแก้สาขา"><div class="cc-tags">' +
+        (brs.length ? brs.map(function (b) { return '<span class="cc-tag">' + esc(b) + "</span>"; }).join("") : '<span class="cc-gmute">—</span>') + "</div></td>" +
+      '<td data-cell="channels" title="กดเพื่อแก้ช่องทาง"><div class="cc-tags">' +
+        (chs.length ? chs.map(function (c) { return '<span class="cc-tag">' + esc(c) + "</span>"; }).join("") : '<span class="cc-gmute">—</span>') + "</div></td>" +
+      '<td class="dt" data-cell="budget" title="กดเพื่อแก้งบ">' + (it.budget ? "฿ " + baht(it.budget) : '<span class="cc-gmute">—</span>') + "</td>" +
+      '<td data-cell="owner" title="กดเพื่อแก้ผู้รับผิดชอบ">' + (it.owner ? esc(it.owner) : '<span class="cc-gmute">—</span>') + "</td>" +
+      '<td class="cc-gend"><span class="cc-gst">' + statusBrief(it) + "</span>" +
+        '<button type="button" class="cc-icon" data-edit="' + it.id + '" aria-label="เปิดรายละเอียด" title="เปิดรายละเอียดทั้งหมด">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button></td>' +
+      "</tr>";
+  }
+
+  function renderGrid() {
+    var list = view.mode === "month" ? ofMonth(view.month) : ofYear();
+    var groups = gridGroups(list);
+    var what = view.kind ? KIND_LABEL[view.kind] : "รายการ";
+    var body = groups.map(function (g) {
+      var off = !!collapsed[g.key];
+      var money = g.items.reduce(function (a, it) { return a + (Number(it.budget) || 0); }, 0);
+      var head = '<tr class="cc-grp' + (off ? " off" : "") + '"><td colspan="' + GRID_COLS + '">' +
+        '<button type="button" class="cc-grpb" data-grpkey="' + esc(g.key) + '">' +
+        '<svg class="cc-grpcar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' +
+        "<b>" + esc(g.label) + "</b>" + (g.sub ? '<span class="cc-grpsub">' + esc(g.sub) + "</span>" : "") +
+        '<span class="cc-kn">' + g.items.length + "</span>" +
+        (money ? '<span class="cc-grpsum">฿ ' + baht(money) + "</span>" : "") + "</button></td></tr>";
+      if (off) return "<tbody>" + head + "</tbody>";
+      var rows = g.items.map(gridRow).join("");
+      /* แถวพิมพ์เพิ่ม — ค่าของกลุ่มถูกเติมให้เอง (สัปดาห์ไหน ประเภทอะไร สาขาไหน) */
+      var add = '<tr class="cc-gadd"><td colspan="' + GRID_COLS + '">' +
+        '<button type="button" class="cc-gaddb" data-gadd="' + esc(g.key) + '">+ เพิ่ม' + esc(what) + "ใน" + esc(g.label) + "</button></td></tr>";
+      return "<tbody>" + head + rows + add + "</tbody>";
+    }).join("");
+
+    var title = (view.mode === "month" ? MONTHS[view.month] + " " + be(year) : "ทั้งปี " + be(year)) +
+      (view.branch ? " · " + branchLabel() : "");
+    var bar = '<div class="cc-monthbar">' +
+      (view.mode === "month"
+        ? '<button class="cc-back" id="ccBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ทั้งปี ' + be(year) + "</button>"
+        : '<span class="cc-gallmo">เลือกเดือนเพื่อดูเฉพาะเดือนนั้น</span>') +
+      "<h2>" + esc(title) + "</h2>" +
+      '<button class="cc-btn" data-new="1">+ เพิ่มรายการ</button></div>';
+
+    var months = view.mode === "month" ? "" :
+      '<div class="cc-gmonths">' + MONTHS_SHORT.map(function (mn, m) {
+        var n = ofMonth(m).length;
+        return '<button type="button" class="cc-kind" data-month="' + m + '">' + mn +
+          '<span class="cc-kn">' + n + "</span></button>";
+      }).join("") + "</div>";
+
+    $("ccView").innerHTML = bar + months +
+      (list.length || groups.length
+        ? '<div class="cc-tablewrap cc-gridwrap"><table class="cc-table cc-gtab"><thead><tr>' +
+          "<th>ชื่อ</th><th>ประเภท</th><th>ช่วงวัน</th><th>สถานะ</th><th>สาขา</th><th>ช่องทาง</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th>สื่อที่ผูกไว้</th>" +
+          "</tr></thead>" + body + "</table></div>" +
+          '<p class="cc-ghint">กดที่ช่องเพื่อแก้ได้เลย · กดหัวกลุ่มเพื่อพับ · ปุ่ม + ท้ายกลุ่มจะเติมสัปดาห์/ประเภท/สาขาให้เอง</p>'
+        : '<div class="cc-empty"><p>ยังไม่มี' + esc(what) + "ในช่วงนี้</p>" +
+          '<button class="cc-btn primary" data-new="1">เพิ่ม' + esc(what) + "</button></div>");
+  }
+
+  /* บันทึกการแก้ทีละช่อง — API รับก้อนเต็ม เลยรวมของเดิมกับของใหม่ก่อนส่ง */
+  async function patchItem(id, fields) {
+    var it = byId(id);
+    if (!it) return;
+    var next = Object.assign({}, it, fields);
+    var data = { kind: kindOf(next), name: next.name, start: next.start, end: next.end || next.start,
+                 scope: next.scope || "range", status: next.status || "plan",
+                 channels: next.channels || [], branches: next.branches || [],
+                 budget: Number(next.budget) || 0, owner: next.owner || "", note: next.note || "", color: colorOf(next) };
+    try {
+      if (online) { await api("/campaigns/" + id, { method: "PUT", body: JSON.stringify(data) }); await loadAll(); }
+      else { items = items.map(function (x) { return x.id === id ? Object.assign({}, x, data, { id: id }) : x; }); cacheLocal(); }
+      render();
+    } catch (e) { toast("บันทึกไม่สำเร็จ: " + e.message); render(); }
+  }
+
+  /* พิมพ์ชื่อในแถวแล้ว Enter = ได้รายการใหม่ทันที ไม่ต้องเปิดฟอร์ม (แบบ Lark Base) */
+  async function quickAdd(name, preset) {
+    var start = preset.start || defaultStart();
+    var data = { kind: preset.kind || view.kind || "campaign", name: name, start: start,
+                 end: preset.end || start, scope: preset.scope === "month" ? "month" : "range",
+                 status: preset.status || "plan", channels: [],
+                 branches: preset.branch ? [preset.branch] : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : []),
+                 budget: 0, owner: "", note: "", color: COLORS[items.length % COLORS.length].v };
+    if (data.scope === "month") {
+      var d0 = parseISO(start);
+      data.start = iso(d0.getFullYear(), d0.getMonth(), 1);
+      data.end = iso(d0.getFullYear(), d0.getMonth(), daysIn(d0.getFullYear(), d0.getMonth()));
+    }
+    try {
+      if (online) { await api("/campaigns", { method: "POST", body: JSON.stringify(data) }); await loadAll(); }
+      else {
+        data.id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        data.attachments = [];
+        items.push(data);
+        cacheLocal();
+      }
+      render();
+      toast(online ? "เพิ่ม “" + name + "” แล้ว — กดที่ช่องเพื่อใส่รายละเอียดต่อ" : "เพิ่มในเครื่องนี้ (ยังไม่ขึ้นเซิร์ฟเวอร์)");
+    } catch (e) { toast("เพิ่มไม่สำเร็จ: " + e.message); }
+  }
+
+  /* ---- แก้ในช่องตาราง ---- */
+  var GRID_EDITABLE = { name: 1, budget: 1, owner: 1 };
+  function editCell(td) {
+    if (td.querySelector("input")) return;
+    var tr = td.closest("tr"), it = byId(tr.dataset.gid);
+    if (!it) return;
+    var field = td.dataset.cell;
+    var cur = field === "budget" ? (it.budget || "") : (it[field] || "");
+    var old = td.innerHTML;
+    td.innerHTML = '<input class="cc-gin" type="' + (field === "budget" ? "number" : "text") + '" value="' + esc(String(cur)) + '">';
+    var inp = td.querySelector("input");
+    inp.focus();
+    inp.select();
+    var done = false;
+    function finish(save) {
+      if (done) return;
+      done = true;
+      var v = inp.value;
+      if (!save) { td.innerHTML = old; return; }
+      if (field === "name" && !String(v).trim()) { td.innerHTML = old; toast("ชื่อว่างไม่ได้"); return; }
+      td.innerHTML = old;
+      patchItem(it.id, field === "budget" ? { budget: Number(v) || 0 } : (field === "name" ? { name: String(v).trim() } : { owner: String(v).trim() }));
+    }
+    inp.addEventListener("blur", function () { finish(true); });
+    inp.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
+      else if (ev.key === "Escape") { ev.preventDefault(); finish(false); }
+    });
+  }
+  /* เมนูเล็กในช่อง (สถานะ / ประเภท) — ใช้ชั้นลอยเดียวกับที่อื่นไม่ได้ เลยทำเองแบบง่าย */
+  function pickCell(td, opts, cur, onPick) {
+    closePick();
+    var r = td.getBoundingClientRect();
+    var d = document.createElement("div");
+    d.className = "cc-gpick";
+    d.innerHTML = opts.map(function (o) {
+      return '<button type="button"' + (o[0] === cur ? ' class="on"' : "") + ' data-pv="' + esc(o[0]) + '">' + o[1] + "</button>";
+    }).join("");
+    document.body.appendChild(d);
+    d.style.left = Math.max(6, Math.min(r.left, window.innerWidth - d.offsetWidth - 8)) + "px";
+    d.style.top = (r.bottom + d.offsetHeight > window.innerHeight - 8 ? Math.max(8, r.top - d.offsetHeight) : r.bottom + 2) + "px";
+    d.addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-pv]");
+      if (!b) return;
+      ev.stopPropagation();
+      closePick();
+      onPick(b.dataset.pv);
+    });
+  }
+  function closePick() {
+    var old = document.querySelector(".cc-gpick");
+    if (old) old.remove();
+  }
+  document.addEventListener("mousedown", function (ev) {
+    if (!ev.target.closest || !ev.target.closest(".cc-gpick")) closePick();
+  }, true);
+  /* ปุ่ม + ท้ายกลุ่ม → กลายเป็นช่องพิมพ์ชื่อตรงนั้น Enter = ได้แถวใหม่ Esc = ยกเลิก
+     กด Tab หรือปุ่ม "รายละเอียด" = เปิดฟอร์มเต็มโดยยังเติมค่าของกลุ่มให้ */
+  function startQuickAdd(btn, preset) {
+    var host = btn.parentNode;
+    if (host.querySelector(".cc-gin")) return;
+    var old = host.innerHTML;
+    host.innerHTML = '<span class="cc-gaddrow"><input class="cc-gin" placeholder="พิมพ์ชื่อแล้วกด Enter" maxlength="200">' +
+      '<button type="button" class="cc-gaddmore">รายละเอียดเพิ่ม…</button></span>';
+    var inp = host.querySelector("input");
+    inp.focus();
+    var done = false;
+    function close() { if (!done) { done = true; host.innerHTML = old; } }
+    host.querySelector(".cc-gaddmore").addEventListener("mousedown", function (ev) {
+      ev.preventDefault();
+      done = true;
+      var nm = inp.value.trim();
+      host.innerHTML = old;
+      openDrawer(null, preset.start || defaultStart(), preset.scope === "month" ? "month" : "range", preset);
+      if (nm) $("cc-name").value = nm;
+    });
+    inp.addEventListener("blur", function () { setTimeout(close, 120); });
+    inp.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        var nm = inp.value.trim();
+        if (!nm) { close(); return; }
+        done = true;
+        quickAdd(nm, preset);
+      } else if (ev.key === "Escape") { ev.preventDefault(); close(); }
+    });
   }
 
   /* เดือนนี้ "สาขาไหนทำอะไร" */
@@ -788,10 +1113,11 @@
     $("ccMonthFields").style.display = scope === "month" ? "" : "none";
   }
 
-  function openDrawer(item, presetDate, presetScope) {
+  function openDrawer(item, presetDate, presetScope, preset) {
     editingId = item ? item.id : null;
     pendingFiles = [];
-    var k0 = item ? kindOf(item) : (view.kind || "campaign");
+    preset = preset || {};
+    var k0 = item ? kindOf(item) : (preset.kind || view.kind || "campaign");
     setSeg("#cc-kind", k0);
     $("ccDrawerTitle").textContent = item ? "แก้ไข" + KIND_LABEL[k0] : "เพิ่มรายการใหม่";
     $("cc-name").value = item ? item.name : "";
@@ -802,17 +1128,17 @@
     var base = item ? parseISO(item.start) : (presetDate ? parseISO(presetDate) : new Date());
     $("cc-month").value = base.getFullYear() + "-" + String(base.getMonth() + 1).padStart(2, "0");
     $("cc-start").value = item ? item.start : (presetDate || todayISO());
-    $("cc-end").value = item && item.end !== item.start ? item.end : "";
+    $("cc-end").value = item ? (item.end !== item.start ? item.end : "") : (preset.end || "");
     applyScopeUI();
 
     $("cc-budget").value = item && item.budget ? item.budget : "";
     $("cc-owner").value = item ? (item.owner || "") : "";
     $("cc-note").value = item ? (item.note || "") : "";
     $("ccErr").textContent = "";
-    setSeg("#cc-status", item ? item.status : "plan");
+    setSeg("#cc-status", item ? item.status : (preset.status || "plan"));
     setChoices("channel", item ? item.channels : []);
     /* เพิ่มรายการตอนกรองสาขาอยู่ → ติ๊กสาขานั้นให้เลย */
-    setChoices("branch", item ? item.branches : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : []));
+    setChoices("branch", item ? item.branches : (preset.branch ? [preset.branch] : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : [])));
     setColor(item ? colorOf(item) : COLORS[items.length % COLORS.length].v);
     renderAttachments(item);
     renderLinks(item);
@@ -1109,6 +1435,50 @@
       view.branch = bf.dataset.branch;
       try { localStorage.setItem("kan-cc-branch", view.branch); } catch (err) {}
       render();
+      return;
+    }
+    /* ---- มุมมองตาราง ---- */
+    var lay = e.target.closest("[data-layout]");
+    if (lay) {
+      view.layout = lay.dataset.layout === "grid" ? "grid" : "cal";
+      try { localStorage.setItem("kan-cc-layout", view.layout); } catch (err) {}
+      render();
+      return;
+    }
+    var gp = e.target.closest("[data-group]");
+    if (gp) {
+      view.group = gp.dataset.group;
+      try { localStorage.setItem("kan-cc-group", view.group); } catch (err) {}
+      render();
+      return;
+    }
+    var gk = e.target.closest("[data-grpkey]");
+    if (gk) { var k0 = gk.dataset.grpkey; collapsed[k0] = !collapsed[k0]; renderGrid(); return; }
+    var ga = e.target.closest("[data-gadd]");
+    if (ga) {
+      var gg = gridGroups(view.mode === "month" ? ofMonth(view.month) : ofYear())
+        .filter(function (x) { return x.key === ga.dataset.gadd; })[0];
+      startQuickAdd(ga, gg ? gg.preset : {});
+      return;
+    }
+    var cell = e.target.closest("td[data-cell]");
+    if (cell && cell.closest(".cc-gtab")) {
+      var row = cell.closest("tr"), it0 = byId(row.dataset.gid);
+      var f = cell.dataset.cell;
+      if (!it0) return;
+      if (GRID_EDITABLE[f]) { editCell(cell); return; }
+      if (f === "status") {
+        pickCell(cell, [["plan", STATUS_LABEL.plan], ["live", STATUS_LABEL.live], ["done", STATUS_LABEL.done]], it0.status,
+          function (v) { patchItem(it0.id, { status: v }); });
+        return;
+      }
+      if (f === "kind") {
+        pickCell(cell, KINDS.map(function (k) { return [k, KIND_LABEL[k]]; }), kindOf(it0),
+          function (v) { patchItem(it0.id, { kind: v }); });
+        return;
+      }
+      /* ช่วงวัน / สาขา / ช่องทาง แก้ในช่องเดียวไม่ไหว เปิดฟอร์มเต็มให้เลย */
+      openDrawer(it0, null, null);
       return;
     }
     var kf = e.target.closest("[data-kind]");
