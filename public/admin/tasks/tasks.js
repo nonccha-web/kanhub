@@ -3172,7 +3172,23 @@
     { k: 'afternoon', th: 'บ่าย', sub: '12–16', from: 12, to: 16 },
     { k: 'evening', th: 'เย็น', sub: '16–23', from: 16, to: 23 }
   ];
-  function rtHour(t) { return t.dueAt ? new Date(t.dueAt).getHours() : 9; }
+  function rtHour(t) { return t.dueAt ? new Date(t.dueAt).getHours() + new Date(t.dueAt).getMinutes() / 60 : 9; }
+  /* งานกินเวลาจากเวลาเริ่ม + จำนวนชั่วโมง → คืนช่วง band ที่ทับ (เช้า=0 บ่าย=1 เย็น=2) */
+  function rtSpan(t) {
+    var st = rtHour(t), en = st + (t.hours || 0.5);
+    var b0 = 0, b1 = 0;
+    for (var i = 0; i < BANDS.length; i++) {
+      if (st >= BANDS[i].from) b0 = i;
+      if (en > BANDS[i].from) b1 = i;
+    }
+    if (b1 < b0) b1 = b0;
+    return { a: b0, b: b1, start: st, end: en };
+  }
+  function rtFmtRange(t) {
+    var sp = rtSpan(t);
+    var f = function (h) { var hh = Math.floor(h), mm = Math.round((h - hh) * 60); return pad(hh) + ':' + pad(mm); };
+    return f(sp.start) + '–' + f(Math.min(23.99, sp.end));
+  }
   function rtBand(t) {
     var h = rtHour(t);
     for (var i = 0; i < BANDS.length; i++) if (h >= BANDS[i].from && h < BANDS[i].to) return BANDS[i].k;
@@ -3223,6 +3239,13 @@
       .catch(function (e) { toast(e.message, true); renderRoutine(); });
   }
   document.addEventListener('dragstart', function (ev) {
+    var g = ev.target.closest && ev.target.closest('[data-rtgrip]');
+    if (g) {
+      ev.stopPropagation();
+      RDRAG = { id: g.getAttribute('data-rtgrip'), resize: true };
+      try { ev.dataTransfer.setData('text/plain', RDRAG.id); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+      return;
+    }
     var c = ev.target.closest && ev.target.closest('.rtchip[draggable="true"]');
     if (!c) return;
     RDRAG = { id: c.getAttribute('data-rt'), who: c.getAttribute('data-rtwho') };
@@ -3253,6 +3276,23 @@
     $$('.rtover').forEach(function (x) { x.classList.remove('rtover'); });
     var a = taskById(drag.id);
     if (!a) { renderRoutine(); return; }
+
+    /* ลากมือจับ = ยืดเวลาให้จบที่ช่วงที่ปล่อย (เช้า→บ่าย ก็ยืดถึงบ่าย) */
+    if (drag.resize) {
+      var cell2 = cell || (onChip && onChip.closest('[data-rtcell]'));
+      if (!cell2) { renderRoutine(); return; }
+      var bk = cell2.getAttribute('data-rtband');
+      var bd = BANDS.filter(function (x) { return x.k === bk; })[0];
+      if (!bd) { renderRoutine(); return; }
+      /* ยืดให้ "ถึง" ช่วงที่ปล่อย ไม่ใช่กินยาวจนจบวัน — เข้าไปในช่วงนั้น 1 ชม. ก็พอ */
+      var st0 = rtHour(a);
+      var hrs = Math.round((Math.max(bd.from + 1, st0 + 0.5) - st0) * 4) / 4;
+      if (hrs < 0.5) hrs = 0.5;
+      if (hrs > 12) hrs = 12;
+      if (hrs === a.hours) { toast('เท่าเดิม'); return; }
+      rtApply([api('/tasks/' + a.id, 'PUT', { hours: hrs })], 'ปรับเป็น ' + hrs + ' ชม. (ถึงช่วง' + bd.th + ')');
+      return;
+    }
 
     if (onChip && onChip.getAttribute('data-rt') !== drag.id) {
       /* ทับชิปอีกอัน = สลับเจ้าของกันทั้งคู่ */
@@ -3330,25 +3370,39 @@
         people.map(function (p, pi) { return '<th class="rtp' + (pi + 1) + '">' + avatar(p) + '<span>' + esc(shortName(p)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
       DOW_FULL.forEach(function (dname, di) {
         bands.forEach(function (b, bi) {
+          var bandIdx = BANDS.indexOf(b);
           h += '<tr' + (di >= 5 ? ' class="we"' : '') + (bi === 0 ? ' class="dstart' + (di >= 5 ? ' we' : '') + '"' : '') + '>' +
             (bi === 0 ? '<td class="rtd" rowspan="' + bands.length + '"><b>' + dname + '</b></td>' : '') +
             '<td class="rtb">' + b.th + '<small>' + b.sub + '</small></td>' +
             people.map(function (p, pi) {
-              var items = (byPerson[p.id] || []).filter(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })
-                .sort(function (x, y) { return rtHour(x) - rtHour(y); });
+              /* งานที่ "อยู่ในช่วงนี้" = ช่วงเวลาของงานคาบเกี่ยวแถบนี้ (เริ่มที่นี่ หรือยืดมาจากช่วงก่อน) */
+              var items = (byPerson[p.id] || []).filter(function (t) {
+                if (rtDays(t).indexOf(di) === -1) return false;
+                var sp = rtSpan(t);
+                return bandIdx >= sp.a && bandIdx <= sp.b;
+              }).sort(function (x, y) { return rtHour(x) - rtHour(y); });
               var cellAttr = ' data-rtcell="1" data-rtwho="' + esc(p.id) + '" data-rtday="' + di + '" data-rtband="' + b.k + '"';
               if (!items.length) return '<td class="rtempty rtp' + (pi + 1) + '"' + cellAttr + '><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
               return '<td class="rtp' + (pi + 1) + '"' + cellAttr + '>' + items.map(function (t) {
-                return '<a class="rtchip" draggable="true" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') + '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) +
-                  ' · ' + esc(TASK_TYPE_TH[t.taskType || 'other'] || '') + (t.hours ? ' · ' + t.hours + ' ชม.' : '') + '">' +
-                  '<b>' + esc(fmtTime(new Date(t.dueAt))) + '</b><span>' + esc(t.title) + '</span>' +
-                  (t.hours ? '<i>' + t.hours + ' ชม.</i>' : '') + '</a>';
+                var sp = rtSpan(t);
+                var head = sp.a === bandIdx, tail = sp.b === bandIdx, cont = !head;
+                var grip = tail ? '<em class="rtgrip" draggable="true" data-rtgrip="' + esc(t.id) + '" title="ลากลง/ขึ้นเพื่อยืด–ย่อเวลา"></em>' : '';
+                if (cont) {
+                  /* งานเดียวกันที่ยืดมาจากช่วงก่อนหน้า — แสดงเป็นแถบต่อเนื่อง ไม่ใช่งานใหม่ */
+                  return '<a class="rtchip cont' + (tail ? ' end' : '') + '" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') +
+                    '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + ' · ' + rtFmtRange(t) + ' (งานเดียวกัน ต่อจากช่วงก่อน)">' +
+                    '<span>↳ ' + esc(t.title) + '</span>' + grip + '</a>';
+                }
+                return '<a class="rtchip' + (sp.b > sp.a ? ' long' : '') + '" draggable="true" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') +
+                  '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + ' · ' + esc(TASK_TYPE_TH[t.taskType || 'other'] || '') + ' · ' + rtFmtRange(t) + '">' +
+                  '<b>' + esc(rtFmtRange(t)) + '</b><span>' + esc(t.title) + '</span>' +
+                  (t.hours ? '<i>' + t.hours + ' ชม.' + (sp.b > sp.a ? ' · ถึงช่วง' + BANDS[sp.b].th : '') + '</i>' : '') + grip + '</a>';
               }).join('') + '</td>';
             }).join('') + '</tr>';
         });
       });
       h += '</tbody></table></div>' +
-        '<p class="rthint">ลากงาน<b>ไปทับงานของอีกคน</b> = สลับกันทั้งคู่ · ลากลง<b>ช่องว่าง</b> = ย้ายคน/วัน/ช่วงเวลาไปช่องนั้น · งานรายวันย้ายได้เฉพาะช่วงเวลา</p>';
+        '<p class="rthint">ลากงาน<b>ไปทับงานของอีกคน</b> = สลับกันทั้งคู่ · ลากลง<b>ช่องว่าง</b> = ย้ายคน/วัน/ช่วงเวลา · ลาก<b>ขอบล่างของแถบ</b> = ยืดเวลา เช่นยืดจากเช้าถึงบ่าย</p>';
 
       var monthly = routines.filter(function (t) { return t.repeat === 'monthly'; });
       if (monthly.length) {

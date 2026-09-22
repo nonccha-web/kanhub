@@ -275,6 +275,8 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
   /* บัญชีที่ต้องใส่รหัสผ่านทุกครั้ง (ฝ่ายขาย/คนนอกทีมหลัก) — คนเดิมยังกดชื่อเข้าได้เหมือนเดิม */
   "ALTER TABLE staff ADD COLUMN require_pw INTEGER NOT NULL DEFAULT 0",
+  /* งานประจำทำวันไหนบ้าง — "0,1,2,3,4" = จ–ศ · ว่าง = ตามความถี่เดิม (นนท์ 22 ก.ย. 69 ขอลากยาวข้ามวัน) */
+  "ALTER TABLE tasks ADD COLUMN repeat_days TEXT",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
   /* คิวรีรายการงานมี subquery 6 ตัวต่อหนึ่งแถว — ขาด index 3 ตัวนี้แล้วมันสแกนทั้งตารางต่อแถว
      ทำให้เปิดหน้ารายการครั้งเดียวอ่านเป็นแสนแถว จนชนเพดานรายวันของ D1 (เจอ 15 ก.ย. 69) */
@@ -857,6 +859,7 @@ function rowToTask(r) {
     status: r.status,
     dueAt: r.due_at || null,
     repeat: r.repeat || "",
+    repeatDays: r.repeat_days || null,
     taskType: r.task_type || "other",
     taskKind: r.task_kind || (r.repeat ? "routine" : "ondemand"),
     hours: r.hours == null ? null : Number(r.hours),
@@ -914,6 +917,13 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     dueAt = new Date(input.dueAt).toISOString();
   }
   const repeat = REPEATS.indexOf(input.repeat) !== -1 ? input.repeat : "";
+  /* วันที่ทำของงานประจำ — เก็บเป็น "0,1,2" เรียงและไม่ซ้ำ · ไม่ส่งมา = null (ใช้ตามความถี่) */
+  let repeatDays = null;
+  if (input.repeatDays !== undefined && input.repeatDays !== null) {
+    const ds = String(input.repeatDays).split(",").map((x) => Number(String(x).trim()))
+      .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+    repeatDays = ds.length ? Array.from(new Set(ds)).sort((a, b) => a - b).join(",") : null;
+  }
   const taskType = TASK_TYPES.indexOf(input.taskType) !== -1 ? input.taskType : "other";
   /* ไม่ได้เลือกชนิดงาน: มีความถี่ = รูทีน ไม่มี = ตามสั่ง */
   const taskKind = TASK_KINDS.indexOf(input.taskKind) !== -1 ? input.taskKind : (repeat ? "routine" : "ondemand");
@@ -934,7 +944,7 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, repeatDays, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
 }
 
 async function loadIdSets(db) {
@@ -2046,9 +2056,9 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-      ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,repeat_days,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, me.id, now, now,
              v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt,
              v.signW, v.signH, v.signQty, v.signBranch));
       if (!v.parentId) signMains.push(id);   /* ensureSignStages เช็คเองว่าประเภทนี้มี flow ไหม */
@@ -2398,6 +2408,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
           status: body.status != null ? body.status : task.status,
           dueAt: body.dueAt !== undefined ? body.dueAt : task.dueAt,
           repeat: body.repeat != null ? body.repeat : task.repeat,
+          repeatDays: body.repeatDays !== undefined ? body.repeatDays : task.repeatDays,
           priority: body.priority != null ? body.priority : task.priority,
           assignees: body.assignees != null ? body.assignees : task.assignees,
           parentId: task.parentId,
@@ -2419,8 +2430,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
         const moved = !!(task.dueAt && v.dueAt && new Date(task.dueAt).getTime() !== new Date(v.dueAt).getTime());
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
-          ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,repeat_days=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
+          ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, now,
                  v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType,
                  v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0),
                  v.signW, v.signH, v.signQty, v.signBranch, id),
