@@ -3241,10 +3241,17 @@
     }
     return d.toISOString();
   }
-  function rtApply(reqs, msg) {
+  /* อัปเดตหน้าจอทันทีจากข้อมูลในเครื่อง แล้วค่อยบันทึกเบื้องหลัง — ไม่ต้องโหลดหน้าใหม่
+     ถ้าเซิร์ฟเวอร์ไม่รับ ค่อยดึงของจริงมาวาดทับ (นนท์ 22 ก.ย. 69) */
+  function rtApply(reqs, msg, local) {
     if (!reqs.length) return;
-    Promise.all(reqs).then(function () { S.tasks = null; toast(msg); renderRoutine(); })
-      .catch(function (e) { toast(e.message, true); renderRoutine(); });
+    if (local) local();
+    renderRoutine(true);
+    Promise.all(reqs).then(function () { toast(msg); })
+      .catch(function (e) {
+        toast(e.message, true);
+        loadTasks(true).then(function () { renderRoutine(true); });
+      });
   }
   document.addEventListener('dragstart', function (ev) {
     var g = ev.target.closest && ev.target.closest('[data-rtgrip]');
@@ -3298,7 +3305,8 @@
       if (hrs < 0.5) hrs = 0.5;
       if (hrs > 12) hrs = 12;
       if (hrs === a.hours) { toast('เท่าเดิม'); return; }
-      rtApply([api('/tasks/' + a.id, 'PUT', { hours: hrs })], 'ปรับเป็น ' + hrs + ' ชม. (ถึงช่วง' + bd.th + ')');
+      rtApply([api('/tasks/' + a.id, 'PUT', { hours: hrs })], 'ปรับเป็น ' + hrs + ' ชม. (ถึงช่วง' + bd.th + ')',
+        function () { a.hours = hrs; });
       return;
     }
 
@@ -3311,7 +3319,8 @@
       var newA = a.assignees.filter(function (x) { return x !== whoA; }).concat([whoB]);
       var newB = b2.assignees.filter(function (x) { return x !== whoB; }).concat([whoA]);
       rtApply([api('/tasks/' + a.id, 'PUT', { assignees: newA }), api('/tasks/' + b2.id, 'PUT', { assignees: newB })],
-        'สลับงานระหว่าง ' + shortName(staffById(whoA)) + ' กับ ' + shortName(staffById(whoB)) + ' แล้ว');
+        'สลับงานระหว่าง ' + shortName(staffById(whoA)) + ' กับ ' + shortName(staffById(whoB)) + ' แล้ว',
+        function () { a.assignees = newA; b2.assignees = newB; });
       return;
     }
     if (cell) {
@@ -3326,7 +3335,10 @@
       if (!body.assignees && !body.dueAt) { toast('อยู่ที่เดิมอยู่แล้ว'); return; }
       var names = (body.assignees ? 'ย้ายให้ ' + shortName(staffById(toWho)) : 'ย้ายเวลา') +
         (body.dueAt ? ' · ' + (a.repeat === 'weekly' ? DOW_FULL[day] + ' ' : '') + fmtTime(new Date(body.dueAt)) : '');
-      rtApply([api('/tasks/' + a.id, 'PUT', body)], names + ' แล้ว');
+      rtApply([api('/tasks/' + a.id, 'PUT', body)], names + ' แล้ว', function () {
+        if (body.assignees) a.assignees = body.assignees;
+        if (body.dueAt) a.dueAt = body.dueAt;
+      });
     }
   });
 
@@ -3345,8 +3357,10 @@
       if (done) return; done = true;
       var v = inp.value.trim();
       if (!save || !v || v === t.title) { renderRoutine(); return; }
-      api('/tasks/' + id, 'PUT', { title: v }).then(function () { S.tasks = null; toast('แก้ชื่องานแล้ว'); renderRoutine(); })
-        .catch(function (e) { toast(e.message, true); renderRoutine(); });
+      t.title = v;
+      renderRoutine(true);
+      api('/tasks/' + id, 'PUT', { title: v }).then(function () { toast('แก้ชื่องานแล้ว'); })
+        .catch(function (e) { toast(e.message, true); loadTasks(true).then(function () { renderRoutine(true); }); });
     }
     inp.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); });
     inp.addEventListener('keydown', function (ev) {
@@ -3370,10 +3384,11 @@
     /* กันไม่ให้ลิงก์ของการ์ดพาไปหน้างาน แต่ยังต้องให้คลิกไหลไปถึงตัวจัดการปุ่มยืนยัน */
     box.addEventListener('click', function (ev) { ev.preventDefault(); });
   }
-  function renderRoutine() {
+  function renderRoutine(quiet) {
     var view = $('#view');
     view.className = 'page';
-    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    var keepY = quiet ? (window.pageYOffset || document.documentElement.scrollTop || 0) : null;
+    if (!quiet) view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
     loadTasks().then(function (all) {
       var routines = all.filter(function (t) { return t.repeat && !t.parentId; });
       var people = rtPeople(routines);
@@ -3468,6 +3483,7 @@
       }
       view.innerHTML = h;
       syncSel();
+      if (keepY != null) window.scrollTo(0, keepY);   /* ลากแล้วอย่ากระโดดขึ้นบน */
     }).catch(function (e) { showError(e); });
   }
 
@@ -6385,8 +6401,10 @@
       ev.preventDefault(); ev.stopPropagation();
       var did = b.getAttribute('data-rtdel-yes');
       b.disabled = true;
-      api('/tasks/' + did, 'DELETE').then(function () { S.tasks = null; toast('ลบงานประจำแล้ว · ย้อนได้ที่ประวัติการแก้ไข'); renderRoutine(); })
-        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      if (S.tasks) S.tasks = S.tasks.filter(function (x) { return x.id !== did; });
+      renderRoutine(true);
+      api('/tasks/' + did, 'DELETE').then(function () { toast('ลบงานประจำแล้ว · ย้อนได้ที่ประวัติการแก้ไข'); })
+        .catch(function (e) { toast(e.message, true); loadTasks(true).then(function () { renderRoutine(true); }); });
       return;
     }
     if ((b = ev.target.closest('[data-rt-who]'))) {
