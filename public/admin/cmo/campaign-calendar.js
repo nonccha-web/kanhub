@@ -324,19 +324,21 @@
 
   /* ---------- แถบสลับมุมมอง: ปฏิทิน / ตาราง (+ จัดกลุ่มตามอะไร) ---------- */
   function renderViewBar() {
+    /* ปุ่มสลับ ปฏิทิน/ตาราง/สไลด์ อยู่แถบบนสุดคู่กับปุ่มอื่น — ที่นี่แค่ทาสีว่าอันไหนเปิดอยู่ */
+    var sw = $("ccModeSw");
+    if (sw) {
+      var bs = sw.querySelectorAll("[data-layout]");
+      for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("on", bs[i].dataset.layout === view.layout);
+    }
     var el = $("ccViewBar");
     if (!el) return;
-    var seg = [["cal", "ปฏิทิน"], ["grid", "ตาราง"]].map(function (p) {
-      return '<button type="button" class="cc-kind' + (view.layout === p[0] ? " on" : "") + '" data-layout="' + p[0] + '">' + p[1] + "</button>";
-    }).join("");
-    var grp = view.layout !== "grid" ? "" :
-      '<span class="cc-kindlbl cc-grplbl">จัดกลุ่มตาม</span>' + GROUPS.filter(function (g) {
+    el.innerHTML = view.layout !== "grid" ? "" :
+      '<span class="cc-kindlbl">จัดกลุ่มตาม</span>' + GROUPS.filter(function (g) {
         /* จัดกลุ่มตามเดือนในมุมมองเดือนเดียวไม่มีประโยชน์ — ได้กลุ่มเดียวเสมอ */
         return !(g[0] === "month" && view.mode === "month");
       }).map(function (g) {
         return '<button type="button" class="cc-kind' + (groupMode() === g[0] ? " on" : "") + '" data-group="' + g[0] + '">' + g[1] + "</button>";
       }).join("");
-    el.innerHTML = '<span class="cc-kindlbl">มุมมอง</span>' + seg + grp;
   }
   function groupMode() {
     return (view.group === "month" && view.mode === "month") ? "week" : view.group;
@@ -566,6 +568,8 @@
       '<td class="dt" data-cell="budget" title="กดเพื่อแก้งบ">' + (it.budget ? "฿ " + baht(it.budget) : '<span class="cc-gmute">—</span>') + "</td>" +
       '<td data-cell="owner" title="กดเพื่อแก้ผู้รับผิดชอบ">' + (it.owner ? esc(it.owner) : '<span class="cc-gmute">—</span>') + "</td>" +
       '<td class="cc-gend"><span class="cc-gst">' + statusBrief(it) + "</span>" +
+        '<button type="button" class="cc-icon" data-dup="' + it.id + '" aria-label="ทำสำเนา" title="ก๊อปอันนี้เป็นรายการใหม่ (รวมรูป) แล้วค่อยแก้วันที่">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>' +
         '<button type="button" class="cc-icon" data-edit="' + it.id + '" aria-label="เปิดรายละเอียด" title="เปิดรายละเอียดทั้งหมด">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button></td>' +
       "</tr>";
@@ -930,7 +934,8 @@
           (it.note ? '<div class="cc-hover-note clamp">' + esc(it.note.replace(/^\[[^\]]*\]\s*/, "")) + "</div>" : "") +
           (linkLine(it) ? '<div class="cc-hover-meta">' + linkLine(it) + "</div>" : "") +
           '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn ghost" data-open="' + it.id + '">เปิดหน้าเต็ม</button>' +
-          '<button type="button" class="cc-hover-btn ghost" data-edit="' + it.id + '">แก้ไขรายละเอียด</button></div>' +
+          '<button type="button" class="cc-hover-btn ghost" data-edit="' + it.id + '">แก้ไขรายละเอียด</button>' +
+          '<button type="button" class="cc-hover-btn ghost" data-dup="' + it.id + '" title="ก๊อปอันนี้เป็นรายการใหม่">ทำสำเนา</button></div>' +
         "</div>";
     } else {
       // หลายแคมเปญในวันเดียว — โชว์เป็นรายการ กดเลือกได้
@@ -1113,14 +1118,19 @@
     $("ccMonthFields").style.display = scope === "month" ? "" : "none";
   }
 
+  /* ทำสำเนา = เปิดฟอร์มของ "รายการใหม่" โดยยกค่าจากใบเก่ามาให้ครบ แล้วให้แก้วันก่อนกดบันทึก
+     ตั้งใจไม่บันทึกทันที — ก๊อปโปรฯ เก่ามาทั้งดุ้นโดยไม่เปลี่ยนวันแทบไม่มีประโยชน์ */
+  var dupFrom = null;
   function openDrawer(item, presetDate, presetScope, preset) {
     editingId = item ? item.id : null;
     pendingFiles = [];
     preset = preset || {};
+    /* ใบต้นฉบับตอนทำสำเนา: ไม่มี id (= เป็นรายการใหม่) แต่มีค่าทุกช่องเหมือนใบเก่า */
+    if (!item && preset.copyOf) { item = preset.copyOf; editingId = null; }
     var k0 = item ? kindOf(item) : (preset.kind || view.kind || "campaign");
     setSeg("#cc-kind", k0);
-    $("ccDrawerTitle").textContent = item ? "แก้ไข" + KIND_LABEL[k0] : "เพิ่มรายการใหม่";
-    $("cc-name").value = item ? item.name : "";
+    $("ccDrawerTitle").textContent = preset.copyOf ? "ทำสำเนา" + KIND_LABEL[k0] : (item ? "แก้ไข" + KIND_LABEL[k0] : "เพิ่มรายการใหม่");
+    $("cc-name").value = preset.copyOf ? dupName(item.name) : (item ? item.name : "");
 
     var scope = item ? (item.scope || "range") : (presetScope || "range");
     setSeg("#cc-scope", scope);
@@ -1135,20 +1145,72 @@
     $("cc-owner").value = item ? (item.owner || "") : "";
     $("cc-note").value = item ? (item.note || "") : "";
     $("ccErr").textContent = "";
-    setSeg("#cc-status", item ? item.status : (preset.status || "plan"));
+    /* สำเนาเริ่มที่ "วางแผน" เสมอ ก๊อปโปรฯ ที่จบแล้วมาแล้วขึ้นว่าจบแล้วตั้งแต่ยังไม่ทำ = อ่านผิด */
+    setSeg("#cc-status", preset.copyOf ? "plan" : (item ? item.status : (preset.status || "plan")));
     setChoices("channel", item ? item.channels : []);
     /* เพิ่มรายการตอนกรองสาขาอยู่ → ติ๊กสาขานั้นให้เลย */
     setChoices("branch", item ? item.branches : (preset.branch ? [preset.branch] : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : [])));
     setColor(item ? colorOf(item) : COLORS[items.length % COLORS.length].v);
-    renderAttachments(item);
-    renderLinks(item);
-    $("ccDelete").style.visibility = item ? "visible" : "hidden";
+    renderAttachments(preset.copyOf ? null : item);
+    renderLinks(preset.copyOf ? null : item);
+    $("ccDelete").style.visibility = (item && !preset.copyOf) ? "visible" : "hidden";
+    $("ccDup").style.display = (item && !preset.copyOf) ? "" : "none";
+    dupFrom = preset.copyOf || null;
+    $("ccDupNote").innerHTML = preset.copyOf
+      ? 'ก๊อปมาจาก <b>' + esc(preset.copyOf.name) + "</b> — แก้ชื่อกับวันให้เรียบร้อยแล้วกดบันทึก จะได้รายการใหม่ (ของเดิมไม่ถูกแตะ)"
+      : "";
+    $("ccDupNote").style.display = preset.copyOf ? "" : "none";
     $("ccDrawer").classList.add("open");
     $("ccDrawer").setAttribute("aria-hidden", "false");
     $("ccScrim").classList.add("open");
     setTimeout(function () { $("cc-name").focus(); }, 60);
   }
+  /* ชื่อสำเนา: มี (สำเนา) อยู่แล้วก็นับต่อ ไม่ต่อท้ายซ้อนไปเรื่อยๆ */
+  function dupName(name) {
+    var m = String(name).match(/^(.*) \(สำเนา(?: (\d+))?\)$/);
+    if (m) return m[1] + " (สำเนา " + ((+m[2] || 1) + 1) + ")";
+    return name + " (สำเนา)";
+  }
+  /* ดึงรูปของใบเก่ามาเป็นไฟล์ที่ "ยังไม่บันทึก" ของใบใหม่ — พอกดบันทึกถึงอัปขึ้นจริง
+     โหลดช้าหน่อยก็ไม่บล็อกฟอร์ม ระหว่างรอยังกรอกชื่อ/วันได้ */
+  async function copyAttachments(src) {
+    var atts = (src.attachments || []).slice(0, 6);
+    if (!atts.length || !online) return;
+    for (var i = 0; i < atts.length; i++) {
+      if (dupFrom !== src) return;   /* ผู้ใช้ปิดฟอร์มหรือเปิดใบอื่นไปแล้ว ทิ้งงานนี้ */
+      try {
+        var full = await toDataUrl(API + "/attachments/" + atts[i].id);
+        var thumb = await toDataUrl(API + "/attachments/" + atts[i].id + "?s=thumb");
+        if (dupFrom !== src) return;
+        pendingFiles.push({ dataUrl: full, fileName: atts[i].fileName || "image", thumb: thumb });
+        renderAttachments(null);
+      } catch (e) { /* รูปไหนโหลดไม่ได้ก็ข้าม ไม่ต้องล้มทั้งสำเนา */ }
+    }
+  }
+  function toDataUrl(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error("โหลดรูปไม่ได้");
+      return r.blob();
+    }).then(function (b) {
+      return new Promise(function (res, rej) {
+        var fr = new FileReader();
+        fr.onload = function () { res(String(fr.result)); };
+        fr.onerror = function () { rej(new Error("อ่านรูปไม่ได้")); };
+        fr.readAsDataURL(b);
+      });
+    });
+  }
+  function duplicateItem(id) {
+    var it = byId(id);
+    if (!it) return;
+    hideHover();
+    openDrawer(null, null, it.scope || "range", { copyOf: it });
+    copyAttachments(it);
+    toast((it.attachments || []).length ? "ก๊อปมาแล้ว รวมรูป " + it.attachments.length + " รูป — แก้วันแล้วกดบันทึก" : "ก๊อปมาแล้ว — แก้วันแล้วกดบันทึก");
+  }
+
   function closeDrawer() {
+    dupFrom = null;
     $("ccDrawer").classList.remove("open");
     $("ccDrawer").setAttribute("aria-hidden", "true");
     $("ccScrim").classList.remove("open");
@@ -1507,6 +1569,9 @@
     var delPending = e.target.closest("[data-pending]");
     if (delPending) { pendingFiles.splice(+delPending.dataset.pending, 1); renderAttachments(null); return; }
 
+    var dup = e.target.closest("[data-dup]");
+    if (dup) { e.stopPropagation(); duplicateItem(dup.dataset.dup); return; }
+    if (e.target.closest("#ccDup")) { duplicateItem(editingId); return; }
     var ed = e.target.closest("[data-edit]");
     if (ed) { e.stopPropagation(); hideHover(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
     var mo = e.target.closest("[data-month]");

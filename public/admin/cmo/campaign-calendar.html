@@ -515,6 +515,30 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
   .cc-grplbl{ margin-left:0; padding-left:0; border-left:0; width:100%; margin-top:4px; }
   .cc-gend .cc-gst{ display:none; }
 }
+
+/* ── สวิตช์มุมมอง ปฏิทิน / ตาราง / สไลด์ (อยู่แถบบนสุด สลับไปมาได้จากที่เดียว) ── */
+.cc-modesw{ display:inline-flex; align-items:stretch; border:1px solid var(--bg-glass-border); border-radius:10px;
+  background:var(--bg-input); overflow:hidden; }
+.cc-modesw > *{ display:inline-flex; align-items:center; gap:7px; font-family:inherit; font-size:13px; font-weight:500;
+  padding:9px 14px; border:0; border-right:1px solid var(--bg-glass-border); background:none;
+  color:var(--text-secondary); cursor:pointer; text-decoration:none; white-space:nowrap; transition:background .15s, color .15s; }
+.cc-modesw > *:last-child{ border-right:0; }
+.cc-modesw svg{ width:16px; height:16px; flex:none; }
+.cc-modesw > *:hover{ background:var(--bg-card-hover); color:var(--text-primary); }
+.cc-modesw > .on{ background:var(--text-primary); color:var(--bg-page); font-weight:600; }
+.cc-modesw > .on:hover{ background:var(--text-primary); color:var(--bg-page); }
+@media (max-width:560px){
+  .cc-modesw{ width:100%; }
+  .cc-modesw > *{ flex:1; justify-content:center; padding:9px 8px; }
+}
+/* แถวใต้สถิติเหลือแค่ "จัดกลุ่มตาม" แล้ว ว่างเมื่ออยู่มุมมองปฏิทิน */
+.cc-viewbar:empty{ display:none; }
+/* แถบสำเนา: บอกว่ากำลังก๊อปมาจากอันไหน */
+/* ต้องเป็น block ไม่ใช่ flex — ข้อความรอบ <b> จะกลายเป็นคนละ flex item แล้วตัดบรรทัดมั่ว */
+.cc-dupnote{ display:block; margin:0 0 14px; padding:9px 13px; border-radius:8px;
+  border:1px solid var(--bg-glass-border); border-left:3px solid var(--blue); background:var(--bg-card-subtle);
+  font-size:12.5px; color:var(--text-secondary); line-height:1.5; }
+.cc-dupnote b{ color:var(--text-primary); }
 </style>
 </head>
 <body>
@@ -541,10 +565,20 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
         นำเข้า
       </button>
       <input type="file" id="ccFile" accept="application/json" hidden>
-      <a class="cc-btn" href="campaign-deck.html" title="เปิดโหมดสไลด์สำหรับพรีเซนต์">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>
-        โหมดสไลด์
-      </a>
+      <div class="cc-modesw" id="ccModeSw" role="group" aria-label="มุมมอง">
+        <button type="button" data-layout="cal" title="ปฏิทินรายเดือน">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          ปฏิทิน
+        </button>
+        <button type="button" data-layout="grid" title="ตาราง — จัดกลุ่ม พิมพ์เพิ่มได้เลย">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M3 15.5h18M9 10v11"/></svg>
+          ตาราง
+        </button>
+        <a href="campaign-deck.html" title="โหมดสไลด์สำหรับพรีเซนต์">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>
+          สไลด์
+        </a>
+      </div>
       <button class="cc-btn primary" id="ccAdd">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         เพิ่มรายการ
@@ -576,6 +610,7 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
     </button>
   </header>
   <form class="cc-form" id="ccForm" autocomplete="off">
+    <div class="cc-dupnote" id="ccDupNote" style="display:none"></div>
     <div class="cc-gallery" id="ccFiles"></div>
     <input type="file" id="ccImageInput" accept="image/*" multiple hidden>
     <div class="cc-hint" id="ccFileHint"></div>
@@ -632,7 +667,10 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
     <div class="cc-err" id="ccErr"></div>
   </form>
   <footer>
-    <button class="cc-btn danger" id="ccDelete" type="button" style="visibility:hidden">ลบ</button>
+    <div style="display:flex;gap:8px">
+      <button class="cc-btn danger" id="ccDelete" type="button" style="visibility:hidden">ลบ</button>
+      <button class="cc-btn" id="ccDup" type="button" style="display:none" title="สร้างรายการใหม่โดยก๊อปทุกอย่างจากอันนี้ (รวมรูป) แล้วค่อยแก้วันที่">ทำสำเนา</button>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="cc-btn" id="ccCancel" type="button">ยกเลิก</button>
       <button class="cc-btn primary" id="ccSave" type="button">บันทึก</button>
@@ -644,6 +682,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=41"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=16"></script>
+<script src="campaign-calendar.js?v=17"></script>
 </body>
 </html>
