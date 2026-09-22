@@ -3184,15 +3184,104 @@
     if (t.repeat === 'weekly') { var d = t.dueAt ? new Date(t.dueAt).getDay() : 1; return [(d + 6) % 7]; }
     return [];
   }
-  function rtPeople(routines) {
-    var act = activeStaff().filter(function (x) { return x.role !== 'owner'; });
-    if (RT.who.length) return act.filter(function (x) { return RT.who.indexOf(x.id) !== -1; });
-    /* ค่าเริ่มต้น = คนที่มีงานประจำจริง เรียงจากมากไปน้อย (ไม่งั้นติดคนที่ยังไม่มีงานมาเต็มตาราง) */
-    var n = {};
-    act.forEach(function (x) { n[x.id] = (routines || []).filter(function (t) { return t.assignees.indexOf(x.id) !== -1; }).length; });
-    var has = act.filter(function (x) { return n[x.id]; }).sort(function (a, b) { return n[b.id] - n[a.id]; });
-    return (has.length ? has : act).slice(0, 4);
+  /* ทีมที่อยู่ในตารางนี้ = คนที่มีงานประจำจริงเท่านั้น (นนท์ 22 ก.ย. 69: เอาแค่พิซซ่า เติ้ล แตง ไอซ์)
+     ใครได้งานประจำเพิ่มก็โผล่เองอัตโนมัติ ไม่ต้องมาแก้โค้ด */
+  function rtTeam(routines) {
+    return activeStaff().filter(function (x) {
+      return x.role !== 'owner' && (routines || []).some(function (t) { return t.assignees.indexOf(x.id) !== -1; });
+    });
   }
+  function rtPeople(routines) {
+    var team = rtTeam(routines);
+    if (RT.who.length) {
+      var pick = team.filter(function (x) { return RT.who.indexOf(x.id) !== -1; });
+      if (pick.length) return pick;
+    }
+    return team.slice(0, 4);
+  }
+  /* ---------- ลากโยกงานประจำ (นนท์ 22 ก.ย. 69) ----------
+     ลากชิปไปทับชิปของอีกคน = สลับเจ้าของกัน · ลากลงช่องว่าง = ย้ายคน/วัน/เวลาไปช่องนั้น
+     เปลี่ยนจริงที่ฐานข้อมูล: assignees + due_at (วันในสัปดาห์ + ชั่วโมงของช่วงนั้น) */
+  var RDRAG = null;
+  function rtBandStart(k) { for (var i = 0; i < BANDS.length; i++) if (BANDS[i].k === k) return BANDS[i].from + (k === 'morning' ? 4 : (k === 'afternoon' ? 2 : 1)); return 9; }
+  /* ย้ายวัน/เวลาโดยคงรูปแบบเดิม: งานรายวันไม่ย้ายวัน (มันทุกวันอยู่แล้ว) ย้ายแค่เวลา */
+  function rtNewDue(t, day, band) {
+    var d = t.dueAt ? new Date(t.dueAt) : new Date();
+    var hh = rtHour(t);
+    var b = BANDS.filter(function (x) { return x.k === band; })[0];
+    if (!b) return null;
+    if (hh < b.from || hh >= b.to) { d.setHours(rtBandStart(band), 0, 0, 0); }
+    if (t.repeat === 'weekly' && day != null) {
+      var cur = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() + (day - cur));
+    }
+    return d.toISOString();
+  }
+  function rtApply(reqs, msg) {
+    if (!reqs.length) return;
+    Promise.all(reqs).then(function () { S.tasks = null; toast(msg); renderRoutine(); })
+      .catch(function (e) { toast(e.message, true); renderRoutine(); });
+  }
+  document.addEventListener('dragstart', function (ev) {
+    var c = ev.target.closest && ev.target.closest('.rtchip[draggable="true"]');
+    if (!c) return;
+    RDRAG = { id: c.getAttribute('data-rt'), who: c.getAttribute('data-rtwho') };
+    c.classList.add('dragging');
+    try { ev.dataTransfer.setData('text/plain', RDRAG.id); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+  });
+  document.addEventListener('dragend', function () {
+    RDRAG = null;
+    $$('.rtchip.dragging').forEach(function (x) { x.classList.remove('dragging'); });
+    $$('.rtover').forEach(function (x) { x.classList.remove('rtover'); });
+  });
+  document.addEventListener('dragover', function (ev) {
+    if (!RDRAG) return;
+    var target = ev.target.closest && (ev.target.closest('.rtchip') || ev.target.closest('[data-rtcell]'));
+    if (!target) return;
+    ev.preventDefault();
+    try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {}
+    $$('.rtover').forEach(function (x) { if (x !== target) x.classList.remove('rtover'); });
+    target.classList.add('rtover');
+  });
+  document.addEventListener('drop', function (ev) {
+    if (!RDRAG) return;
+    var onChip = ev.target.closest && ev.target.closest('.rtchip');
+    var cell = ev.target.closest && ev.target.closest('[data-rtcell]');
+    if (!onChip && !cell) return;
+    ev.preventDefault();
+    var drag = RDRAG; RDRAG = null;
+    $$('.rtover').forEach(function (x) { x.classList.remove('rtover'); });
+    var a = taskById(drag.id);
+    if (!a) { renderRoutine(); return; }
+
+    if (onChip && onChip.getAttribute('data-rt') !== drag.id) {
+      /* ทับชิปอีกอัน = สลับเจ้าของกันทั้งคู่ */
+      var b2 = taskById(onChip.getAttribute('data-rt'));
+      if (!b2) return;
+      var whoA = drag.who, whoB = onChip.getAttribute('data-rtwho');
+      if (whoA === whoB) { toast('คนเดียวกัน ไม่ต้องสลับ'); return; }
+      var newA = a.assignees.filter(function (x) { return x !== whoA; }).concat([whoB]);
+      var newB = b2.assignees.filter(function (x) { return x !== whoB; }).concat([whoA]);
+      rtApply([api('/tasks/' + a.id, 'PUT', { assignees: newA }), api('/tasks/' + b2.id, 'PUT', { assignees: newB })],
+        'สลับงานระหว่าง ' + shortName(staffById(whoA)) + ' กับ ' + shortName(staffById(whoB)) + ' แล้ว');
+      return;
+    }
+    if (cell) {
+      /* ลงช่องว่าง/ช่องของคนอื่น = ย้ายคน + วัน + ช่วงเวลา */
+      var toWho = cell.getAttribute('data-rtwho');
+      var day = Number(cell.getAttribute('data-rtday'));
+      var band = cell.getAttribute('data-rtband');
+      var body = {};
+      if (toWho !== drag.who) body.assignees = a.assignees.filter(function (x) { return x !== drag.who; }).concat([toWho]);
+      var due = rtNewDue(a, day, band);
+      if (due && due !== a.dueAt) body.dueAt = due;
+      if (!body.assignees && !body.dueAt) { toast('อยู่ที่เดิมอยู่แล้ว'); return; }
+      var names = (body.assignees ? 'ย้ายให้ ' + shortName(staffById(toWho)) : 'ย้ายเวลา') +
+        (body.dueAt ? ' · ' + (a.repeat === 'weekly' ? DOW_FULL[day] + ' ' : '') + fmtTime(new Date(body.dueAt)) : '');
+      rtApply([api('/tasks/' + a.id, 'PUT', body)], names + ' แล้ว');
+    }
+  });
+
   function renderRoutine() {
     var view = $('#view');
     view.className = 'page';
@@ -3217,14 +3306,14 @@
             if (!list.some(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })) gaps++;
           });
         });
-        return '<article' + (!list.length ? ' class="bad"' : (gaps > 14 ? ' class="warn"' : '')) + '>' +
+        return '<article class="rtp' + (people.indexOf(p) + 1) + (!list.length ? ' bad' : (gaps > 14 ? ' warn' : '')) + '">' +
           '<span class="l">' + esc(shortName(p)) + '</span><b>' + Math.round(perWeek) + '</b>' +
           '<small>ครั้ง/สัปดาห์ · ' + (Math.round(hrs * 10) / 10) + ' ชม. · ช่องว่าง ' + gaps + '/21</small></article>';
       }).join('') + '</div>';
 
       h += '<div class="tbar"><span class="tbar-lbl">ดูของ</span><div class="seg">' +
-        '<button type="button" class="' + (!RT.who.length ? 'on' : '') + '" data-rt-who="">4 คนแรก</button>' +
-        activeStaff().filter(function (x) { return x.role !== 'owner'; }).map(function (x) {
+        '<button type="button" class="' + (!RT.who.length ? 'on' : '') + '" data-rt-who="">ทั้งทีม</button>' +
+        rtTeam(routines).map(function (x) {
           return '<button type="button" class="' + (RT.who.indexOf(x.id) !== -1 ? 'on' : '') + '" data-rt-who="' + esc(x.id) + '">' + esc(shortName(x)) + '</button>';
         }).join('') + '</div>' +
         '<span class="tbar-lbl">ช่วงเวลา</span><div class="seg">' +
@@ -3233,27 +3322,33 @@
         }).join('') + '</div>' +
         '<span class="tbar-n">' + routines.length + ' งานประจำ</span></div>';
 
+      h += '<div class="rtlegend">' + TASK_TYPE_KEYS.map(function (k) {
+        return '<span class="rtlg" data-t="' + k + '">' + esc(TASK_TYPE_TH[k]) + '</span>';
+      }).join('') + '<span class="rtlg gap">ช่องว่าง = ยังไม่มีงานประจำ</span></div>';
       var bands = RT.band === 'all' ? BANDS : BANDS.filter(function (b) { return b.k === RT.band; });
       h += '<div class="scrollx"><table class="rtab"><thead><tr><th class="rtd">วัน</th><th class="rtb">ช่วง</th>' +
-        people.map(function (p) { return '<th>' + avatar(p) + '<span>' + esc(shortName(p)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
+        people.map(function (p, pi) { return '<th class="rtp' + (pi + 1) + '">' + avatar(p) + '<span>' + esc(shortName(p)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
       DOW_FULL.forEach(function (dname, di) {
         bands.forEach(function (b, bi) {
           h += '<tr' + (di >= 5 ? ' class="we"' : '') + (bi === 0 ? ' class="dstart' + (di >= 5 ? ' we' : '') + '"' : '') + '>' +
             (bi === 0 ? '<td class="rtd" rowspan="' + bands.length + '"><b>' + dname + '</b></td>' : '') +
             '<td class="rtb">' + b.th + '<small>' + b.sub + '</small></td>' +
-            people.map(function (p) {
+            people.map(function (p, pi) {
               var items = (byPerson[p.id] || []).filter(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })
                 .sort(function (x, y) { return rtHour(x) - rtHour(y); });
-              if (!items.length) return '<td class="rtempty"><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
-              return '<td>' + items.map(function (t) {
-                return '<a class="rtchip" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + (t.hours ? ' · ' + t.hours + ' ชม.' : '') + '">' +
+              var cellAttr = ' data-rtcell="1" data-rtwho="' + esc(p.id) + '" data-rtday="' + di + '" data-rtband="' + b.k + '"';
+              if (!items.length) return '<td class="rtempty rtp' + (pi + 1) + '"' + cellAttr + '><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
+              return '<td class="rtp' + (pi + 1) + '"' + cellAttr + '>' + items.map(function (t) {
+                return '<a class="rtchip" draggable="true" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') + '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) +
+                  ' · ' + esc(TASK_TYPE_TH[t.taskType || 'other'] || '') + (t.hours ? ' · ' + t.hours + ' ชม.' : '') + '">' +
                   '<b>' + esc(fmtTime(new Date(t.dueAt))) + '</b><span>' + esc(t.title) + '</span>' +
                   (t.hours ? '<i>' + t.hours + ' ชม.</i>' : '') + '</a>';
               }).join('') + '</td>';
             }).join('') + '</tr>';
         });
       });
-      h += '</tbody></table></div>';
+      h += '</tbody></table></div>' +
+        '<p class="rthint">ลากงาน<b>ไปทับงานของอีกคน</b> = สลับกันทั้งคู่ · ลากลง<b>ช่องว่าง</b> = ย้ายคน/วัน/ช่วงเวลาไปช่องนั้น · งานรายวันย้ายได้เฉพาะช่วงเวลา</p>';
 
       var monthly = routines.filter(function (t) { return t.repeat === 'monthly'; });
       if (monthly.length) {

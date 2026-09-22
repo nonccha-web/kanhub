@@ -1513,3 +1513,46 @@ a.htitle:hover{ text-decoration:underline; }
   .rtab th.rtb, .rtab td.rtb{ width:52px; }
   .rtchip{ font-size:11px; }
 }
+
+/* สีช่วยอ่านตารางงานประจำ — แถบซ้ายของชิป = ประเภทงาน · หัวคอลัมน์ = สีประจำคน */
+.rtchip{ border-left-color:var(--k-mut); }
+.rtchip[data-t="signage"]{ border-left-color:#e2574c; }
+.rtchip[data-t="content"]{ border-left-color:#4c86e2; }
+.rtchip[data-t="campaign"]{ border-left-color:#d99a1e; }
+.rtchip[data-t="newlot"]{ border-left-color:#1FA968; }
+.rtchip[data-t="other"]{ border-left-color:#8a8fa3; }
+.rtchip[data-t="signage"]:hover{ border-color:#e2574c; }
+.rtchip[data-t="content"]:hover{ border-color:#4c86e2; }
+.rtchip[data-t="campaign"]:hover{ border-color:#d99a1e; }
+.rtchip[data-t="newlot"]:hover{ border-color:#1FA968; }
+.rtab th.rtp1{ box-shadow:inset 0 -3px 0 0 #5b5fc7; }
+.rtab th.rtp2{ box-shadow:inset 0 -3px 0 0 #4fbfc0; }
+.rtab th.rtp3{ box-shadow:inset 0 -3px 0 0 #d96a8b; }
+.rtab th.rtp4{ box-shadow:inset 0 -3px 0 0 #e39a3b; }
+.cards article.rtp1{ box-shadow:inset 3px 0 0 0 #5b5fc7; }
+.cards article.rtp2{ box-shadow:inset 3px 0 0 0 #4fbfc0; }
+.cards article.rtp3{ box-shadow:inset 3px 0 0 0 #d96a8b; }
+.cards article.rtp4{ box-shadow:inset 3px 0 0 0 #e39a3b; }
+.rtab td.rtp1{ background:color-mix(in srgb, #5b5fc7 3%, transparent); }
+.rtab td.rtp2{ background:color-mix(in srgb, #4fbfc0 3%, transparent); }
+.rtab td.rtp3{ background:color-mix(in srgb, #d96a8b 3%, transparent); }
+.rtab td.rtp4{ background:color-mix(in srgb, #e39a3b 3%, transparent); }
+.rtab td.rtempty.rtp1, .rtab td.rtempty.rtp2, .rtab td.rtempty.rtp3, .rtab td.rtempty.rtp4{
+  background:repeating-linear-gradient(135deg, transparent, transparent 7px, var(--k-hair) 7px, var(--k-hair) 14px); }
+.rtlegend{ display:flex; flex-wrap:wrap; gap:6px 14px; margin:-6px 0 12px; font-size:11.5px; color:var(--k-mut); }
+.rtlg{ display:inline-flex; align-items:center; gap:6px; }
+.rtlg::before{ content:''; width:10px; height:3px; border-radius:2px; background:var(--k-mut); }
+.rtlg[data-t="signage"]::before{ background:#e2574c; }
+.rtlg[data-t="content"]::before{ background:#4c86e2; }
+.rtlg[data-t="campaign"]::before{ background:#d99a1e; }
+.rtlg[data-t="newlot"]::before{ background:#1FA968; }
+.rtlg[data-t="other"]::before{ background:#8a8fa3; }
+.rtlg.gap::before{ background:repeating-linear-gradient(135deg, transparent, transparent 3px, var(--k-line) 3px, var(--k-line) 6px); }
+
+/* ลากโยกงานประจำ */
+.rtchip[draggable="true"]{ cursor:grab; }
+.rtchip.dragging{ opacity:.4; }
+.rtchip.rtover{ outline:2px solid var(--k-ink); outline-offset:1px; }
+td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:color-mix(in srgb, var(--k-ink) 6%, transparent) !important; }
+.rthint{ margin:8px 0 0; font-size:11.5px; color:var(--k-mut); }
+.rthint b{ color:var(--k-ink); font-weight:600; }
