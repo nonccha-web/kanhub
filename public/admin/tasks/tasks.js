@@ -3207,6 +3207,14 @@
       return x.role !== 'owner' && (routines || []).some(function (t) { return t.assignees.indexOf(x.id) !== -1; });
     });
   }
+  /* วันทำงานของแต่ละคน (work_days เก็บเป็นเลขวันแบบ JS 0=อาทิตย์) → แปลงเป็นดัชนีตาราง 0=จันทร์ */
+  function rtOff(p, di) {
+    if (!p || p.workDays == null || p.workDays === '') return false;
+    var set = String(p.workDays).split(',').filter(function (x) { return x !== ''; }).map(Number);
+    if (!set.length) return false;
+    var js = (di + 1) % 7;   /* 0=จันทร์ → 1 ; 6=อาทิตย์ → 0 */
+    return set.indexOf(js) === -1;
+  }
   function rtPeople(routines) {
     var team = rtTeam(routines);
     if (RT.who.length) {
@@ -3322,6 +3330,46 @@
     }
   });
 
+  /* แก้ชื่อ/ลบงานได้จากการ์ดเลย — ลบต้องยืนยันซ้ำในการ์ดก่อนถึงจะลบจริง (นนท์ 22 ก.ย. 69) */
+  function rtRename(id) {
+    var t = taskById(id); if (!t) return;
+    var chip = document.querySelector('.rtchip[data-rt="' + id + '"]');
+    if (!chip) return;
+    var host = chip.querySelector('.rttitle'); if (!host || chip.querySelector('input')) return;
+    var w = Math.max(120, chip.clientWidth - 16);
+    host.innerHTML = '<input class="input rtin" style="width:' + w + 'px" maxlength="200">';
+    var inp = host.querySelector('input');
+    inp.value = t.title;
+    var done = false;
+    function finish(save) {
+      if (done) return; done = true;
+      var v = inp.value.trim();
+      if (!save || !v || v === t.title) { renderRoutine(); return; }
+      api('/tasks/' + id, 'PUT', { title: v }).then(function () { S.tasks = null; toast('แก้ชื่องานแล้ว'); renderRoutine(); })
+        .catch(function (e) { toast(e.message, true); renderRoutine(); });
+    }
+    inp.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); });
+    inp.addEventListener('keydown', function (ev) {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', function () { setTimeout(function () { finish(true); }, 0); });
+    inp.focus(); inp.select();
+  }
+  function rtAskDelete(id) {
+    var t = taskById(id); if (!t) return;
+    var chip = document.querySelector('.rtchip[data-rt="' + id + '"]');
+    if (!chip || chip.querySelector('.rtconfirm')) return;
+    var box = document.createElement('div');
+    box.className = 'rtconfirm';
+    box.innerHTML = '<b>ลบ “' + esc(t.title) + '” ?</b><span>งานประจำนี้จะหายจากทุกวัน ย้อนได้ที่ประวัติการแก้ไข</span>' +
+      '<span class="rtcacts"><button type="button" class="btn sm danger" data-rtdel-yes="' + esc(id) + '">ลบจริง</button>' +
+      '<button type="button" class="btn-ghost sm" data-rtdel-no>ยกเลิก</button></span>';
+    chip.appendChild(box);
+    /* กันไม่ให้ลิงก์ของการ์ดพาไปหน้างาน แต่ยังต้องให้คลิกไหลไปถึงตัวจัดการปุ่มยืนยัน */
+    box.addEventListener('click', function (ev) { ev.preventDefault(); });
+  }
   function renderRoutine() {
     var view = $('#view');
     view.className = 'page';
@@ -3340,15 +3388,18 @@
         var list = byPerson[p.id] || [];
         var perWeek = list.reduce(function (a, t) { return a + (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
         var hrs = list.reduce(function (a, t) { return a + (t.hours || 0) * (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
-        var gaps = 0;
+        var gaps = 0, offDays = 0;
         DOW_FULL.forEach(function (_, di) {
+          if (rtOff(p, di)) { offDays++; return; }   /* วันหยุดไม่นับเป็นช่องว่าง */
           BANDS.forEach(function (b) {
             if (!list.some(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })) gaps++;
           });
         });
+        var slots = (7 - offDays) * BANDS.length;
         return '<article class="rtp' + (people.indexOf(p) + 1) + (!list.length ? ' bad' : (gaps > 14 ? ' warn' : '')) + '">' +
           '<span class="l">' + esc(shortName(p)) + '</span><b>' + Math.round(perWeek) + '</b>' +
-          '<small>ครั้ง/สัปดาห์ · ' + (Math.round(hrs * 10) / 10) + ' ชม. · ช่องว่าง ' + gaps + '/21</small></article>';
+          '<small>ครั้ง/สัปดาห์ · ' + (Math.round(hrs * 10) / 10) + ' ชม. · ช่องว่าง ' + gaps + '/' + slots +
+          (offDays ? ' · หยุด ' + DOW_FULL.filter(function (_, i) { return rtOff(p, i); }).join('/') : '') + '</small></article>';
       }).join('') + '</div>';
 
       h += '<div class="tbar"><span class="tbar-lbl">ดูของ</span><div class="seg">' +
@@ -3376,12 +3427,16 @@
             '<td class="rtb">' + b.th + '<small>' + b.sub + '</small></td>' +
             people.map(function (p, pi) {
               /* งานที่ "อยู่ในช่วงนี้" = ช่วงเวลาของงานคาบเกี่ยวแถบนี้ (เริ่มที่นี่ หรือยืดมาจากช่วงก่อน) */
-              var items = (byPerson[p.id] || []).filter(function (t) {
+              var items = rtOff(p, di) ? [] : (byPerson[p.id] || []).filter(function (t) {
                 if (rtDays(t).indexOf(di) === -1) return false;
                 var sp = rtSpan(t);
                 return bandIdx >= sp.a && bandIdx <= sp.b;
               }).sort(function (x, y) { return rtHour(x) - rtHour(y); });
               var cellAttr = ' data-rtcell="1" data-rtwho="' + esc(p.id) + '" data-rtday="' + di + '" data-rtband="' + b.k + '"';
+              if (rtOff(p, di)) {
+                return '<td class="rtoff rtp' + (pi + 1) + '" title="' + esc(shortName(p)) + ' หยุดวัน' + DOW_FULL[di] + '">' +
+                  (bi === 0 ? '<span>หยุด</span>' : '') + '</td>';
+              }
               if (!items.length) return '<td class="rtempty rtp' + (pi + 1) + '"' + cellAttr + '><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
               return '<td class="rtp' + (pi + 1) + '"' + cellAttr + '>' + items.map(function (t) {
                 var sp = rtSpan(t);
@@ -3395,8 +3450,10 @@
                 }
                 return '<a class="rtchip' + (sp.b > sp.a ? ' long' : '') + '" draggable="true" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') +
                   '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + ' · ' + esc(TASK_TYPE_TH[t.taskType || 'other'] || '') + ' · ' + rtFmtRange(t) + '">' +
-                  '<b>' + esc(rtFmtRange(t)) + '</b><span>' + esc(t.title) + '</span>' +
-                  (t.hours ? '<i>' + t.hours + ' ชม.' + (sp.b > sp.a ? ' · ถึงช่วง' + BANDS[sp.b].th : '') + '</i>' : '') + grip + '</a>';
+                  '<b>' + esc(rtFmtRange(t)) + '</b><span class="rttitle">' + esc(t.title) + '</span>' +
+                  (t.hours ? '<i>' + t.hours + ' ชม.' + (sp.b > sp.a ? ' · ถึงช่วง' + BANDS[sp.b].th : '') + '</i>' : '') +
+                  '<span class="rtacts"><i class="rtact" role="button" tabindex="0" data-rtedit="' + esc(t.id) + '" title="แก้ชื่องาน">✎</i>' +
+                  '<i class="rtact del" role="button" tabindex="0" data-rtdel="' + esc(t.id) + '" title="ลบงานนี้">✕</i></span>' + grip + '</a>';
               }).join('') + '</td>';
             }).join('') + '</tr>';
         });
@@ -6321,6 +6378,17 @@
     if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
     if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
     if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
+    if ((b = ev.target.closest('[data-rtedit]'))) { ev.preventDefault(); ev.stopPropagation(); rtRename(b.getAttribute('data-rtedit')); return; }
+    if ((b = ev.target.closest('[data-rtdel]'))) { ev.preventDefault(); ev.stopPropagation(); rtAskDelete(b.getAttribute('data-rtdel')); return; }
+    if ((b = ev.target.closest('[data-rtdel-no]'))) { ev.preventDefault(); ev.stopPropagation(); var bx = b.closest('.rtconfirm'); if (bx) bx.remove(); return; }
+    if ((b = ev.target.closest('[data-rtdel-yes]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      var did = b.getAttribute('data-rtdel-yes');
+      b.disabled = true;
+      api('/tasks/' + did, 'DELETE').then(function () { S.tasks = null; toast('ลบงานประจำแล้ว · ย้อนได้ที่ประวัติการแก้ไข'); renderRoutine(); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
     if ((b = ev.target.closest('[data-rt-who]'))) {
       var rid = b.getAttribute('data-rt-who');
       if (!rid) RT.who = [];
