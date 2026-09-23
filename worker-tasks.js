@@ -1,4 +1,5 @@
 import { notifyReviewSubmitted } from "./worker-lark.js";
+import { handleBlastApi } from "./worker-blast.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
@@ -18,7 +19,7 @@ const STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review
 const TASK_KINDS = ["ondemand", "routine"];
 /* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
 /* newlot = ล็อตใหม่ — เป็นงานประชาสัมพันธ์ของเข้า ไม่ใช่โปรโมชัน จึงแยกหมวด (นนท์สั่ง 15 ก.ย. 69) */
-const TASK_TYPES = ["signage", "content", "campaign", "newlot", "other"];
+const TASK_TYPES = ["signage", "content", "campaign", "newlot", "lineoa", "other"];
 /* monthly = ทุกเดือน — นนท์ขอเพิ่ม 15 ก.ย. 69 (งานอย่างสรุปยอดรายเดือน คอลเลคชั่นประจำเดือน) */
 const REPEATS = ["", "daily", "weekly", "monthly"];
 
@@ -34,13 +35,25 @@ const SIGN_STAGES = [
   { k: "installed", th: "ติดตั้ง",      lead: 1 },
 ];
 const SIGN_STAGE_KEYS = SIGN_STAGES.map((x) => x.k);
+
+/* ---------- งาน LINE OA: 3 ขั้น (นนท์สั่ง 23 ก.ย. 69) ----------
+   เส้นทางที่เขาวางไว้คือ คุณออนบรีฟโปร → เปิดงาน LINE OA → ทีมทำรูป → หัวหน้าตรวจ → กดบรอดแคสต์
+   ขั้นสุดท้ายระบบติ๊กให้เองตอนกดส่งสำเร็จ (ดู doSend ใน worker-blast.js) ไม่ต้องมาติ๊กซ้ำ */
+const LINEOA_STAGES = [
+  { k: "artwork",  th: "ทำรูป/ข้อความ",   lead: 2, pic: 1 },
+  { k: "approved", th: "หัวหน้าตรวจผ่าน",  lead: 1, pic: 0 },
+  { k: "blasted",  th: "บรอดแคสต์แล้ว",    lead: 0, pic: 0 },
+];
 /* ขั้นงาน (flow) ตั้งเองได้ต่อประเภทงาน — นนท์ขอ 18 ก.ย. 69: "แก้ไข/เพิ่มลด flow พวกนี้ได้"
    เก็บใน task_settings key 'flows' = { signage:[{k,th,lead,pic}], content:[...], ... }
    ประเภทที่ไม่มี flow → บอร์ดใช้คอลัมน์ตามสถานะเหมือนเดิม · ป้ายมีค่าเริ่มต้น 6 ขั้น (ทุกขั้นต้องแนบรูป) */
 const MAX_FLOW_STAGES = 12;
 function defaultFlows(leads) {
   const L = leads || {};
-  return { signage: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: Number(L[x.k] != null ? L[x.k] : x.lead) || 0, pic: 1 })) };
+  return {
+    signage: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: Number(L[x.k] != null ? L[x.k] : x.lead) || 0, pic: 1 })),
+    lineoa: LINEOA_STAGES.map((x) => ({ k: x.k, th: x.th, lead: x.lead, pic: x.pic })),
+  };
 }
 function cleanFlow(list) {
   if (!Array.isArray(list)) return { error: "รูปแบบขั้นงานไม่ถูกต้อง" };
@@ -338,7 +351,7 @@ const KPI_SEED = [
      kpi   = KPI 2570 + KPI Dashboard
    หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
 /* crm = หน้าลีดอย่างเดียว (ต้น/ตาล ฝ่ายขาย — นนท์ 21 ก.ย. 69) */
-const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm"];
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
 function sectionsOf(row) {
   if (!row) return [];
@@ -2787,6 +2800,12 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     }
     await db.prepare("DELETE FROM task_files WHERE id = ?").bind(row.id).run();
     return json({ ok: true });
+  }
+
+  /* ---- บรอดแคสต์ LINE OA + SMS (/blast/*) — โค้ดอยู่ worker-blast.js ---- */
+  if (path.indexOf("/blast/") === 0) {
+    return handleBlastApi(db, request, url, path, method, me,
+      { blast: canSee(me, "blast"), owner: isOwner }, ctx);
   }
 
   return json({ error: "ไม่พบ endpoint นี้" }, 404);

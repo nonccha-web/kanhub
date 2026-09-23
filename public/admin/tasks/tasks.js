@@ -51,12 +51,14 @@
 
   /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
      งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
-  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'newlot', 'other'];
-  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', newlot: 'ล็อตใหม่', other: 'อื่น ๆ' };
+  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'newlot', 'lineoa', 'other'];
+  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', newlot: 'ล็อตใหม่', lineoa: 'LINE OA', other: 'อื่น ๆ' };
   /* เดาประเภทจากข้อความตอนวางจากแชต — เดาผิดก็แก้ในตารางได้ ไม่ได้บังคับ
      เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่
      (คีย์ในฐานข้อมูลยังเป็น signage เหมือนเดิม เปลี่ยนแค่ชื่อที่โชว์ งานเก่าไม่กระทบ) */
   var TASK_TYPE_HINT = [
+    /* LINE OA มาก่อนคอนเทนต์/แคมเปญ เพราะ "บรอดแคสต์โปรทาง LINE" เข้าเงื่อนไขได้ทั้งสามอัน */
+    ['lineoa', /line\s*oa|ไลน์\s*โอเอ|บรอดแคสต์|บอร์ดแคส|broadcast|ริชเมนู|rich\s*menu|แบนเนอร์ไลน์|ไลน์แอด(?!ส์)|ยิงไลน์|ส่งไลน์/i],
     ['newlot', /ล็อตใหม่|ลอตใหม่|สินค้าเข้า|ของเข้า|new\s*lot|new\s*arrival|คอลเลคชั่นประจำเดือน/i],
     ['signage', /ป้าย|signage|signmate|บิลบอร์ด|billboard|โปสเตอร์|standee|สแตนดี|แบนเนอร์|banner|บูธ|booth|จอ(?!ง)|ตกแต่งร้าน|วิชวล/i],
     ['content', /คอนเทนต์|content|โพสต์|โพส|post|คลิป|วิดีโอ|video|reel|tiktok|ถ่ายภาพ|ถ่ายรูป|กราฟิก|อาร์ตเวิร์ก|artwork|แคปชัน|เพจ/i],
@@ -581,7 +583,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { routine: '#/routine', history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -611,9 +613,10 @@
     ['docs',  'เอกสารแผนงาน · B2B · รายงานการรับสาย'],
     ['sales', 'ยอดขาย + การตลาด (ตัวเลขยอดขายทั้งหมด)'],
     ['kpi',   'KPI 2570 + KPI Dashboard'],
-    ['crm',   'ลีด (CRM) — ฝ่ายขายที่ดูแค่ลีด ให้ติ๊กอันนี้อันเดียว']
+    ['crm',   'ลีด (CRM) — ฝ่ายขายที่ดูแค่ลีด ให้ติ๊กอันนี้อันเดียว'],
+    ['blast', 'บรอดแคสต์ LINE OA + SMS — ยิงถึงลูกค้าจริง เปิดให้เฉพาะคนที่ดูแลเพจ']
   ];
-  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI', crm: 'ลีด' };
+  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI', crm: 'ลีด', blast: 'บรอดแคสต์' };
   function renderSidebar() {
     var host = $('#sideHost');
     if (!host || !global.ERP_MENU) return;
@@ -2864,27 +2867,35 @@
   /* ---------- funnel งานป้าย: 6 ขั้นเรียงซ้ายไปขวา ----------
      stages = งานย่อยที่มี stage · ขั้นผ่านแล้ว = สถานะ done · ขั้นปัจจุบัน = ขั้นแรกที่ยังไม่ done
      ช่องรูป: ขั้นไหนมีรูปคือผ่านจริง ไม่ใช่แค่กดว่าเสร็จ — ขั้นที่ปิดโดยไม่มีรูปทำไม่ได้ตั้งแต่ฝั่ง worker */
-  function signFunnel(main, stages, compact) {
+  function signFunnel(main, stages, compact, flowDefs) {
     var byK = {};
     (stages || []).forEach(function (x) { byK[x.stage] = x; });
+    /* ประเภทอื่นที่มีขั้นงาน (เช่น LINE OA) ส่ง flow ของตัวเองเข้ามา — ไม่ส่ง = ใช้ของงานป้าย
+       ขั้นที่ไม่บังคับแนบรูป (pic = 0) จะไม่ขึ้นช่องรูป แต่ยังกดเข้าไปทำงานในขั้นได้ */
+    var DEFS = (flowDefs && flowDefs.length) ? flowDefs
+      : SIGN_STAGES.map(function (x) { return { k: x[0], th: x[1], pic: 1 }; });
+    var KEYS = DEFS.map(function (x) { return x.k; });
     var now = new Date();
     var cur = null;
-    for (var i = 0; i < SIGN_KEYS.length; i++) { var st0 = byK[SIGN_KEYS[i]]; if (!st0 || effStatus(st0) !== 'done') { cur = SIGN_KEYS[i]; break; } }
-    return '<div class="sfun' + (compact ? ' compact' : '') + '">' + SIGN_STAGES.map(function (def, i) {
-      var k = def[0], x = byK[k];
+    for (var i = 0; i < KEYS.length; i++) { var st0 = byK[KEYS[i]]; if (!st0 || effStatus(st0) !== 'done') { cur = KEYS[i]; break; } }
+    return '<div class="sfun' + (compact ? ' compact' : '') + '" style="--sn:' + DEFS.length + '">' + DEFS.map(function (def, i) {
+      var k = def.k, x = byK[k];
       var done = x && effStatus(x) === 'done', isCur = k === cur, rev = x && effStatus(x) === 'review';
       var late = x && !done && x.dueAt && new Date(x.dueAt) < now;
       var cls = 'sst' + (done ? ' on' : '') + (isCur ? ' now' : '') + (rev ? ' rev' : '') + (late ? ' late' : '');
       var when = x ? (done ? (x.doneAt ? fmtDate(new Date(x.doneAt)) + ' ✓' : 'เสร็จ')
                           : (x.dueAt ? 'คาด ' + fmtDate(new Date(x.dueAt)) : '')) : '';
+      var needPic = def.pic !== 0;
       var pic = x && x.picId
         ? '<a class="sshot has" href="#/task/' + esc(x.id) + '"><img src="' + API + '/files/' + esc(x.picId) + '" alt="" loading="lazy"></a>'
-        : (x ? '<a class="sshot' + (isCur ? ' need' : '') + '" href="#/task/' + esc(x.id) + '">' +
-               (rev ? 'รอตรวจ' : (isCur ? 'ยังไม่ส่งรูป' : (done ? (x.nFiles ? 'มีรูป ' + x.nFiles : 'ไม่มีรูป') : 'รอถึงคิว'))) + '</a>'
+        : (x ? '<a class="sshot' + (needPic ? (isCur ? ' need' : '') : ' nopic') + '" href="#/task/' + esc(x.id) + '">' +
+               (rev ? 'รอตรวจ'
+                    : needPic ? (isCur ? 'ยังไม่ส่งรูป' : (done ? (x.nFiles ? 'มีรูป ' + x.nFiles : 'ไม่มีรูป') : 'รอถึงคิว'))
+                    : (done ? 'ผ่านแล้ว' : (isCur ? 'เปิดขั้นนี้' : 'รอถึงคิว'))) + '</a>'
              : '<span class="sshot off">ยังไม่ตั้งขั้น</span>');
       return '<div class="' + cls + '" data-k="' + k + '">' +
-        (x ? '<a class="slbl" href="#/task/' + esc(x.id) + '"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</a>'
-           : '<span class="slbl"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</span>') +
+        (x ? '<a class="slbl" href="#/task/' + esc(x.id) + '"><i></i>' + (i + 1) + '. ' + esc(def.th) + '</a>'
+           : '<span class="slbl"><i></i>' + (i + 1) + '. ' + esc(def.th) + '</span>') +
         '<span class="swhen' + (late ? ' late' : '') + '">' + esc(when) + '</span>' +
         (compact ? '' : pic) + '</div>';
     }).join('') + '</div>';
@@ -4279,23 +4290,35 @@
       /* งานป้ายหลัก: 6 ขั้นเป็น funnel — งานย่อยธรรมดาซ่อนไว้ใต้นั้น */
       var stageSubs = subs.filter(function (x) { return x.stage; });
       var plainSubs = subs.filter(function (x) { return !x.stage; });
-      if (!t.parentId && t.taskType === 'signage') {
+      /* แถบขั้นตอน — ใช้ได้กับทุกประเภทที่ตั้ง flow ไว้ (ป้าย · LINE OA · ประเภทที่หัวหน้าเพิ่มเอง)
+         เดิมล็อกไว้กับงานป้ายอย่างเดียว ขั้นของประเภทอื่นเลยถูกสร้างแล้วแต่ไม่โผล่ให้เห็น */
+      var tFlow = flowOf(t.taskType);
+      if (!t.parentId && tFlow.length) {
         var passed = stageSubs.filter(function (x) { return effStatus(x) === 'done'; }).length;
-        h += '<div class="sec signsec"><div class="sec-h"><h2>ขั้นตอนงานป้าย</h2>' +
-          '<p>' + (stageSubs.length ? 'ผ่านแล้ว ' + passed + ' จาก 6' + (signMeta(t) ? ' · ' + esc(signMeta(t)) : '') : 'ยังไม่ได้ตั้งขั้นตอน') + '</p></div>' +
+        var isSign = t.taskType === 'signage';
+        h += '<div class="sec signsec"><div class="sec-h"><h2>ขั้นตอน' + esc(isSign ? 'งานป้าย' : ('งาน ' + (TASK_TYPE_TH[t.taskType] || ''))) + '</h2>' +
+          '<p>' + (stageSubs.length ? 'ผ่านแล้ว ' + passed + ' จาก ' + tFlow.length + (isSign && signMeta(t) ? ' · ' + esc(signMeta(t)) : '') : 'ยังไม่ได้ตั้งขั้นตอน') + '</p></div>' +
           '<div class="sec-b">' +
           (stageSubs.length
-            ? signFunnel(t, stageSubs, false) +
-              '<p class="hint" style="margin-top:12px">กดที่ขั้นเพื่อเข้าไปแนบรูปแล้วส่ง · วันคาดว่าเสร็จถอยหลังมาจากวันติดตั้ง ' +
-              (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '') + ' ข้ามเสาร์อาทิตย์ · เลื่อนวันติดตั้งแล้วทุกขั้นขยับตาม</p>'
-            : '<p class="hint">งานนี้เป็นป้ายแต่ยังไม่มี 6 ขั้น (สั่งไว้ก่อนมีระบบนี้)</p>' +
-              (canEdit || mine ? '<div class="acts" style="margin-top:10px"><button type="button" class="btn" id="mkStages">สร้าง 6 ขั้นให้เลย</button></div>' : '')) +
+            ? signFunnel(t, stageSubs, false, tFlow) +
+              '<p class="hint" style="margin-top:12px">' +
+              (isSign
+                ? 'กดที่ขั้นเพื่อเข้าไปแนบรูปแล้วส่ง · วันคาดว่าเสร็จถอยหลังมาจากวันติดตั้ง ' +
+                  (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '') + ' ข้ามเสาร์อาทิตย์ · เลื่อนวันติดตั้งแล้วทุกขั้นขยับตาม'
+                : 'กดที่ขั้นเพื่อเข้าไปทำงานในขั้นนั้น' +
+                  (t.taskType === 'lineoa' ? ' · ขั้น “บรอดแคสต์แล้ว” ระบบติ๊กให้เองตอนกดส่งสำเร็จ' : '')) + '</p>'
+            : '<p class="hint">งานนี้ยังไม่มีขั้นตอน (สั่งไว้ก่อนมีระบบนี้)</p>' +
+              (canEdit || mine ? '<div class="acts" style="margin-top:10px"><button type="button" class="btn" id="mkStages">สร้าง ' + tFlow.length + ' ขั้นให้เลย</button></div>' : '')) +
           '</div></div>';
       }
-      /* ขั้นของงานป้าย: บอกว่าเป็นขั้นที่เท่าไหร่ และต้องแนบรูป */
+      /* งานย่อยที่เป็น "ขั้น": บอกว่าเป็นขั้นที่เท่าไหร่ และต้องแนบรูปไหม */
       if (t.parentId && t.stage) {
-        h += '<div class="postbar">ขั้นที่ <b>' + (signStageIdx(t.stage) + 1) + ' จาก 6</b> · ' + esc(SIGN_TH[t.stage] || t.stage) +
-          ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' +
+        var pFlow = flowOf(t.taskType);
+        var sIdx = 0, sDef = null;
+        pFlow.forEach(function (x, i) { if (x.k === t.stage) { sIdx = i; sDef = x; } });
+        h += '<div class="postbar">ขั้นที่ <b>' + (sIdx + 1) + ' จาก ' + (pFlow.length || 6) + '</b> · ' +
+          esc((sDef && sDef.th) || SIGN_TH[t.stage] || t.stage) +
+          (!sDef || sDef.pic ? ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' : '') +
           (t.stage === 'approved' ? ' · ขั้นนี้หัวหน้าเป็นคนกดผ่าน' : '') + '</div>';
       }
       /* ฟอร์มอัปเดตงานย้ายมาอยู่เหนือ "ความคืบหน้า" (นนท์ 21 ก.ย. 69)
@@ -4392,12 +4415,15 @@
       if (files.length) {
         h += '<div class="sec"><div class="sec-h"><h2>ไฟล์แนบทั้งหมด</h2><p>' + files.length + ' รายการ</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
       }
+      /* แผงบรอดแคสต์ LINE — blast.js เติมให้เองถ้างานนี้เป็นประเภท LINE OA หรือเคยยิงไปแล้ว */
+      h += '<div id="blastPanel"></div>';
       h += '</div></div>';
       view.innerHTML = h;
       pendingFiles = [];
       pendingLinks = [];
       wireTask(t);
       wireTyping(view);
+      if (global.KAN_BLAST) global.KAN_BLAST.mountTaskPanel(t);
     }).catch(function (e) { showError(e); });
   }
   function resizeImage(file, max, q) {
@@ -6255,6 +6281,9 @@
       /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
       case 'leads': return renderLeads();
       case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
+      /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js */
+      case 'blast': case 'richmenu': case 'lineusers': case 'blastsetup':
+        return global.KAN_BLAST.render(S.route);
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
@@ -6268,6 +6297,12 @@
   }
   function boot() {
     wireLightbox();
+    /* ส่งเครื่องมือที่ใช้ร่วมกันให้หน้าบรอดแคสต์ (blast.js) — จะได้ไม่ต้องก๊อปฟังก์ชันซ้ำ */
+    if (global.KAN_BLAST) global.KAN_BLAST.init({
+      API: API, api: api, esc: esc, toast: toast, okDialog: okDialog,
+      fmtAgo: fmtAgo, fmtFull: fmtFull, toLocalInput: toLocalInput, fromLocalInput: fromLocalInput,
+      canSee: canSee, denyView: denyView, isOwner: function () { return S.me && S.me.role === 'owner'; },
+    });
     return fetch(API + '/me', { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }

@@ -6,6 +6,7 @@
 import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
+import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -428,7 +429,12 @@ export default {
   /* cron จาก wrangler.jsonc — แจ้งงานเข้ากลุ่ม Lark 3 รอบ/วัน */
   async scheduled(event, env, ctx) {
     await ensureTaskSchema(env.KAN_ERP);
-    ctx.waitUntil(runScheduled(event, env));
+    /* ใบบรอดแคสต์ที่ตั้งเวลาไว้แล้วถึงเวลา — ยิงตอนรอบ cron ที่มีอยู่แล้ว
+       (โหมดจำลองยังไม่ต้องละเอียดถึงนาที · ต่อของจริงแล้วค่อยเพิ่ม cron ทุก 10 นาที) */
+    ctx.waitUntil((async () => {
+      try { await ensureBlastSchema(env.KAN_ERP); await runDueBlasts(env.KAN_ERP); } catch (e) {}
+      await runScheduled(event, env);
+    })());
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);

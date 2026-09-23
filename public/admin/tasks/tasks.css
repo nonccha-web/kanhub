@@ -242,7 +242,8 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
 /* ── งานป้าย: funnel 6 ขั้น ── */
-.sfun{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; }
+/* --sn = จำนวนขั้นของ flow นั้น (ส่งมาจาก signFunnel) — เดิมล็อก 6 ขั้นของงานป้ายไว้ตายตัว */
+.sfun{ display:grid; grid-template-columns:repeat(var(--sn,6),minmax(0,1fr)); gap:0; }
 .sst{ position:relative; padding:0 12px 0 0; min-width:0; }
 .sst + .sst{ padding-left:12px; border-left:1px dashed var(--k-line); }
 .slbl{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--k-mut); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -261,10 +262,12 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .sshot.has img{ width:100%; height:100%; object-fit:cover; display:block; }
 .sshot.need{ border-color:var(--k-warn); color:var(--k-warn); }
 .sshot.off{ border-style:dashed; color:var(--k-mut); opacity:.6; }
+/* ขั้นที่ไม่บังคับแนบรูป — ไม่ต้องเว้นช่องรูปใหญ่ ๆ ทิ้งไว้ */
+.sshot.nopic{ aspect-ratio:auto; padding:9px 10px; background:transparent; }
 .sfun.compact .sshot{ display:none; }
 .sec.signsec .sec-h h2{ color:var(--k-ink); }
-@media (max-width:900px){ .sfun{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 0; } .sst:nth-child(4){ padding-left:0; border-left:0; } }
-@media (max-width:560px){ .sfun{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sst:nth-child(4){ padding-left:12px; border-left:1px dashed var(--k-line); } .sst:nth-child(odd){ padding-left:0; border-left:0; } }
+@media (max-width:900px){ .sfun{ grid-template-columns:repeat(min(var(--sn,6),3),minmax(0,1fr)); gap:14px 0; } .sst:nth-child(4){ padding-left:0; border-left:0; } }
+@media (max-width:560px){ .sfun{ grid-template-columns:repeat(min(var(--sn,6),2),minmax(0,1fr)); } .sst:nth-child(4){ padding-left:12px; border-left:1px dashed var(--k-line); } .sst:nth-child(odd){ padding-left:0; border-left:0; } }
 
 /* funnel รวมหน้างานป้าย — แถบตามจำนวน */
 .sfbig{ display:grid; gap:6px; }
