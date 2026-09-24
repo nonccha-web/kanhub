@@ -2061,6 +2061,7 @@
       '<div class="lrow2">' +
       '<div class="field"><label class="label">เบอร์</label><input class="input" name="phone" maxlength="40" inputmode="tel" value="' + esc(v.phone) + '"></div>' +
       '<div class="field"><label class="label">LINE</label><input class="input" name="lineId" maxlength="80" value="' + esc(v.lineId) + '"></div></div>' +
+      '<div id="leadDup" class="leaddup" hidden></div>' +
       '<div class="lrow2">' +
       '<div class="field"><label class="label">ทักมาจากไหน</label><select class="input" name="source">' +
       LEAD_SRC.map(function (o) { return '<option value="' + o[0] + '"' + (v.source === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>' +
@@ -2093,6 +2094,45 @@
     document.addEventListener('keydown', onKey);
     host.addEventListener('click', function (ev) {
       if (ev.target === host || ev.target.closest('[data-q-close]')) close();
+    });
+    /* เบอร์/LINE ซ้ำกับลีดเดิม — เตือนทันทีพร้อมปุ่มพาไปดูใบเดิม (นนท์ 24 ก.ย. 69) */
+    function digits(x) { return String(x || '').replace(/\D/g, ''); }
+    function sameLine(a, b) { return a && b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); }
+    function findDup() {
+      var f0 = $('#leadForm', host);
+      var ph = digits((f0.querySelector('[name="phone"]') || {}).value);
+      var li = ((f0.querySelector('[name="lineId"]') || {}).value || '').trim();
+      var tail = ph.slice(-9);
+      return (S.leads || []).filter(function (x) {
+        if (lead && x.id === lead.id) return false;
+        if (tail.length >= 9 && digits(x.phone).slice(-9) === tail) return true;
+        return li && sameLine(x.lineId, li);
+      });
+    }
+    function paintDup() {
+      var box = $('#leadDup', host);
+      var hits = findDup();
+      if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = '<b>⚠️ ซ้ำกับลีดที่มีอยู่แล้ว ' + hits.length + ' ใบ</b>' +
+        hits.slice(0, 3).map(function (x) {
+          var own = x.ownerId ? shortName(staffById(x.ownerId)) : 'ยังไม่มีเจ้าของ';
+          return '<div class="ld1"><span><b>' + esc(x.name || '(ไม่มีชื่อ)') + '</b> · ' + esc(x.phone || x.lineId || '') +
+            ' · ' + esc(LEAD_ST_TH[x.status] || x.status) + ' · ' + esc(own) + ' · ' + esc(fmtAgo(x.createdAt)) + '</span>' +
+            '<button type="button" class="btn-ghost sm" data-dupgo="' + esc(x.id) + '">เปิดลีดนี้</button></div>';
+        }).join('') + (hits.length > 3 ? '<div class="ld1"><span>…และอีก ' + (hits.length - 3) + ' ใบ</span></div>' : '');
+    }
+    ['phone', 'lineId'].forEach(function (n) {
+      var el = host.querySelector('[name="' + n + '"]');
+      if (el) el.addEventListener('input', paintDup);
+    });
+    paintDup();
+    host.addEventListener('click', function (ev) {
+      var g = ev.target.closest('[data-dupgo]');
+      if (!g) return;
+      ev.preventDefault(); ev.stopPropagation();
+      close();
+      location.hash = '#/lead/' + g.getAttribute('data-dupgo');
     });
     $('#leadSave', host).addEventListener('click', function () {
       var f = $('#leadForm', host);
