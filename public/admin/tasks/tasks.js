@@ -1931,15 +1931,16 @@
   }
 
   /* ---------- หน้าลีดรายใบ ---------- */
-  function renderLead(id) {
+  function renderLead(id, pop) {
     Promise.all([api('/leads/' + id), refreshStaffIfNeeded()]).then(function (r) {
       var j = r[0], l = j.lead, acts = j.activities || [];
       var own = staffById(l.ownerId), by = staffById(l.createdBy);
       var st = LEAD_ST.filter(function (x) { return x.k === l.status; })[0] || LEAD_ST[0];
       var may = canRunLead(l);
-      var view = $('#view');
-      view.className = 'page';
-      var h = '<div class="top"><div><div class="crumbs"><a href="#/leads">ลีดทั้งหมด</a><span>›</span>' +
+      var view = pop || $('#view');
+      if (!pop) view.className = 'page';
+      var h = '<div class="top"><div><div class="crumbs">' +
+        (pop ? '<a href="#/lead/' + esc(l.id) + '" data-lfull>เปิดเต็มหน้า</a>' : '<a href="#/leads">ลีดทั้งหมด</a>') + '<span>›</span>' +
         '<span class="pill" style="--kc:' + st.color + ';border-color:' + st.color + ';color:' + st.color + '">' + esc(st.th) + '</span></div>' +
         '<h1>' + esc(l.name) + '</h1>' +
         '<p>' + esc(LEAD_SRC_TH[l.source] || l.source) + (l.sourceDetail ? ' · ' + esc(l.sourceDetail) : '') +
@@ -2005,30 +2006,54 @@
       if (S.me.role === 'owner' || l.createdBy === S.me.id) {
         h += '<div class="sec"><div class="sec-b"><button type="button" class="btn-ghost danger" data-ldel="' + esc(l.id) + '">ลบลีดนี้</button></div></div>';
       }
-      view.innerHTML = h;
-      wireLead(l);
-    }).catch(showError);
+      if (pop) {
+        view.innerHTML = '<div class="modal-box qbox lpop">' +
+          '<button type="button" class="lpopx" data-q-close aria-label="ปิด">✕</button>' + h + '</div>';
+      } else {
+        view.innerHTML = h;
+      }
+      wireLead(l, pop);
+    }).catch(function (e) { if (pop) { toast(e.message, true); pop.remove(); } else showError(e); });
   }
 
-  function wireLead(l) {
+  /* เปิดลีดเป็น popup ไม่ต้องเปลี่ยนหน้า (นนท์ 24 ก.ย. 69) */
+  function leadPopup(id) {
+    var host = document.createElement('div');
+    host.className = 'modal lpopwrap';
+    host.innerHTML = '<div class="modal-box qbox lpop"><div class="loading">กำลังโหลด…</div></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); document.removeEventListener('keydown', onKey); if (S.route.name === 'leads') renderLeads(); };
+    var onKey = function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } };
+    document.addEventListener('keydown', onKey);
+    host.addEventListener('click', function (ev) {
+      if (ev.target === host || ev.target.closest('[data-q-close]')) { ev.preventDefault(); close(); return; }
+      if (ev.target.closest('[data-lfull]')) { host.remove(); document.removeEventListener('keydown', onKey); }
+    });
+    renderLead(id, host);
+    return host;
+  }
+
+  function wireLead(l, pop) {
+    var root = pop || document;
+    var again = function () { renderLead(l.id, pop || null); };
     var kind = 'note';
-    $$('[data-lkind]').forEach(function (b) {
+    $$('[data-lkind]', root).forEach(function (b) {
       b.addEventListener('click', function () {
         kind = b.getAttribute('data-lkind');
-        $$('[data-lkind]').forEach(function (x) { x.classList.toggle('on', x === b); });
+        $$('[data-lkind]', root).forEach(function (x) { x.classList.toggle('on', x === b); });
       });
     });
-    var f = $('#lactForm');
+    var f = $('#lactForm', root);
     if (f) f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var ta = f.querySelector('[name="body"]');
       var body = (ta.value || '').trim();
       if (!body) { ta.focus(); return; }
       api('/leads/' + l.id + '/activities', 'POST', { kind: kind, body: body })
-        .then(function () { S.leads = null; toast('บันทึกแล้ว'); renderLead(l.id); })
+        .then(function () { S.leads = null; toast('บันทึกแล้ว'); again(); })
         .catch(function (e) { toast(e.message, true); });
     });
-    $$('[data-lst]').forEach(function (b) {
+    $$('[data-lst]', root).forEach(function (b) {
       b.addEventListener('click', function () {
         var want = b.getAttribute('data-lst');
         if (want === l.status) return;
@@ -2036,18 +2061,18 @@
           var why = window.prompt('ปิดเป็น “ไม่สำเร็จ” เพราะอะไร');
           if (why == null || !why.trim()) return;
           api('/leads/' + l.id, 'PUT', { status: 'lost', lostReason: why.trim() })
-            .then(function () { S.leads = null; renderLead(l.id); }).catch(function (e) { toast(e.message, true); });
+            .then(function () { S.leads = null; again(); }).catch(function (e) { toast(e.message, true); });
           return;
         }
         api('/leads/' + l.id, 'PUT', { status: want })
-          .then(function () { S.leads = null; toast('ย้ายไป “' + (LEAD_ST_TH[want] || want) + '” แล้ว'); renderLead(l.id); })
+          .then(function () { S.leads = null; toast('ย้ายไป “' + (LEAD_ST_TH[want] || want) + '” แล้ว'); again(); })
           .catch(function (e) { toast(e.message, true); });
       });
     });
   }
 
   /* ---------- ฟอร์มเพิ่ม/แก้ลีด ---------- */
-  function leadSheet(lead) {
+  function leadSheet(lead, after) {
     var host = document.createElement('div');
     host.className = 'modal';
     var v = lead || { name: '', phone: '', lineId: '', source: 'fb', sourceDetail: '', interest: '',
@@ -2132,7 +2157,7 @@
       if (!g) return;
       ev.preventDefault(); ev.stopPropagation();
       close();
-      location.hash = '#/lead/' + g.getAttribute('data-dupgo');
+      leadPopup(g.getAttribute('data-dupgo'));
     });
     $('#leadSave', host).addEventListener('click', function () {
       var f = $('#leadForm', host);
@@ -2152,7 +2177,8 @@
         S.leads = null;
         close();
         toast(lead ? 'บันทึกแล้ว' : 'เพิ่มลีดแล้ว');
-        if (!lead && j && j.id) location.hash = '#/lead/' + j.id; else render();
+        if (after) { after(); return; }
+        if (!lead && j && j.id) leadPopup(j.id); else render();
       }).catch(function (e) { toast(e.message, true); });
     });
     setTimeout(function () { var n = $('[name="name"]', host); if (n) n.focus(); }, 40);
@@ -6407,7 +6433,7 @@
     /* ---- CRM: ลีด ---- */
     if ((b = ev.target.closest('[data-lopen]'))) {
       if (ev.target.closest('a, button, .rowmenu')) return;
-      location.hash = '#/lead/' + b.getAttribute('data-lopen');
+      leadPopup(b.getAttribute('data-lopen'));
       return;
     }
     if ((b = ev.target.closest('[data-lq]'))) {
@@ -6434,24 +6460,34 @@
     if ((b = ev.target.closest('[data-lclear]'))) { LD.st = ''; LD.flag = ''; renderLeads(); return; }
     if ((b = ev.target.closest('[data-lclaim]'))) {
       b.disabled = true;
+      var popC = b.closest('.lpopwrap');
       api('/leads/' + b.getAttribute('data-lclaim') + '/claim', 'POST', {})
-        .then(function () { S.leads = null; toast('รับลีดแล้ว'); render(); })
+        .then(function () { S.leads = null; toast('รับลีดแล้ว'); if (popC) renderLead(b.getAttribute('data-lclaim'), popC); else render(); })
         .catch(function (e) { b.disabled = false; toast(e.message, true); });
       return;
     }
     if ((b = ev.target.closest('[data-lhand]'))) {
       b.disabled = true;
+      var popH = b.closest('.lpopwrap');
       api('/leads/' + b.getAttribute('data-lhand') + '/hand', 'POST', {})
-        .then(function () { S.leads = null; toast('ส่งต่อให้บัญชีแล้ว'); render(); })
+        .then(function () { S.leads = null; toast('ส่งต่อให้บัญชีแล้ว'); if (popH) renderLead(b.getAttribute('data-lhand'), popH); else render(); })
         .catch(function (e) { b.disabled = false; toast(e.message, true); });
       return;
     }
     if ((b = ev.target.closest('button[data-lf]'))) { LD[b.getAttribute('data-lf')] = b.getAttribute('data-v'); renderLeads(); return; }
-    if ((b = ev.target.closest('[data-ledit]'))) { leadSheet(leadById(b.getAttribute('data-ledit')) || null); return; }
+    if ((b = ev.target.closest('[data-ledit]'))) {
+      var popE = b.closest('.lpopwrap'), lid = b.getAttribute('data-ledit');
+      leadSheet(leadById(lid) || null, popE ? function () { renderLead(lid, popE); } : null);
+      return;
+    }
     if ((b = ev.target.closest('[data-ldel]'))) {
       if (!window.confirm('ลบลีดนี้ทิ้ง? ประวัติทั้งหมดของลีดจะหายไปด้วย')) return;
+      var popD = b.closest('.lpopwrap');
       api('/leads/' + b.getAttribute('data-ldel'), 'DELETE')
-        .then(function () { S.leads = null; toast('ลบแล้ว'); location.hash = '#/leads'; })
+        .then(function () {
+          S.leads = null; toast('ลบแล้ว');
+          if (popD) { popD.remove(); renderLeads(); } else location.hash = '#/leads';
+        })
         .catch(function (e) { toast(e.message, true); });
       return;
     }

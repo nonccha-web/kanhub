@@ -1601,3 +1601,14 @@ td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:colo
 .leaddup .ld1{ display:flex; align-items:center; gap:10px; justify-content:space-between; font-size:12px; color:var(--k-soft); }
 .leaddup .ld1 span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .leaddup .ld1 b{ color:var(--k-ink); font-weight:600; }
+
+/* ลีดแบบ popup — ไม่ต้องเปลี่ยนหน้า */
+.lpopwrap .modal-box.lpop{ max-width:min(1040px, 96vw); position:relative; padding:22px 24px 24px; }
+.lpop .top{ padding-right:34px; }
+.lpop .top h1{ font-size:22px; }
+.lpopx{ position:absolute; top:12px; right:12px; z-index:2; width:30px; height:30px; border-radius:50%;
+  border:1px solid var(--k-line); background:var(--k-paper); color:var(--k-mut); font:inherit; font-size:13px; cursor:pointer; }
+.lpopx:hover{ color:var(--k-ink); border-color:var(--k-ink); }
+.lpop .lgrid{ gap:14px; }
+.lpop .sec{ margin-top:12px; }
+@media (max-width:900px){ .lpopwrap .modal-box.lpop{ padding:16px 14px 18px; } .lpop .lgrid{ grid-template-columns:1fr; } }
