@@ -5894,6 +5894,37 @@
     }
     return r;
   }
+  /* วาดหน้าเดิมซ้ำ (ลบงาน · กดเสร็จ · ติ๊กโพสต์ · รับลีด) ต้องอยู่ตรงที่เดิม
+     เนื้อหาถูกเขียนทับทีหลังเพราะต้องรอ API ตอบก่อน พอของใหม่สั้นกว่าเดิม
+     เบราว์เซอร์จะหนีบ scroll ลงมาเอง — จับตาดู #view แล้วดันกลับที่เดิมให้
+     ผู้ใช้ขยับจอเองเมื่อไหร่ (ปัด/สกรอลล์/กดปุ่ม) เลิกยุ่งทันที ไม่แย่งจอกับคน */
+  function keepScroll() {
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (!y || typeof MutationObserver !== 'function') return;
+    var view = $('#view');
+    if (!view) return;
+    if (S.keepStop) S.keepStop();
+    var moves = ['wheel', 'touchmove', 'keydown'];
+    var timer, obs;
+    var stop = function () {
+      if (S.keepStop !== stop) return;
+      S.keepStop = null;
+      obs.disconnect();
+      clearTimeout(timer);
+      moves.forEach(function (e) { window.removeEventListener(e, stop); });
+    };
+    var back = function () {
+      var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo(0, Math.min(y, max));
+    };
+    obs = new MutationObserver(back);
+    obs.observe(view, { childList: true });
+    timer = setTimeout(stop, 1200);
+    moves.forEach(function (e) { window.addEventListener(e, stop, { passive: true }); });
+    S.keepStop = stop;
+    back();
+  }
+
   function render() {
     S.route = parseRoute();
     popClose();
@@ -5901,7 +5932,11 @@
     if (!S.me) { renderLogin(); return; }
     renderSidebar();
     renderHeaderUser();
-    window.scrollTo(0, 0);
+    /* เด้งขึ้นบนเฉพาะตอนเปลี่ยนหน้าจริงๆ ไม่ใช่ทุกครั้งที่วาดใหม่
+       (นนท์ 24 ก.ย. 69: "เวลาผมลบ มันชอบเด้งกลับไปข้างบน") */
+    var sameView = S.lastHash === location.hash;
+    S.lastHash = location.hash;
+    if (sameView) keepScroll(); else window.scrollTo(0, 0);
     if (S.route.name !== 'inbox') {
       loadNotif().then(function () { renderSidebar(); renderHeaderUser(); });
     }
