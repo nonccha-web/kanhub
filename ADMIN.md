@@ -164,6 +164,15 @@ public/admin/
 npm run build && npx wrangler deploy
 ```
 
+### build ต้องใช้ webpack ห้ามเปลี่ยนกลับ
+`package.json` ตั้ง `"build": "next build --webpack"` ไว้ตั้งใจ
+
+Turbopack (ตัวตั้งต้นของ Next 16) ส่ง `globals.css` ไปให้ PostCSS ในโปรเซสแยก
+เครื่อง CI แรมน้อย/คอร์น้อย โปรเซสนั้นตอบไม่ทัน แล้วโยน `deadline has elapsed` — build ล่มทั้งรอบ
+**พังจริงมาแล้ว 2 รอบติด (22 และ 23 ก.ย. 69) ของสองวันนั้นเลยไม่ได้ขึ้นระบบ ทั้งที่ merge แล้ว**
+
+`npm run dev` ยังใช้ Turbopack เหมือนเดิม เปลี่ยนเฉพาะตอน build
+
 ### ตัวท่ออยู่ที่ `.github/workflows/deploy.yml`
 - ทำงานเมื่อมีโค้ดเข้า `main` หรือกด Run workflow เอง
 - รันคำสั่งชุดเดียวกับที่รันบนเครื่องเป๊ะ ๆ ไม่มีขั้นตอนลับ
