@@ -3756,6 +3756,12 @@
       '<code>' + HELP_URL + '</code>' +
       '<button type="button" class="btn-ghost" data-tk-copy>คัดลอกลิงก์</button>' +
       '<a class="btn-ghost" href="' + HELP_URL + '" target="_blank" rel="noopener">เปิดดูฟอร์ม</a></div>';
+    /* บอทสรุปเข้ากลุ่มดูแลลูกค้า — หัวหน้ากดดูตัวอย่าง/ส่งเองได้ ไม่ต้องรอ 10 โมง */
+    if (amOwner()) {
+      h += '<div class="tklink tkbot"><span>🤖 สรุปเรื่องค้างเข้ากลุ่มดูแลลูกค้าอัตโนมัติ <b>ทุกเช้า 10:00</b></span>' +
+        '<button type="button" class="btn-ghost" data-tk-preview>ดูตัวอย่างสรุป</button>' +
+        '<button type="button" class="btn-ghost" data-tk-send>ส่งเข้ากลุ่มตอนนี้</button></div>';
+    }
     h += '<div class="tbar">' +
       '<div class="seg">' + [['open', 'ที่ยังไม่ปิด'], ['', 'ทั้งหมด']].concat(TK_ST).map(function (p) {
         return '<button type="button" class="' + (TK.st === p[0] ? 'on' : '') + '" data-tk-f="st" data-v="' + p[0] + '">' + p[1] + '</button>';
@@ -3783,6 +3789,21 @@
       paintTickets();
       toast(e.message, true);
     });
+  }
+
+  /* ข้อความที่บอทจะส่ง — โชว์ดิบ ๆ แบบที่คนในกลุ่มจะเห็นจริง */
+  function tkPreview(text) {
+    var host = document.createElement('div');
+    host.className = 'modal';
+    host.innerHTML = '<div class="modal-box tkprev"><div class="sec-h"><h2>ตัวอย่างสรุปเข้ากลุ่มดูแลลูกค้า</h2>' +
+      '<p>บอทส่งข้อความนี้ทุกเช้า 10:00 · กด “ส่งเข้ากลุ่มตอนนี้” ถ้าอยากยิงทันที</p></div>' +
+      '<pre class="tkpre">' + esc(text) + '</pre>' +
+      '<div class="okacts"><button type="button" class="btn" data-tp-close>ปิด</button></div></div>';
+    document.body.appendChild(host);
+    var close = function () { host.remove(); };
+    host._close = close;
+    $$('[data-tp-close]', host).forEach(function (b) { b.addEventListener('click', close); });
+    host.addEventListener('click', function (ev) { if (ev.target === host) close(); });
   }
 
   /* ช่องคนดูแล/บันทึกของเรื่องแจ้งปัญหา — เซฟตอนเปลี่ยนค่าเสร็จ ไม่ต้องมีปุ่มบันทึก */
@@ -6703,6 +6724,25 @@
         TK.items = TK.items.filter(function (x) { return x.id !== tkid; });
         paintTickets(); toast('ลบแล้ว');
       }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-tk-preview]'))) {
+      b.disabled = true;
+      fetch('/api/lark/tickets', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          b.disabled = false;
+          if (j.error) { toast(j.error, true); return; }
+          tkPreview(j.text || '');
+          if (!j.configured) toast('ยังไม่ได้ตั้งกลุ่มปลายทาง (LARK_TICKET_WEBHOOK)', true);
+        }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-tk-send]'))) {
+      if (!confirm('ส่งสรุปเรื่องแจ้งปัญหาเข้ากลุ่มดูแลลูกค้าตอนนี้เลย?')) return;
+      b.disabled = true;
+      fetch('/api/lark/tickets', { method: 'POST', credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (j) { b.disabled = false; if (j.error) toast(j.error, true); else toast('ส่งเข้ากลุ่มแล้ว'); })
+        .catch(function (e) { b.disabled = false; toast(e.message, true); });
       return;
     }
     if (ev.target.closest('[data-tk-copy]')) {

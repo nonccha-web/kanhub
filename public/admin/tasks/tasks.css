@@ -1649,3 +1649,10 @@ td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:colo
   .tkacts{ gap:6px; }
   .tkown{ max-width:100%; flex:1 1 140px; }
 }
+.tkbot b{ font-weight:600; color:var(--k-ink); }
+.tkbot button{ margin-left:0; }
+.tkprev{ max-width:640px; width:92vw; }
+.tkpre{ margin:0; padding:14px 16px; background:var(--k-hair); border-radius:10px; max-height:58vh; overflow:auto;
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:12.5px; line-height:1.75; white-space:pre-wrap; }
+.tkprev .sec-h{ display:block; margin-bottom:12px; }
+.tkprev .sec-h p{ margin-top:4px; text-align:left; }

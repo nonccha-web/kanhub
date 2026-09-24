@@ -134,7 +134,8 @@ async function handleApi(request, env, url, ctx) {
     return handleTaskApi(request, env, url, path.slice(2) || "/", method, ctx);
   }
   // ---- บอต Lark: ดูตัวอย่าง/ส่งด้วยมือ (หัวหน้า) — ตัวจริงยิงตาม cron ใน wrangler.jsonc ----
-  if (path === "/lark/preview" || path === "/lark/send" || path === "/lark/chats" || path === "/lark/review") {
+  if (path === "/lark/preview" || path === "/lark/send" || path === "/lark/chats" || path === "/lark/review" ||
+      path === "/lark/tickets") {
     await ensureTaskSchema(db);
     return handleLarkApi(request, env, url, await authFor(request, env));
   }

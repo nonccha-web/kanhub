@@ -6,6 +6,7 @@
 // ตัว cron ตั้งใน wrangler.jsonc เป็นเวลา UTC (ไทย −7 ชม.)
 // ทดสอบด้วยมือ: GET /api/lark/preview (หัวหน้า) ดูข้อความโดยไม่ส่ง
 //               POST /api/lark/send    (หัวหน้า) ส่งจริงทันที
+// 10:00 ยังส่งสรุปเรื่องแจ้งปัญหาเข้ากลุ่มดูแลลูกค้าอีกใบ (secret: LARK_TICKET_WEBHOOK)
 // ถาม-ตอบในแชท: พิมพ์ "นักล่า เช็ค" (หรือ @บอต) → ตอบสรุปชุดเดียวกันทันที
 //               ใช้ Lark App (ไม่ใช่ webhook) secret: LARK_APP_ID / LARK_APP_SECRET
 //               ตัวเลือก: LARK_VERIFY_TOKEN / LARK_ENCRYPT_KEY  · event → POST /api/lark/event
@@ -238,6 +239,13 @@ export async function runScheduled(event, env) {
     try { await reviewReminder(env); } catch (e) { console.error("lark review reminder:", e && e.message); }
     return;
   }
+  /* รอบเช้า: กลุ่มดูแลลูกค้าได้สรุปเรื่องแจ้งปัญหาของตัวเอง คนละใบกับ digest งานทีม */
+  if (h === 10 && env.LARK_TICKET_WEBHOOK) {
+    try {
+      const tg = await buildTicketDigest(env.KAN_ERP);
+      await sendLark(env.LARK_TICKET_WEBHOOK, formatTicketDigest(tg, null));
+    } catch (e) { console.error("lark ticket digest:", e && e.message); }
+  }
   if (!env.LARK_KAN_WEBHOOK) return;
   const db = env.KAN_ERP;
   const g = await buildDigest(db);
@@ -274,10 +282,122 @@ export async function handleLarkApi(request, env, url, me) {
       return jsonRes({ chats: items, reviewChatId: picked, error: err });
     } catch (e) { return jsonRes({ error: e.message }, 500); }
   }
+  /* สรุปของกลุ่มดูแลลูกค้า — ดูตัวอย่าง (GET) หรือส่งเข้ากลุ่มเลย (POST) */
+  if (url.pathname === "/api/lark/tickets") {
+    const tg = await buildTicketDigest(env.KAN_ERP);
+    const tText = formatTicketDigest(tg, request.method === "POST" ? null : "ทดสอบ");
+    if (request.method === "POST") {
+      if (!env.LARK_TICKET_WEBHOOK) return jsonRes({ error: "ยังไม่ได้ตั้ง LARK_TICKET_WEBHOOK" }, 500);
+      await sendLark(env.LARK_TICKET_WEBHOOK, tText);
+      return jsonRes({ ok: true, sent: tText.length });
+    }
+    return jsonRes({ text: tText, open: tg.open.length, unowned: tg.unowned.length, configured: !!env.LARK_TICKET_WEBHOOK });
+  }
   if (url.pathname === "/api/lark/review" && request.method === "POST") {
     try { return jsonRes(await reviewReminder(env)); } catch (e) { return jsonRes({ error: e.message }, 500); }
   }
   return new Response("Not found", { status: 404 });
+}
+
+/* ============================================================
+   ศูนย์ดูแลลูกค้า — สรุปเรื่องแจ้งปัญหาทุกเช้า 10:00 เข้ากลุ่ม CS
+   ------------------------------------------------------------
+   คนละใบกับ digest งานทีม เพราะคนละกลุ่มคนละหน้าที่ — กลุ่มนี้สนใจแค่
+   "เรื่องไหนยังไม่มีคนรับ" กับ "เรื่องไหนดองนานแล้ว" (secret: LARK_TICKET_WEBHOOK)
+   ทดสอบด้วยมือ: GET /api/lark/tickets (ดูข้อความ) · POST /api/lark/tickets (ส่งจริง)
+   ============================================================ */
+const TK_CHAN_TH = { phone: "โทร", line: "LINE", facebook: "FB", email: "อีเมล", other: "ติดต่อ" };
+const TK_ST_TH = { new: "ใหม่", doing: "กำลังดูแล", done: "เรียบร้อย", drop: "ไม่ดำเนินการ" };
+
+export async function buildTicketDigest(db) {
+  const now = thNow();
+  const y = now.getUTCFullYear(), m = now.getUTCMonth(), d = now.getUTCDate();
+  const dayStart = new Date(Date.UTC(y, m, d) - TH).toISOString();
+  const prevStart = new Date(Date.UTC(y, m, d - 1) - TH).toISOString();
+
+  const res = await db.prepare(
+    "SELECT t.id, t.ref, t.kind, t.subject, t.status, t.owner_id, t.reporter, t.channel, t.contact, " +
+    "t.created_at, t.updated_at, t.closed_at, s.name AS owner " +
+    "FROM tickets t LEFT JOIN staff s ON s.id = t.owner_id ORDER BY t.created_at"
+  ).all();
+  const all = (res.results || []).map((r) => ({
+    ref: r.ref, kind: r.kind, subject: r.subject, status: r.status,
+    owner: r.owner ? short(r.owner) : "", reporter: r.reporter || "",
+    channel: r.channel || "other", contact: r.contact || "",
+    createdAt: r.created_at, updatedAt: r.updated_at, closedAt: r.closed_at,
+    age: daysAgo(r.created_at), quiet: daysAgo(r.updated_at),
+  }));
+
+  const open = all.filter((t) => t.status === "new" || t.status === "doing");
+  const unowned = open.filter((t) => !t.owner);
+  /* ดอง = เปิดมาเกิน 2 วันแล้วยังไม่ปิด (มีคนรับแล้วก็ยังนับ ถ้ายังไม่จบ) */
+  const aging = open.filter((t) => t.owner && t.age >= 2);
+  const rest = open.filter((t) => unowned.indexOf(t) === -1 && aging.indexOf(t) === -1);
+
+  const newToday = all.filter((t) => t.createdAt >= dayStart);
+  const newYesterday = all.filter((t) => t.createdAt >= prevStart && t.createdAt < dayStart);
+  const closedYesterday = all.filter((t) => t.closedAt && t.closedAt >= prevStart && t.closedAt < dayStart);
+
+  /* ใครถือกี่เรื่อง — เรียงจากมากไปน้อย ไว้ดูว่าต้องกระจายงานไหม */
+  const byOwner = {};
+  open.forEach((t) => { const k = t.owner || "ยังไม่มีคนรับ"; byOwner[k] = (byOwner[k] || 0) + 1; });
+  const owners = Object.keys(byOwner).map((k) => ({ who: k, n: byOwner[k] })).sort((a2, b2) => b2.n - a2.n);
+
+  return { now, all, open, unowned, aging, rest, newToday, newYesterday, closedYesterday, owners };
+}
+
+function tkLine(t, withOwner) {
+  const from = t.reporter ? " — " + t.reporter : "";
+  const how = t.contact ? " · " + (TK_CHAN_TH[t.channel] || "ติดต่อ") + " " + t.contact : "";
+  const who = withOwner && t.owner ? " · " + t.owner + " ดูแลอยู่" : "";
+  const age = " (" + (t.age === 0 ? "วันนี้" : t.age + " วัน") + ")";
+  return "• " + t.ref + " " + t.subject + from + how + who + age;
+}
+function tkCap(list, n, withOwner) {
+  const out = list.slice(0, n).map((t) => tkLine(t, withOwner));
+  if (list.length > n) out.push("  …และอีก " + (list.length - n) + " เรื่อง");
+  return out;
+}
+export function formatTicketDigest(g, slot) {
+  const now = g.now;
+  const parts = ["🎫 ศูนย์ดูแลลูกค้า — " + DAY_TH[now.getUTCDay()] + " " + now.getUTCDate() + " " + MON_TH[now.getUTCMonth()] +
+    " · สรุป" + (slot || "เช้า 10:00"), ""];
+
+  if (!g.open.length) {
+    parts.push("✅ ไม่มีเรื่องค้างเลย ปิดครบทุกใบ");
+    if (g.closedYesterday.length) parts.push("เมื่อวานปิดไป " + g.closedYesterday.length + " เรื่อง");
+    parts.push("");
+    parts.push("ดูย้อนหลังที่ admin.kan-hub.com/tasks/#/tickets");
+    return parts.join("\n");
+  }
+
+  const nNew = g.open.filter((t) => t.status === "new").length;
+  parts.push("ค้างอยู่ " + g.open.length + " เรื่อง · ยังไม่ได้เริ่ม " + nNew + " · กำลังดูแล " + (g.open.length - nNew));
+  parts.push("เมื่อวาน: เข้ามาใหม่ " + g.newYesterday.length + " · ปิดไป " + g.closedYesterday.length +
+             (g.newToday.length ? " · เช้านี้เข้ามาแล้ว " + g.newToday.length : ""));
+  parts.push("");
+
+  if (g.unowned.length) {
+    parts.push("🔴 ยังไม่มีคนรับ " + g.unowned.length + " เรื่อง");
+    parts.push(...tkCap(g.unowned, 8, false));
+    parts.push("");
+  }
+  if (g.aging.length) {
+    parts.push("⏳ รับแล้วแต่ยังไม่ปิด เกิน 2 วัน " + g.aging.length + " เรื่อง");
+    parts.push(...tkCap(g.aging, 8, true));
+    parts.push("");
+  }
+  if (g.rest.length) {
+    parts.push("📮 เรื่องที่เหลือ " + g.rest.length + " เรื่อง");
+    parts.push(...tkCap(g.rest, 8, true));
+    parts.push("");
+  }
+  if (g.owners.length > 1) {
+    parts.push("👤 ใครถืออยู่: " + g.owners.map((o) => o.who + " " + o.n).join(" · "));
+    parts.push("");
+  }
+  parts.push("ปิดเรื่องที่ admin.kan-hub.com/tasks/#/tickets");
+  return parts.join("\n");
 }
 
 /* ============================================================
