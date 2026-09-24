@@ -15,6 +15,14 @@
 #
 # secret ของ worker เอง (LARK_APP_ID · LARK_KAN_WEBHOOK ฯลฯ) อยู่ฝั่ง Cloudflare
 # `wrangler deploy` ไม่ไปลบทิ้ง จึงไม่ต้องเอามาใส่ที่นี่
+#
+# ทำไม build ใช้ --webpack (ตั้งไว้ใน package.json)
+#   Turbopack (ตัวตั้งต้นของ Next 16) ประมวลผล globals.css ผ่าน PostCSS ในโปรเซสแยก
+#   บนเครื่อง CI ที่แรมน้อย/คอร์น้อย โปรเซสนั้นตอบไม่ทัน แล้วโยน
+#   "failed to receive message / deadline has elapsed" — build ล่มทั้งรอบ
+#   พังจริงมาแล้ว 2 รอบติด (22 และ 23 ก.ย. 69) ทำให้ของสองวันนั้นไม่ได้ขึ้นระบบ
+#   webpack ไม่ใช้โปรเซสแยกตัวนั้น จึงไม่ติดปัญหานี้ · ผลลัพธ์ใน out/ ใช้แทนกันได้
+#   `npm run dev` ยังใช้ Turbopack เหมือนเดิม ไม่ได้ช้าลงตอนพัฒนา
 # ============================================================
 name: ขึ้นระบบ (deploy)
 
@@ -31,7 +39,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       LARK_HOOK: ${{ secrets.LARK_DEPLOY_WEBHOOK }}
 
