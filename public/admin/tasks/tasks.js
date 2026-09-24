@@ -51,12 +51,14 @@
 
   /* ประเภทงาน — คีย์ต้องตรงกับ TASK_TYPES ใน worker-tasks.js
      งานเก่าที่สั่งไว้ก่อนมีช่องนี้จะถูกอ่านเป็น "อื่น ๆ" */
-  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'newlot', 'other'];
-  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', newlot: 'ล็อตใหม่', other: 'อื่น ๆ' };
+  var TASK_TYPE_KEYS = ['signage', 'content', 'campaign', 'newlot', 'lineoa', 'other'];
+  var TASK_TYPE_TH = { signage: 'ป้าย', content: 'คอนเทนต์', campaign: 'แคมเปญ', newlot: 'ล็อตใหม่', lineoa: 'LINE OA', other: 'อื่น ๆ' };
   /* เดาประเภทจากข้อความตอนวางจากแชต — เดาผิดก็แก้ในตารางได้ ไม่ได้บังคับ
      เรียงตามลำดับ: ป้ายมาก่อนแคมเปญ เพราะ "ป้ายโปรโมชัน" เข้าเงื่อนไขทั้งคู่
      (คีย์ในฐานข้อมูลยังเป็น signage เหมือนเดิม เปลี่ยนแค่ชื่อที่โชว์ งานเก่าไม่กระทบ) */
   var TASK_TYPE_HINT = [
+    /* LINE OA มาก่อนคอนเทนต์/แคมเปญ เพราะ "บรอดแคสต์โปรทาง LINE" เข้าเงื่อนไขได้ทั้งสามอัน */
+    ['lineoa', /line\s*oa|ไลน์\s*โอเอ|บรอดแคสต์|บอร์ดแคส|broadcast|ริชเมนู|rich\s*menu|แบนเนอร์ไลน์|ไลน์แอด(?!ส์)|ยิงไลน์|ส่งไลน์/i],
     ['newlot', /ล็อตใหม่|ลอตใหม่|สินค้าเข้า|ของเข้า|new\s*lot|new\s*arrival|คอลเลคชั่นประจำเดือน/i],
     ['signage', /ป้าย|signage|signmate|บิลบอร์ด|billboard|โปสเตอร์|standee|สแตนดี|แบนเนอร์|banner|บูธ|booth|จอ(?!ง)|ตกแต่งร้าน|วิชวล/i],
     ['content', /คอนเทนต์|content|โพสต์|โพส|post|คลิป|วิดีโอ|video|reel|tiktok|ถ่ายภาพ|ถ่ายรูป|กราฟิก|อาร์ตเวิร์ก|artwork|แคปชัน|เพจ/i],
@@ -581,7 +583,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -610,9 +612,11 @@
     ['tasks', 'งานทีม + ตารางโพสต์ + ปฏิทินการตลาด'],
     ['docs',  'เอกสารแผนงาน · B2B · รายงานการรับสาย'],
     ['sales', 'ยอดขาย + การตลาด (ตัวเลขยอดขายทั้งหมด)'],
-    ['kpi',   'KPI 2570 + KPI Dashboard']
+    ['kpi',   'KPI 2570 + KPI Dashboard'],
+    ['crm',   'ลีด (CRM) — ฝ่ายขายที่ดูแค่ลีด ให้ติ๊กอันนี้อันเดียว'],
+    ['blast', 'บรอดแคสต์ LINE OA + SMS — ยิงถึงลูกค้าจริง เปิดให้เฉพาะคนที่ดูแลเพจ']
   ];
-  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI' };
+  var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI', crm: 'ลีด', blast: 'บรอดแคสต์' };
   function renderSidebar() {
     var host = $('#sideHost');
     if (!host || !global.ERP_MENU) return;
@@ -696,8 +700,12 @@
     var n = String(x.name || '').replace(/\(.*?\)/g, ' ').trim();
     return n.split(/\s+/)[0] || x.name;
   }
-  function afterLogin() {
+  function afterLogin(me0) {
     loginPick = null;
+    /* ฝ่ายขายที่เห็นเฉพาะลีด — เข้าหน้าลีดเลย ไม่ต้องผ่านปฏิทิน (นนท์ 21 ก.ย. 69) */
+    var secs = (me0 && me0.sections) || [];
+    var crmOnly = secs.indexOf('crm') !== -1 && secs.indexOf('tasks') === -1;
+    if (crmOnly) { location.hash = '#/leads'; return boot(); }
     /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
     var next = nextParam();
     if (next) { location.href = next; return; }
@@ -714,13 +722,13 @@
     if (!picked) loginPick = null;
 
     var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
-      '<p>' + (picked ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
+      '<p>' + (picked ? (picked.role === 'owner' ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'ใส่รหัสผ่านก่อนเข้า') : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
       (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
 
     if (!loginStaff) {
       h += '<div class="who-grid"><p class="hint">กำลังโหลดรายชื่อ…</p></div>';
     } else if (picked) {
-      h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + ' · หัวหน้า</small></div></div>' +
+      h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + (picked.role === 'owner' ? ' · หัวหน้า' : '') + '</small></div></div>' +
         '<form id="loginForm">' +
         '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" autofocus required></div>' +
         '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button>' +
@@ -729,7 +737,7 @@
       h += '<div class="who-grid">' + loginStaff.map(function (x) {
         return '<button type="button" class="who-btn' + (x.needsPassword ? ' owner' : '') + '" data-login="' + esc(x.id) + '">' +
           avatar(x, 'lg') + '<b>' + esc(loginLabel(x)) + '</b>' +
-          '<small>' + (x.needsPassword ? 'หัวหน้า · ใส่รหัสผ่าน' : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
+          '<small>' + (x.needsPassword ? (x.role === 'owner' ? 'หัวหน้า · ใส่รหัสผ่าน' : 'ใส่รหัสผ่าน') : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
       }).join('') + '</div>' +
         '<p class="foot">ไม่ต้องใส่รหัส กดชื่อแล้วเข้าได้เลย · ไม่มีชื่อคุณในนี้ ให้หัวหน้าเพิ่มในหน้า "ทีม + สิทธิ์"</p>';
     }
@@ -754,7 +762,7 @@
       return fetch(API + '/login', {
         method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
       }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
-        .then(afterLogin)
+        .then(function (j) { return afterLogin(j && j.me); })
         .catch(function (e) { renderLogin(e.message); });
     }
 
@@ -2859,27 +2867,35 @@
   /* ---------- funnel งานป้าย: 6 ขั้นเรียงซ้ายไปขวา ----------
      stages = งานย่อยที่มี stage · ขั้นผ่านแล้ว = สถานะ done · ขั้นปัจจุบัน = ขั้นแรกที่ยังไม่ done
      ช่องรูป: ขั้นไหนมีรูปคือผ่านจริง ไม่ใช่แค่กดว่าเสร็จ — ขั้นที่ปิดโดยไม่มีรูปทำไม่ได้ตั้งแต่ฝั่ง worker */
-  function signFunnel(main, stages, compact) {
+  function signFunnel(main, stages, compact, flowDefs) {
     var byK = {};
     (stages || []).forEach(function (x) { byK[x.stage] = x; });
+    /* ประเภทอื่นที่มีขั้นงาน (เช่น LINE OA) ส่ง flow ของตัวเองเข้ามา — ไม่ส่ง = ใช้ของงานป้าย
+       ขั้นที่ไม่บังคับแนบรูป (pic = 0) จะไม่ขึ้นช่องรูป แต่ยังกดเข้าไปทำงานในขั้นได้ */
+    var DEFS = (flowDefs && flowDefs.length) ? flowDefs
+      : SIGN_STAGES.map(function (x) { return { k: x[0], th: x[1], pic: 1 }; });
+    var KEYS = DEFS.map(function (x) { return x.k; });
     var now = new Date();
     var cur = null;
-    for (var i = 0; i < SIGN_KEYS.length; i++) { var st0 = byK[SIGN_KEYS[i]]; if (!st0 || effStatus(st0) !== 'done') { cur = SIGN_KEYS[i]; break; } }
-    return '<div class="sfun' + (compact ? ' compact' : '') + '">' + SIGN_STAGES.map(function (def, i) {
-      var k = def[0], x = byK[k];
+    for (var i = 0; i < KEYS.length; i++) { var st0 = byK[KEYS[i]]; if (!st0 || effStatus(st0) !== 'done') { cur = KEYS[i]; break; } }
+    return '<div class="sfun' + (compact ? ' compact' : '') + '" style="--sn:' + DEFS.length + '">' + DEFS.map(function (def, i) {
+      var k = def.k, x = byK[k];
       var done = x && effStatus(x) === 'done', isCur = k === cur, rev = x && effStatus(x) === 'review';
       var late = x && !done && x.dueAt && new Date(x.dueAt) < now;
       var cls = 'sst' + (done ? ' on' : '') + (isCur ? ' now' : '') + (rev ? ' rev' : '') + (late ? ' late' : '');
       var when = x ? (done ? (x.doneAt ? fmtDate(new Date(x.doneAt)) + ' ✓' : 'เสร็จ')
                           : (x.dueAt ? 'คาด ' + fmtDate(new Date(x.dueAt)) : '')) : '';
+      var needPic = def.pic !== 0;
       var pic = x && x.picId
         ? '<a class="sshot has" href="#/task/' + esc(x.id) + '"><img src="' + API + '/files/' + esc(x.picId) + '" alt="" loading="lazy"></a>'
-        : (x ? '<a class="sshot' + (isCur ? ' need' : '') + '" href="#/task/' + esc(x.id) + '">' +
-               (rev ? 'รอตรวจ' : (isCur ? 'ยังไม่ส่งรูป' : (done ? (x.nFiles ? 'มีรูป ' + x.nFiles : 'ไม่มีรูป') : 'รอถึงคิว'))) + '</a>'
+        : (x ? '<a class="sshot' + (needPic ? (isCur ? ' need' : '') : ' nopic') + '" href="#/task/' + esc(x.id) + '">' +
+               (rev ? 'รอตรวจ'
+                    : needPic ? (isCur ? 'ยังไม่ส่งรูป' : (done ? (x.nFiles ? 'มีรูป ' + x.nFiles : 'ไม่มีรูป') : 'รอถึงคิว'))
+                    : (done ? 'ผ่านแล้ว' : (isCur ? 'เปิดขั้นนี้' : 'รอถึงคิว'))) + '</a>'
              : '<span class="sshot off">ยังไม่ตั้งขั้น</span>');
       return '<div class="' + cls + '" data-k="' + k + '">' +
-        (x ? '<a class="slbl" href="#/task/' + esc(x.id) + '"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</a>'
-           : '<span class="slbl"><i></i>' + (i + 1) + '. ' + esc(def[1]) + '</span>') +
+        (x ? '<a class="slbl" href="#/task/' + esc(x.id) + '"><i></i>' + (i + 1) + '. ' + esc(def.th) + '</a>'
+           : '<span class="slbl"><i></i>' + (i + 1) + '. ' + esc(def.th) + '</span>') +
         '<span class="swhen' + (late ? ' late' : '') + '">' + esc(when) + '</span>' +
         (compact ? '' : pic) + '</div>';
     }).join('') + '</div>';
@@ -3154,6 +3170,332 @@
     api('/tasks/' + t.id, 'DELETE')
       .then(function () { S.tasks = null; toast('ลบงานแล้ว'); render(); })
       .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+  }
+
+  /* ============================================================
+     ตารางงานประจำของทีม (Routine) — ดูทีละคนหรือเทียบพร้อมกัน เห็นช่องที่ยังว่าง
+     นนท์ 22 ก.ย. 69: "จะได้รู้ว่าตรงไหนฟันหลอ ต้องเติมงาน" · หน้านี้หัวหน้าเห็นคนเดียว
+     ============================================================ */
+  var RT = { who: [], band: 'all' };
+  var DOW_FULL = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+  var BANDS = [
+    { k: 'morning', th: 'เช้า', sub: '06–12', from: 6, to: 12 },
+    { k: 'afternoon', th: 'บ่าย', sub: '12–16', from: 12, to: 16 },
+    { k: 'evening', th: 'เย็น', sub: '16–23', from: 16, to: 23 }
+  ];
+  function rtHour(t) { return t.dueAt ? new Date(t.dueAt).getHours() + new Date(t.dueAt).getMinutes() / 60 : 9; }
+  /* งานกินเวลาจากเวลาเริ่ม + จำนวนชั่วโมง → คืนช่วง band ที่ทับ (เช้า=0 บ่าย=1 เย็น=2) */
+  function rtSpan(t) {
+    var st = rtHour(t), en = st + (t.hours || 0.5);
+    var b0 = 0, b1 = 0;
+    for (var i = 0; i < BANDS.length; i++) {
+      if (st >= BANDS[i].from) b0 = i;
+      if (en > BANDS[i].from) b1 = i;
+    }
+    if (b1 < b0) b1 = b0;
+    return { a: b0, b: b1, start: st, end: en };
+  }
+  function rtFmtRange(t) {
+    var sp = rtSpan(t);
+    var f = function (h) { var hh = Math.floor(h), mm = Math.round((h - hh) * 60); return pad(hh) + ':' + pad(mm); };
+    return f(sp.start) + '–' + f(Math.min(23.99, sp.end));
+  }
+  function rtBand(t) {
+    var h = rtHour(t);
+    for (var i = 0; i < BANDS.length; i++) if (h >= BANDS[i].from && h < BANDS[i].to) return BANDS[i].k;
+    return 'evening';
+  }
+  /* งานประจำนี้ตกวันไหนบ้าง (0=จันทร์..6=อาทิตย์) · รายเดือนแยกไปอยู่ใต้ตาราง */
+  function rtDays(t) {
+    if (t.repeat === 'daily') return [0, 1, 2, 3, 4, 5, 6];
+    if (t.repeat === 'weekly') { var d = t.dueAt ? new Date(t.dueAt).getDay() : 1; return [(d + 6) % 7]; }
+    return [];
+  }
+  /* ทีมที่อยู่ในตารางนี้ = คนที่มีงานประจำจริงเท่านั้น (นนท์ 22 ก.ย. 69: เอาแค่พิซซ่า เติ้ล แตง ไอซ์)
+     ใครได้งานประจำเพิ่มก็โผล่เองอัตโนมัติ ไม่ต้องมาแก้โค้ด */
+  function rtTeam(routines) {
+    return activeStaff().filter(function (x) {
+      return x.role !== 'owner' && (routines || []).some(function (t) { return t.assignees.indexOf(x.id) !== -1; });
+    });
+  }
+  /* วันทำงานของแต่ละคน (work_days เก็บเป็นเลขวันแบบ JS 0=อาทิตย์) → แปลงเป็นดัชนีตาราง 0=จันทร์ */
+  function rtOff(p, di) {
+    if (!p || p.workDays == null || p.workDays === '') return false;
+    var set = String(p.workDays).split(',').filter(function (x) { return x !== ''; }).map(Number);
+    if (!set.length) return false;
+    var js = (di + 1) % 7;   /* 0=จันทร์ → 1 ; 6=อาทิตย์ → 0 */
+    return set.indexOf(js) === -1;
+  }
+  function rtPeople(routines) {
+    var team = rtTeam(routines);
+    if (RT.who.length) {
+      var pick = team.filter(function (x) { return RT.who.indexOf(x.id) !== -1; });
+      if (pick.length) return pick;
+    }
+    return team.slice(0, 4);
+  }
+  /* ---------- ลากโยกงานประจำ (นนท์ 22 ก.ย. 69) ----------
+     ลากชิปไปทับชิปของอีกคน = สลับเจ้าของกัน · ลากลงช่องว่าง = ย้ายคน/วัน/เวลาไปช่องนั้น
+     เปลี่ยนจริงที่ฐานข้อมูล: assignees + due_at (วันในสัปดาห์ + ชั่วโมงของช่วงนั้น) */
+  var RDRAG = null;
+  function rtBandStart(k) { for (var i = 0; i < BANDS.length; i++) if (BANDS[i].k === k) return BANDS[i].from + (k === 'morning' ? 4 : (k === 'afternoon' ? 2 : 1)); return 9; }
+  /* ย้ายวัน/เวลาโดยคงรูปแบบเดิม: งานรายวันไม่ย้ายวัน (มันทุกวันอยู่แล้ว) ย้ายแค่เวลา */
+  function rtNewDue(t, day, band) {
+    var d = t.dueAt ? new Date(t.dueAt) : new Date();
+    var hh = rtHour(t);
+    var b = BANDS.filter(function (x) { return x.k === band; })[0];
+    if (!b) return null;
+    if (hh < b.from || hh >= b.to) { d.setHours(rtBandStart(band), 0, 0, 0); }
+    if (t.repeat === 'weekly' && day != null) {
+      var cur = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() + (day - cur));
+    }
+    return d.toISOString();
+  }
+  /* อัปเดตหน้าจอทันทีจากข้อมูลในเครื่อง แล้วค่อยบันทึกเบื้องหลัง — ไม่ต้องโหลดหน้าใหม่
+     ถ้าเซิร์ฟเวอร์ไม่รับ ค่อยดึงของจริงมาวาดทับ (นนท์ 22 ก.ย. 69) */
+  function rtApply(reqs, msg, local) {
+    if (!reqs.length) return;
+    if (local) local();
+    renderRoutine(true);
+    Promise.all(reqs).then(function () { toast(msg); })
+      .catch(function (e) {
+        toast(e.message, true);
+        loadTasks(true).then(function () { renderRoutine(true); });
+      });
+  }
+  document.addEventListener('dragstart', function (ev) {
+    var g = ev.target.closest && ev.target.closest('[data-rtgrip]');
+    if (g) {
+      ev.stopPropagation();
+      RDRAG = { id: g.getAttribute('data-rtgrip'), resize: true };
+      try { ev.dataTransfer.setData('text/plain', RDRAG.id); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+      return;
+    }
+    var c = ev.target.closest && ev.target.closest('.rtchip[draggable="true"]');
+    if (!c) return;
+    RDRAG = { id: c.getAttribute('data-rt'), who: c.getAttribute('data-rtwho') };
+    c.classList.add('dragging');
+    try { ev.dataTransfer.setData('text/plain', RDRAG.id); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+  });
+  document.addEventListener('dragend', function () {
+    RDRAG = null;
+    $$('.rtchip.dragging').forEach(function (x) { x.classList.remove('dragging'); });
+    $$('.rtover').forEach(function (x) { x.classList.remove('rtover'); });
+  });
+  document.addEventListener('dragover', function (ev) {
+    if (!RDRAG) return;
+    var target = ev.target.closest && (ev.target.closest('.rtchip') || ev.target.closest('[data-rtcell]'));
+    if (!target) return;
+    ev.preventDefault();
+    try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {}
+    $$('.rtover').forEach(function (x) { if (x !== target) x.classList.remove('rtover'); });
+    target.classList.add('rtover');
+  });
+  document.addEventListener('drop', function (ev) {
+    if (!RDRAG) return;
+    var onChip = ev.target.closest && ev.target.closest('.rtchip');
+    var cell = ev.target.closest && ev.target.closest('[data-rtcell]');
+    if (!onChip && !cell) return;
+    ev.preventDefault();
+    var drag = RDRAG; RDRAG = null;
+    $$('.rtover').forEach(function (x) { x.classList.remove('rtover'); });
+    var a = taskById(drag.id);
+    if (!a) { renderRoutine(); return; }
+
+    /* ลากมือจับ = ยืดเวลาให้จบที่ช่วงที่ปล่อย (เช้า→บ่าย ก็ยืดถึงบ่าย) */
+    if (drag.resize) {
+      var cell2 = cell || (onChip && onChip.closest('[data-rtcell]'));
+      if (!cell2) { renderRoutine(); return; }
+      var bk = cell2.getAttribute('data-rtband');
+      var bd = BANDS.filter(function (x) { return x.k === bk; })[0];
+      if (!bd) { renderRoutine(); return; }
+      /* ยืดให้ "ถึง" ช่วงที่ปล่อย ไม่ใช่กินยาวจนจบวัน — เข้าไปในช่วงนั้น 1 ชม. ก็พอ */
+      var st0 = rtHour(a);
+      var hrs = Math.round((Math.max(bd.from + 1, st0 + 0.5) - st0) * 4) / 4;
+      if (hrs < 0.5) hrs = 0.5;
+      if (hrs > 12) hrs = 12;
+      if (hrs === a.hours) { toast('เท่าเดิม'); return; }
+      rtApply([api('/tasks/' + a.id, 'PUT', { hours: hrs })], 'ปรับเป็น ' + hrs + ' ชม. (ถึงช่วง' + bd.th + ')',
+        function () { a.hours = hrs; });
+      return;
+    }
+
+    if (onChip && onChip.getAttribute('data-rt') !== drag.id) {
+      /* ทับชิปอีกอัน = สลับเจ้าของกันทั้งคู่ */
+      var b2 = taskById(onChip.getAttribute('data-rt'));
+      if (!b2) return;
+      var whoA = drag.who, whoB = onChip.getAttribute('data-rtwho');
+      if (whoA === whoB) { toast('คนเดียวกัน ไม่ต้องสลับ'); return; }
+      var newA = a.assignees.filter(function (x) { return x !== whoA; }).concat([whoB]);
+      var newB = b2.assignees.filter(function (x) { return x !== whoB; }).concat([whoA]);
+      rtApply([api('/tasks/' + a.id, 'PUT', { assignees: newA }), api('/tasks/' + b2.id, 'PUT', { assignees: newB })],
+        'สลับงานระหว่าง ' + shortName(staffById(whoA)) + ' กับ ' + shortName(staffById(whoB)) + ' แล้ว',
+        function () { a.assignees = newA; b2.assignees = newB; });
+      return;
+    }
+    if (cell) {
+      /* ลงช่องว่าง/ช่องของคนอื่น = ย้ายคน + วัน + ช่วงเวลา */
+      var toWho = cell.getAttribute('data-rtwho');
+      var day = Number(cell.getAttribute('data-rtday'));
+      var band = cell.getAttribute('data-rtband');
+      var body = {};
+      if (toWho !== drag.who) body.assignees = a.assignees.filter(function (x) { return x !== drag.who; }).concat([toWho]);
+      var due = rtNewDue(a, day, band);
+      if (due && due !== a.dueAt) body.dueAt = due;
+      if (!body.assignees && !body.dueAt) { toast('อยู่ที่เดิมอยู่แล้ว'); return; }
+      var names = (body.assignees ? 'ย้ายให้ ' + shortName(staffById(toWho)) : 'ย้ายเวลา') +
+        (body.dueAt ? ' · ' + (a.repeat === 'weekly' ? DOW_FULL[day] + ' ' : '') + fmtTime(new Date(body.dueAt)) : '');
+      rtApply([api('/tasks/' + a.id, 'PUT', body)], names + ' แล้ว', function () {
+        if (body.assignees) a.assignees = body.assignees;
+        if (body.dueAt) a.dueAt = body.dueAt;
+      });
+    }
+  });
+
+  /* แก้ชื่อ/ลบงานได้จากการ์ดเลย — ลบต้องยืนยันซ้ำในการ์ดก่อนถึงจะลบจริง (นนท์ 22 ก.ย. 69) */
+  function rtRename(id) {
+    var t = taskById(id); if (!t) return;
+    var chip = document.querySelector('.rtchip[data-rt="' + id + '"]');
+    if (!chip) return;
+    var host = chip.querySelector('.rttitle'); if (!host || chip.querySelector('input')) return;
+    var w = Math.max(120, chip.clientWidth - 16);
+    host.innerHTML = '<input class="input rtin" style="width:' + w + 'px" maxlength="200">';
+    var inp = host.querySelector('input');
+    inp.value = t.title;
+    var done = false;
+    function finish(save) {
+      if (done) return; done = true;
+      var v = inp.value.trim();
+      if (!save || !v || v === t.title) { renderRoutine(); return; }
+      t.title = v;
+      renderRoutine(true);
+      api('/tasks/' + id, 'PUT', { title: v }).then(function () { toast('แก้ชื่องานแล้ว'); })
+        .catch(function (e) { toast(e.message, true); loadTasks(true).then(function () { renderRoutine(true); }); });
+    }
+    inp.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); });
+    inp.addEventListener('keydown', function (ev) {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', function () { setTimeout(function () { finish(true); }, 0); });
+    inp.focus(); inp.select();
+  }
+  function rtAskDelete(id) {
+    var t = taskById(id); if (!t) return;
+    var chip = document.querySelector('.rtchip[data-rt="' + id + '"]');
+    if (!chip || chip.querySelector('.rtconfirm')) return;
+    var box = document.createElement('div');
+    box.className = 'rtconfirm';
+    box.innerHTML = '<b>ลบ “' + esc(t.title) + '” ?</b><span>งานประจำนี้จะหายจากทุกวัน ย้อนได้ที่ประวัติการแก้ไข</span>' +
+      '<span class="rtcacts"><button type="button" class="btn sm danger" data-rtdel-yes="' + esc(id) + '">ลบจริง</button>' +
+      '<button type="button" class="btn-ghost sm" data-rtdel-no>ยกเลิก</button></span>';
+    chip.appendChild(box);
+    /* กันไม่ให้ลิงก์ของการ์ดพาไปหน้างาน แต่ยังต้องให้คลิกไหลไปถึงตัวจัดการปุ่มยืนยัน */
+    box.addEventListener('click', function (ev) { ev.preventDefault(); });
+  }
+  function renderRoutine(quiet) {
+    var view = $('#view');
+    view.className = 'page';
+    var keepY = quiet ? (window.pageYOffset || document.documentElement.scrollTop || 0) : null;
+    if (!quiet) view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    loadTasks().then(function (all) {
+      var routines = all.filter(function (t) { return t.repeat && !t.parentId; });
+      var people = rtPeople(routines);
+      var byPerson = {};
+      people.forEach(function (p) { byPerson[p.id] = routines.filter(function (t) { return t.assignees.indexOf(p.id) !== -1; }); });
+
+      var h = '<div class="top"><div><span class="kicker">โครงสร้างงานทีม</span><h1>งานประจำของแต่ละคน</h1>' +
+        '<p>ใครทำอะไรซ้ำ ๆ ทุกวัน/ทุกสัปดาห์ · ช่องว่างคือเวลาที่ยังไม่มีงานประจำ กดเติมได้เลย · เลือกดูทีละคนหรือเทียบพร้อมกันได้ถึง 4 คน</p></div>' +
+        '<div class="top-r"><a class="btn" href="#/new">+ สั่งงานประจำ</a></div></div>';
+
+      h += '<div class="cards">' + people.map(function (p) {
+        var list = byPerson[p.id] || [];
+        var perWeek = list.reduce(function (a, t) { return a + (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
+        var hrs = list.reduce(function (a, t) { return a + (t.hours || 0) * (t.repeat === 'daily' ? 7 : (t.repeat === 'weekly' ? 1 : 0.25)); }, 0);
+        var gaps = 0, offDays = 0;
+        DOW_FULL.forEach(function (_, di) {
+          if (rtOff(p, di)) { offDays++; return; }   /* วันหยุดไม่นับเป็นช่องว่าง */
+          BANDS.forEach(function (b) {
+            if (!list.some(function (t) { return rtDays(t).indexOf(di) !== -1 && rtBand(t) === b.k; })) gaps++;
+          });
+        });
+        var slots = (7 - offDays) * BANDS.length;
+        return '<article class="rtp' + (people.indexOf(p) + 1) + (!list.length ? ' bad' : (gaps > 14 ? ' warn' : '')) + '">' +
+          '<span class="l">' + esc(shortName(p)) + '</span><b>' + Math.round(perWeek) + '</b>' +
+          '<small>ครั้ง/สัปดาห์ · ' + (Math.round(hrs * 10) / 10) + ' ชม. · ช่องว่าง ' + gaps + '/' + slots +
+          (offDays ? ' · หยุด ' + DOW_FULL.filter(function (_, i) { return rtOff(p, i); }).join('/') : '') + '</small></article>';
+      }).join('') + '</div>';
+
+      h += '<div class="tbar"><span class="tbar-lbl">ดูของ</span><div class="seg">' +
+        '<button type="button" class="' + (!RT.who.length ? 'on' : '') + '" data-rt-who="">ทั้งทีม</button>' +
+        rtTeam(routines).map(function (x) {
+          return '<button type="button" class="' + (RT.who.indexOf(x.id) !== -1 ? 'on' : '') + '" data-rt-who="' + esc(x.id) + '">' + esc(shortName(x)) + '</button>';
+        }).join('') + '</div>' +
+        '<span class="tbar-lbl">ช่วงเวลา</span><div class="seg">' +
+        [['all', 'ทั้งวัน']].concat(BANDS.map(function (b) { return [b.k, b.th]; })).map(function (p) {
+          return '<button type="button" class="' + (RT.band === p[0] ? 'on' : '') + '" data-rt-band="' + p[0] + '">' + p[1] + '</button>';
+        }).join('') + '</div>' +
+        '<span class="tbar-n">' + routines.length + ' งานประจำ</span></div>';
+
+      h += '<div class="rtlegend">' + TASK_TYPE_KEYS.map(function (k) {
+        return '<span class="rtlg" data-t="' + k + '">' + esc(TASK_TYPE_TH[k]) + '</span>';
+      }).join('') + '<span class="rtlg gap">ช่องว่าง = ยังไม่มีงานประจำ</span></div>';
+      var bands = RT.band === 'all' ? BANDS : BANDS.filter(function (b) { return b.k === RT.band; });
+      h += '<div class="scrollx"><table class="rtab"><thead><tr><th class="rtd">วัน</th><th class="rtb">ช่วง</th>' +
+        people.map(function (p, pi) { return '<th class="rtp' + (pi + 1) + '">' + avatar(p) + '<span>' + esc(shortName(p)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
+      DOW_FULL.forEach(function (dname, di) {
+        bands.forEach(function (b, bi) {
+          var bandIdx = BANDS.indexOf(b);
+          h += '<tr' + (di >= 5 ? ' class="we"' : '') + (bi === 0 ? ' class="dstart' + (di >= 5 ? ' we' : '') + '"' : '') + '>' +
+            (bi === 0 ? '<td class="rtd" rowspan="' + bands.length + '"><b>' + dname + '</b></td>' : '') +
+            '<td class="rtb">' + b.th + '<small>' + b.sub + '</small></td>' +
+            people.map(function (p, pi) {
+              /* งานที่ "อยู่ในช่วงนี้" = ช่วงเวลาของงานคาบเกี่ยวแถบนี้ (เริ่มที่นี่ หรือยืดมาจากช่วงก่อน) */
+              var items = rtOff(p, di) ? [] : (byPerson[p.id] || []).filter(function (t) {
+                if (rtDays(t).indexOf(di) === -1) return false;
+                var sp = rtSpan(t);
+                return bandIdx >= sp.a && bandIdx <= sp.b;
+              }).sort(function (x, y) { return rtHour(x) - rtHour(y); });
+              var cellAttr = ' data-rtcell="1" data-rtwho="' + esc(p.id) + '" data-rtday="' + di + '" data-rtband="' + b.k + '"';
+              if (rtOff(p, di)) {
+                return '<td class="rtoff rtp' + (pi + 1) + '" title="' + esc(shortName(p)) + ' หยุดวัน' + DOW_FULL[di] + '">' +
+                  (bi === 0 ? '<span>หยุด</span>' : '') + '</td>';
+              }
+              if (!items.length) return '<td class="rtempty rtp' + (pi + 1) + '"' + cellAttr + '><a href="#/new" title="ยังไม่มีงานประจำช่วงนี้">+ เติมงาน</a></td>';
+              return '<td class="rtp' + (pi + 1) + '"' + cellAttr + '>' + items.map(function (t) {
+                var sp = rtSpan(t);
+                var head = sp.a === bandIdx, tail = sp.b === bandIdx, cont = !head;
+                var grip = tail ? '<em class="rtgrip" draggable="true" data-rtgrip="' + esc(t.id) + '" title="ลากลง/ขึ้นเพื่อยืด–ย่อเวลา"></em>' : '';
+                if (cont) {
+                  /* งานเดียวกันที่ยืดมาจากช่วงก่อนหน้า — แสดงเป็นแถบต่อเนื่อง ไม่ใช่งานใหม่ */
+                  return '<a class="rtchip cont' + (tail ? ' end' : '') + '" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') +
+                    '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + ' · ' + rtFmtRange(t) + ' (งานเดียวกัน ต่อจากช่วงก่อน)">' +
+                    '<span>↳ ' + esc(t.title) + '</span>' + grip + '</a>';
+                }
+                return '<a class="rtchip' + (sp.b > sp.a ? ' long' : '') + '" draggable="true" data-rt="' + esc(t.id) + '" data-rtwho="' + esc(p.id) + '" data-t="' + esc(t.taskType || 'other') +
+                  '" href="#/task/' + esc(t.id) + '" title="' + esc(t.title) + ' · ' + esc(TASK_TYPE_TH[t.taskType || 'other'] || '') + ' · ' + rtFmtRange(t) + '">' +
+                  '<b>' + esc(rtFmtRange(t)) + '</b><span class="rttitle">' + esc(t.title) + '</span>' +
+                  (t.hours ? '<i>' + t.hours + ' ชม.' + (sp.b > sp.a ? ' · ถึงช่วง' + BANDS[sp.b].th : '') + '</i>' : '') +
+                  '<span class="rtacts"><i class="rtact" role="button" tabindex="0" data-rtedit="' + esc(t.id) + '" title="แก้ชื่องาน">✎</i>' +
+                  '<i class="rtact del" role="button" tabindex="0" data-rtdel="' + esc(t.id) + '" title="ลบงานนี้">✕</i></span>' + grip + '</a>';
+              }).join('') + '</td>';
+            }).join('') + '</tr>';
+        });
+      });
+      h += '</tbody></table></div>' +
+        '<p class="rthint">ลากงาน<b>ไปทับงานของอีกคน</b> = สลับกันทั้งคู่ · ลากลง<b>ช่องว่าง</b> = ย้ายคน/วัน/ช่วงเวลา · ลาก<b>ขอบล่างของแถบ</b> = ยืดเวลา เช่นยืดจากเช้าถึงบ่าย</p>';
+
+      var monthly = routines.filter(function (t) { return t.repeat === 'monthly'; });
+      if (monthly.length) {
+        h += '<div class="group"><div class="group-h"><h3>งานประจำเดือน</h3><span>' + monthly.length + '</span>' + gsel() + '</div>' +
+          '<div class="tlist">' + monthly.map(taskRow).join('') + '</div></div>';
+      }
+      view.innerHTML = h;
+      syncSel();
+      if (keepY != null) window.scrollTo(0, keepY);   /* ลากแล้วอย่ากระโดดขึ้นบน */
+    }).catch(function (e) { showError(e); });
   }
 
   /* ============================================================
@@ -3948,23 +4290,35 @@
       /* งานป้ายหลัก: 6 ขั้นเป็น funnel — งานย่อยธรรมดาซ่อนไว้ใต้นั้น */
       var stageSubs = subs.filter(function (x) { return x.stage; });
       var plainSubs = subs.filter(function (x) { return !x.stage; });
-      if (!t.parentId && t.taskType === 'signage') {
+      /* แถบขั้นตอน — ใช้ได้กับทุกประเภทที่ตั้ง flow ไว้ (ป้าย · LINE OA · ประเภทที่หัวหน้าเพิ่มเอง)
+         เดิมล็อกไว้กับงานป้ายอย่างเดียว ขั้นของประเภทอื่นเลยถูกสร้างแล้วแต่ไม่โผล่ให้เห็น */
+      var tFlow = flowOf(t.taskType);
+      if (!t.parentId && tFlow.length) {
         var passed = stageSubs.filter(function (x) { return effStatus(x) === 'done'; }).length;
-        h += '<div class="sec signsec"><div class="sec-h"><h2>ขั้นตอนงานป้าย</h2>' +
-          '<p>' + (stageSubs.length ? 'ผ่านแล้ว ' + passed + ' จาก 6' + (signMeta(t) ? ' · ' + esc(signMeta(t)) : '') : 'ยังไม่ได้ตั้งขั้นตอน') + '</p></div>' +
+        var isSign = t.taskType === 'signage';
+        h += '<div class="sec signsec"><div class="sec-h"><h2>ขั้นตอน' + esc(isSign ? 'งานป้าย' : ('งาน ' + (TASK_TYPE_TH[t.taskType] || ''))) + '</h2>' +
+          '<p>' + (stageSubs.length ? 'ผ่านแล้ว ' + passed + ' จาก ' + tFlow.length + (isSign && signMeta(t) ? ' · ' + esc(signMeta(t)) : '') : 'ยังไม่ได้ตั้งขั้นตอน') + '</p></div>' +
           '<div class="sec-b">' +
           (stageSubs.length
-            ? signFunnel(t, stageSubs, false) +
-              '<p class="hint" style="margin-top:12px">กดที่ขั้นเพื่อเข้าไปแนบรูปแล้วส่ง · วันคาดว่าเสร็จถอยหลังมาจากวันติดตั้ง ' +
-              (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '') + ' ข้ามเสาร์อาทิตย์ · เลื่อนวันติดตั้งแล้วทุกขั้นขยับตาม</p>'
-            : '<p class="hint">งานนี้เป็นป้ายแต่ยังไม่มี 6 ขั้น (สั่งไว้ก่อนมีระบบนี้)</p>' +
-              (canEdit || mine ? '<div class="acts" style="margin-top:10px"><button type="button" class="btn" id="mkStages">สร้าง 6 ขั้นให้เลย</button></div>' : '')) +
+            ? signFunnel(t, stageSubs, false, tFlow) +
+              '<p class="hint" style="margin-top:12px">' +
+              (isSign
+                ? 'กดที่ขั้นเพื่อเข้าไปแนบรูปแล้วส่ง · วันคาดว่าเสร็จถอยหลังมาจากวันติดตั้ง ' +
+                  (t.dueAt ? esc(fmtDate(new Date(t.dueAt))) : '') + ' ข้ามเสาร์อาทิตย์ · เลื่อนวันติดตั้งแล้วทุกขั้นขยับตาม'
+                : 'กดที่ขั้นเพื่อเข้าไปทำงานในขั้นนั้น' +
+                  (t.taskType === 'lineoa' ? ' · ขั้น “บรอดแคสต์แล้ว” ระบบติ๊กให้เองตอนกดส่งสำเร็จ' : '')) + '</p>'
+            : '<p class="hint">งานนี้ยังไม่มีขั้นตอน (สั่งไว้ก่อนมีระบบนี้)</p>' +
+              (canEdit || mine ? '<div class="acts" style="margin-top:10px"><button type="button" class="btn" id="mkStages">สร้าง ' + tFlow.length + ' ขั้นให้เลย</button></div>' : '')) +
           '</div></div>';
       }
-      /* ขั้นของงานป้าย: บอกว่าเป็นขั้นที่เท่าไหร่ และต้องแนบรูป */
+      /* งานย่อยที่เป็น "ขั้น": บอกว่าเป็นขั้นที่เท่าไหร่ และต้องแนบรูปไหม */
       if (t.parentId && t.stage) {
-        h += '<div class="postbar">ขั้นที่ <b>' + (signStageIdx(t.stage) + 1) + ' จาก 6</b> · ' + esc(SIGN_TH[t.stage] || t.stage) +
-          ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' +
+        var pFlow = flowOf(t.taskType);
+        var sIdx = 0, sDef = null;
+        pFlow.forEach(function (x, i) { if (x.k === t.stage) { sIdx = i; sDef = x; } });
+        h += '<div class="postbar">ขั้นที่ <b>' + (sIdx + 1) + ' จาก ' + (pFlow.length || 6) + '</b> · ' +
+          esc((sDef && sDef.th) || SIGN_TH[t.stage] || t.stage) +
+          (!sDef || sDef.pic ? ' — <b>ปิดขั้นนี้ต้องแนบรูปยืนยันในรอบเดียวกับที่กดส่ง</b>' : '') +
           (t.stage === 'approved' ? ' · ขั้นนี้หัวหน้าเป็นคนกดผ่าน' : '') + '</div>';
       }
       /* ฟอร์มอัปเดตงานย้ายมาอยู่เหนือ "ความคืบหน้า" (นนท์ 21 ก.ย. 69)
@@ -4061,12 +4415,15 @@
       if (files.length) {
         h += '<div class="sec"><div class="sec-h"><h2>ไฟล์แนบทั้งหมด</h2><p>' + files.length + ' รายการ</p></div><div class="sec-b">' + thumbsHtml(files) + '</div></div>';
       }
+      /* แผงบรอดแคสต์ LINE — blast.js เติมให้เองถ้างานนี้เป็นประเภท LINE OA หรือเคยยิงไปแล้ว */
+      h += '<div id="blastPanel"></div>';
       h += '</div></div>';
       view.innerHTML = h;
       pendingFiles = [];
       pendingLinks = [];
       wireTask(t);
       wireTyping(view);
+      if (global.KAN_BLAST) global.KAN_BLAST.mountTaskPanel(t);
     }).catch(function (e) { showError(e); });
   }
   function resizeImage(file, max, q) {
@@ -5928,6 +6285,11 @@
   function render() {
     S.route = parseRoute();
     popClose();
+    /* คนที่มีเฉพาะหมวดลีด ให้อยู่แต่หน้าลีด (กันซ้ำกับด่านฝั่งเซิร์ฟเวอร์) */
+    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead'].indexOf(S.route.name) === -1) {
+      location.hash = '#/leads';
+      S.route = parseRoute();
+    }
     if (S.lastRoute !== S.route.name) { SEL = {}; PSEL = {}; S.lastRoute = S.route.name; renderBulk(); renderPBulk(); }
     if (!S.me) { renderLogin(); return; }
     renderSidebar();
@@ -5948,10 +6310,15 @@
       case 'campaign': return S.route.id ? renderCampaign(S.route.id) : renderAll();
       case 'task': return S.route.id ? renderTask(S.route.id) : renderAll();
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
+      case 'routine': return amOwner() ? renderRoutine() : denyView('ตารางงานประจำของทีม');
       case 'history': return renderHistory();
       case 'review': return renderReview();
+      /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
       case 'leads': return renderLeads();
       case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
+      /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js */
+      case 'blast': case 'richmenu': case 'lineusers': case 'blastsetup':
+        return global.KAN_BLAST.render(S.route);
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
@@ -5965,11 +6332,18 @@
   }
   function boot() {
     wireLightbox();
+    /* ส่งเครื่องมือที่ใช้ร่วมกันให้หน้าบรอดแคสต์ (blast.js) — จะได้ไม่ต้องก๊อปฟังก์ชันซ้ำ */
+    if (global.KAN_BLAST) global.KAN_BLAST.init({
+      API: API, api: api, esc: esc, toast: toast, okDialog: okDialog,
+      fmtAgo: fmtAgo, fmtFull: fmtFull, toLocalInput: toLocalInput, fromLocalInput: fromLocalInput,
+      canSee: canSee, denyView: denyView, isOwner: function () { return S.me && S.me.role === 'owner'; },
+    });
     return fetch(API + '/me', { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
-        if (!location.hash) location.hash = S.me.role === 'owner' ? '#/all' : '#/me';
+        if (!location.hash) location.hash = (!canSee('tasks') && canSee('crm')) ? '#/leads'
+          : (S.me.role === 'owner' ? '#/all' : '#/me');
         Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {
           var T = global.KAN_TOUR;
           /* เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง) ไม่ต้องพาทัวร์ตอนนั้น */
@@ -6090,6 +6464,26 @@
     if ((b = ev.target.closest('[data-aedit]'))) { ev.preventDefault(); ev.stopPropagation(); assignPop(b, [b.getAttribute('data-aedit')]); return; }
     if ((b = ev.target.closest('[data-dedit]'))) { ev.preventDefault(); ev.stopPropagation(); duePop(b, [b.getAttribute('data-dedit')]); return; }
     if ((b = ev.target.closest('[data-bulk]'))) { bulkClick(b.getAttribute('data-bulk'), b); return; }
+    if ((b = ev.target.closest('[data-rtedit]'))) { ev.preventDefault(); ev.stopPropagation(); rtRename(b.getAttribute('data-rtedit')); return; }
+    if ((b = ev.target.closest('[data-rtdel]'))) { ev.preventDefault(); ev.stopPropagation(); rtAskDelete(b.getAttribute('data-rtdel')); return; }
+    if ((b = ev.target.closest('[data-rtdel-no]'))) { ev.preventDefault(); ev.stopPropagation(); var bx = b.closest('.rtconfirm'); if (bx) bx.remove(); return; }
+    if ((b = ev.target.closest('[data-rtdel-yes]'))) {
+      ev.preventDefault(); ev.stopPropagation();
+      var did = b.getAttribute('data-rtdel-yes');
+      b.disabled = true;
+      if (S.tasks) S.tasks = S.tasks.filter(function (x) { return x.id !== did; });
+      renderRoutine(true);
+      api('/tasks/' + did, 'DELETE').then(function () { toast('ลบงานประจำแล้ว · ย้อนได้ที่ประวัติการแก้ไข'); })
+        .catch(function (e) { toast(e.message, true); loadTasks(true).then(function () { renderRoutine(true); }); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-rt-who]'))) {
+      var rid = b.getAttribute('data-rt-who');
+      if (!rid) RT.who = [];
+      else { var i0 = RT.who.indexOf(rid); if (i0 === -1) { if (RT.who.length < 4) RT.who.push(rid); else toast('เทียบได้ทีละไม่เกิน 4 คน', true); } else RT.who.splice(i0, 1); }
+      renderRoutine(); return;
+    }
+    if ((b = ev.target.closest('[data-rt-band]'))) { RT.band = b.getAttribute('data-rt-band'); renderRoutine(); return; }
     if ((b = ev.target.closest('[data-h-f]'))) {
       var hk = b.getAttribute('data-h-f'), hv = b.getAttribute('data-v');
       H[hk] = hk === 'days' ? Number(hv) : hv;

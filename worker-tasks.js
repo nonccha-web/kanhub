@@ -1,4 +1,5 @@
 import { notifyReviewSubmitted } from "./worker-lark.js";
+import { handleBlastApi } from "./worker-blast.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
@@ -18,7 +19,7 @@ const STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review
 const TASK_KINDS = ["ondemand", "routine"];
 /* ประเภทงาน — คีย์ตายตัว ชื่อไทยอยู่ฝั่งหน้าเว็บ · งานเก่าไม่มีค่า = other */
 /* newlot = ล็อตใหม่ — เป็นงานประชาสัมพันธ์ของเข้า ไม่ใช่โปรโมชัน จึงแยกหมวด (นนท์สั่ง 15 ก.ย. 69) */
-const TASK_TYPES = ["signage", "content", "campaign", "newlot", "other"];
+const TASK_TYPES = ["signage", "content", "campaign", "newlot", "lineoa", "other"];
 /* monthly = ทุกเดือน — นนท์ขอเพิ่ม 15 ก.ย. 69 (งานอย่างสรุปยอดรายเดือน คอลเลคชั่นประจำเดือน) */
 const REPEATS = ["", "daily", "weekly", "monthly"];
 
@@ -34,13 +35,25 @@ const SIGN_STAGES = [
   { k: "installed", th: "ติดตั้ง",      lead: 1 },
 ];
 const SIGN_STAGE_KEYS = SIGN_STAGES.map((x) => x.k);
+
+/* ---------- งาน LINE OA: 3 ขั้น (นนท์สั่ง 23 ก.ย. 69) ----------
+   เส้นทางที่เขาวางไว้คือ คุณออนบรีฟโปร → เปิดงาน LINE OA → ทีมทำรูป → หัวหน้าตรวจ → กดบรอดแคสต์
+   ขั้นสุดท้ายระบบติ๊กให้เองตอนกดส่งสำเร็จ (ดู doSend ใน worker-blast.js) ไม่ต้องมาติ๊กซ้ำ */
+const LINEOA_STAGES = [
+  { k: "artwork",  th: "ทำรูป/ข้อความ",   lead: 2, pic: 1 },
+  { k: "approved", th: "หัวหน้าตรวจผ่าน",  lead: 1, pic: 0 },
+  { k: "blasted",  th: "บรอดแคสต์แล้ว",    lead: 0, pic: 0 },
+];
 /* ขั้นงาน (flow) ตั้งเองได้ต่อประเภทงาน — นนท์ขอ 18 ก.ย. 69: "แก้ไข/เพิ่มลด flow พวกนี้ได้"
    เก็บใน task_settings key 'flows' = { signage:[{k,th,lead,pic}], content:[...], ... }
    ประเภทที่ไม่มี flow → บอร์ดใช้คอลัมน์ตามสถานะเหมือนเดิม · ป้ายมีค่าเริ่มต้น 6 ขั้น (ทุกขั้นต้องแนบรูป) */
 const MAX_FLOW_STAGES = 12;
 function defaultFlows(leads) {
   const L = leads || {};
-  return { signage: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: Number(L[x.k] != null ? L[x.k] : x.lead) || 0, pic: 1 })) };
+  return {
+    signage: SIGN_STAGES.map((x) => ({ k: x.k, th: x.th, lead: Number(L[x.k] != null ? L[x.k] : x.lead) || 0, pic: 1 })),
+    lineoa: LINEOA_STAGES.map((x) => ({ k: x.k, th: x.th, lead: x.lead, pic: x.pic })),
+  };
 }
 function cleanFlow(list) {
   if (!Array.isArray(list)) return { error: "รูปแบบขั้นงานไม่ถูกต้อง" };
@@ -273,6 +286,10 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN can_update_others INTEGER NOT NULL DEFAULT 0",
   /* แก้กำหนดส่งได้ — เดิมมีแค่หัวหน้ากับคนสั่งงาน นนท์ขอเปิดให้พิซซ่าด้วย (15 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
+  /* บัญชีที่ต้องใส่รหัสผ่านทุกครั้ง (ฝ่ายขาย/คนนอกทีมหลัก) — คนเดิมยังกดชื่อเข้าได้เหมือนเดิม */
+  "ALTER TABLE staff ADD COLUMN require_pw INTEGER NOT NULL DEFAULT 0",
+  /* งานประจำทำวันไหนบ้าง — "0,1,2,3,4" = จ–ศ · ว่าง = ตามความถี่เดิม (นนท์ 22 ก.ย. 69 ขอลากยาวข้ามวัน) */
+  "ALTER TABLE tasks ADD COLUMN repeat_days TEXT",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
   /* คิวรีรายการงานมี subquery 6 ตัวต่อหนึ่งแถว — ขาด index 3 ตัวนี้แล้วมันสแกนทั้งตารางต่อแถว
      ทำให้เปิดหน้ารายการครั้งเดียวอ่านเป็นแสนแถว จนชนเพดานรายวันของ D1 (เจอ 15 ก.ย. 69) */
@@ -333,7 +350,8 @@ const KPI_SEED = [
      sales = แอปยอดขาย/การตลาด ทั้งชุด (/admin/mkt/*) — ตัวเลขยอดขายทั้งหมดอยู่ในนี้
      kpi   = KPI 2570 + KPI Dashboard
    หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
-const SECTION_KEYS = ["tasks", "docs", "sales", "kpi"];
+/* crm = หน้าลีดอย่างเดียว (ต้น/ตาล ฝ่ายขาย — นนท์ 21 ก.ย. 69) */
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
 function sectionsOf(row) {
   if (!row) return [];
@@ -673,7 +691,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -685,7 +703,7 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
@@ -693,6 +711,7 @@ function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
+    needsPassword: r.role === "owner" || !!r.require_pw,
     canUpdateOthers: r.role === "owner" || !!r.can_update_others,
     canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
@@ -853,6 +872,7 @@ function rowToTask(r) {
     status: r.status,
     dueAt: r.due_at || null,
     repeat: r.repeat || "",
+    repeatDays: r.repeat_days || null,
     taskType: r.task_type || "other",
     taskKind: r.task_kind || (r.repeat ? "routine" : "ondemand"),
     hours: r.hours == null ? null : Number(r.hours),
@@ -910,6 +930,13 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     dueAt = new Date(input.dueAt).toISOString();
   }
   const repeat = REPEATS.indexOf(input.repeat) !== -1 ? input.repeat : "";
+  /* วันที่ทำของงานประจำ — เก็บเป็น "0,1,2" เรียงและไม่ซ้ำ · ไม่ส่งมา = null (ใช้ตามความถี่) */
+  let repeatDays = null;
+  if (input.repeatDays !== undefined && input.repeatDays !== null) {
+    const ds = String(input.repeatDays).split(",").map((x) => Number(String(x).trim()))
+      .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+    repeatDays = ds.length ? Array.from(new Set(ds)).sort((a, b) => a - b).join(",") : null;
+  }
   const taskType = TASK_TYPES.indexOf(input.taskType) !== -1 ? input.taskType : "other";
   /* ไม่ได้เลือกชนิดงาน: มีความถี่ = รูทีน ไม่มี = ตามสั่ง */
   const taskKind = TASK_KINDS.indexOf(input.taskKind) !== -1 ? input.taskKind : (repeat ? "routine" : "ondemand");
@@ -930,7 +957,7 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, repeatDays, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
 }
 
 async function loadIdSets(db) {
@@ -1001,11 +1028,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
   /* --- public: รายชื่อสำหรับหน้าล็อกอิน — needsPassword = หัวหน้าเท่านั้น --- */
   if (path === "/login" && method === "GET") {
-    const res = await db.prepare("SELECT id,name,aliases,role,pw_hash FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
+    const res = await db.prepare("SELECT id,name,aliases,role,pw_hash,require_pw FROM staff WHERE active = 1 ORDER BY role = 'owner' DESC, name").all();
     return json({
       staff: (res.results || []).map((r) => ({
         id: r.id, name: r.name, aliases: r.aliases || "", role: r.role,
-        needsPassword: r.role === "owner", hasPassword: !!r.pw_hash,
+        needsPassword: r.role === "owner" || !!r.require_pw, hasPassword: !!r.pw_hash,
       })),
     });
   }
@@ -1018,10 +1045,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const row = await db.prepare("SELECT * FROM staff WHERE id = ? AND active = 1").bind(staffId).first();
     if (!row) return json({ error: "ไม่พบชื่อนี้ในทีม" }, 401);
 
-    if (row.role === "owner") {
-      /* หัวหน้ากดชื่อแล้วได้สิทธิ์ทุกอย่าง — เว็บนี้ใครก็เปิด URL ได้ จึงต้องมีรหัสผ่านกัน */
-      if (!row.pw_hash) return json({ error: "บัญชีหัวหน้ายังไม่มีรหัสผ่าน ให้ตั้งจากเครื่องที่ล็อกอินอยู่ (หน้า ทีม + สิทธิ์)" }, 409);
-      if (body.password == null) return json({ error: "หัวหน้าต้องใส่รหัสผ่าน", needPassword: true }, 401);
+    if (row.role === "owner" || row.require_pw) {
+      /* หัวหน้ากดชื่อแล้วได้สิทธิ์ทุกอย่าง — เว็บนี้ใครก็เปิด URL ได้ จึงต้องมีรหัสผ่านกัน
+         บัญชีที่ตั้ง require_pw ไว้ (เช่น ฝ่ายขายที่ดูแต่ลีด) ก็ต้องใส่รหัสเหมือนกัน */
+      if (!row.pw_hash) return json({ error: "บัญชีนี้ยังไม่มีรหัสผ่าน ให้หัวหน้าตั้งให้ในหน้า ทีม + สิทธิ์" }, 409);
+      if (body.password == null) return json({ error: "บัญชีนี้ต้องใส่รหัสผ่าน", needPassword: true }, 401);
 
       /* ล็อกรายคน ไม่ใช่ราย IP เพราะทีมอยู่หลังเน็ตร้านเดียวกัน */
       const gate = await db.prepare("SELECT fails, locked_until FROM task_logins WHERE staff_id = ?").bind(row.id).first();
@@ -1063,9 +1091,15 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const canUpdateOthers = isOwner || !!me.can_update_others;
   /* เลื่อนกำหนดส่งได้เอง — ปกติสงวนไว้ให้หัวหน้ากับคนสั่งงาน เปิดรายคนได้ */
   const canReschedule = isOwner || !!me.can_reschedule;
+  /* คนที่ได้เฉพาะหมวด CRM (ฝ่ายขาย) — แตะได้แค่ลีดกับของที่หน้าเว็บต้องใช้ตอนเปิดระบบ
+     กันที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนเมนู */
+  if (!canSee(me, "tasks")) {
+    const allowed = /^\/(leads|me$|me\/|logout|notifications|staff$|files\/)/.test(path);
+    if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
+  }
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -2035,9 +2069,9 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-      ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, me.id, now, now,
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,repeat_days,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, me.id, now, now,
              v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt,
              v.signW, v.signH, v.signQty, v.signBranch));
       if (!v.parentId) signMains.push(id);   /* ensureSignStages เช็คเองว่าประเภทนี้มี flow ไหม */
@@ -2387,6 +2421,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
           status: body.status != null ? body.status : task.status,
           dueAt: body.dueAt !== undefined ? body.dueAt : task.dueAt,
           repeat: body.repeat != null ? body.repeat : task.repeat,
+          repeatDays: body.repeatDays !== undefined ? body.repeatDays : task.repeatDays,
           priority: body.priority != null ? body.priority : task.priority,
           assignees: body.assignees != null ? body.assignees : task.assignees,
           parentId: task.parentId,
@@ -2408,8 +2443,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
         const moved = !!(task.dueAt && v.dueAt && new Date(task.dueAt).getTime() !== new Date(v.dueAt).getTime());
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
-          ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.priority, now,
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,repeat_days=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
+          ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, now,
                  v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType,
                  v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0),
                  v.signW, v.signH, v.signQty, v.signBranch, id),
@@ -2765,6 +2800,12 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     }
     await db.prepare("DELETE FROM task_files WHERE id = ?").bind(row.id).run();
     return json({ ok: true });
+  }
+
+  /* ---- บรอดแคสต์ LINE OA + SMS (/blast/*) — โค้ดอยู่ worker-blast.js ---- */
+  if (path.indexOf("/blast/") === 0) {
+    return handleBlastApi(db, request, url, path, method, me,
+      { blast: canSee(me, "blast"), owner: isOwner }, ctx);
   }
 
   return json({ error: "ไม่พบ endpoint นี้" }, 404);

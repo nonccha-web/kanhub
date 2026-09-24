@@ -242,7 +242,8 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .ttype[data-t="other"]::before{ background:var(--k-mut); }
 
 /* ── งานป้าย: funnel 6 ขั้น ── */
-.sfun{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; }
+/* --sn = จำนวนขั้นของ flow นั้น (ส่งมาจาก signFunnel) — เดิมล็อก 6 ขั้นของงานป้ายไว้ตายตัว */
+.sfun{ display:grid; grid-template-columns:repeat(var(--sn,6),minmax(0,1fr)); gap:0; }
 .sst{ position:relative; padding:0 12px 0 0; min-width:0; }
 .sst + .sst{ padding-left:12px; border-left:1px dashed var(--k-line); }
 .slbl{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--k-mut); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -261,10 +262,12 @@ main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .sshot.has img{ width:100%; height:100%; object-fit:cover; display:block; }
 .sshot.need{ border-color:var(--k-warn); color:var(--k-warn); }
 .sshot.off{ border-style:dashed; color:var(--k-mut); opacity:.6; }
+/* ขั้นที่ไม่บังคับแนบรูป — ไม่ต้องเว้นช่องรูปใหญ่ ๆ ทิ้งไว้ */
+.sshot.nopic{ aspect-ratio:auto; padding:9px 10px; background:transparent; }
 .sfun.compact .sshot{ display:none; }
 .sec.signsec .sec-h h2{ color:var(--k-ink); }
-@media (max-width:900px){ .sfun{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 0; } .sst:nth-child(4){ padding-left:0; border-left:0; } }
-@media (max-width:560px){ .sfun{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sst:nth-child(4){ padding-left:12px; border-left:1px dashed var(--k-line); } .sst:nth-child(odd){ padding-left:0; border-left:0; } }
+@media (max-width:900px){ .sfun{ grid-template-columns:repeat(min(var(--sn,6),3),minmax(0,1fr)); gap:14px 0; } .sst:nth-child(4){ padding-left:0; border-left:0; } }
+@media (max-width:560px){ .sfun{ grid-template-columns:repeat(min(var(--sn,6),2),minmax(0,1fr)); } .sst:nth-child(4){ padding-left:12px; border-left:1px dashed var(--k-line); } .sst:nth-child(odd){ padding-left:0; border-left:0; } }
 
 /* funnel รวมหน้างานป้าย — แถบตามจำนวน */
 .sfbig{ display:grid; gap:6px; }
@@ -1486,3 +1489,107 @@ a.htitle:hover{ text-decoration:underline; }
 .kchip.age.warn{ color:var(--k-warn); } .kchip.age.warn i{ background:var(--k-warn); }
 .kchip.age.late{ color:var(--k-bad); } .kchip.age.late i{ background:var(--k-bad); }
 .ldl .mut{ color:var(--k-mut); }
+
+/* ── ตารางงานประจำของทีม ── */
+.rtab{ width:100%; border-collapse:collapse; background:var(--k-paper); border:1px solid var(--k-line); }
+.rtab th, .rtab td{ border:1px solid var(--k-hair); padding:8px 10px; vertical-align:top; text-align:left; }
+.rtab thead th{ background:var(--k-hair); font-size:12.5px; font-weight:600; white-space:nowrap; position:sticky; top:0; z-index:2; }
+.rtab thead th .av{ margin-right:6px; }
+.rtab th.rtd, .rtab td.rtd{ width:78px; background:var(--k-hair); font-size:13px; vertical-align:middle; }
+.rtab th.rtb, .rtab td.rtb{ width:74px; font-size:11.5px; color:var(--k-mut); white-space:nowrap; }
+.rtab td.rtb small{ display:block; font-size:10px; opacity:.8; }
+.rtab tr.dstart td{ border-top:2px solid var(--k-line); }
+.rtab tr.we td.rtd, .rtab tr.we td.rtb{ color:var(--k-warn); }
+.rtab td.rtempty{ background:repeating-linear-gradient(135deg, transparent, transparent 7px, var(--k-hair) 7px, var(--k-hair) 14px); }
+.rtab td.rtempty a{ font-size:11px; color:var(--k-mut); text-decoration:none; }
+.rtab td.rtempty a:hover{ color:var(--k-ink); text-decoration:underline; }
+.rtchip{ display:block; margin-bottom:5px; padding:5px 8px; border:1px solid var(--k-line); border-left:3px solid var(--k-ink);
+  border-radius:5px; background:var(--k-ground); text-decoration:none; color:inherit; font-size:11.5px; line-height:1.4; }
+.rtchip:last-child{ margin-bottom:0; }
+.rtchip:hover{ border-color:var(--k-ink); }
+.rtchip b{ font-family:var(--k-display); font-size:10.5px; color:var(--k-mut); margin-right:5px; font-variant-numeric:tabular-nums; }
+.rtchip span{ font-weight:500; }
+.rtchip i{ display:block; font-style:normal; font-size:10px; color:var(--k-mut); margin-top:1px; }
+@media (max-width:900px){
+  .rtab th, .rtab td{ padding:6px; }
+  .rtab th.rtd, .rtab td.rtd{ width:56px; font-size:12px; }
+  .rtab th.rtb, .rtab td.rtb{ width:52px; }
+  .rtchip{ font-size:11px; }
+}
+
+/* สีช่วยอ่านตารางงานประจำ — แถบซ้ายของชิป = ประเภทงาน · หัวคอลัมน์ = สีประจำคน */
+.rtchip{ border-left-color:var(--k-mut); }
+.rtchip[data-t="signage"]{ border-left-color:#e2574c; }
+.rtchip[data-t="content"]{ border-left-color:#4c86e2; }
+.rtchip[data-t="campaign"]{ border-left-color:#d99a1e; }
+.rtchip[data-t="newlot"]{ border-left-color:#1FA968; }
+.rtchip[data-t="other"]{ border-left-color:#8a8fa3; }
+.rtchip[data-t="signage"]:hover{ border-color:#e2574c; }
+.rtchip[data-t="content"]:hover{ border-color:#4c86e2; }
+.rtchip[data-t="campaign"]:hover{ border-color:#d99a1e; }
+.rtchip[data-t="newlot"]:hover{ border-color:#1FA968; }
+.rtab th.rtp1{ box-shadow:inset 0 -3px 0 0 #5b5fc7; }
+.rtab th.rtp2{ box-shadow:inset 0 -3px 0 0 #4fbfc0; }
+.rtab th.rtp3{ box-shadow:inset 0 -3px 0 0 #d96a8b; }
+.rtab th.rtp4{ box-shadow:inset 0 -3px 0 0 #e39a3b; }
+.cards article.rtp1{ box-shadow:inset 3px 0 0 0 #5b5fc7; }
+.cards article.rtp2{ box-shadow:inset 3px 0 0 0 #4fbfc0; }
+.cards article.rtp3{ box-shadow:inset 3px 0 0 0 #d96a8b; }
+.cards article.rtp4{ box-shadow:inset 3px 0 0 0 #e39a3b; }
+.rtab td.rtp1{ background:color-mix(in srgb, #5b5fc7 3%, transparent); }
+.rtab td.rtp2{ background:color-mix(in srgb, #4fbfc0 3%, transparent); }
+.rtab td.rtp3{ background:color-mix(in srgb, #d96a8b 3%, transparent); }
+.rtab td.rtp4{ background:color-mix(in srgb, #e39a3b 3%, transparent); }
+.rtab td.rtempty.rtp1, .rtab td.rtempty.rtp2, .rtab td.rtempty.rtp3, .rtab td.rtempty.rtp4{
+  background:repeating-linear-gradient(135deg, transparent, transparent 7px, var(--k-hair) 7px, var(--k-hair) 14px); }
+.rtlegend{ display:flex; flex-wrap:wrap; gap:6px 14px; margin:-6px 0 12px; font-size:11.5px; color:var(--k-mut); }
+.rtlg{ display:inline-flex; align-items:center; gap:6px; }
+.rtlg::before{ content:''; width:10px; height:3px; border-radius:2px; background:var(--k-mut); }
+.rtlg[data-t="signage"]::before{ background:#e2574c; }
+.rtlg[data-t="content"]::before{ background:#4c86e2; }
+.rtlg[data-t="campaign"]::before{ background:#d99a1e; }
+.rtlg[data-t="newlot"]::before{ background:#1FA968; }
+.rtlg[data-t="other"]::before{ background:#8a8fa3; }
+.rtlg.gap::before{ background:repeating-linear-gradient(135deg, transparent, transparent 3px, var(--k-line) 3px, var(--k-line) 6px); }
+
+/* ลากโยกงานประจำ */
+.rtchip[draggable="true"]{ cursor:grab; }
+.rtchip.dragging{ opacity:.4; }
+.rtchip.rtover{ outline:2px solid var(--k-ink); outline-offset:1px; }
+td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:color-mix(in srgb, var(--k-ink) 6%, transparent) !important; }
+.rthint{ margin:8px 0 0; font-size:11.5px; color:var(--k-mut); }
+.rthint b{ color:var(--k-ink); font-weight:600; }
+
+/* แถบงานที่กินหลายช่วงเวลา + มือจับลากยืด */
+.rtchip{ position:relative; }
+.rtchip.long{ border-bottom-left-radius:0; border-bottom-right-radius:0; padding-bottom:10px; }
+/* แถบต่อเนื่องของงานเดียวกันที่ยืดข้ามช่วง */
+.rtchip.cont{ margin-top:-6px; border-top:0; border-top-left-radius:0; border-top-right-radius:0; padding:4px 8px 10px;
+  background:color-mix(in srgb, var(--k-hair) 70%, transparent); color:var(--k-mut); }
+.rtchip.cont span{ font-weight:400; font-size:11px; }
+.rtchip.cont.end{ border-bottom-left-radius:5px; border-bottom-right-radius:5px; }
+.rtgrip{ position:absolute; left:0; right:0; bottom:0; height:8px; cursor:ns-resize; border-radius:0 0 4px 4px; }
+.rtgrip::after{ content:''; position:absolute; left:50%; bottom:2px; width:22px; height:2px; margin-left:-11px;
+  border-radius:2px; background:var(--k-line); }
+.rtchip:hover .rtgrip::after{ background:var(--k-ink); }
+
+/* วันหยุดรายคน + ปุ่มบนการ์ดงานประจำ */
+.rtab td.rtoff{ background:var(--k-hair) !important; text-align:center; vertical-align:middle; }
+.rtab td.rtoff span{ font-size:11px; color:var(--k-mut); letter-spacing:.04em; }
+.rtchip .rtacts{ position:absolute; top:3px; right:4px; display:flex; gap:2px; opacity:0; transition:opacity .12s; }
+.rtchip:hover .rtacts, .rtchip:focus-within .rtacts{ opacity:1; }
+.rtact{ font-style:normal; font-size:11px; line-height:1; padding:3px 4px; border-radius:4px; cursor:pointer;
+  color:var(--k-mut); background:var(--k-paper); border:1px solid var(--k-line); }
+.rtact:hover{ color:var(--k-ink); border-color:var(--k-ink); }
+.rtact.del:hover{ color:#fff; background:var(--k-bad); border-color:var(--k-bad); }
+.rtact:focus-visible{ outline:2px solid var(--k-info); outline-offset:1px; }
+.rtin{ width:100%; padding:2px 6px; font-size:11.5px; height:auto; }
+.rtconfirm{ position:absolute; left:4px; right:4px; top:100%; z-index:20; margin-top:4px; padding:9px 10px;
+  border:1px solid var(--k-bad); border-radius:6px; background:var(--k-paper); box-shadow:0 10px 26px rgba(0,0,0,.16);
+  display:flex; flex-direction:column; gap:5px; }
+.rtconfirm b{ font-size:12px; font-weight:600; }
+.rtconfirm span{ font-size:10.5px; color:var(--k-mut); }
+.rtcacts{ display:flex; gap:6px; margin-top:2px; }
+.btn.sm.danger{ background:var(--k-bad); border-color:var(--k-bad); }
+.btn.sm.danger:hover:not(:disabled){ box-shadow:0 8px 20px rgba(196,61,66,.3); }
+@media (hover:none){ .rtchip .rtacts{ opacity:1; } }
