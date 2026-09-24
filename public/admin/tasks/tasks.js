@@ -6281,8 +6281,15 @@
       /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
       case 'leads': return renderLeads();
       case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
-      /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js */
+      /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js
+         ถ้าไฟล์โหลดไม่ขึ้น (deploy ไม่ครบ / เน็ตหลุด) ต้องบอกให้รู้ ไม่ใช่ปล่อยจอขาว */
       case 'blast': case 'richmenu': case 'lineusers': case 'blastsetup':
+        if (!global.KAN_BLAST) {
+          $('#view').className = 'page';
+          $('#view').innerHTML = '<div class="err"><b>หน้าบรอดแคสต์โหลดไม่ขึ้น</b>' +
+            '<p>ไฟล์ blast.js ยังไม่ได้ขึ้นเซิร์ฟเวอร์ — กดรีเฟรชอีกครั้ง ถ้ายังไม่ได้แปลว่า deploy ไม่ครบ</p></div>';
+          return;
+        }
         return global.KAN_BLAST.render(S.route);
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
