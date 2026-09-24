@@ -583,7 +583,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { routine: '#/routine', history: '#/history', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -652,7 +652,7 @@
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
   var PAGE_TOUR = { me: 'all', all: 'all', new: 'new', task: 'task', posts: 'posts', kpi: 'kpi', team: 'team', review: 'review', leads: 'leads', lead: 'leads',
-                    report: 'report', signage: 'signage', history: 'history', campaign: 'calendar', inbox: 'overview' };
+                    report: 'report', signage: 'signage', history: 'history', campaign: 'calendar', inbox: 'overview', tickets: 'tickets' };
   function toggleTourMenu() {
     var m = $('#tourMenu'), T = global.KAN_TOUR;
     if (!m || !T) return;
@@ -3683,6 +3683,116 @@
     }).catch(function (e) { btn.disabled = false; toast(e.message, true); });
   }
 
+  /* ---------- เรื่องแจ้งปัญหา (นนท์ 24 ก.ย. 69) ----------------------------
+     ลูกค้า/ทีมกรอกฟอร์มที่ kan-hub.com/help (แปะไว้ในริชเมนูไลน์) → เด้งเข้า Lark
+     แล้วมากองที่หน้านี้ ปิดเรื่องทีละใบเหมือนคิวงานไอที ไม่ต้องไล่หาในแชท */
+  var TK = { items: [], st: 'open', kind: '', loaded: false };
+  var TK_ST = [['new', 'เรื่องใหม่'], ['doing', 'กำลังดูแล'], ['done', 'เรียบร้อย'], ['drop', 'ไม่ดำเนินการ']];
+  var TK_ST_TH = { new: 'เรื่องใหม่', doing: 'กำลังดูแล', done: 'เรียบร้อย', drop: 'ไม่ดำเนินการ' };
+  var TK_CH_TH = { phone: 'โทร', line: 'LINE', facebook: 'Facebook', email: 'อีเมล', other: 'ช่องทางอื่น' };
+  var HELP_URL = 'https://kan-hub.com/help';
+
+  function tkLoad(force) {
+    if (TK.loaded && !force) return Promise.resolve();
+    return api('/tickets').then(function (j) { TK.items = j.tickets || []; TK.loaded = true; });
+  }
+  function tkList() {
+    return TK.items.filter(function (t) {
+      if (TK.kind && t.kind !== TK.kind) return false;
+      if (TK.st === 'open') return t.status === 'new' || t.status === 'doing';
+      if (TK.st && t.status !== TK.st) return false;
+      return true;
+    });
+  }
+  function renderTickets() {
+    var view = $('#view');
+    view.className = 'page';
+    if (!TK.loaded) view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    tkLoad(false).then(paintTickets).catch(function (e) { showError(e); });
+  }
+  function tkContact(t) {
+    var v = t.contact || '';
+    if (!v) return '<span class="tkmut">ไม่ได้ให้ช่องทางไว้</span>';
+    var lab = (TK_CH_TH[t.channel] || 'ติดต่อ') + ' ' + v;
+    if (t.channel === 'phone') return '<a href="tel:' + esc(v.replace(/[^0-9+]/g, '')) + '">' + esc(lab) + '</a>';
+    if (t.channel === 'email') return '<a href="mailto:' + esc(v) + '">' + esc(lab) + '</a>';
+    return '<span>' + esc(lab) + '</span>';
+  }
+  function tkCard(t) {
+    var owner = (S.staff || []).filter(function (x) { return x.id === t.ownerId; })[0];
+    return '<div class="tkrow tk-' + t.status + '">' +
+      '<div class="tkhead">' +
+        '<span class="tkref">' + esc(t.ref) + '</span>' +
+        '<span class="tkkind ' + (t.kind === 'team' ? 'team' : 'cust') + '">' + (t.kind === 'team' ? 'ทีม KAN' : 'ลูกค้า') + '</span>' +
+        '<b class="tksub">' + esc(t.subject) + '</b>' +
+        '<span class="tkago">' + esc(fmtAgo(t.createdAt)) + '</span>' +
+      '</div>' +
+      (t.detail ? '<p class="tkdetail">' + esc(t.detail).replace(/\n/g, '<br>') + '</p>' : '') +
+      '<div class="tkwho"><b>' + esc(t.reporter || '—') + '</b> · ' + tkContact(t) + '</div>' +
+      '<div class="tkacts">' +
+        '<div class="seg tkseg">' + TK_ST.map(function (p) {
+          return '<button type="button" class="' + (t.status === p[0] ? 'on' : '') + '" data-tk-st="' + esc(t.id) + '" data-v="' + p[0] + '">' + p[1] + '</button>';
+        }).join('') + '</div>' +
+        '<select class="select tkown" data-tk-own="' + esc(t.id) + '">' +
+          '<option value="">ยังไม่มีคนดูแล</option>' +
+          activeStaff().map(function (x) {
+            return '<option value="' + esc(x.id) + '"' + (t.ownerId === x.id ? ' selected' : '') + '>' + esc(shortName(x)) + '</option>';
+          }).join('') + '</select>' +
+        (amOwner() ? '<button type="button" class="btn-ghost danger tkdel" data-tk-del="' + esc(t.id) + '">ลบ</button>' : '') +
+      '</div>' +
+      '<input class="input tknote" data-tk-note="' + esc(t.id) + '" placeholder="บันทึกว่าทำอะไรไปแล้ว…" value="' + esc(t.note || '') + '">' +
+      (owner ? '<div class="tkmut tkown-l">คนดูแล: ' + esc(shortName(owner)) + '</div>' : '') +
+      '</div>';
+  }
+  function paintTickets() {
+    var view = $('#view');
+    var open = TK.items.filter(function (t) { return t.status === 'new' || t.status === 'doing'; }).length;
+    var fresh = TK.items.filter(function (t) { return t.status === 'new'; }).length;
+    var list = tkList();
+    var h = '<div class="top"><div><span class="kicker">แจ้งปัญหา</span><h1>เรื่องที่แจ้งเข้ามา</h1>' +
+      '<p>ลูกค้าและทีมกรอกฟอร์มที่หน้าเว็บ → เข้ามากองที่นี่ และเด้งเข้ากลุ่ม Lark ทันทีที่มีเรื่องใหม่</p></div>' +
+      '<div class="tkopen"><b>' + open + '</b><span>ยังไม่ปิด' + (fresh ? ' · ใหม่ ' + fresh : '') + '</span></div></div>';
+    h += '<div class="tklink"><span>ลิงก์ฟอร์มสำหรับแปะในริชเมนูไลน์</span>' +
+      '<code>' + HELP_URL + '</code>' +
+      '<button type="button" class="btn-ghost" data-tk-copy>คัดลอกลิงก์</button>' +
+      '<a class="btn-ghost" href="' + HELP_URL + '" target="_blank" rel="noopener">เปิดดูฟอร์ม</a></div>';
+    h += '<div class="tbar">' +
+      '<div class="seg">' + [['open', 'ที่ยังไม่ปิด'], ['', 'ทั้งหมด']].concat(TK_ST).map(function (p) {
+        return '<button type="button" class="' + (TK.st === p[0] ? 'on' : '') + '" data-tk-f="st" data-v="' + p[0] + '">' + p[1] + '</button>';
+      }).join('') + '</div>' +
+      '<div class="seg">' + [['', 'ทุกคน'], ['customer', 'จากลูกค้า'], ['team', 'จากทีม KAN']].map(function (p) {
+        return '<button type="button" class="' + (TK.kind === p[0] ? 'on' : '') + '" data-tk-f="kind" data-v="' + p[0] + '">' + p[1] + '</button>';
+      }).join('') + '</div>' +
+      '<span class="tbar-n">' + list.length + ' เรื่อง</span></div>';
+    h += list.length
+      ? '<div class="tklist">' + list.map(tkCard).join('') + '</div>'
+      : '<div class="sec"><div class="empty"><b>ยังไม่มีเรื่องในเงื่อนไขนี้</b>ลองเปลี่ยนตัวกรอง หรือรอเรื่องใหม่เข้ามา</div></div>';
+    view.innerHTML = h;
+  }
+  /* แก้ทีละช่อง: อัปเดตในหน่วยความจำก่อนแล้วค่อยยิง API — กดเปลี่ยนสถานะรัว ๆ จอจะได้ไม่กระพริบ */
+  function tkSave(id, patch, quiet) {
+    var t = TK.items.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+    var before = { status: t.status, ownerId: t.ownerId, note: t.note };
+    Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
+    paintTickets();
+    api('/tickets/' + id, 'PUT', patch).then(function () {
+      if (!quiet) toast('บันทึกแล้ว');
+    }).catch(function (e) {
+      Object.keys(before).forEach(function (k) { t[k] = before[k]; });
+      paintTickets();
+      toast(e.message, true);
+    });
+  }
+
+  /* ช่องคนดูแล/บันทึกของเรื่องแจ้งปัญหา — เซฟตอนเปลี่ยนค่าเสร็จ ไม่ต้องมีปุ่มบันทึก */
+  document.addEventListener('change', function (ev) {
+    var el = ev.target;
+    if (!el || !el.matches) return;
+    if (el.matches('[data-tk-own]')) { tkSave(el.getAttribute('data-tk-own'), { ownerId: el.value }); return; }
+    if (el.matches('[data-tk-note]')) { tkSave(el.getAttribute('data-tk-note'), { note: el.value }); return; }
+  });
+
   /* ---------- แก้ไขงานเร็วจากหน้ารายการ ---------- */
   function quickEdit(id) {
     var t = (S.tasks || []).filter(function (x) { return x.id === id; })[0];
@@ -6378,6 +6488,7 @@
       case 'kpi': return canSee('kpi') ? renderKpi() : denyView('KPI 2570');
       case 'routine': return amOwner() ? renderRoutine() : denyView('ตารางงานประจำของทีม');
       case 'history': return renderHistory();
+      case 'tickets': return renderTickets();
       case 'review': return renderReview();
       /* บัญชีที่เห็นเฉพาะ CRM (ต้น/ตาล) — หน้าอื่นเด้งกลับไปลีด */
       case 'leads': return renderLeads();
@@ -6575,6 +6686,30 @@
     }
     if (ev.target.closest('[data-h-more]')) { histLoad(true).then(paintHistory).catch(function (e) { toast(e.message, true); }); return; }
     if ((b = ev.target.closest('[data-hundo]'))) { histUndo(b.getAttribute('data-hundo'), b); return; }
+    /* ---- เรื่องแจ้งปัญหา ---- */
+    if ((b = ev.target.closest('[data-tk-f]'))) {
+      TK[b.getAttribute('data-tk-f')] = b.getAttribute('data-v');
+      paintTickets(); return;
+    }
+    if ((b = ev.target.closest('[data-tk-st]'))) {
+      tkSave(b.getAttribute('data-tk-st'), { status: b.getAttribute('data-v') }, true); return;
+    }
+    if ((b = ev.target.closest('[data-tk-del]'))) {
+      var tkid = b.getAttribute('data-tk-del');
+      var tkt = TK.items.filter(function (x) { return x.id === tkid; })[0];
+      if (!confirm('ลบเรื่อง ' + ((tkt && tkt.ref) || '') + ' ทิ้งเลย?')) return;
+      b.disabled = true;
+      api('/tickets/' + tkid, 'DELETE').then(function () {
+        TK.items = TK.items.filter(function (x) { return x.id !== tkid; });
+        paintTickets(); toast('ลบแล้ว');
+      }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if (ev.target.closest('[data-tk-copy]')) {
+      var cp = (navigator.clipboard && navigator.clipboard.writeText(HELP_URL)) || Promise.reject();
+      cp.then(function () { toast('คัดลอกลิงก์แล้ว'); }).catch(function () { toast(HELP_URL); });
+      return;
+    }
     if ((b = ev.target.closest('[data-btype]'))) { B.type = b.getAttribute('data-btype'); try { localStorage.setItem('kan-board-type', B.type); } catch (e) {} renderAll(); return; }
     if (ev.target.closest('[data-flow-edit]')) { flowEditor(B.type); return; }
     if ((b = ev.target.closest('[data-mkstages]'))) {

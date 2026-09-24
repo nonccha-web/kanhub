@@ -57,7 +57,12 @@
 
       /* เมนูของตัวเอง ไม่ต้องกางกลุ่ม — นนท์ขอให้แยกออกมาเลย (20 ก.ย. 69) */
       { direct: true, icon: 'clock', label: 'ประวัติการแก้ไข', sec: 'tasks', note: 'ใครแก้อะไร · ย้อนเวอร์ชันได้',
-        items: [{ icon: 'clock', label: 'ประวัติการแก้ไข', tasks: '#/history' }] }
+        items: [{ icon: 'clock', label: 'ประวัติการแก้ไข', tasks: '#/history' }] },
+
+      /* เรื่องที่ลูกค้า/ทีมกรอกเข้ามาจากฟอร์มหน้าเว็บ kan-hub.com/help (นนท์ 24 ก.ย. 69)
+         ของใหม่เด้งเข้ากลุ่ม Lark ทันที หน้านี้ไว้ไล่ปิดทีละเรื่อง */
+      { direct: true, icon: 'alert', label: 'แจ้งปัญหา', sec: 'tasks', note: 'เรื่องจากลูกค้า/ทีม · ปิดทีละใบ',
+        items: [{ icon: 'alert', label: 'แจ้งปัญหา', tasks: '#/tickets' }] }
 
     ]},
 

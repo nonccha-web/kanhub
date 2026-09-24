@@ -1,4 +1,4 @@
-import { notifyReviewSubmitted } from "./worker-lark.js";
+import { notifyReviewSubmitted, sendLark } from "./worker-lark.js";
 import { handleBlastApi } from "./worker-blast.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
@@ -236,6 +236,17 @@ const SCHEMA = [
     "id TEXT PRIMARY KEY, lead_id TEXT NOT NULL, staff_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'note', " +
     "body TEXT NOT NULL DEFAULT '', from_status TEXT, to_status TEXT, created_at TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_lead_act ON lead_activities(lead_id, created_at DESC)",
+  /* ── เรื่องแจ้งปัญหา (นนท์ 24 ก.ย. 69) ──────────────────────────────────
+     ฟอร์มสาธารณะที่ kan-hub.com/help (แปะใน rich menu ไลน์) ยิงเข้าตารางนี้โดยไม่ต้องล็อกอิน
+     kind = customer (ลูกค้า) | team (คนในทีม KAN) · ref = เลขที่เรื่องไว้อ้างตอนโทรตาม */
+  "CREATE TABLE IF NOT EXISTS tickets (" +
+    "id TEXT PRIMARY KEY, ref TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'customer', " +
+    "subject TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', reporter TEXT NOT NULL DEFAULT '', " +
+    "channel TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', " +
+    "status TEXT NOT NULL DEFAULT 'new', owner_id TEXT, note TEXT NOT NULL DEFAULT '', " +
+    "source TEXT NOT NULL DEFAULT 'web', ua TEXT NOT NULL DEFAULT '', ip TEXT NOT NULL DEFAULT '', " +
+    "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, closed_at TEXT)",
+  "CREATE INDEX IF NOT EXISTS idx_tickets_new ON tickets(status, created_at DESC)",
 ];
 
 /* คอลัมน์ที่เพิ่มทีหลัง — ตารางมีข้อมูลจริงแล้ว CREATE TABLE IF NOT EXISTS ไม่เติมให้
@@ -751,7 +762,7 @@ function logStmt(db, me, action, info, changes) {
    ประวัติการแก้ไข (audit log) — เก็บสภาพก่อน/หลังของทุกการเปลี่ยนแปลง
    เพื่อให้ย้อนเวอร์ชันได้ทีหลัง · เขียนแยกจาก batch หลัก งานหลักล้มเหลวจะไม่มีประวัติค้าง
    ============================================================ */
-const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน", lead: "ลีด" };
+const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน", lead: "ลีด", ticket: "เรื่องแจ้งปัญหา" };
 const AUDIT_ACTION_TH = { create: "สร้าง", update: "แก้ไข", delete: "ลบ", revert: "ย้อนเวอร์ชัน" };
 /* สภาพของงาน 1 ชิ้น (รวมคนรับ) ไว้ทั้งเทียบและคืนค่า */
 async function snapTask(db, id) {
@@ -2802,11 +2813,175 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     return json({ ok: true });
   }
 
+  /* ---- เรื่องแจ้งปัญหาที่วิ่งมาจากฟอร์มสาธารณะ ---- */
+  if (path === "/tickets" && method === "GET") {
+    const res = await db.prepare("SELECT * FROM tickets ORDER BY created_at DESC LIMIT 500").all();
+    return json({
+      tickets: (res.results || []).map(rowToTicket),
+      statuses: TICKET_STATUSES.map((k) => ({ k, th: TICKET_STATUS_TH[k] })),
+      kinds: Object.keys(TICKET_KIND_TH).map((k) => ({ k, th: TICKET_KIND_TH[k] })),
+      channels: Object.keys(TICKET_CHANNEL_TH).map((k) => ({ k, th: TICKET_CHANNEL_TH[k] })),
+    });
+  }
+
+  /* เปิดเรื่องเองจากหลังบ้าน (คนในทีมโทรมาบอก แล้วเรามาคีย์ให้) */
+  if (path === "/tickets" && method === "POST") {
+    const body = await readBody(request);
+    const subject = String(body.subject || "").trim().slice(0, 150);
+    if (!subject) return json({ error: "ใส่เรื่องที่จะแจ้งด้วย" }, 400);
+    const now = nowIso();
+    const id = newId("tk_");
+    const seq = await db.prepare("SELECT COUNT(*) AS n FROM tickets").first();
+    const ref = "T" + String(((seq && seq.n) || 0) + 1).padStart(4, "0");
+    await db.prepare(
+      "INSERT INTO tickets (id,ref,kind,subject,detail,reporter,channel,contact,status,source,ua,ip,created_at,updated_at) " +
+      "VALUES (?,?,?,?,?,?,?,?,'new','admin','','',?,?)"
+    ).bind(id, ref, body.kind === "team" ? "team" : "customer", subject,
+           String(body.detail || "").trim().slice(0, 3000), String(body.name || me.name).trim().slice(0, 80),
+           TICKET_CHANNEL_TH[body.channel] ? String(body.channel) : "other",
+           String(body.contact || "").trim().slice(0, 120), now, now).run();
+    await logChange(db, { by: me.id, entity: "ticket", entityId: id, action: "create", title: ref + " " + subject, at: now });
+    return json({ ok: true, id, ref });
+  }
+
+  const tkMatch = path.match(/^\/tickets\/([A-Za-z0-9_-]{1,40})$/);
+  if (tkMatch) {
+    const row = await db.prepare("SELECT * FROM tickets WHERE id = ?").bind(tkMatch[1]).first();
+    if (!row) return json({ error: "ไม่พบเรื่องนี้" }, 404);
+
+    if (method === "GET") return json({ ticket: rowToTicket(row) });
+
+    if (method === "PUT") {
+      const body = await readBody(request);
+      const now = nowIso();
+      const sets = [], vals = [];
+      if (body.status !== undefined) {
+        if (TICKET_STATUSES.indexOf(String(body.status)) === -1) return json({ error: "สถานะไม่ถูกต้อง" }, 400);
+        sets.push("status = ?"); vals.push(String(body.status));
+        /* ปิดเรื่องแล้วค่อยเปิดใหม่ได้ — เคลียร์เวลาปิดทิ้งด้วย ไม่งั้นรายงานนับผิด */
+        sets.push("closed_at = ?"); vals.push(body.status === "done" || body.status === "drop" ? now : null);
+      }
+      if (body.ownerId !== undefined) {
+        const v = String(body.ownerId || "");
+        if (v) {
+          const st = await db.prepare("SELECT id FROM staff WHERE id = ? AND active = 1").bind(v).first();
+          if (!st) return json({ error: "ไม่พบคนนี้ในทีม" }, 400);
+        }
+        sets.push("owner_id = ?"); vals.push(v || null);
+      }
+      if (body.note !== undefined) { sets.push("note = ?"); vals.push(String(body.note).slice(0, 2000)); }
+      if (body.subject !== undefined) {
+        const sj = String(body.subject).trim().slice(0, 150);
+        if (!sj) return json({ error: "หัวข้อว่างไม่ได้" }, 400);
+        sets.push("subject = ?"); vals.push(sj);
+      }
+      if (!sets.length) return json({ error: "ไม่มีข้อมูลที่จะแก้" }, 400);
+      sets.push("updated_at = ?"); vals.push(now);
+      vals.push(row.id);
+      await db.prepare("UPDATE tickets SET " + sets.join(", ") + " WHERE id = ?").bind(...vals).run();
+      const after = await db.prepare("SELECT * FROM tickets WHERE id = ?").bind(row.id).first();
+      await logChange(db, { by: me.id, entity: "ticket", entityId: row.id, action: "update",
+                            title: row.ref + " " + row.subject, before: ticketSnap(row), after: ticketSnap(after), at: now });
+      return json({ ok: true, ticket: rowToTicket(after) });
+    }
+
+    if (method === "DELETE") {
+      if (!isOwner) return json({ error: "ลบเรื่องได้เฉพาะหัวหน้า" }, 403);
+      await db.prepare("DELETE FROM tickets WHERE id = ?").bind(row.id).run();
+      await logChange(db, { by: me.id, entity: "ticket", entityId: row.id, action: "delete",
+                            title: row.ref + " " + row.subject, before: ticketSnap(row) });
+      return json({ ok: true });
+    }
+  }
+
   /* ---- บรอดแคสต์ LINE OA + SMS (/blast/*) — โค้ดอยู่ worker-blast.js ---- */
   if (path.indexOf("/blast/") === 0) {
     return handleBlastApi(db, request, url, path, method, me,
       { blast: canSee(me, "blast"), owner: isOwner }, ctx);
   }
 
+
   return json({ error: "ไม่พบ endpoint นี้" }, 404);
+}
+
+/* ════════ เรื่องแจ้งปัญหา (ticket) ════════════════════════════════════════
+   ฟอร์มสาธารณะ kan-hub.com/help → POST /api/tickets (ไม่ต้องล็อกอิน)
+   ของใหม่ทุกใบเด้งเข้ากลุ่ม Lark ทันที แล้วมาโผล่หน้า "แจ้งปัญหา" ในหลังบ้าน */
+const TICKET_STATUSES = ["new", "doing", "done", "drop"];
+const TICKET_STATUS_TH = { new: "เรื่องใหม่", doing: "กำลังดูแล", done: "เรียบร้อย", drop: "ไม่ดำเนินการ" };
+const TICKET_KIND_TH = { customer: "ลูกค้า", team: "ทีม KAN" };
+const TICKET_CHANNEL_TH = { phone: "เบอร์โทร", line: "LINE", facebook: "Facebook", email: "อีเมล", other: "อื่น ๆ" };
+
+function rowToTicket(r) {
+  return {
+    id: r.id, ref: r.ref, kind: r.kind || "customer", subject: r.subject || "",
+    detail: r.detail || "", reporter: r.reporter || "", channel: r.channel || "",
+    contact: r.contact || "", status: r.status || "new", ownerId: r.owner_id || null,
+    note: r.note || "", source: r.source || "web",
+    createdAt: r.created_at, updatedAt: r.updated_at, closedAt: r.closed_at || null,
+  };
+}
+function ticketSnap(r) {
+  return r ? { subject: r.subject, detail: r.detail, status: r.status, owner_id: r.owner_id || "", note: r.note || "" } : null;
+}
+
+/* รับเรื่องจากหน้าเว็บสาธารณะ — ไม่มีล็อกอิน จึงต้องกันสแปมเอง:
+   ช่องล่อ (website) ต้องว่าง · จำกัดจำนวนใบต่อ IP ต่อ 10 นาที · ตัดความยาวทุกช่อง */
+export async function handleTicketIntake(request, env, ctx) {
+  const cors = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-methods": "POST, OPTIONS",
+  };
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method !== "POST") return json({ error: "POST only" }, 405, cors);
+
+  const db = env.KAN_ERP;
+  if (!db) return json({ error: "ระบบยังไม่พร้อม ลองใหม่อีกครั้ง" }, 503, cors);
+  await ensureSchema(db, env);
+
+  const body = await readBody(request);
+  if (String(body.website || "").trim()) return json({ ok: true, ref: "-" }, 200, cors);  /* บอทกรอกช่องล่อ — ตอบ ok แต่ไม่บันทึก */
+
+  const kind = body.kind === "team" ? "team" : "customer";
+  const subject = String(body.subject || "").trim().slice(0, 150);
+  const detail = String(body.detail || "").trim().slice(0, 3000);
+  const reporter = String(body.name || "").trim().slice(0, 80);
+  const channel = TICKET_CHANNEL_TH[body.channel] ? String(body.channel) : "other";
+  const contact = String(body.contact || "").trim().slice(0, 120);
+  if (!subject) return json({ error: "ใส่เรื่องที่จะแจ้งด้วยนะ" }, 400, cors);
+  if (!detail) return json({ error: "เล่ารายละเอียดสักหน่อยนะ" }, 400, cors);
+  if (!reporter) return json({ error: "ใส่ชื่อที่ให้เราเรียกด้วยนะ" }, 400, cors);
+  if (!contact) return json({ error: "ใส่ช่องทางติดต่อกลับด้วยนะ" }, 400, cors);
+
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  const ua = (request.headers.get("user-agent") || "").slice(0, 200);
+  if (ip) {
+    const since = new Date(Date.now() - 10 * 60000).toISOString();
+    const hit = await db.prepare("SELECT COUNT(*) AS n FROM tickets WHERE ip = ? AND created_at > ?").bind(ip, since).first();
+    if (hit && hit.n >= 5) return json({ error: "ส่งถี่เกินไป พัก 10 นาทีแล้วลองใหม่นะ" }, 429, cors);
+  }
+
+  const now = nowIso();
+  const id = newId("tk_");
+  const seq = await db.prepare("SELECT COUNT(*) AS n FROM tickets").first();
+  const ref = "T" + String(((seq && seq.n) || 0) + 1).padStart(4, "0");
+  await db.prepare(
+    "INSERT INTO tickets (id,ref,kind,subject,detail,reporter,channel,contact,status,source,ua,ip,created_at,updated_at) " +
+    "VALUES (?,?,?,?,?,?,?,?,'new','web',?,?,?,?)"
+  ).bind(id, ref, kind, subject, detail, reporter, channel, contact, ua, ip, now, now).run();
+
+  const text =
+    "🎫 เรื่องแจ้งใหม่ " + ref + " · จาก" + (TICKET_KIND_TH[kind] || kind) + "\n" +
+    "หัวข้อ: " + subject + "\n" +
+    "รายละเอียด: " + (detail.length > 400 ? detail.slice(0, 400) + "…" : detail) + "\n" +
+    "ผู้แจ้ง: " + reporter + " · " + (TICKET_CHANNEL_TH[channel] || channel) + " " + contact + "\n" +
+    "ดูในระบบ: https://admin.kan-hub.com/tasks/#/tickets";
+  const hook = env.LARK_TICKET_WEBHOOK || env.LARK_KAN_WEBHOOK;
+  /* แจ้งเตือนช้าไม่ควรหน่วงคนกรอกฟอร์ม — ตอบ ok ก่อน ค่อยยิงเข้า Lark เบื้องหลัง */
+  if (hook) {
+    const send = sendLark(hook, text).catch(function () {});
+    if (ctx && ctx.waitUntil) ctx.waitUntil(send);
+  }
+  return json({ ok: true, ref }, 200, cors);
 }
