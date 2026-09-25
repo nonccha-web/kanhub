@@ -491,6 +491,14 @@ export default {
 
     // ที่เหลือ (รวม workers.dev + localhost ตอน dev) — /admin ต้องผ่านด่านสิทธิ์เหมือนกัน
     if (url.pathname.indexOf("/admin") === 0) return await serveAdmin(request, env, url);
+    /* รูปอัลบั้มหน้าขาย (/grade-b/img/*) ไม่เปลี่ยนแล้ว — ให้มือถือเก็บไว้ 7 วัน เปิดลิงก์ซ้ำไม่ต้องถามเซิร์ฟเวอร์ทีละรูป */
+    if (/^\/grade-b\/img\//.test(url.pathname)) {
+      const res = await env.ASSETS.fetch(request);
+      if (res.status !== 200) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("cache-control", "public, max-age=604800");
+      return out;
+    }
     return env.ASSETS.fetch(request);
   },
 };
