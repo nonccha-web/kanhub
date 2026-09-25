@@ -3045,12 +3045,12 @@ export async function handleSaleLead(request, env, ctx) {
       "est_value,bought_before,lost_reason,next_at,received_at,fb_name,created_by,created_at,updated_at,updated_by) " +
       "VALUES (?,?,?,'','other',?,?,'','new',NULL,1500,0,'',NULL,?,'',?,?,?,?)"
     ).bind(id, name, phone, detail, interest, now, by, now, now, by),
-    leadAct(db, id, by, "create", "ลงทะเบียนสั่งซื้อจากเว็บ " + page.url, null, "new"),
+    leadAct(db, id, by, "create", "จองสิทธิ์จากเว็บ " + page.url, null, "new"),
   ]);
 
   const hook = env.LARK_TICKET_WEBHOOK || env.LARK_KAN_WEBHOOK;
   if (hook) {
-    const text = "🛒 มีคนสนใจสั่งซื้อ · " + page.title + "\n" +
+    const text = "🛒 มีคนจองสิทธิ์ · " + page.title + "\n" +
       "ชื่อ: " + name + " · โทร " + phone + "\n" +
       (catTh ? "หมวดที่สนใจ: " + catTh + "\n" : "") +
       "ดูในระบบ: https://admin.kan-hub.com/tasks/#/leads";

@@ -178,7 +178,7 @@
       <p class="sub">คละ <b>เสื้อแฟชั่น · เดรส · กางเกง · กระโปรง</b> เหมาะกับร้านเปิดท้าย ร้านมือสอง หรือขายไลฟ์ ลองเลื่อนดูรูปจริงด้านล่างได้เลย</p>
       <button class="cta" type="button" data-order>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h3l2.6 11.2a1.5 1.5 0 0 0 1.5 1.1h8.3a1.5 1.5 0 0 0 1.5-1.1l1.6-7.2H6.4"/></svg>
-        สนใจสั่งซื้อ
+        จองสิทธิ์เลย
       </button>
       <div class="facts">
         <div><b>250</b><span>ตัว / ชุด</span></div>
@@ -200,14 +200,14 @@
   <div class="sec-h"><h2 id="catTitle"></h2><span id="catCount"></span></div>
   <div class="grid" id="grid"></div>
   <button class="more" type="button" id="nextCat"></button>
-  <p class="note"><b>เกรด B-C คืออะไร</b> — เสื้อผ้าสภาพใช้ได้ อาจมีตำหนิเล็กน้อย เช่น รอยเปื้อนจาง ด้ายหลุด หรือกระดุมหาย สภาพจริงดูได้จากรูป ถ้าอยากถามรายละเอียดเพิ่ม กด "สนใจสั่งซื้อ" แล้วทีมงานจะโทรกลับค่ะ</p>
+  <p class="note"><b>เกรด B-C คืออะไร</b> — เสื้อผ้าสภาพใช้ได้ อาจมีตำหนิเล็กน้อย เช่น รอยเปื้อนจาง ด้ายหลุด หรือกระดุมหาย สภาพจริงดูได้จากรูป ถ้าอยากถามรายละเอียดเพิ่ม กด "จองสิทธิ์" แล้วทีมงานจะโทรกลับค่ะ</p>
   <div class="foot">Powered by M Creation</div>
 </main>
 
 <div class="bar">
   <div class="wrap">
     <div class="p"><b>1,500 บ. / 250 ตัว</b><small>ส่งฟรี · จนกว่าของจะหมด</small></div>
-    <button class="cta" type="button" data-order>สนใจสั่งซื้อ</button>
+    <button class="cta" type="button" data-order>จองสิทธิ์</button>
   </div>
 </div>
 
@@ -219,7 +219,7 @@
     <button class="nav prev" type="button" id="lbPrev" aria-label="รูปก่อนหน้า">‹</button>
     <button class="nav next" type="button" id="lbNext" aria-label="รูปถัดไป">›</button>
   </div>
-  <div class="lb-bot"><button class="cta" type="button" data-order>สนใจสั่งซื้อ · 1,500 บ./250 ตัว</button></div>
+  <div class="lb-bot"><button class="cta" type="button" data-order>จองสิทธิ์ · 1,500 บ./250 ตัว</button></div>
 </div>
 
 <!-- ฟอร์มลงทะเบียน -->
@@ -227,20 +227,20 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetH">
   <div class="grab"></div>
   <form id="form" novalidate>
-    <h3 id="sheetH">ลงทะเบียนสั่งซื้อ</h3>
-    <p class="lead">ฝากชื่อกับเบอร์ไว้ เดี๋ยวทีมงานโทรกลับไปยืนยันรายการและนัดรับของค่ะ</p>
+    <h3 id="sheetH">จองสิทธิ์</h3>
+    <p class="lead">ฝากชื่อกับเบอร์ไว้ ทีมงานจะโทรกลับไปยืนยันสิทธิ์และรายการสินค้าค่ะ</p>
     <div class="deal"><b>1,500 บ.</b><span>ได้ 250 ตัว · ส่งฟรี<br><small>*ภาคกลาง และภาคใต้</small></span></div>
     <div class="f"><label for="nm">ชื่อ</label><input id="nm" name="name" autocomplete="name" maxlength="80" placeholder="ชื่อที่ให้เราเรียก"></div>
     <div class="f"><label for="ph">เบอร์โทร</label><input id="ph" name="phone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="12" placeholder="08x-xxx-xxxx"></div>
     <div class="f"><label>สนใจหมวดไหน <small>(ไม่เลือกก็ได้)</small></label><div class="chips" id="chips"></div></div>
     <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div class="msg" id="msg" role="alert"></div>
-    <button class="cta send" type="submit" id="send">ส่งข้อมูล ให้ทีมงานโทรกลับ</button>
+    <button class="cta send" type="submit" id="send">ยืนยันจองสิทธิ์</button>
     <p class="fine">เราใช้เบอร์นี้เพื่อติดต่อเรื่องคำสั่งซื้อนี้เท่านั้น</p>
   </form>
   <div class="done" id="done" hidden>
     <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-    <h3>ได้รับข้อมูลแล้วค่ะ</h3>
+    <h3>จองสิทธิ์เรียบร้อยค่ะ</h3>
     <p>ทีมงาน KAN จะโทรกลับที่เบอร์ <b id="doneTel"></b> เร็ว ๆ นี้<br>ระหว่างรอ ดูรูปสินค้าต่อได้เลย</p>
     <button class="ghost" type="button" id="doneX">ดูรูปต่อ</button>
   </div>
@@ -319,7 +319,7 @@
     if (e.key === "ArrowLeft") lbShow(lbI - 1);
   });
 
-  /* ฟอร์มสั่งซื้อ */
+  /* ฟอร์มจองสิทธิ์ */
   function openSheet() {
     $("sheetBg").classList.add("open"); $("sheet").classList.add("open"); document.body.style.overflow = "hidden";
     var cb = CATS[cur].k;
@@ -359,7 +359,7 @@
         $("form").hidden = true; $("done").hidden = false;
       })
       .catch(function (x) { err((x && x.message && x.message !== "Failed to fetch") ? x.message : "ส่งไม่สำเร็จ เช็กอินเทอร์เน็ตแล้วลองใหม่อีกครั้งนะคะ"); })
-      .then(function () { btn.disabled = false; btn.textContent = "ส่งข้อมูล ให้ทีมงานโทรกลับ"; });
+      .then(function () { btn.disabled = false; btn.textContent = "ยืนยันจองสิทธิ์"; });
   });
 
   var h = (location.hash || "").slice(1), start = 0;
