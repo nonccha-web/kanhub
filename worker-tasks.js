@@ -2985,3 +2985,77 @@ export async function handleTicketIntake(request, env, ctx) {
   }
   return json({ ok: true, ref }, 200, cors);
 }
+
+/* ════════ ลงทะเบียนสั่งซื้อจากหน้าขายสาธารณะ (ลีด) ═══════════════════════
+   หน้า kan-hub.com/grade-b (ผ้าเกรด B-C เหมา 1,500 บ./250 ตัว — นนท์ 25 ก.ย. 69)
+   → POST /api/sale-lead (ไม่ต้องล็อกอิน) → ลงตาราง leads ขั้น "new" ให้ทีมขายรับไปโทรต่อ
+   ตาราง leads ไม่มีช่อง ip จึงกันสแปมด้วย ช่องล่อ + เบอร์ซ้ำใน 24 ชม. ไม่สร้างใบใหม่ + เพดานรวมต่อ 10 นาที */
+const SALE_PAGES = {
+  "grade-b": { title: "ผ้าเกรด B-C เหมา 1,500 บ./250 ตัว", url: "kan-hub.com/grade-b",
+               cats: { tops: "เสื้อแฟชั่นรวม", dress: "เดรส", pants: "กางเกงรวม", skirt: "กระโปรง" } },
+};
+
+export async function handleSaleLead(request, env, ctx) {
+  const cors = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-methods": "POST, OPTIONS",
+  };
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method !== "POST") return json({ error: "POST only" }, 405, cors);
+
+  const db = env.KAN_ERP;
+  if (!db) return json({ error: "ระบบยังไม่พร้อม ลองใหม่อีกครั้ง" }, 503, cors);
+  await ensureSchema(db, env);
+
+  const body = await readBody(request);
+  if (String(body.website || "").trim()) return json({ ok: true }, 200, cors);  /* บอทกรอกช่องล่อ */
+
+  const page = SALE_PAGES[String(body.page || "")];
+  if (!page) return json({ error: "ไม่พบแคมเปญนี้" }, 400, cors);
+  const name = String(body.name || "").trim().slice(0, 80);
+  const phone = String(body.phone || "").replace(/\D/g, "").slice(0, 15);
+  if (!name) return json({ error: "ใส่ชื่อด้วยนะคะ" }, 400, cors);
+  if (!/^0\d{8,9}$/.test(phone)) return json({ error: "เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)" }, 400, cors);
+  const cats = (Array.isArray(body.cats) ? body.cats : []).map(String).filter((k) => page.cats[k]);
+  const catTh = cats.map((k) => page.cats[k]).join(", ");
+  const interest = page.title + (catTh ? " · สนใจ: " + catTh : "");
+  const detail = "เว็บ " + page.url;
+
+  const now = nowIso();
+  /* เบอร์เดิมกดซ้ำในวันเดียว — ไม่เปิดลีดใหม่ ให้จดโน้ตในใบเดิมแทน ทีมขายจะได้ไม่โทรซ้ำสองสาย */
+  const dayAgo = new Date(Date.now() - 24 * 3600000).toISOString();
+  const dup = await db.prepare(
+    "SELECT id FROM leads WHERE phone = ? AND source_detail = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1"
+  ).bind(phone, detail, dayAgo).first();
+  const own = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1 ORDER BY id").first();
+  const by = (own && own.id) || "s_nont";
+  if (dup) {
+    await leadAct(db, dup.id, by, "note", "ลงทะเบียนซ้ำจากเว็บ — " + name + (catTh ? " · สนใจ: " + catTh : ""), null, null).run();
+    return json({ ok: true }, 200, cors);
+  }
+  const since = new Date(Date.now() - 10 * 60000).toISOString();
+  const hit = await db.prepare("SELECT COUNT(*) AS n FROM leads WHERE source_detail = ? AND created_at > ?").bind(detail, since).first();
+  if (hit && hit.n >= 80) return json({ error: "ตอนนี้มีคนลงทะเบียนเยอะมาก รอสักครู่แล้วลองใหม่นะคะ" }, 429, cors);
+
+  const id = newId("ld_");
+  await db.batch([
+    db.prepare(
+      "INSERT INTO leads (id,name,phone,line_id,source,source_detail,interest,branch,status,owner_id," +
+      "est_value,bought_before,lost_reason,next_at,received_at,fb_name,created_by,created_at,updated_at,updated_by) " +
+      "VALUES (?,?,?,'','other',?,?,'','new',NULL,1500,0,'',NULL,?,'',?,?,?,?)"
+    ).bind(id, name, phone, detail, interest, now, by, now, now, by),
+    leadAct(db, id, by, "create", "ลงทะเบียนสั่งซื้อจากเว็บ " + page.url, null, "new"),
+  ]);
+
+  const hook = env.LARK_TICKET_WEBHOOK || env.LARK_KAN_WEBHOOK;
+  if (hook) {
+    const text = "🛒 มีคนสนใจสั่งซื้อ · " + page.title + "\n" +
+      "ชื่อ: " + name + " · โทร " + phone + "\n" +
+      (catTh ? "หมวดที่สนใจ: " + catTh + "\n" : "") +
+      "ดูในระบบ: https://admin.kan-hub.com/tasks/#/leads";
+    const send = sendLark(hook, text).catch(function () {});
+    if (ctx && ctx.waitUntil) ctx.waitUntil(send);
+  }
+  return json({ ok: true }, 200, cors);
+}

@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake, handleSaleLead } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
@@ -448,6 +448,8 @@ export default {
     /* ฟอร์มแจ้งปัญหาหน้าเว็บสาธารณะ (kan-hub.com/help — แปะไว้ใน rich menu ไลน์)
        ต้องยิงได้โดยไม่ต้องล็อกอินและไม่ใช่ admin host จึงดักไว้ก่อนด่านโฮสต์ */
     if (url.pathname === "/api/tickets") return handleTicketIntake(request, env, ctx);
+    /* ปุ่ม "สนใจสั่งซื้อ" หน้าขายสาธารณะ (kan-hub.com/grade-b) → ลีดใน CRM */
+    if (url.pathname === "/api/sale-lead") return handleSaleLead(request, env, ctx);
     const isAdminHost = host.indexOf("admin.") === 0 || host.endsWith(".workers.dev") ||
                         host === "localhost" || host === "127.0.0.1"; // localhost = ตอน wrangler dev
 
