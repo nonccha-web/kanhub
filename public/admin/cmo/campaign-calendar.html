@@ -443,6 +443,20 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 .cc-soon-top{ display:flex; align-items:center; gap:6px; }
 .cc-soon-text b{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cc-soon-meta{ font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-soon-br + .cc-soon-br{ border-top:1px solid var(--bg-glass-border); }
+.cc-soon-brh{ display:flex; align-items:center; gap:6px; padding:7px 16px; font-size:12px; font-weight:600;
+  color:var(--text-secondary); background:var(--bg-card-subtle); border-bottom:1px solid var(--bg-row-divider); }
+.cc-soon-brh span{ font-size:11px; font-weight:500; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.cc-dayhint{ min-height:16px; margin-top:4px; font-size:12px; font-weight:600; color:var(--text-secondary); }
+.cc-dayhint.bad{ color:#D14343; }
+.cc-people{ position:fixed; z-index:9999; display:none; max-height:260px; overflow-y:auto; padding:4px;
+  background:var(--bg-page); border:1px solid var(--bg-glass-border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); }
+.cc-people-i{ display:flex; align-items:center; gap:8px; width:100%; padding:7px 9px; border:0; border-radius:6px; background:transparent;
+  font-family:inherit; font-size:13px; color:var(--text-primary); text-align:left; cursor:pointer; }
+.cc-people-i small{ margin-left:auto; font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
+.cc-people-i:hover, .cc-people-i.on{ background:var(--bg-card-hover); }
+.cc-people-av{ width:22px; height:22px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:11px; font-weight:600;
+  background:var(--bg-card-subtle); color:var(--text-secondary); }
 .cc-soon-empty{ padding:18px 16px; font-size:12.5px; color:var(--text-muted); }
 
 /* ── เชื่อมโยงกับโพสต์และงาน ── */
@@ -637,8 +651,8 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
     </div>
     <div id="ccRangeFields">
       <div class="cc-two">
-        <div class="cc-field"><label for="cc-start">วันเริ่ม</label><input type="date" id="cc-start"></div>
-        <div class="cc-field"><label for="cc-end">วันสิ้นสุด</label><input type="date" id="cc-end"></div>
+        <div class="cc-field"><label for="cc-start">วันเริ่ม</label><input type="date" id="cc-start"><div class="cc-dayhint" id="cc-start-day"></div></div>
+        <div class="cc-field"><label for="cc-end">วันสิ้นสุด</label><input type="date" id="cc-end"><div class="cc-dayhint" id="cc-end-day"></div></div>
       </div>
     </div>
     <div id="ccMonthFields" style="display:none">
@@ -661,7 +675,7 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
       <div class="cc-hint">งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน ให้เลือก "อื่นๆ"</div></div>
     <div class="cc-two">
       <div class="cc-field"><label for="cc-budget">งบ (บาท)</label><input type="number" id="cc-budget" min="0" step="100" placeholder="0"></div>
-      <div class="cc-field"><label for="cc-owner">ผู้รับผิดชอบ</label><input type="text" id="cc-owner" placeholder="ชื่อคน/ทีม"></div>
+      <div class="cc-field"><label for="cc-owner">ผู้รับผิดชอบ</label><input type="text" id="cc-owner" placeholder="พิมพ์ชื่อแล้วเลือก" autocomplete="off"></div>
     </div>
     <div class="cc-field"><label for="cc-note">รายละเอียด</label><textarea id="cc-note" placeholder="สิ่งที่ต้องทำ ของแถม เงื่อนไข ฯลฯ"></textarea></div>
     <div class="cc-err" id="ccErr"></div>
@@ -682,6 +696,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=46"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=17"></script>
+<script src="campaign-calendar.js?v=18"></script>
 </body>
 </html>

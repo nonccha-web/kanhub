@@ -12,6 +12,7 @@
   var MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
   var MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   var DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+  var DOW_FULL = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
   var CHANNELS = ["หน้าร้าน","Facebook","LINE","TikTok","Shopee/Lazada","ขายส่ง"];
   /* นคร ตัดออก 9 ก.ย. 69 — เลิกดูแลแล้ว รายการเก่าที่เคยติดสาขานี้ยังเปิดดูได้ แค่เลือกใหม่ไม่ได้ */
   /* "อื่นๆ" = งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน — ต้องมีให้เลือก ไม่งั้นงานพวกนี้ตกหล่น */
@@ -265,10 +266,11 @@
         return "ทั้งเดือน" + MONTHS[a.getMonth()];
       }
     }
-    var txt = a.getDate() + " " + MONTHS_SHORT[a.getMonth()];
+    /* ใส่ชื่อวันย่อด้วย ทีมนัดงานกันเป็น "จันทร์นี้/ศุกร์หน้า" ไม่ใช่เป็นวันที่ */
+    var txt = DOW[a.getDay()] + ". " + a.getDate() + " " + MONTHS_SHORT[a.getMonth()];
     if (it.end && it.end !== it.start) {
       var b = parseISO(it.end);
-      txt += " – " + b.getDate() + " " + MONTHS_SHORT[b.getMonth()];
+      txt += " – " + DOW[b.getDay()] + ". " + b.getDate() + " " + MONTHS_SHORT[b.getMonth()];
       if (b.getFullYear() !== a.getFullYear()) txt += " " + String(be(b.getFullYear())).slice(2);
     }
     return txt;
@@ -687,6 +689,8 @@
       td.innerHTML = old;
       patchItem(it.id, field === "budget" ? { budget: Number(v) || 0 } : (field === "name" ? { name: String(v).trim() } : { owner: String(v).trim() }));
     }
+    /* เลือกชื่อจากรายการ = บันทึกเลย ไม่ต้องกด Enter ซ้ำ */
+    if (field === "owner") { attachPeople(inp, function () { finish(true); }); inp.dispatchEvent(new Event("focus")); }
     inp.addEventListener("blur", function () { finish(true); });
     inp.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
@@ -849,6 +853,104 @@
     }).join("");
   }
 
+  /* ---------- ชื่อวันใต้ช่องวันที่ — เลือกวันแล้วเห็นเลยว่าตรงจันทร์หรือศุกร์ ---------- */
+  function dayHints() {
+    var s = $("cc-start").value, e = $("cc-end").value;
+    var hs = $("cc-start-day"), he = $("cc-end-day");
+    if (!hs || !he) return;
+    hs.textContent = s ? "วัน" + DOW_FULL[parseISO(s).getDay()] : "";
+    if (!e || !s) { he.textContent = e ? "วัน" + DOW_FULL[parseISO(e).getDay()] : (s ? "ว่างไว้ = วันเดียว" : ""); he.classList.remove("bad"); return; }
+    var n = Math.round((parseISO(e) - parseISO(s)) / 864e5) + 1;
+    he.textContent = "วัน" + DOW_FULL[parseISO(e).getDay()] + (n > 1 ? " · รวม " + n + " วัน" : "") + (n < 1 ? " · ก่อนวันเริ่ม" : "");
+    he.classList.toggle("bad", n < 1);
+  }
+  ["cc-start", "cc-end"].forEach(function (id) {
+    var el = $(id);
+    if (el) { el.addEventListener("input", dayHints); el.addEventListener("change", dayHints); }
+  });
+
+  /* ---------- ผู้รับผิดชอบ: พิมพ์แล้วขึ้นชื่อทีมให้เลือก ----------
+     รายชื่อชุดเดียวกับหน้าล็อกอินระบบงานทีม (GET /api/t/login) · ยังพิมพ์ชื่อนอกรายชื่อได้ (ทีมภายนอก/เอเจนซี) */
+  var peopleP = null;
+  function loadPeople() {
+    if (!peopleP) {
+      peopleP = fetch("/api/t/login", { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : { staff: [] }; })
+        .then(function (d) {
+          return (d.staff || []).map(function (p) { return { name: p.name, alias: p.aliases || "" }; });
+        })
+        .catch(function () { peopleP = null; return []; });
+    }
+    return peopleP;
+  }
+  var peopleBox = null;
+  function attachPeople(inp, onPick) {
+    if (!inp || inp.dataset.people) return;
+    inp.dataset.people = "1";
+    inp.setAttribute("autocomplete", "off");
+    var list = [], hi = 0;
+    function box() {
+      if (!peopleBox) {
+        peopleBox = document.createElement("div");
+        peopleBox.className = "cc-people";
+        peopleBox.setAttribute("role", "listbox");
+        /* mousedown แทน click — ไม่งั้นช่องโดน blur ก่อน (ช่องในตารางจะบันทึกแล้วปิดไปเลย) */
+        peopleBox.addEventListener("mousedown", function (e) {
+          var btn = e.target.closest("[data-i]");
+          if (!btn || !peopleBox.pick) return;
+          e.preventDefault();
+          peopleBox.pick(+btn.dataset.i);
+        });
+        document.body.appendChild(peopleBox);
+        /* กล่องลอยแบบ fixed — ลิ้นชักฟอร์มเลื่อนแล้วกล่องจะค้างผิดที่ ปิดไปเลยดีกว่า */
+        document.addEventListener("scroll", function (e) {
+          if (peopleBox.style.display !== "none" && !peopleBox.contains(e.target)) peopleBox.style.display = "none";
+        }, true);
+      }
+      return peopleBox;
+    }
+    function close() { if (peopleBox) peopleBox.style.display = "none"; list = []; }
+    function pick(name) {
+      inp.value = name;
+      close();
+      if (onPick) onPick(name);
+    }
+    function show() {
+      loadPeople().then(function (all) {
+        if (document.activeElement !== inp) return;
+        var q = inp.value.trim().toLowerCase();
+        list = all.filter(function (p) {
+          return !q || p.name.toLowerCase().indexOf(q) !== -1 || p.alias.toLowerCase().indexOf(q) !== -1;
+        }).slice(0, 8);
+        if (!list.length || (list.length === 1 && list[0].name === inp.value.trim())) { close(); return; }
+        hi = Math.min(hi, list.length - 1);
+        var b = box(), r = inp.getBoundingClientRect();
+        b.innerHTML = list.map(function (p, i) {
+          return '<button type="button" role="option" class="cc-people-i' + (i === hi ? " on" : "") + '" data-i="' + i + '">' +
+            '<span class="cc-people-av">' + esc(p.name.charAt(0)) + "</span>" + esc(p.name) +
+            (p.alias ? "<small>" + esc(p.alias) + "</small>" : "") + "</button>";
+        }).join("");
+        b.pick = function (i) { if (list[i]) pick(list[i].name); };
+        b.style.display = "block";
+        b.style.left = Math.round(r.left) + "px";
+        b.style.width = Math.max(r.width, 200) + "px";
+        var below = window.innerHeight - r.bottom;
+        b.style.top = (below < 240 && r.top > below ? Math.round(r.top - b.offsetHeight - 4) : Math.round(r.bottom + 4)) + "px";
+      });
+    }
+    inp.addEventListener("focus", function () { hi = 0; show(); });
+    inp.addEventListener("input", function () { hi = 0; show(); });
+    inp.addEventListener("blur", function () { setTimeout(close, 120); });
+    inp.addEventListener("keydown", function (e) {
+      if (!list.length || !peopleBox || peopleBox.style.display === "none") return;
+      if (e.key === "ArrowDown") { e.preventDefault(); hi = (hi + 1) % list.length; show(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); hi = (hi - 1 + list.length) % list.length; show(); }
+      else if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); pick(list[hi].name); }
+      else if (e.key === "Escape") { e.stopImmediatePropagation(); close(); }
+    }, true);
+  }
+  attachPeople($("cc-owner"));
+
   /* ---------- วันนี้ / สัปดาห์นี้ ใต้ปฏิทิน — ตอบคำถาม "วันนี้ต้องทำอะไร" โดยไม่ต้องไล่ทั้งปี ---------- */
   function weekRange() {
     var t = new Date(); t.setHours(0, 0, 0, 0);
@@ -857,15 +959,32 @@
     return [iso(mon.getFullYear(), mon.getMonth(), mon.getDate()), iso(sun.getFullYear(), sun.getMonth(), sun.getDate())];
   }
   function overlaps(it, a, b) { return it.start <= b && (it.end || it.start) >= a; }
-  function soonRow(it) {
+  function soonRow(it, inBr) {
+    var others = (it.branches || []).filter(function (b) { return b !== inBr; });
     var a0 = (it.attachments || [])[0];
     return '<button type="button" class="cc-soon-item" data-edit="' + it.id + '" style="border-left-color:' + colorOf(it) + '">' +
       (a0 ? '<img src="' + API + "/attachments/" + a0.id + '?s=thumb" alt="" loading="lazy" decoding="async">' : '<span class="cc-soon-noimg" style="background:' + tint(colorOf(it), 0.18) + '"></span>') +
       '<span class="cc-soon-text"><span class="cc-soon-top">' + kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></span>" +
       "<b>" + esc(it.name) + "</b>" + linkLine(it) +
       '<span class="cc-soon-meta">' + fmtRange(it) +
-      (it.branches && it.branches.length ? " · " + it.branches.map(esc).join(", ") : "") +
+      (others.length ? " · " + (inBr ? "+ " : "") + others.map(esc).join(", ") : "") +
       (it.channels && it.channels.length ? " · " + it.channels.map(esc).join(", ") : "") + "</span></span></button>";
+  }
+  /* แยกตามสาขา — หน้าร้านแต่ละสาขาอยากรู้แค่ "สาขาฉันวันนี้มีอะไร" · งานหลายสาขาโผล่ทุกสาขาที่เกี่ยว
+     ตัวเลขบนหัวกล่องยังนับรายการไม่ซ้ำ ส่วนตัวเลขหัวสาขานับเฉพาะสาขานั้น */
+  function soonByBranch(arr) {
+    var order = (view.branch && view.branch !== NO_BRANCH) ? [view.branch] : BRANCHES.slice();
+    arr.forEach(function (it) {   /* สาขาเก่าที่ตัดออกแล้ว (เช่น นคร) ยังต้องมีที่อยู่ ไม่งั้นรายการหาย */
+      (it.branches || []).forEach(function (b) { if (!view.branch && order.indexOf(b) === -1) order.push(b); });
+    });
+    var groups = order.map(function (b) {
+      return [b, arr.filter(function (it) { return (it.branches || []).indexOf(b) !== -1; })];
+    });
+    groups.push(["ยังไม่ระบุสาขา", arr.filter(function (it) { return !it.branches || !it.branches.length; })]);
+    return groups.filter(function (g) { return g[1].length; }).map(function (g) {
+      return '<div class="cc-soon-br"><div class="cc-soon-brh">' + esc(g[0]) + "<span>" + g[1].length + "</span></div>" +
+        '<div class="cc-soon-list">' + g[1].map(function (it) { return soonRow(it, g[0]); }).join("") + "</div></div>";
+    }).join("");
   }
   function renderSoon() {
     var el = $("ccSoon");
@@ -877,8 +996,7 @@
     var block = function (title, sub, arr, emptyMsg) {
       return '<div class="cc-soon-block"><div class="cc-soon-head"><h3>' + title + "</h3><span>" + sub + "</span>" +
         '<b class="cc-soon-n">' + arr.length + "</b></div>" +
-        (arr.length ? '<div class="cc-soon-list">' + arr.map(soonRow).join("") + "</div>"
-                    : '<div class="cc-soon-empty">' + emptyMsg + "</div>") + "</div>";
+        (arr.length ? soonByBranch(arr) : '<div class="cc-soon-empty">' + emptyMsg + "</div>") + "</div>";
     };
     var td = parseISO(t), wa = parseISO(wk[0]), wb = parseISO(wk[1]);
     el.innerHTML = '<div class="cc-soon-grid">' +
@@ -1139,6 +1257,7 @@
     $("cc-month").value = base.getFullYear() + "-" + String(base.getMonth() + 1).padStart(2, "0");
     $("cc-start").value = item ? item.start : (presetDate || todayISO());
     $("cc-end").value = item ? (item.end !== item.start ? item.end : "") : (preset.end || "");
+    dayHints();
     applyScopeUI();
 
     $("cc-budget").value = item && item.budget ? item.budget : "";
