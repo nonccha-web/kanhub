@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Winter Edit — เสื้อกันหนาวคัดรายตัว · KAN HUB</title>
+<meta name="description" content="เสื้อกันหนาวนำเข้าจากญี่ปุ่น คัดมือทีละตัว 29 แบบ มีตัวเดียว — โค้ต ดัฟเฟิล พาร์กา ดาวน์ ฟลีซ จาก KAN HUB">
+<link rel="canonical" href="https://kan-hub.com/winter/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Winter Edit — เสื้อกันหนาวคัดรายตัว · KAN HUB">
+<meta property="og:description" content="29 แบบ มีตัวเดียว หมดแล้วหมดเลย">
+<meta property="og:image" content="https://kan-hub.com/winter/img/og.jpg">
+<meta property="og:url" content="https://kan-hub.com/winter/">
+<meta name="theme-color" content="#F3EFE8">
+<link rel="preload" as="image" href="img/hero.webp" media="(min-width:700px)">
+<link rel="preload" as="image" href="img/hero-m.webp" media="(max-width:699px)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;1,6..96,400;1,6..96,500&family=IBM+Plex+Sans+Thai:wght@300;400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#F3EFE8; --paper-2:#E9E3D9; --ink:#171411; --soft:#4F4940; --mut:#8A8378; --line:#D9D2C6;
+    --rust:#A94A26; --moss:#3F4632; --white:#FFFFFF;
+    --serif:"Bodoni Moda",Didot,"Times New Roman",serif;
+    --sans:"IBM Plex Sans Thai",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --gut:clamp(16px,4vw,48px);
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font:15px/1.65 var(--sans); font-weight:400;
+        -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  img{ display:block; max-width:100%; }
+  a{ color:inherit; }
+  button{ font:inherit; color:inherit; cursor:pointer; }
+  .wrap{ max-width:1440px; margin:0 auto; padding:0 var(--gut); }
+  .eyebrow{ font-size:11px; font-weight:500; letter-spacing:.22em; text-transform:uppercase; color:var(--mut); }
+  .serif{ font-family:var(--serif); font-weight:500; letter-spacing:-.01em; }
+  .it{ font-style:italic; font-weight:400; }
+
+  /* ── top bar ── */
+  .top{ position:absolute; top:0; left:0; right:0; z-index:20; color:#fff; }
+  .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:68px; }
+  .logo{ font-family:var(--serif); font-size:22px; font-weight:500; letter-spacing:.12em; text-decoration:none; }
+  .top nav{ display:flex; gap:26px; font-size:12px; letter-spacing:.16em; text-transform:uppercase; }
+  .top nav a{ text-decoration:none; opacity:.9; }
+  .top nav a:hover{ opacity:1; text-decoration:underline; text-underline-offset:4px; }
+
+  /* ── hero ── */
+  .hero{ position:relative; height:min(92vh,960px); min-height:560px; background:#2A211B; overflow:hidden; color:#fff; }
+  .hero picture, .hero img{ position:absolute; inset:0; width:100%; height:100%; }
+  .hero img{ object-fit:cover; object-position:58% 30%; animation:settle 1.8s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes settle{ from{ transform:scale(1.06); opacity:.4; } to{ transform:none; opacity:1; } }
+  .hero::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg,rgba(0,0,0,.38) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 48%,rgba(0,0,0,.62) 100%); }
+  .hero-copy{ position:absolute; left:0; right:0; bottom:0; z-index:2; }
+  .hero-copy .wrap{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding-bottom:clamp(28px,6vh,64px); }
+  .hero .eyebrow{ color:rgba(255,255,255,.78); }
+  .hero h1{ margin:10px 0 0; font-family:var(--serif); font-weight:500; line-height:.92; letter-spacing:-.02em;
+            font-size:clamp(64px,11vw,176px); }
+  .hero h1 .it{ display:block; font-size:.5em; margin-left:.08em; letter-spacing:0; }
+  .hero-sub{ margin:18px 0 0; max-width:30em; font-size:15px; font-weight:300; color:rgba(255,255,255,.9); }
+  .hero-cta{ display:inline-flex; align-items:center; gap:12px; margin-top:22px; padding:14px 26px; background:#fff; color:var(--ink);
+             font-size:13px; font-weight:500; letter-spacing:.04em; text-decoration:none; transition:background .2s,color .2s; }
+  .hero-cta:hover{ background:var(--ink); color:#fff; }
+  .hero-look{ flex:none; text-align:right; font-size:12px; line-height:1.5; color:rgba(255,255,255,.85); text-decoration:none; border:0; background:none; padding:0; }
+  .hero-look b{ display:block; font-weight:500; font-size:13px; color:#fff; }
+  .hero-look span{ border-bottom:1px solid rgba(255,255,255,.6); }
+
+  /* ── intro strip ── */
+  .intro{ border-bottom:1px solid var(--line); }
+  .intro .wrap{ display:grid; grid-template-columns:1.3fr 1fr 1fr 1fr; gap:24px; padding-top:30px; padding-bottom:30px; align-items:end; }
+  .intro p{ margin:0; font-family:var(--serif); font-size:clamp(22px,2.3vw,32px); line-height:1.2; }
+  .fact b{ display:block; font-family:var(--serif); font-weight:500; font-size:34px; line-height:1; }
+  .fact span{ font-size:12.5px; color:var(--soft); }
+
+  /* ── section heads ── */
+  .sec{ padding:clamp(64px,9vw,120px) 0 0; }
+  .sec-h{ display:flex; align-items:baseline; justify-content:space-between; gap:20px; margin-bottom:28px; }
+  .sec-h h2{ margin:14px 0 0; font-family:var(--serif); font-weight:500; font-size:clamp(34px,4.6vw,64px); line-height:1.12; letter-spacing:-.015em; }
+  .sec-h p{ margin:0; max-width:24em; font-size:13.5px; color:var(--soft); text-align:right; }
+
+  /* ── the one (62–65) ── */
+  .one{ background:var(--paper-2); padding:clamp(48px,7vw,96px) 0; }
+  .one .wrap{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:clamp(24px,4vw,64px); align-items:center; }
+  .one-main{ position:relative; background:#fff; aspect-ratio:1/1; overflow:hidden; cursor:zoom-in; border:0; padding:0; width:100%; }
+  .one-main img{ width:100%; height:100%; object-fit:cover; transition:transform 1.2s cubic-bezier(.2,.7,.2,1); }
+  .one-main:hover img{ transform:scale(1.035); }
+  .one-no{ position:absolute; top:18px; left:20px; font-family:var(--serif); font-style:italic; font-size:15px; color:var(--mut); }
+  .one-copy .eyebrow{ color:var(--rust); }
+  .one-copy h2{ margin:14px 0 0; font-family:var(--serif); font-weight:500; font-size:clamp(40px,5vw,76px); line-height:.98; letter-spacing:-.02em; }
+  .one-copy h2 .it{ display:block; color:var(--rust); }
+  .one-copy .lead{ margin:22px 0 0; font-size:15.5px; color:var(--soft); max-width:30em; font-weight:300; }
+  .one-spec{ list-style:none; margin:24px 0 0; padding:0; border-top:1px solid var(--line); }
+  .one-spec li{ display:flex; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .one-spec li span:first-child{ color:var(--mut); }
+  .one-thumbs{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:24px; }
+  .one-thumbs button{ border:0; padding:0; background:#fff; aspect-ratio:1/1; overflow:hidden; }
+  .one-thumbs img{ width:100%; height:100%; object-fit:cover; transition:opacity .2s; }
+  .one-thumbs button:hover img{ opacity:.8; }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:15px 28px; border:1px solid var(--ink);
+        background:var(--ink); color:#fff; font-size:13.5px; font-weight:500; letter-spacing:.03em; text-decoration:none; transition:all .2s; }
+  .btn:hover{ background:transparent; color:var(--ink); }
+  .btn.ghost{ background:transparent; color:var(--ink); }
+  .btn.ghost:hover{ background:var(--ink); color:#fff; }
+  .one-copy .btn{ margin-top:28px; }
+
+  /* ── picks (asymmetric) ── */
+  .picks{ display:grid; grid-template-columns:repeat(12,1fr); gap:clamp(12px,1.6vw,24px); }
+  .pick{ position:relative; border:0; padding:0; background:none; text-align:left; display:block; }
+  .pick .ph{ position:relative; background:#fff; overflow:hidden; }
+  .pick .ph img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:opacity .5s, transform 1.2s cubic-bezier(.2,.7,.2,1); }
+  .pick .ph img + img{ opacity:0; }
+  .pick:hover .ph img{ transform:scale(1.03); }
+  .pick:hover .ph img + img{ opacity:1; }
+  .pick .cap{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding-top:12px; }
+  .pick .cap b{ font-weight:500; font-size:14.5px; }
+  .pick .cap i{ font-family:var(--serif); font-size:13px; color:var(--mut); white-space:nowrap; }
+  .pk1{ grid-column:1 / span 7; grid-row:span 2; }  .pk1 .ph{ aspect-ratio:4/5; }
+  .pk2{ grid-column:8 / span 5; }                   .pk2 .ph{ aspect-ratio:5/4; }
+  .pk3{ grid-column:8 / span 5; }                   .pk3 .ph{ aspect-ratio:5/4; }
+  .pk4{ grid-column:1 / span 12; margin-top:clamp(12px,2vw,28px); }
+  .pk4 .ph{ aspect-ratio:21/8; }
+  .pk4 .ph img{ object-position:center 35%; }
+  .pk4 .band{ position:absolute; left:0; top:0; bottom:0; width:min(44%,520px); background:var(--moss); color:#fff;
+              display:flex; flex-direction:column; justify-content:flex-end; padding:clamp(20px,3vw,44px); }
+  .pk4 .band .eyebrow{ color:rgba(255,255,255,.7); }
+  .pk4 .band b{ display:block; margin-top:10px; font-family:var(--serif); font-weight:500; font-size:clamp(26px,3.2vw,44px); line-height:1.02; }
+  .pk4 .band span{ display:block; margin-top:12px; font-size:13.5px; color:rgba(255,255,255,.82); font-weight:300; }
+  .pk4 .ph img{ left:auto; width:calc(100% - min(44%,520px)); }
+
+  /* ── statement ── */
+  .say{ padding:clamp(72px,10vw,140px) 0 0; text-align:center; }
+  .say p{ margin:0 auto; max-width:16em; font-family:var(--serif); font-weight:500; font-size:clamp(34px,5.4vw,80px); line-height:1.02; letter-spacing:-.02em; }
+  .say p .it{ color:var(--rust); }
+  .say small{ display:block; margin-top:18px; font-size:13px; color:var(--soft); }
+
+  /* ── catalog ── */
+  .tabs{ position:sticky; top:0; z-index:15; background:rgba(243,239,232,.94); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+         border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .tabs .wrap{ display:flex; gap:clamp(16px,3vw,36px); overflow-x:auto; scrollbar-width:none; }
+  .tabs .wrap::-webkit-scrollbar{ display:none; }
+  .tab{ flex:none; border:0; background:none; padding:16px 0 14px; font-size:13.5px; letter-spacing:.02em; color:var(--mut);
+        border-bottom:1.5px solid transparent; margin-bottom:-1px; }
+  .tab sup{ font-size:10px; margin-left:3px; letter-spacing:0; }
+  .tab:hover{ color:var(--ink); }
+  .tab.on{ color:var(--ink); border-bottom-color:var(--ink); }
+  .grid{ display:grid; grid-auto-flow:dense; grid-template-columns:repeat(4,minmax(0,1fr)); gap:clamp(28px,3vw,44px) clamp(12px,1.6vw,22px); padding-top:32px; }
+  .card{ border:0; padding:0; background:none; text-align:left; display:block; min-width:0; }
+  .card .ph{ position:relative; aspect-ratio:4/5; background:#fff; overflow:hidden; }
+  .card .ph img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:opacity .45s; }
+  .card .ph img + img{ opacity:0; }
+  .card:hover .ph img + img{ opacity:1; }
+  .card .flag{ position:absolute; top:10px; left:10px; z-index:2; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+               color:var(--rust); font-weight:500; }
+  .card .n{ display:block; margin-top:12px; font-size:14px; font-weight:500; line-height:1.4; }
+  .card .b{ display:block; margin-top:2px; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); }
+  .card .q{ display:inline-block; margin-top:8px; font-size:12.5px; color:var(--ink); border-bottom:1px solid var(--line); transition:border-color .2s; }
+  .card:hover .q{ border-color:var(--ink); }
+  .card.big{ grid-column:span 2; grid-row:span 2; }
+  .card.big{ display:flex; flex-direction:column; }
+  .card.big .ph{ flex:1; aspect-ratio:auto; min-height:300px; }
+  .card.big .n{ font-family:var(--serif); font-size:22px; font-weight:500; }
+
+  /* ── footer ── */
+  .foot-cta{ margin-top:clamp(80px,10vw,140px); background:var(--ink); color:#fff; }
+  .foot-cta .wrap{ display:grid; grid-template-columns:1.2fr 1fr; gap:32px; padding-top:clamp(48px,7vw,88px); padding-bottom:clamp(48px,7vw,88px); align-items:end; }
+  .foot-cta h3{ margin:0; font-family:var(--serif); font-weight:500; font-size:clamp(36px,4.6vw,64px); line-height:1; letter-spacing:-.015em; }
+  .foot-cta p{ margin:0 0 18px; color:rgba(255,255,255,.75); font-weight:300; max-width:28em; }
+  .foot-cta .btn{ background:#fff; color:var(--ink); border-color:#fff; }
+  .foot-cta .btn:hover{ background:transparent; color:#fff; }
+  .foot-cta .other{ display:block; margin-top:22px; font-size:13px; color:rgba(255,255,255,.7); text-decoration:none; }
+  .foot-cta .other span{ border-bottom:1px solid rgba(255,255,255,.4); }
+  footer{ padding:22px 0 28px; font-size:11.5px; color:var(--mut); }
+  footer .wrap{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .pwr{ opacity:.55; }
+
+  /* ── product sheet ── */
+  .sheet{ position:fixed; inset:0; z-index:50; display:none; }
+  .sheet.open{ display:block; }
+  .sheet .veil{ position:absolute; inset:0; background:rgba(23,20,17,.55); animation:fade .25s both; }
+  @keyframes fade{ from{ opacity:0; } }
+  .sheet .panel{ position:absolute; top:0; right:0; bottom:0; width:min(1080px,100%); background:var(--paper); display:grid;
+                 grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); animation:slide .35s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes slide{ from{ transform:translateX(40px); opacity:0; } }
+  .gal{ background:#fff; overflow-y:auto; }
+  .gal img{ width:100%; aspect-ratio:1/1; object-fit:cover; }
+  .gal img + img{ border-top:1px solid var(--paper); }
+  .info{ position:relative; overflow-y:auto; padding:64px clamp(20px,3vw,44px) 40px; }
+  .x{ position:absolute; top:16px; right:16px; width:40px; height:40px; border:1px solid var(--line); background:var(--paper); font-size:20px; line-height:1; }
+  .x:hover{ border-color:var(--ink); }
+  .info h3{ margin:10px 0 0; font-family:var(--serif); font-weight:500; font-size:clamp(28px,3vw,40px); line-height:1.05; }
+  .info .desc{ margin:16px 0 0; color:var(--soft); font-weight:300; }
+  .info .meta{ margin:18px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+  .info .meta li{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .info .meta li span:first-child{ color:var(--mut); }
+  form{ margin-top:26px; }
+  .fl{ display:block; margin-bottom:14px; }
+  .fl span{ display:block; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); margin-bottom:6px; }
+  .fl input{ width:100%; padding:12px 0; border:0; border-bottom:1px solid var(--ink); background:transparent; font:inherit; font-size:16px; color:var(--ink); border-radius:0; }
+  .fl input:focus{ outline:none; border-bottom-width:2px; }
+  .hp{ position:absolute; left:-9999px; }
+  form .btn{ width:100%; margin-top:8px; }
+  form .btn[disabled]{ opacity:.55; cursor:wait; }
+  .err{ margin:10px 0 0; font-size:13px; color:#B3261E; min-height:1em; }
+  .done{ margin-top:26px; padding:22px; border:1px solid var(--line); background:#fff; }
+  .done b{ display:block; font-family:var(--serif); font-size:24px; font-weight:500; }
+  .done p{ margin:8px 0 0; color:var(--soft); font-size:14px; }
+  .thumbs-m{ display:none; }
+
+  /* ── reveal ── */
+  .rv{ opacity:0; transform:translateY(18px); transition:opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); }
+  .rv.in{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .rv{ opacity:1; transform:none; transition:none; } .hero img{ animation:none; } html{ scroll-behavior:auto; } }
+
+  /* ── responsive ── */
+  @media (max-width:1024px){
+    .grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .intro .wrap{ grid-template-columns:1fr 1fr 1fr; }
+    .intro p{ grid-column:1 / -1; }
+  }
+  @media (max-width:760px){
+    .top nav a:not(.keep){ display:none; }
+    .hero{ height:86svh; min-height:520px; }
+    .hero img{ object-position:56% 30%; }
+    .hero-copy .wrap{ flex-direction:column; align-items:flex-start; }
+    .hero-look{ text-align:left; }
+    .sec-h{ flex-direction:column; align-items:flex-start; }
+    .sec-h p{ text-align:left; }
+    .one .wrap{ grid-template-columns:1fr; }
+    .picks{ grid-template-columns:1fr 1fr; }
+    .pk1{ grid-column:1 / -1; grid-row:auto; }
+    .pk2, .pk3{ grid-column:auto; } .pk2 .ph, .pk3 .ph{ aspect-ratio:4/5; }
+    .pk4{ grid-column:1 / -1; }
+    .pk4 .ph{ aspect-ratio:auto; display:flex; flex-direction:column-reverse; }
+    .pk4 .ph img{ position:static; width:100%; aspect-ratio:1/1; }
+    .pk4 .band{ position:static; width:100%; }
+    .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .card.big{ grid-column:1 / -1; grid-row:auto; }
+    .card.big .ph{ height:auto; aspect-ratio:1/1; min-height:0; }
+    .foot-cta .wrap{ grid-template-columns:1fr; }
+    .sheet .panel{ grid-template-columns:1fr; grid-template-rows:auto 1fr; overflow-y:auto; display:block; }
+    .gal{ display:flex; overflow-x:auto; scroll-snap-type:x mandatory; overflow-y:hidden; }
+    .gal img{ flex:none; width:100%; scroll-snap-align:start; }
+    .gal img + img{ border-top:0; border-left:1px solid var(--paper); }
+    .info{ overflow:visible; padding-top:28px; }
+    .x{ position:fixed; top:12px; right:12px; z-index:3; background:rgba(243,239,232,.92); }
+    .thumbs-m{ display:flex; gap:6px; justify-content:center; padding-top:12px; }
+    .thumbs-m i{ width:6px; height:6px; border-radius:50%; background:var(--line); }
+    .thumbs-m i.on{ background:var(--ink); }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="/">KAN HUB</a>
+    <nav>
+      <a href="#one">The One</a>
+      <a href="#picks">Picks</a>
+      <a href="#all" class="keep">ทั้งหมด</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <picture>
+    <source media="(max-width:699px)" srcset="img/hero-m.webp">
+    <img src="img/hero.webp" alt="นายแบบสวมแจ็คเก็ตเท็ดดี้ FILA สีน้ำตาล" fetchpriority="high">
+  </picture>
+  <div class="hero-copy">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Winter Edit · 2026</div>
+        <h1>Winter<span class="it">edit ของหนาวคัดมือ</span></h1>
+        <p class="hero-sub">เสื้อกันหนาวนำเข้าจากญี่ปุ่น คัดทีละตัว ทุกแบบมีชิ้นเดียว</p>
+        <a class="hero-cta" href="#one">ดูคอลเลกชัน <span aria-hidden="true">↓</span></a>
+      </div>
+      <button type="button" class="hero-look" data-open="p22">
+        <b>In the frame</b>
+        <span>FILA Teddy Jacket — ดูตัวจริง</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="intro">
+  <div class="wrap">
+    <p>ของหนาวที่ใส่แล้ว<span class="it"> ไม่ซ้ำใคร</span></p>
+    <div class="fact"><b>29</b><span>แบบในคอลเลกชันนี้</span></div>
+    <div class="fact"><b>1</b><span>ชิ้นต่อแบบ หมดแล้วหมดเลย</span></div>
+    <div class="fact"><b>JP</b><span>นำเข้าจากญี่ปุ่น คัดมือ</span></div>
+  </div>
+</section>
+
+<!-- ตัวเอก: ฟลีซทูโทน (รูป 62–65) — นนท์ชอบที่สุด -->
+<section class="one" id="one">
+  <div class="wrap">
+    <button type="button" class="one-main rv" data-open="p23" aria-label="ดูรูปทั้งหมด">
+      <img src="img/63.webp" alt="ฟลีซทูโทน ส้มอิฐ × เขียวขี้ม้า" loading="lazy" decoding="async">
+      <span class="one-no">No. 23</span>
+    </button>
+    <div class="one-copy rv">
+      <div class="eyebrow">The One · Staff favourite</div>
+      <h2>ฟลีซทูโทน<span class="it">rust × moss</span></h2>
+      <p class="lead">ขนฟูหนาสีส้มอิฐตัดกับช่วงล่างเขียวขี้ม้า บ่าเสริมผ้าเรียบกันลม ซิปหน้าเต็มตัว ปกตั้งกันคอ แต่งแพตช์ปักที่อก ใส่ทับเสื้อยืดตัวเดียวก็อุ่นพอ</p>
+      <ul class="one-spec">
+        <li><span>ผ้า</span><span>ฟลีซขนหนา + ผ้าเรียบช่วงบ่า</span></li>
+        <li><span>ทรง</span><span>ตัวตรง ความยาวคลุมสะโพก</span></li>
+        <li><span>รายละเอียด</span><span>ซิปหน้า · ดึงซิปหนัง · กระเป๋าอก</span></li>
+      </ul>
+      <div class="one-thumbs">
+        <button type="button" data-open="p23" data-at="1"><img src="img/62-s.webp" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-open="p23" data-at="2"><img src="img/64-s.webp" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-open="p23" data-at="3"><img src="img/65-s.webp" alt="" loading="lazy" decoding="async"></button>
+      </div>
+      <button type="button" class="btn" data-open="p23">สนใจตัวนี้</button>
+    </div>
+  </div>
+</section>
+
+<!-- ตัวรอง 4 ตัว — ขนาดไม่เท่ากัน -->
+<section class="sec" id="picks">
+  <div class="wrap">
+    <div class="sec-h rv">
+      <div><div class="eyebrow">Editor’s picks</div><h2>คัดมาให้<span class="it"> ก่อนใคร</span></h2></div>
+      <p>สี่ตัวที่ทีมหยิบขึ้นมาดูซ้ำมากที่สุดตอนคัดของ</p>
+    </div>
+    <div class="picks">
+      <button type="button" class="pick pk1 rv" data-open="p05">
+        <div class="ph"><img src="img/12.webp" alt="" loading="lazy" decoding="async"><img src="img/13.webp" alt="" loading="lazy" decoding="async"></div>
+        <div class="cap"><b>ดัฟเฟิลโค้ตสีแดง</b><i>No. 05</i></div>
+      </button>
+      <button type="button" class="pick pk2 rv" data-open="p22">
+        <div class="ph"><img src="img/60.webp" alt="" loading="lazy" decoding="async"><img src="img/59.webp" alt="" loading="lazy" decoding="async"></div>
+        <div class="cap"><b>FILA แจ็คเก็ตเท็ดดี้สีน้ำตาล</b><i>No. 22</i></div>
+      </button>
+      <button type="button" class="pick pk3 rv" data-open="p25">
+        <div class="ph"><img src="img/68.webp" alt="" loading="lazy" decoding="async"><img src="img/70.webp" alt="" loading="lazy" decoding="async"></div>
+        <div class="cap"><b>โค้ตคาเมลแต่งขนที่ข้อมือ</b><i>No. 25</i></div>
+      </button>
+      <button type="button" class="pick pk4 rv" data-open="p16">
+        <div class="ph">
+          <img src="img/43.webp" alt="" loading="lazy" decoding="async">
+          <div class="band">
+            <div class="eyebrow">No. 16</div>
+            <b>พาร์กาเขียวขี้ม้า<br>ฮู้ดขนเฟอร์</b>
+            <span>ผ้าเงาบุนวม เข้ารูปช่วงเอว ฮู้ดขนฟูรอบหน้า</span>
+          </div>
+        </div>
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="say">
+  <div class="wrap rv">
+    <p>หนึ่งแบบ <span class="it">หนึ่งชิ้น</span> หมดแล้วหมดเลย</p>
+    <small>เห็นตัวไหนถูกใจ ทักถามไซซ์และราคาได้ทันที</small>
+  </div>
+</section>
+
+<section class="sec" id="all" style="padding-top:clamp(48px,6vw,80px)">
+  <div class="wrap">
+    <div class="sec-h rv">
+      <div><div class="eyebrow">The collection</div><h2>ทั้งหมด</h2></div>
+      <p>เอาเมาส์ชี้ดูอีกมุม · กดที่รูปเพื่อดูทุกรูปและสอบถาม</p>
+    </div>
+  </div>
+  <div class="tabs"><div class="wrap" id="tabs"></div></div>
+  <div class="wrap"><div class="grid" id="grid"></div></div>
+</section>
+
+<section class="foot-cta">
+  <div class="wrap">
+    <h3>หาไซซ์ไม่เจอ<br><span class="it serif">บอกเราได้</span></h3>
+    <div>
+      <p>ฝากชื่อกับเบอร์ไว้ ทีมจะโทรกลับพร้อมไซซ์ ราคา และรูปเพิ่มเติมของตัวที่คุณสนใจ</p>
+      <a class="btn" href="#all">เลือกตัวที่สนใจ</a>
+      <a class="other" href="/grade-b/">กำลังหาผ้าเหมาเกรด B-C อยู่ใช่ไหม <span>ไปหน้าผ้าเหมา →</span></a>
+    </div>
+  </div>
+</section>
+<footer><div class="wrap"><span>© KAN HUB</span><span class="pwr">Powered by M Creation</span></div></footer>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="veil" data-close></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sName">
+    <div>
+      <div class="gal" id="sGal"></div>
+      <div class="thumbs-m" id="sDots"></div>
+    </div>
+    <div class="info">
+      <button type="button" class="x" data-close aria-label="ปิด">×</button>
+      <div class="eyebrow" id="sNo"></div>
+      <h3 id="sName"></h3>
+      <p class="desc" id="sDesc"></p>
+      <ul class="meta">
+        <li><span>แบรนด์</span><span id="sBrand"></span></li>
+        <li><span>หมวด</span><span id="sCat"></span></li>
+        <li><span>จำนวน</span><span>มีชิ้นเดียว</span></li>
+      </ul>
+      <form id="form" novalidate>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <label class="fl"><span>ชื่อ</span><input id="nm" autocomplete="name" required></label>
+        <label class="fl"><span>เบอร์โทร</span><input id="ph" inputmode="tel" autocomplete="tel" placeholder="08x xxx xxxx" required></label>
+        <button class="btn" id="send" type="submit">สอบถามไซซ์ &amp; ราคา</button>
+        <p class="err" id="err" role="alert"></p>
+      </form>
+      <div class="done" id="done" hidden>
+        <b>ได้รับแล้ว ขอบคุณค่ะ</b>
+        <p>ทีมจะโทรกลับที่เบอร์ <span id="doneTel"></span> เร็ว ๆ นี้ พร้อมไซซ์และราคาของ <span id="doneItem"></span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  /* รหัส p01–p29 ต้องตรงกับ SALE_PAGES.winter.cats ใน worker-tasks.js (ลีดจะขึ้นชื่อตัวตามนั้น) */
+  var CATS = [["all","ทั้งหมด"],["coat","โค้ต"],["parka","พาร์กา & ดาวน์"],["jacket","แจ็คเก็ต & เชิ้ตหนา"],["fleece","ฟลีซ & ฮู้ดดี้"]];
+  var CAT_TH = { coat:"โค้ต", parka:"พาร์กา & ดาวน์", jacket:"แจ็คเก็ต & เชิ้ตหนา", fleece:"ฟลีซ & ฮู้ดดี้" };
+  var P = [
+    ["p01","แจ็คเก็ตบุนวมลายตารางมัสตาร์ด","",      "parka", [2,1,4,3],   "ลายตารางเล็กโทนมัสตาร์ด บุนวมฟู ปกตั้ง ซับในสีฟ้า"],
+    ["p02","โค้ตวูลสีเทา","",                        "coat",  [5,6],       "โค้ตยาวผ้าวูลเนื้อแน่น กระดุมหน้า กระเป๋าฝาปิด"],
+    ["p03","ดัฟเฟิลโค้ตสีคาเมล","",                  "coat",  [7,8,9],     "ดัฟเฟิลตัวยาว กระดุมทอกเกิล ฮู้ดใหญ่ สีคาเมลคลาสสิก"],
+    ["p04","ดัฟเฟิลโค้ตสีกรม","",                    "coat",  [11,10],     "ดัฟเฟิลสีกรมเข้ม ฮู้ดซับลายตาราง กระดุมทอกเกิล"],
+    ["p05","ดัฟเฟิลโค้ตสีแดง","",                    "coat",  [12,13,14],  "สีแดงสด กระดุมทอกเกิลเชือกครีม ฮู้ดใหญ่ซับเทา ใส่แล้วเด่นทั้งทาง"],
+    ["p06","โค้ตมีฮู้ดสีเขียวมอส","",                 "coat",  [15,16,17],  "ผ้าวูลสีเขียวมอส กระดุมไม้ ฮู้ดถอดได้ ซิปแขน"],
+    ["p07","เชิ้ตแจ็คเก็ตสีดำ","ZARA",               "jacket",[18,20,19],  "ทรงเชิ้ตผ้าหนา กระเป๋าอกสองข้าง ใส่ง่ายทุกวัน"],
+    ["p08","เชิ้ตแจ็คเก็ตลายตารางสีกรม","",           "jacket",[21,22],     "ผ้าวูลลายตารางโทนกรม แขนราแกลน กระเป๋าอกฝาปิด"],
+    ["p09","เชิ้ตแจ็คเก็ตลายเสือดาว","",              "jacket",[23,24],     "ผ้าขนนุ่มลายเสือดาว ใส่คลุมตัวเดียวจบลุค"],
+    ["p10","เชิ้ตหนาลายสก็อต","GLOBAL WORK",         "jacket",[26,25,27,28],"สก็อตครีม-น้ำตาล ผ้าขนนุ่มหนา ซับในผ้าลื่น"],
+    ["p11","โค้ตสีแดงทรงบาน","",                     "coat",  [29,30,31],  "กระดุมสองแถว ชายบานพลิ้ว สีแดงสด"],
+    ["p12","พาร์กาซับขนแกะ","SOUP",                  "parka", [32,33,34],  "พาร์กาสีเบจ ฮู้ดซับขนแกะ เชือกรูดเอว"],
+    ["p13","แจ็คเก็ตบุนวมมีฮู้ด","UNIQLO",            "parka", [35,36],     "บุนวมน้ำหนักเบา ฮู้ดติดตัว ซิปหน้า"],
+    ["p14","พัฟเฟอร์มีฮู้ดสีดำ","",                   "parka", [37,38,39],  "พัฟเฟอร์สั้นสีดำ ฮู้ดใหญ่ กระดุมแป๊กทับซิป"],
+    ["p15","โค้ตบุนวมฮู้ดขนสีชมพูหม่น","",            "parka", [41,40],     "สีชมพูหม่นโทนอ่อน ฮู้ดขนเฟอร์ เข้ารูปช่วงเอว"],
+    ["p16","พาร์กาเขียวขี้ม้าฮู้ดขน","",               "parka", [42,43,44],  "ผ้าเงาบุนวม เข้ารูปช่วงเอว ฮู้ดขนฟูรอบหน้า"],
+    ["p17","โค้ตบุนวมลายจุดสีดำ","",                  "parka", [45,46,47],  "เย็บควิลต์ลายจุดเล็ก ปกตั้ง ทรงยาวคลุมสะโพก"],
+    ["p18","ดาวน์โค้ตยาวปกขนสีดำ","",                 "parka", [48,49,50],  "ตัวยาวคลุมเข่า ปกขนฟูสีดำ ซิปทองที่กระเป๋า"],
+    ["p19","โค้ตบุนวมยาวสีกรม","PUMA",               "parka", [51,52],     "ตัวยาว ฮู้ดซับขนนุ่ม กระดุมแป๊กหน้า"],
+    ["p20","โค้ตบุนวมยาวสีดำเงา","",                  "parka", [53,54,55],  "ผ้าเงาเย็บควิลต์ ปกตั้งซับลายตาราง"],
+    ["p21","โค้ตมีฮู้ดซับเชอร์ปาสีดำ","",              "parka", [56,57,58],  "ตัวยาว ฮู้ดและตัวซับเชอร์ปาสีครีม อุ่นมาก"],
+    ["p22","แจ็คเก็ตเท็ดดี้สีน้ำตาล","FILA",          "fleece",[60,59,61],  "ขนเท็ดดี้ฟูสีช็อกโกแลต ปักโลโก้ใหญ่ที่แขน ตัวเดียวกับในภาพปก"],
+    ["p23","ฟลีซทูโทน ส้มอิฐ × เขียวขี้ม้า","",        "fleece",[63,62,64,65],"ขนฟูหนาสีส้มอิฐตัดเขียวขี้ม้า บ่าผ้าเรียบกันลม ซิปหน้าเต็มตัว แพตช์ปักที่อก"],
+    ["p24","ฮู้ดดี้ขนแกะสีครีม","",                   "fleece",[66,67],     "ขนนุ่มสีครีม ซิปครึ่งอก กระเป๋าจิงโจ้ ปักลายเส้นที่อก"],
+    ["p25","โค้ตคาเมลแต่งขนที่ข้อมือ","",              "coat",  [68,69,70],  "คอกลมไม่มีปก ข้อมือแต่งขนเฟอร์และริบบิ้นดำ ดูแพงแบบเรียบ ๆ"],
+    ["p26","โค้ตสีเทาปกขน","",                       "coat",  [71,72,73],  "ผ้าวูลสีเทาอ่อน ปกขนเฟอร์ฟู กระดุมซ่อน"],
+    ["p27","เทรนช์โค้ตสีเบจ","",                      "coat",  [74,75],     "เทรนช์กระดุมสองแถว บ่าอินทรธนู สายรัดข้อมือ"],
+    ["p28","โค้ตยาวสีม่วงอ่อน","UNIQLO",             "coat",  [76,77],     "ทรงเรียบตัวยาว สีม่วงอ่อนหม่น กระดุมซ่อน"],
+    ["p29","เทรนช์โค้ตทรงบานสีแดง","",                "coat",  [78,79,80],  "สีแดงสด ชายบาน ซับในลายทาง สายรัดข้อมือ"]
+  ].map(function (r) { return { id:r[0], name:r[1], brand:r[2], cat:r[3], img:r[4], desc:r[5] }; });
+  var BY = {}; P.forEach(function (p) { BY[p.id] = p; });
+  var FLAG = { p23:"The One", p05:"Pick", p22:"Pick", p25:"Pick", p16:"Pick" };
+  var BIG = { p23:1, p05:1 };   /* ในตารางรวม ให้ 2 ตัวนี้กินสองช่อง ตารางจะได้ไม่เรียบเท่ากันหมด */
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]; }); }
+  function no(p) { return "No. " + p.id.slice(1); }
+
+  /* ── ตาราง + แท็บ ── */
+  var cur = "all";
+  function renderTabs() {
+    $("tabs").innerHTML = CATS.map(function (c) {
+      var n = c[0] === "all" ? P.length : P.filter(function (p) { return p.cat === c[0]; }).length;
+      return '<button type="button" class="tab' + (cur === c[0] ? " on" : "") + '" data-cat="' + c[0] + '">' + c[1] + "<sup>" + n + "</sup></button>";
+    }).join("");
+  }
+  function card(p) {
+    var big = cur === "all" && BIG[p.id];
+    var a = p.img[0], b = p.img[1] || p.img[0];
+    var sz = big ? "" : "-s";
+    return '<button type="button" class="card rv' + (big ? " big" : "") + '" data-open="' + p.id + '">' +
+      '<div class="ph">' + (FLAG[p.id] ? '<span class="flag">' + FLAG[p.id] + "</span>" : "") +
+      '<img src="img/' + a + sz + '.webp" alt="' + esc(p.name) + '" loading="lazy" decoding="async">' +
+      '<img src="img/' + b + sz + '.webp" alt="" loading="lazy" decoding="async"></div>' +
+      '<span class="b">' + esc(p.brand || no(p)) + "</span>" +
+      '<span class="n">' + esc(p.name) + "</span>" +
+      '<span class="q">สอบถามไซซ์ &amp; ราคา</span></button>';
+  }
+  function renderGrid() {
+    var list = cur === "all" ? P.slice() : P.filter(function (p) { return p.cat === cur; });
+    if (cur === "all") {   /* ตัวเอกกับตัวรองขึ้นก่อน ที่เหลือเรียงตามเลข */
+      list = [BY.p23].concat(list.filter(function (p) { return p.id !== "p23" && p.id !== "p05"; }));
+      list.splice(7, 0, BY.p05);   /* ดัฟเฟิลแดงแทรกกลางตาราง ไม่ให้ตัวใหญ่กองอยู่บนสุดสองตัว */
+    }
+    $("grid").innerHTML = list.map(card).join("");
+    observe($("grid").querySelectorAll(".rv"));
+  }
+  $("tabs").addEventListener("click", function (e) {
+    var t = e.target.closest("[data-cat]");
+    if (!t) return;
+    cur = t.dataset.cat;
+    renderTabs(); renderGrid();
+    var top = $("all").querySelector(".tabs").getBoundingClientRect().top;
+    if (top < 0) $("grid").scrollIntoView({ block:"start" });
+  });
+
+  /* ── เปิดดูสินค้า + ฟอร์ม ── */
+  var openId = null, lastFocus = null;
+  function open(id, at) {
+    var p = BY[id];
+    if (!p) return;
+    openId = id; lastFocus = document.activeElement;
+    $("sNo").textContent = no(p) + (FLAG[id] ? " · " + FLAG[id] : "");
+    $("sName").textContent = p.name;
+    $("sDesc").textContent = p.desc;
+    $("sBrand").textContent = p.brand || "—";
+    $("sCat").textContent = CAT_TH[p.cat];
+    $("sGal").innerHTML = p.img.map(function (n, i) {
+      return '<img src="img/' + n + '.webp" alt="' + esc(p.name) + " รูปที่ " + (i + 1) + '"' + (i ? ' loading="lazy"' : "") + ' decoding="async">';
+    }).join("");
+    $("sDots").innerHTML = p.img.map(function (_, i) { return "<i" + (i ? "" : ' class="on"') + "></i>"; }).join("");
+    $("form").hidden = false; $("done").hidden = true; $("err").textContent = "";
+    var sh = $("sheet");
+    sh.classList.add("open"); sh.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    var gal = $("sGal");
+    gal.scrollTop = 0; gal.scrollLeft = 0;
+    if (at) requestAnimationFrame(function () {
+      var im = gal.children[at];
+      if (!im) return;
+      if (gal.scrollWidth > gal.clientWidth + 4) gal.scrollLeft = im.offsetLeft; else gal.scrollTop = im.offsetTop;
+    });
+    try { history.replaceState(null, "", "#" + id); } catch (e) {}
+    setTimeout(function () { $("sheet").querySelector(".x").focus(); }, 30);
+  }
+  function close() {
+    var sh = $("sheet");
+    if (!sh.classList.contains("open")) return;
+    sh.classList.remove("open"); sh.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+    openId = null;
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  $("sGal").addEventListener("scroll", function () {
+    var g = this, w = g.clientWidth;
+    if (g.scrollWidth <= w + 4) return;
+    var i = Math.round(g.scrollLeft / w), dots = $("sDots").children;
+    for (var k = 0; k < dots.length; k++) dots[k].classList.toggle("on", k === i);
+  }, { passive:true });
+  document.addEventListener("click", function (e) {
+    var o = e.target.closest("[data-open]");
+    if (o) { e.preventDefault(); open(o.dataset.open, +(o.dataset.at || 0)); return; }
+    if (e.target.closest("[data-close]")) close();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+
+  $("form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var err = function (m) { $("err").textContent = m; };
+    var name = $("nm").value.trim(), phone = $("ph").value.replace(/\D/g, "");
+    if (!name) { err("ใส่ชื่อด้วยนะคะ"); $("nm").focus(); return; }
+    if (!/^0\d{8,9}$/.test(phone)) { err("เบอร์โทรไม่ถูกต้อง ลองใส่ใหม่อีกครั้ง (เช่น 0812345678)"); $("ph").focus(); return; }
+    var p = BY[openId], btn = $("send");
+    btn.disabled = true; btn.textContent = "กำลังส่ง…"; err("");
+    fetch("/api/sale-lead", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ page: "winter", name: name, phone: phone, cats: [p.id], website: $("form").website.value })
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j.ok) throw new Error(res.j.error || "ส่งไม่สำเร็จ");
+        $("doneTel").textContent = $("ph").value;
+        $("doneItem").textContent = p.name;
+        $("form").hidden = true; $("done").hidden = false;
+      })
+      .catch(function (x) { err((x && x.message && x.message !== "Failed to fetch") ? x.message : "ส่งไม่สำเร็จ เช็กอินเทอร์เน็ตแล้วลองใหม่อีกครั้งนะคะ"); })
+      .then(function () { btn.disabled = false; btn.innerHTML = "สอบถามไซซ์ &amp; ราคา"; });
+  });
+
+  /* ── ค่อย ๆ โผล่ตอนเลื่อนถึง ── */
+  var io = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (x) { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); } });
+  }, { rootMargin:"0px 0px -8% 0px" }) : null;
+  function observe(els) { for (var i = 0; i < els.length; i++) { if (io) io.observe(els[i]); else els[i].classList.add("in"); } }
+
+  renderTabs(); renderGrid();
+  observe(document.querySelectorAll(".rv"));
+  var h = (location.hash || "").slice(1);
+  if (BY[h]) open(h);
+})();
+</script>
+</body>
+</html>
