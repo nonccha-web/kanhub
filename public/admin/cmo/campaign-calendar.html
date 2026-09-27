@@ -761,6 +761,12 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
     <div id="ccRangeFields">
       <div class="cc-ranges" id="ccRanges"></div>
       <button type="button" class="cc-addrange" id="ccAddRange">+ เพิ่มช่วงวัน</button>
+    </div>
+    <div id="ccMonthFields" style="display:none">
+      <div class="cc-field"><label for="cc-month">เดือน</label><input type="month" id="cc-month"></div>
+    </div>
+    <div id="ccTimeRep">
+      <!-- เวลา + ทำซ้ำ ใช้ได้ทั้ง "ระบุช่วงวัน" และ "ทั้งเดือน" (คุณออนทัก 27 ก.ย. 69: เลือกทั้งเดือนแล้วเวลา/ทำซ้ำหาย) -->
       <div class="cc-two cc-times">
         <div class="cc-field"><label for="cc-t1">เวลาเริ่ม</label><input type="time" id="cc-t1"></div>
         <div class="cc-field"><label for="cc-t2">เวลาจบ</label><input type="time" id="cc-t2"></div>
@@ -785,11 +791,12 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
           <label for="cc-until">ทำซ้ำไปจนถึงวันที่</label>
           <input type="date" id="cc-until" class="cc-date"><div class="cc-dayhint"></div>
         </div>
+        <div class="cc-repbox" id="ccRepUntilM" style="display:none">
+          <label for="cc-untilm">ทำซ้ำไปจนถึงเดือน</label>
+          <input type="month" id="cc-untilm">
+        </div>
         <div class="cc-hint" id="ccRepHint"></div>
       </div>
-    </div>
-    <div id="ccMonthFields" style="display:none">
-      <div class="cc-field"><label for="cc-month">เดือน</label><input type="month" id="cc-month"></div>
     </div>
     <div class="cc-field">
       <label>สถานะ</label>
@@ -836,6 +843,6 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
 
 <script src="erp-menu.js?v=47"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=21"></script>
+<script src="campaign-calendar.js?v=22"></script>
 </body>
 </html>

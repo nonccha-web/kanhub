@@ -177,7 +177,9 @@ function clean(input) {
   let start = ISO_RE.test(input.start) ? input.start : null;
   let end = ISO_RE.test(input.end) ? input.end : start;
   if (!name) return { error: "ต้องมีชื่อแคมเปญ" };
-  const sc = input.scope !== "month" && input.schedule ? cleanSchedule(input.schedule) : { value: null };
+  /* ทั้งเดือนก็มีเวลา/ทำซ้ำทุกเดือนได้ (คุณออนทัก 27 ก.ย. 69) — แต่ทุกสัปดาห์ไม่มีความหมายกับแผนทั้งเดือน */
+  if (input.scope === "month" && input.schedule && input.schedule.rep && input.schedule.rep.type === "weekly") input.schedule.rep.type = "none";
+  const sc = input.schedule ? cleanSchedule(input.schedule) : { value: null };
   if (sc.error) return { error: sc.error };
   if (sc.value) { start = sc.start; end = sc.end; }
   if (!start) return { error: "วันเริ่มไม่ถูกต้อง" };

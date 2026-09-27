@@ -65,13 +65,14 @@
   /* เปิดมาเห็นเดือนนี้ก่อน (นนท์: "เอามาแค่โปรโมชั่นของเดือนนี้ก็พอ" 18 ก.ย. 69) — ปุ่มย้อนกลับพาไปดูทั้งปี */
   /* layout = ปฏิทิน หรือ ตาราง (แบบ Lark Base) · group = ตารางจัดกลุ่มตามอะไร
      ตัวกรองประเภท/สาขาใช้ร่วมกันทั้งสองมุมมอง จะได้ไม่ต้องตั้งใหม่ตอนสลับ */
-  var GROUPS = [["week", "สัปดาห์"], ["month", "เดือน"], ["kind", "ประเภท"], ["branch", "สาขา"], ["status", "สถานะ"]];
+  /* ค่าเริ่มต้น = วันที่ (คุณออนทัก 27 ก.ย. 69: จัดตาม Week แล้วดูเหมือนจับวันผิด ขอเรียงตามวันแทน) */
+  var GROUPS = [["day", "วันที่"], ["week", "สัปดาห์"], ["month", "เดือน"], ["kind", "ประเภท"], ["branch", "สาขา"], ["status", "สถานะ"]];
   var GROUP_KEYS = GROUPS.map(function (g) { return g[0]; });
-  var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"", layout:"cal", group:"week" };
+  var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"", layout:"cal", group:"day" };
   try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
   try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}   /* ค่าที่จำไว้เป็นสาขาเก่า = กลับไปทุกสาขา */
   try { view.layout = localStorage.getItem("kan-cc-layout") === "grid" ? "grid" : "cal"; } catch (e) {}
-  try { var _g = localStorage.getItem("kan-cc-group"); view.group = GROUP_KEYS.indexOf(_g) !== -1 ? _g : "week"; } catch (e) {}
+  try { var _g = localStorage.getItem("kan-cc-group"); view.group = GROUP_KEYS.indexOf(_g) !== -1 ? _g : "day"; } catch (e) {}
   /* กลุ่มที่พับไว้ — จำแค่ในหน้านี้ ปิดแท็บแล้วกลับมากางใหม่หมด */
   var collapsed = {};
   /* สาขาปัจจุบัน + สาขาเก่าที่ยังติดอยู่กับรายการ (จะได้ยังกรองดูของเก่าได้) */
@@ -286,6 +287,19 @@
   }
   function occ(it) {
     var sc = it && it.schedule;
+    /* แผนทั้งเดือน + ทำซ้ำทุกเดือน → เต็มเดือนทุกเดือนจนถึงเดือนสุดท้าย (เลื่อนวันสิ้นเดือนตรง ๆ ไม่ได้ ก.ย. 30 → ต.ค. 30 จะขาดวันที่ 31) */
+    if (sc && isMonthPlan(it) && sc.rep && sc.rep.type === "monthly" && sc.rep.until) {
+      var mk = it.id + "|m|" + JSON.stringify(sc);
+      if (occMemo[mk]) return occMemo[mk];
+      var outM = [], d0 = parseISO(it.start);
+      for (var k = 0; k < 25; k++) {
+        var y1 = d0.getFullYear(), m1 = d0.getMonth() + k;
+        var a1 = isoOf(new Date(y1, m1, 1)), b1 = isoOf(new Date(y1, m1 + 1, 0));
+        if (a1 > sc.rep.until) break;
+        outM.push([a1, b1]);
+      }
+      return (occMemo[mk] = outM.length ? outM : [[it.start, it.end || it.start]]);
+    }
     if (!sc || !sc.ranges || !sc.ranges.length || isMonthPlan(it)) return [[it.start, it.end || it.start]];
     var key = it.id + "|" + JSON.stringify(sc);
     if (occMemo[key]) return occMemo[key];
@@ -359,6 +373,13 @@
   /* ข้อความช่วงวันของรายการที่มีตารางวัน — ว่าง = รายการแบบช่วงเดียวธรรมดา */
   function schedText(it) {
     var sc = it.schedule;
+    if (sc && isMonthPlan(it)) {
+      var mA = parseISO(it.start), tm = timeText(sc);
+      var head = sc.rep && sc.rep.type === "monthly" && sc.rep.until
+        ? "ทั้งเดือน ทุกเดือน · " + MONTHS_SHORT[mA.getMonth()] + " – " + MONTHS_SHORT[parseISO(sc.rep.until).getMonth()] + " " + String(be(parseISO(sc.rep.until).getFullYear())).slice(2)
+        : "ทั้งเดือน" + MONTHS[mA.getMonth()];
+      return head + (tm ? " · " + tm : "");
+    }
     if (!sc || !sc.ranges || isMonthPlan(it)) return "";
     var rep = sc.rep || { type: "none" }, t = timeText(sc), txt;
     if (rep.type === "weekly") txt = daysText(rep.days || []) + " · " + segText(sc.ranges[0].s, rep.until);
@@ -457,7 +478,7 @@
       }).join("");
   }
   function groupMode() {
-    return (view.group === "month" && view.mode === "month") ? "week" : view.group;
+    return (view.group === "month" && view.mode === "month") ? "day" : view.group;
   }
 
   function renderStats() {
@@ -625,7 +646,26 @@
       if (!map[key]) { map[key] = { key: key, label: label, sub: sub || "", items: [], preset: preset || {}, sort: sort }; out.push(map[key]); }
       return map[key];
     }
-    if (mode === "week") {
+    /* วันแรกที่รายการมีผลในช่วงที่เปิดดู (เดือนที่เปิด หรือทั้งปี) */
+    var mA = view.mode === "month" ? iso(year, view.month, 1) : iso(year, 0, 1);
+    var mB = view.mode === "month" ? iso(year, view.month, daysIn(year, view.month)) : iso(year, 11, 31);
+    function firstIn(it) {
+      var hit = occ(it).filter(function (g) { return g[0] <= mB && g[1] >= mA; })[0];
+      return hit ? (hit[0] < mA ? mA : hit[0]) : it.start;
+    }
+    if (mode === "day") {
+      var plansD = list.filter(isMonthPlan);
+      if (plansD.length) bucket("d:month", "แผนทั้งเดือน", "ไม่ผูกกับวันไหน", { scope: "month" }, "0").items = plansD;
+      list.filter(function (it) { return !isMonthPlan(it); }).forEach(function (it) {
+        var d = firstIn(it), dd = parseISO(d);
+        bucket("d:" + d, DOW[dd.getDay()] + ". " + dd.getDate() + " " + MONTHS_SHORT[dd.getMonth()], "",
+               { start: d, end: d }, d).items.push(it);
+      });
+      /* วันนี้ต้องมีช่องให้พิมพ์เสมอ */
+      var tD = todayISO();
+      if (tD >= mA && tD <= mB) { var td0 = parseISO(tD); bucket("d:" + tD, "วันนี้ · " + DOW[td0.getDay()] + ". " + td0.getDate() + " " + MONTHS_SHORT[td0.getMonth()], "", { start: tD, end: tD }, tD); }
+      out.sort(function (a, b) { return a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0; });
+    } else if (mode === "week") {
       /* แผนทั้งเดือนไม่มี W แยกไว้กลุ่มบนสุด ไม่ปนกับรายการรายสัปดาห์ */
       var plans = list.filter(isMonthPlan);
       if (plans.length) {
@@ -635,17 +675,13 @@
       /* สัปดาห์ = W1–W4 ของเดือน (1–9 · 10–16 · 17–23 · 24–สิ้นเดือน) · ใช้วันแรกที่มีผลในเดือนที่เปิดอยู่ */
       function wBucket(dISO) {
         var x = wInfo(dISO), r = wRange(x.y, x.m, x.w);
-        return bucket("w:" + r[0], "W" + x.w + " · " + MONTHS[x.m], segText(r[0], r[1]), { start: r[0], end: r[1] }, r[0]);
+        /* สัปดาห์ที่คาบเดือน: เปิดดูเดือนถัดไปอยู่แล้วเจอหัว "W4 กันยายน" จะดูเหมือนจับวันผิด → บอกให้ชัดว่าเป็นวันต้นเดือนนี้ที่นับรวมกับ W4 เดือนก่อน */
+        var carry = view.mode === "month" && x.m !== view.month;
+        var lbl = carry ? "W4 " + MONTHS_SHORT[x.m] + " (ต่อถึง " + segText(mA, r[1] < mB ? r[1] : mB) + ")" : "W" + x.w + " · " + MONTHS[x.m];
+        var sub = carry ? "สัปดาห์ที่คาบเดือน นับรวมกับ W4 ของ" + MONTHS[x.m] + " · " + segText(r[0], r[1]) : segText(r[0], r[1]);
+        return bucket("w:" + r[0], lbl, sub, { start: r[0], end: r[1] }, r[0]);
       }
-      var mA = view.mode === "month" ? iso(year, view.month, 1) : "", mB = view.mode === "month" ? iso(year, view.month, daysIn(year, view.month)) : "";
-      list.filter(function (it) { return !isMonthPlan(it); }).forEach(function (it) {
-        var first = it.start;
-        if (mA) {
-          var hit = occ(it).filter(function (g) { return g[0] <= mB && g[1] >= mA; })[0];
-          if (hit) first = hit[0] < mA ? mA : hit[0];
-        }
-        wBucket(first).items.push(it);
-      });
+      list.filter(function (it) { return !isMonthPlan(it); }).forEach(function (it) { wBucket(firstIn(it)).items.push(it); });
       /* W นี้ต้องมีช่องให้พิมพ์เสมอ ถึงยังไม่มีรายการสักอัน */
       var tNow = todayISO();
       if (tNow.slice(0, 4) === String(year) && (view.mode !== "month" || parseISO(tNow).getMonth() === view.month)) wBucket(tNow);
@@ -1177,6 +1213,7 @@
         repHint();
       }
       if (e.target.id === "cc-acc") applyAccUI();
+      if (e.target.id === "cc-untilm" || e.target.id === "cc-month") repHint();
     });
   });
 
@@ -1212,10 +1249,16 @@
     }).map(function (b) { return +b.dataset.dow; });
   }
   function applyRepUI() {
-    var t = getSeg("#cc-rep", "none");
+    var t = getSeg("#cc-rep", "none"), isM = getSeg("#cc-scope", "range") === "month";
     $("ccRangeFields").classList.toggle("weekly", t === "weekly");
     $("ccRepWeekly").style.display = t === "weekly" ? "" : "none";
-    $("ccRepUntil").style.display = t === "none" ? "none" : "";
+    $("ccRepUntil").style.display = t === "none" || isM ? "none" : "";
+    $("ccRepUntilM").style.display = t === "monthly" && isM ? "" : "none";
+    if (isM && t === "monthly" && !$("cc-untilm").value) {
+      /* ตั้งต้น: ทำซ้ำถึงธันวาคมของปีนั้น */
+      var mv0 = $("cc-month").value;
+      if (mv0) $("cc-untilm").value = mv0.slice(0, 4) + "-12";
+    }
     var lbl = document.querySelector("#ccRanges .cc-range .cc-field label");
     if (lbl) lbl.textContent = t === "weekly" ? "เริ่มตั้งแต่วันที่" : "วันเริ่ม";
     if (t !== "none" && !$("cc-until").value) {
@@ -1228,6 +1271,14 @@
   function repHint() {
     var el = $("ccRepHint");
     if (!el) return;
+    if (getSeg("#cc-scope", "range") === "month") {
+      var mv1 = $("cc-month").value, um = $("cc-untilm").value;
+      if (getSeg("#cc-rep", "none") !== "monthly" || !mv1 || !um) { el.textContent = ""; return; }
+      var n1 = (+um.slice(0, 4) - +mv1.slice(0, 4)) * 12 + (+um.slice(5, 7) - +mv1.slice(5, 7)) + 1;
+      el.textContent = n1 < 1 ? "เดือนสุดท้ายต้องไม่มาก่อนเดือนเริ่ม"
+        : "ทำซ้ำ: ทั้งเดือน ทุกเดือน · " + MONTHS_SHORT[+mv1.slice(5, 7) - 1] + " – " + MONTHS_SHORT[+um.slice(5, 7) - 1] + " · รวม " + n1 + " เดือน";
+      return;
+    }
     var t = getSeg("#cc-rep", "none"), r = getRanges();
     if (t === "none") { el.textContent = r.length > 1 ? "ปฏิทินจะแสดงเฉพาะวันที่เลือก " + r.length + " ช่วง ไม่ลากยาวทั้งเดือน" : ""; return; }
     var fake = { id: "_", start: r[0] ? r[0].s : "", scope: "range",
@@ -1647,6 +1698,12 @@
     var scope = getSeg("#cc-scope", "range");
     $("ccRangeFields").style.display = scope === "month" ? "none" : "";
     $("ccMonthFields").style.display = scope === "month" ? "" : "none";
+    /* ทั้งเดือน: ทำซ้ำได้แค่ ครั้งเดียว / ทุกเดือน (ทุกสัปดาห์ไม่มีความหมาย) */
+    var wk = document.querySelector('#cc-rep [data-v="weekly"]');
+    wk.style.display = scope === "month" ? "none" : "";
+    $("cc-rep").style.gridTemplateColumns = scope === "month" ? "repeat(2,1fr)" : "";
+    if (scope === "month" && getSeg("#cc-rep", "none") === "weekly") setSeg("#cc-rep", "none");
+    applyRepUI();
   }
 
   /* ทำสำเนา = เปิดฟอร์มของ "รายการใหม่" โดยยกค่าจากใบเก่ามาให้ครบ แล้วให้แก้วันก่อนกดบันทึก
@@ -1678,6 +1735,7 @@
     setSeg("#cc-rep", rp.type || "none");
     setDows(rp.days || []);
     $("cc-until").value = rp.until || "";
+    $("cc-untilm").value = rp.until ? rp.until.slice(0, 7) : "";
     applyScopeUI();
     applyRepUI();
 
@@ -1876,6 +1934,17 @@
       var y = +mv.slice(0, 4), mo = +mv.slice(5, 7) - 1;
       start = iso(y, mo, 1);
       end = iso(y, mo, daysIn(y, mo));
+      var mt1 = $("cc-t1").value, mt2 = $("cc-t2").value, mrt = getSeg("#cc-rep", "none");
+      if (mt1 && mt2 && mt2 < mt1) return { error: "เวลาจบต้องไม่มาก่อนเวลาเริ่ม" };
+      var mrep = { type: mrt === "monthly" ? "monthly" : "none" };
+      if (mrep.type === "monthly") {
+        var um0 = $("cc-untilm").value;
+        if (!/^\d{4}-\d{2}$/.test(um0)) return { error: "ทำซ้ำ: เลือกเดือนสุดท้าย" };
+        if (um0 < mv) return { error: "ทำซ้ำ: เดือนสุดท้ายต้องไม่มาก่อนเดือนเริ่ม" };
+        mrep.until = iso(+um0.slice(0, 4), +um0.slice(5, 7) - 1, daysIn(+um0.slice(0, 4), +um0.slice(5, 7) - 1));
+        end = mrep.until;
+      }
+      schedule = (!mt1 && !mt2 && mrep.type === "none") ? null : { ranges: [{ s: start, e: iso(y, mo, daysIn(y, mo)) }], t1: mt1, t2: mt2, rep: mrep };
     } else {
       var ranges = getRanges();
       if (!ranges.length) return { error: "เลือกวันเริ่ม" };
