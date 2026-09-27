@@ -110,6 +110,11 @@ body{ padding:24px 20px; }
 /* ---------- month grid ---------- */
 .cc-monthbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
 .cc-monthbar h2{ margin:0; font-size:19px; font-weight:600; }
+.cc-mnav{ display:flex; align-items:center; gap:10px; }
+.cc-mstep{ display:grid; place-items:center; width:34px; height:34px; border-radius:999px; border:1px solid var(--bg-glass-border);
+  background:var(--bg-card, #fff); color:var(--text-secondary); cursor:pointer; padding:0; }
+.cc-mstep:hover{ border-color:var(--text-primary); color:var(--text-primary); }
+.cc-mstep svg{ width:17px; height:17px; }
 .cc-back{ border:0; background:transparent; color:var(--text-tertiary); cursor:pointer; font-family:inherit;
   font-size:13.5px; display:inline-flex; align-items:center; gap:5px; padding:5px 2px; }
 .cc-back:hover{ color:var(--accent); }
@@ -843,6 +848,6 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
 
 <script src="erp-menu.js?v=47"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=22"></script>
+<script src="campaign-calendar.js?v=23"></script>
 </body>
 </html>

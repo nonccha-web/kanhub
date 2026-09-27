@@ -525,6 +525,13 @@
     $("ccView").innerHTML = out + "</div>";
   }
 
+  /* ปุ่มเลื่อนเดือนก่อน/ถัดไป ข้างชื่อเดือน (นนท์ 28 ก.ย. 69: ดู ก.ย. แล้วไม่มีปุ่มไป ต.ค.) — ข้ามปีให้เอง */
+  function monthNav(h2) {
+    var arrow = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="' + d + '"/></svg>'; };
+    var prevM = (view.month + 11) % 12, nextM = (view.month + 1) % 12;
+    return '<div class="cc-mnav"><button type="button" class="cc-mstep" data-mstep="-1" title="' + MONTHS[prevM] + '" aria-label="เดือนก่อน (' + MONTHS[prevM] + ')">' + arrow("M15 18l-6-6 6-6") + "</button>" +
+      h2 + '<button type="button" class="cc-mstep" data-mstep="1" title="' + MONTHS[nextM] + '" aria-label="เดือนถัดไป (' + MONTHS[nextM] + ')">' + arrow("M9 18l6-6-6-6") + "</button></div>";
+  }
   function renderMonth() {
     var m = view.month, days = daysIn(year, m), lead = new Date(year, m, 1).getDay();
     var tISO = todayISO(), list = ofMonth(m);
@@ -611,7 +618,7 @@
     $("ccView").innerHTML =
       '<div class="cc-monthbar">' +
         '<button class="cc-back" id="ccBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ทั้งปี ' + be(year) + "</button>" +
-        "<h2>" + MONTHS[m] + " " + be(year) + "</h2>" +
+        monthNav("<h2>" + MONTHS[m] + " " + be(year) + "</h2>") +
         '<span class="cc-mbtns"><button class="cc-btn' + (selMode ? " on" : "") + '" data-selmode="1" title="คลิกแถบในปฏิทินเพื่อเลือก แล้วแก้ทีเดียวจากแถบด้านล่าง">' +
           (selMode ? "เสร็จ (ปิดโหมดเลือก)" : "เลือกหลายรายการ") + "</button>" +
         '<button class="cc-btn" data-newmonth="1">+ แผนทั้งเดือนนี้</button></span>' +
@@ -772,7 +779,7 @@
       (view.mode === "month"
         ? '<button class="cc-back" id="ccBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ทั้งปี ' + be(year) + "</button>"
         : '<span class="cc-gallmo">เลือกเดือนเพื่อดูเฉพาะเดือนนั้น</span>') +
-      "<h2>" + esc(title) + "</h2>" +
+      (view.mode === "month" ? monthNav("<h2>" + esc(title) + "</h2>") : "<h2>" + esc(title) + "</h2>") +
       '<button class="cc-btn" data-new="1">+ เพิ่มรายการ</button></div>';
 
     var months = view.mode === "month" ? "" :
@@ -2280,6 +2287,15 @@
     if (e.target.closest("#ccDup")) { duplicateItem(editingId); return; }
     var ed = e.target.closest("[data-edit]");
     if (ed) { e.stopPropagation(); hideHover(); var it = byId(ed.dataset.edit); if (it) openDrawer(it, null, null); return; }
+    var ms = e.target.closest("[data-mstep]");
+    if (ms) {
+      var nm = view.month + Number(ms.dataset.mstep);
+      if (nm < 0) { year--; nm = 11; } else if (nm > 11) { year++; nm = 0; }
+      view.mode = "month"; view.month = nm;
+      if (typeof clearSel === "function" && !selMode) clearSel();
+      render();
+      return;
+    }
     var mo = e.target.closest("[data-month]");
     /* สลับปี/เดือนต้องไม่ล้างตัวกรองประเภทกับสาขา — เดิม view = {...} ทับทิ้งหมด ทำให้กรองสาขาหลุดพอกดเข้าเดือน */
     if (mo) { view.mode = "month"; view.month = +mo.dataset.month; render(); window.scrollTo({ top:0, behavior:"smooth" }); return; }
