@@ -361,3 +361,16 @@
   };
 
 }(typeof window !== 'undefined' ? window : this));
+
+/* ปุ่มแจ้งเตือนเด้งบนมือถือ (assets/push.js) — ติดทุกหน้าที่ใช้เมนูนี้ (นนท์ 27 ก.ย. 69) */
+(function () {
+  try {
+    var cs = document.currentScript;
+    if (!cs || document.querySelector("script[data-kpush]")) return;
+    var s = document.createElement("script");
+    s.src = new URL("../assets/push.js?v=1", cs.src).href;
+    s.defer = true;
+    s.setAttribute("data-kpush", "1");
+    document.head.appendChild(s);
+  } catch (e) { /* ไม่มีปุ่มแจ้งเตือนก็ยังใช้ระบบได้ */ }
+}());

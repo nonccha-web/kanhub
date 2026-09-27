@@ -1,3 +1,4 @@
+import { handlePushApi } from "./worker-push.js";
 import { notifyReviewSubmitted, sendLark } from "./worker-lark.js";
 import STOCK_PRICES from "./src/lib/stock-prices.json";
 import { handleBlastApi } from "./worker-blast.js";
@@ -1106,9 +1107,12 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* คนที่ได้เฉพาะหมวด CRM (ฝ่ายขาย) — แตะได้แค่ลีดกับของที่หน้าเว็บต้องใช้ตอนเปิดระบบ
      กันที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนเมนู */
   if (!canSee(me, "tasks")) {
-    const allowed = /^\/(leads|me$|me\/|logout|notifications|staff$|files\/)/.test(path);
+    const allowed = /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push)/.test(path);
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
+
+  /* แจ้งเตือนเด้งบนเครื่อง (Web Push) — โค้ดอยู่ worker-push.js */
+  if (path === "/push" || path.indexOf("/push/") === 0) return handlePushApi(request, env, path, method, me, ctx);
 
   if (path === "/me" && method === "GET") {
     const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
@@ -2666,10 +2670,10 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       }
       /* ใครต้องรู้: คนที่ถูก @ชื่อ + หัวหน้าทุกคน + คนสั่งงาน (ถ้าคนอัปเดตไม่ใช่หัวหน้า)
          นนท์ต้องเห็นทุกอัปเดตของน้อง ไม่ใช่รอให้น้องนึกได้ว่าต้อง @ (18 ก.ย. 69) */
-      const tell = new Set();
+      const tell = new Set(), tagged = new Set();
       if (note) {
         const all = await db.prepare("SELECT id,name,aliases FROM staff WHERE active = 1").all();
-        for (const sid of findMentions(note, all.results || [], me.id)) tell.add(sid);
+        for (const sid of findMentions(note, all.results || [], me.id)) { tell.add(sid); tagged.add(sid); }
       }
       /* ใครก็ตามที่ไม่ใช่หัวหน้าแตะงาน → หัวหน้าต้องรู้ (เดิมคนสั่งงานอัปเดตเองแล้วเงียบ) */
       if (!isOwner) {
@@ -2684,7 +2688,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       for (const sid of tell) {
         stmts.push(db.prepare(
           "INSERT INTO task_mentions (id,task_id,update_id,staff_id,by_staff,note,created_at) VALUES (?,?,?,?,?,?,?)"
-        ).bind(newId("m_"), id, uid, sid, me.id, (what + ": " + (note || task.title)).slice(0, 300), now));
+        ).bind(newId("m_"), id, uid, sid, me.id, ((tagged.has(sid) ? "แท็กถึงคุณ" : what) + ": " + (note || task.title)).slice(0, 300), now));
       }
 
       /* งานประจำกดเสร็จซ้ำได้ทุกวัน — ต้องเขียน done_at ใหม่ ไม่งั้นหน้าเว็บนึกว่ายังเป็นรอบเก่า */

@@ -7,6 +7,8 @@ import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTick
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
+import { pushTick } from "./worker-push.js";
+const PUSH_CRON = "*/5 * * * *";   /* รอบแจ้งเตือนเด้ง (ใกล้ถึงกำหนด/เลยกำหนด/เก็บตก) — แยกจาก cron บอต Lark */
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
@@ -603,6 +605,8 @@ function pathGate(p) {
   if (p.indexOf("/admin/assets/") === 0) return null;          // โลโก้ ฟอนต์ เปลือกหน้าตา
   if (/^\/admin\/cmo\/(erp-menu|nav)\.js$/.test(p)) return null;
   if (/^\/admin\/cmo\/styles\.css$/.test(p)) return null;
+  /* แจ้งเตือนเด้ง: service worker + manifest ต้องโหลดได้โดยไม่ติดด่านล็อกอิน (เบราว์เซอร์ดึงเองเบื้องหลัง) */
+  if (p === "/admin/sw.js" || p === "/admin/manifest.webmanifest") return null;
   if (p.indexOf("/admin/mkt") === 0) return "sales";           // แอปยอดขาย/การตลาดทั้งชุด
   if (/^\/admin\/cmo\/kpi(\.html|\.js)?$/.test(p)) return "kpi";
   /* หน้าเอกสาร/แผนงานฝั่ง CMO — ฝ่ายขายที่ได้เฉพาะหมวด CRM ไม่ต้องเห็น (21 ก.ย. 69) */
@@ -662,6 +666,7 @@ export default {
   /* cron จาก wrangler.jsonc — แจ้งงานเข้ากลุ่ม Lark 3 รอบ/วัน */
   async scheduled(event, env, ctx) {
     await ensureTaskSchema(env.KAN_ERP);
+    if (event.cron === PUSH_CRON) { ctx.waitUntil(pushTick(env, true)); return; }
     /* ใบบรอดแคสต์ที่ตั้งเวลาไว้แล้วถึงเวลา — ยิงตอนรอบ cron ที่มีอยู่แล้ว
        (โหมดจำลองยังไม่ต้องละเอียดถึงนาที · ต่อของจริงแล้วค่อยเพิ่ม cron ทุก 10 นาที) */
     ctx.waitUntil((async () => {
@@ -672,6 +677,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const host = url.hostname;
+    /* มีการแก้ข้อมูล → กวาดแจ้งเตือนหลังคำขอนี้เสร็จ (หน่วงให้ข้อมูลลง D1 ก่อน) · cron ทุก 5 นาทีเก็บตกอีกชั้น */
+    if (url.pathname.indexOf("/api/") === 0 && request.method !== "GET" && request.method !== "HEAD" &&
+        url.pathname.indexOf("/api/t/push") !== 0 && env.KAN_ERP) {
+      ctx.waitUntil(new Promise((r) => setTimeout(r, 1500)).then(() => pushTick(env)));
+    }
     /* Lark ยิง event มาที่นี่ตอนมีคนพิมพ์ในแชท — ไม่ผ่านล็อกอิน ตรวจ verification token ของ Lark แทน */
     if (url.pathname === "/api/lark/event") {
       await ensureTaskSchema(env.KAN_ERP);
