@@ -257,6 +257,8 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 .cc-seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
 .cc-seg button{ border:1px solid var(--bg-glass-border); background:var(--bg-input); padding:8px; border-radius:6px;
   font-size:13px; color:var(--text-tertiary); cursor:pointer; font-family:inherit; }
+/* ปุ่มที่เลือกอยู่ (ขอบเขต / ทำซ้ำ / โปรโมชั่น-คูปอง) — สถานะมีสีของตัวเองด้านล่าง */
+.cc-seg button[aria-pressed="true"]{ background:var(--text-primary); border-color:var(--text-primary); color:var(--bg-page); font-weight:600; }
 .cc-seg button[data-v="plan"][aria-pressed="true"]{ background:var(--st-plan-bg); border-color:var(--st-plan); color:var(--st-plan); font-weight:600; }
 .cc-seg button[data-v="live"][aria-pressed="true"]{ background:var(--st-live-bg); border-color:var(--st-live); color:var(--st-live); font-weight:600; }
 .cc-seg button[data-v="done"][aria-pressed="true"]{ background:var(--st-done-bg); border-color:var(--st-done); color:var(--st-done); font-weight:600; }
@@ -447,6 +449,44 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 .cc-soon-brh{ display:flex; align-items:center; gap:6px; padding:7px 16px; font-size:12px; font-weight:600;
   color:var(--text-secondary); background:var(--bg-card-subtle); border-bottom:1px solid var(--bg-row-divider); }
 .cc-soon-brh span{ font-size:11px; font-weight:500; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+/* ประเภท 2 ชั้น: หมวดใหญ่เป็นหัว หมวดย่อยเป็นปุ่มมีจุดสี */
+.cc-subs{ display:flex; flex-direction:column; gap:8px; }
+.cc-subg{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.cc-subg > span{ width:100%; font-size:11.5px; font-weight:600; color:var(--text-muted); }
+.cc-subb{ display:inline-flex; align-items:center; gap:7px; font-family:inherit; font-size:13px; padding:6px 11px; border-radius:6px;
+  border:1px solid var(--bg-glass-border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; }
+.cc-subb i{ width:10px; height:10px; border-radius:50%; flex:none; }
+.cc-subb[aria-pressed="true"]{ border-color:var(--text-primary); color:var(--text-primary); font-weight:600; box-shadow:inset 0 0 0 1px var(--text-primary); }
+/* หลายช่วงวัน */
+.cc-ranges{ display:flex; flex-direction:column; gap:12px; }
+.cc-range{ display:grid; grid-template-columns:1fr 1fr 30px; gap:8px; align-items:start; }
+.cc-range .cc-field{ margin:0; }
+.cc-rdel{ margin-top:24px; width:30px; height:30px; }
+.cc-range:only-child .cc-rdel{ visibility:hidden; }
+.cc-addrange{ align-self:flex-start; margin:6px 0 12px; font-family:inherit; font-size:12.5px; font-weight:600; padding:6px 10px; border-radius:6px;
+  border:1px dashed var(--bg-glass-border); background:transparent; color:var(--text-secondary); cursor:pointer; }
+.cc-addrange:hover{ border-color:var(--text-primary); color:var(--text-primary); }
+#ccRangeFields.weekly .cc-re-f, #ccRangeFields.weekly .cc-addrange, #ccRangeFields.weekly .cc-range:not(:first-child){ display:none; }
+#ccRangeFields.weekly .cc-range{ grid-template-columns:1fr; }
+#ccRangeFields.weekly .cc-rdel{ display:none; }
+.cc-repbox{ margin-top:8px; }
+.cc-repbox label{ display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px; }
+.cc-dows{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cc-dows button{ font-family:inherit; font-size:13px; padding:7px 0; border-radius:6px; border:1px solid var(--bg-glass-border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; }
+.cc-dows button[aria-pressed="true"]{ background:var(--text-primary); border-color:var(--text-primary); color:var(--bg-page); font-weight:600; }
+.cc-dquick{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:6px; font-size:12px; color:var(--text-muted); }
+.cc-dquick button{ font-family:inherit; font-size:12px; padding:3px 9px; border-radius:999px; border:1px solid var(--bg-glass-border); background:transparent; color:var(--text-secondary); cursor:pointer; }
+.cc-dquick button:hover{ border-color:var(--text-primary); color:var(--text-primary); }
+/* ฝ่ายบัญชี */
+.cc-accbox{ border:1px solid var(--bg-glass-border); border-radius:8px; padding:10px 12px; }
+.cc-check{ display:flex !important; align-items:center; gap:8px; font-size:13.5px !important; font-weight:600; color:var(--text-primary) !important; cursor:pointer; margin:0 !important; }
+.cc-check input{ width:16px; height:16px; margin:0; padding:0; accent-color:var(--text-primary); }
+#ccAccFields{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+#ccAccFields textarea{ min-height:70px; }
+.cc-hint a{ color:inherit; font-weight:600; }
+/* ป้าย W บนเลขวันในปฏิทิน */
+.cc-wtag{ font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.02em; margin-left:4px; padding:0 4px; border-radius:3px;
+  border:1px solid var(--bg-glass-border); color:var(--text-muted); vertical-align:1px; }
 .cc-dayhint{ min-height:16px; margin-top:4px; font-size:12px; font-weight:600; color:var(--text-secondary); }
 .cc-dayhint.bad{ color:#D14343; }
 .cc-people{ position:fixed; z-index:9999; display:none; max-height:260px; overflow-y:auto; padding:4px;
@@ -562,7 +602,7 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
     <div>
       <div class="cc-eyebrow">Marketing</div>
       <h1>ปฏิทินการตลาด</h1>
-      <div class="cc-sub">คอนเทนต์ · แคมเปญ · โปรโมชั่น ทั้งปี ราย สาขา × ช่องทาง — คลิกวันไหนก็ได้เพื่อเพิ่ม</div>
+      <div class="cc-sub">โปรโมชั่น · Event / กิจกรรม · คอนเทนต์ ทั้งปี ราย สาขา × ช่องทาง — คลิกวันไหนก็ได้เพื่อเพิ่ม</div>
     </div>
     <div class="cc-actions">
       <div class="cc-yearnav">
@@ -632,11 +672,8 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
     <div class="cc-field">
       <label>ประเภท</label>
-      <div class="cc-seg cc-kindseg" id="cc-kind">
-        <button type="button" data-v="content" aria-pressed="false">คอนเทนต์</button>
-        <button type="button" data-v="campaign" aria-pressed="true">แคมเปญ</button>
-        <button type="button" data-v="promo" aria-pressed="false">โปรโมชั่น</button>
-      </div>
+      <div class="cc-subs" id="cc-sub"></div>
+      <div class="cc-hint">สีของรายการขึ้นเองตามประเภท</div>
     </div>
     <div class="cc-field">
       <label for="cc-name">ชื่อ</label>
@@ -650,9 +687,33 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
       </div>
     </div>
     <div id="ccRangeFields">
-      <div class="cc-two">
-        <div class="cc-field"><label for="cc-start">วันเริ่ม</label><input type="date" id="cc-start"><div class="cc-dayhint" id="cc-start-day"></div></div>
-        <div class="cc-field"><label for="cc-end">วันสิ้นสุด</label><input type="date" id="cc-end"><div class="cc-dayhint" id="cc-end-day"></div></div>
+      <div class="cc-ranges" id="ccRanges"></div>
+      <button type="button" class="cc-addrange" id="ccAddRange">+ เพิ่มช่วงวัน</button>
+      <div class="cc-two cc-times">
+        <div class="cc-field"><label for="cc-t1">เวลาเริ่ม</label><input type="time" id="cc-t1"></div>
+        <div class="cc-field"><label for="cc-t2">เวลาจบ</label><input type="time" id="cc-t2"></div>
+      </div>
+      <div class="cc-field">
+        <label>ทำซ้ำ</label>
+        <div class="cc-seg" id="cc-rep">
+          <button type="button" data-v="none" aria-pressed="true">ครั้งเดียว</button>
+          <button type="button" data-v="weekly" aria-pressed="false">ทุกสัปดาห์</button>
+          <button type="button" data-v="monthly" aria-pressed="false">ทุกเดือน</button>
+        </div>
+        <div class="cc-repbox" id="ccRepWeekly" style="display:none">
+          <div class="cc-dows" id="cc-dows"></div>
+          <div class="cc-dquick">เลือกเร็ว:
+            <button type="button" data-dq="1,2,3,4">จ – พฤ</button>
+            <button type="button" data-dq="5,6,0">ศ – อา</button>
+            <button type="button" data-dq="1,2,3,4,5">จ – ศ</button>
+            <button type="button" data-dq="0,1,2,3,4,5,6">ทุกวัน</button>
+          </div>
+        </div>
+        <div class="cc-repbox" id="ccRepUntil" style="display:none">
+          <label for="cc-until">ทำซ้ำไปจนถึงวันที่</label>
+          <input type="date" id="cc-until" class="cc-date"><div class="cc-dayhint"></div>
+        </div>
+        <div class="cc-hint" id="ccRepHint"></div>
       </div>
     </div>
     <div id="ccMonthFields" style="display:none">
@@ -666,17 +727,23 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
         <button type="button" data-v="done" aria-pressed="false">จบแล้ว</button>
       </div>
     </div>
-    <div class="cc-field">
-      <label>สีประจำแคมเปญ</label>
-      <div class="cc-swatches" id="cc-colors"></div>
-    </div>
     <div class="cc-field"><label>ช่องทาง</label><div class="cc-choices" id="cc-channels"></div></div>
     <div class="cc-field"><label>สาขา</label><div class="cc-choices" id="cc-branches"></div>
       <div class="cc-hint">งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน ให้เลือก "อื่นๆ"</div></div>
-    <div class="cc-two">
-      <div class="cc-field"><label for="cc-budget">งบ (บาท)</label><input type="number" id="cc-budget" min="0" step="100" placeholder="0"></div>
-      <div class="cc-field"><label for="cc-owner">ผู้รับผิดชอบ</label><input type="text" id="cc-owner" placeholder="พิมพ์ชื่อแล้วเลือก" autocomplete="off"></div>
+    <div class="cc-field"><label>ผู้รับผิดชอบ</label><div class="cc-choices" id="cc-owners"></div>
+      <div class="cc-hint">เลือกได้หลายคน · รายชื่อมาจากคนที่ลงทะเบียนในระบบ</div></div>
+    <div class="cc-field cc-accbox">
+      <label class="cc-check"><input type="checkbox" id="cc-acc"> ต้องให้ฝ่ายบัญชีตั้งค่าในระบบ</label>
+      <div id="ccAccFields" style="display:none">
+        <div class="cc-seg" id="cc-acctype" style="grid-template-columns:repeat(2,1fr)">
+          <button type="button" data-v="promo" aria-pressed="true">โปรโมชั่น</button>
+          <button type="button" data-v="coupon" aria-pressed="false">คูปอง</button>
+        </div>
+        <textarea id="cc-accdetail" placeholder="ให้ฝ่ายบัญชีตั้งอะไร เช่น ลด 20% ทุกชิ้น · โค้ด KAN20 · ใช้ได้ทุกสาขา"></textarea>
+        <div class="cc-hint" id="ccAccHint"></div>
+      </div>
     </div>
+    <div class="cc-field"><label for="cc-budget">งบ (บาท)</label><input type="number" id="cc-budget" min="0" step="100" placeholder="0"></div>
     <div class="cc-field"><label for="cc-note">รายละเอียด</label><textarea id="cc-note" placeholder="สิ่งที่ต้องทำ ของแถม เงื่อนไข ฯลฯ"></textarea></div>
     <div class="cc-err" id="ccErr"></div>
   </form>
@@ -696,6 +763,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=46"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=18"></script>
+<script src="campaign-calendar.js?v=19"></script>
 </body>
 </html>

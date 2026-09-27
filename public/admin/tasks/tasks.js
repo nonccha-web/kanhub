@@ -199,8 +199,9 @@
     return h;
   }
   /* รายการในปฏิทินการตลาด (คอนเทนต์/แคมเปญ/โปรโมชั่น) — โพสต์และงานผูกกับตัวนี้ */
-  var CAMP_KIND = { content: 'คอนเทนต์', campaign: 'แคมเปญ', promo: 'โปรโมชั่น' };
-  var CAMP_COLOR = { content: '#0E9BA8', campaign: '#7A5CF0', promo: '#F2565A' };
+  var CAMP_KIND = { content: 'คอนเทนต์', campaign: 'Event / กิจกรรม', promo: 'โปรโมชั่น' };
+  /* สีจริงมากับรายการ (ผูกกับหมวดย่อยในปฏิทิน) — ตารางนี้ไว้สำรองเท่านั้น */
+  var CAMP_COLOR = { content: '#8B5CF6', campaign: '#F28DB8', promo: '#1E9BF0' };
   var CAL_URL = '../cmo/campaign-calendar.html';
   function loadCampaigns() {
     if (S.campaigns) return Promise.resolve(S.campaigns);
@@ -215,7 +216,7 @@
   function campaignChip(id, big, plain) {
     var c = campaignById(id);
     if (!c) return '';
-    var col = CAMP_COLOR[c.kind] || '#8B8A84';
+    var col = (/^#[0-9a-fA-F]{6}$/.test(c.color || '') ? c.color : CAMP_COLOR[c.kind]) || '#8B8A84';
     var title = esc((CAMP_KIND[c.kind] || '') + ' · เปิดในปฏิทินการตลาด');
     if (plain) {
       return '<span class="cchip" data-cc="' + esc(c.id) + '" title="' + title + '" style="--cc:' + col + '">' +
@@ -4312,7 +4313,7 @@
       var doneT = tasks.filter(function (t) { return effStatus(t) === 'done'; }).length;
       var doneP = posts.filter(function (x) { return x.status === 'done'; }).length;
       var lateT = tasks.filter(isLate).length;
-      var kindTh = { content: 'คอนเทนต์', campaign: 'แคมเปญ', promo: 'โปรโมชั่น' };
+      var kindTh = CAMP_KIND;
       var h = '<div class="top"><div><span class="kicker">' + esc(kindTh[c && c.kind] || 'ปฏิทินการตลาด') + '</span><h1>' + esc(c ? c.name : 'แคมเปญ') + '</h1>' +
         (c && c.start ? '<p>' + esc(thaiShort(c.start)) + (c.end && c.end !== c.start ? ' – ' + esc(thaiShort(c.end)) : '') +
           (c.status ? ' · ' + ({ plan: 'วางแผน', live: 'กำลังจัด', done: 'จบแล้ว' }[c.status] || c.status) : '') + '</p>' : '') +

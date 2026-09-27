@@ -13,6 +13,19 @@ const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
 const SEP = String.fromCharCode(31); // คั่น id กับชื่อไฟล์ใน GROUP_CONCAT
 /* ประเภทรายการในปฏิทิน — เดิมมีแต่ "แคมเปญ" นนท์ขอให้ติ๊กได้ว่าเป็นคอนเทนต์/แคมเปญ/โปรโมชั่น */
 const CAMPAIGN_KINDS = ["content", "campaign", "promo"];
+/* หมวดย่อย + สีผูกตายตัว (นนท์ 27 ก.ย. 69) — kind เดิมกลายเป็นหมวดใหญ่ของหมวดย่อย
+   promo = โปรโมชั่น · campaign = Event / กิจกรรม · content = คอนเทนต์ · สีคิดจากหมวดย่อยเสมอ ผู้ใช้เลือกเองไม่ได้แล้ว */
+const CAMPAIGN_SUBS = {
+  promo:     { kind: "promo",    color: "#1E9BF0" },   // ฟ้า = โปรโมชั่น
+  privilege: { kind: "promo",    color: "#F2B705" },   // เหลือง = สิทธิพิเศษ
+  newlot:    { kind: "campaign", color: "#2FA84F" },   // เขียว = ล็อตใหม่
+  event:     { kind: "campaign", color: "#F28DB8" },   // ชมพูอ่อน = แคมเปญ/อีเว้นท์
+  queue:     { kind: "campaign", color: "#FF8A1F" },   // ส้ม = จองคิว
+  closed:    { kind: "campaign", color: "#D6246E" },   // ชมพูเข้ม = ปิดร้าน
+  content:   { kind: "content",  color: "#8B5CF6" },   // ม่วง = คอนเทนต์ โพสต์/วิดีโอ
+};
+const SUB_OF_KIND = { promo: "promo", campaign: "event", content: "content" };
+const ACC_STAFF_ID = "s_acc";   /* บัญชีฝ่ายบัญชี — งานตั้งค่าโปรฯ/คูปองในระบบวิ่งมาที่นี่ */
 
 /* ตารางปฏิทินมีข้อมูลจริงแล้ว CREATE IF NOT EXISTS ไม่เติมคอลัมน์ให้ → ALTER แล้วกลืน error "duplicate column"
    ทำครั้งเดียวต่อ isolate เหมือน worker-tasks.js */
@@ -32,6 +45,14 @@ function ensureCampaignSchema(db, env) {
           "value TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft', updated_at TEXT NOT NULL, PRIMARY KEY (year, month, code))"),
       ]);
       try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
+      /* หมวดย่อย · ตารางวัน (หลายช่วง/เวลา/ทำซ้ำ) · งานฝ่ายบัญชี — 27 ก.ย. 69 */
+      for (const col of ["sub TEXT NOT NULL DEFAULT ''", "schedule TEXT NOT NULL DEFAULT ''", "acc TEXT NOT NULL DEFAULT ''"]) {
+        try { await db.prepare("ALTER TABLE campaigns ADD COLUMN " + col).run(); } catch (e) { /* มีแล้ว */ }
+      }
+      /* รายการเก่า: ยกเข้าหมวดย่อยตั้งต้นของหมวดใหญ่ + เปลี่ยนสีเป็นสีของหมวด (ทำครั้งเดียว เพราะ sub ถูกเติมแล้ว) */
+      await db.batch(Object.keys(SUB_OF_KIND).map((k) =>
+        db.prepare("UPDATE campaigns SET sub = ?, color = ? WHERE sub = '' AND kind = ?")
+          .bind(SUB_OF_KIND[k], CAMPAIGN_SUBS[SUB_OF_KIND[k]].color, k)));
       /* รูปย่อ ~320px สำหรับปฏิทิน — รูปเต็ม 9 รูป = 3.5MB โหลดครั้งแรกช้า (นนท์ทัก 18 ก.ย. 69) */
       try { await db.prepare("ALTER TABLE attachments ADD COLUMN thumb TEXT").run(); } catch (e) { /* มีแล้ว */ }
       /* ตาราง posts/tasks ต้องมีก่อน เพราะ LIST_SQL นับโพสต์และงานที่ผูกกับแต่ละรายการ */
@@ -57,6 +78,14 @@ function safeParse(s) {
   }
 }
 
+function safeObj(s) {
+  try { const v = JSON.parse(s || "null"); return v && typeof v === "object" && !Array.isArray(v) ? v : null; } catch (e) { return null; }
+}
+function subOfRow(r) {
+  if (CAMPAIGN_SUBS[r.sub]) return r.sub;
+  return SUB_OF_KIND[r.kind] || "event";
+}
+
 function rowToCampaign(r) {
   const attachments = [];
   if (r.attachment_ids) {
@@ -78,8 +107,11 @@ function rowToCampaign(r) {
     budget: r.budget,
     owner: r.owner,
     note: r.note,
-    color: r.color || "#3370FF",
-    kind: CAMPAIGN_KINDS.indexOf(r.kind) !== -1 ? r.kind : "campaign",
+    color: CAMPAIGN_SUBS[subOfRow(r)].color,
+    kind: CAMPAIGN_SUBS[subOfRow(r)].kind,
+    sub: subOfRow(r),
+    schedule: safeObj(r.schedule),
+    acc: safeObj(r.acc),
     posts: { total: r.n_posts || 0, done: r.n_posts_done || 0 },
     tasks: { total: r.n_tasks || 0, open: r.n_tasks_open || 0 },
     attachments: attachments,
@@ -87,14 +119,69 @@ function rowToCampaign(r) {
   };
 }
 
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isoAdd(isoDay, days) {
+  const d = new Date(isoDay + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+/* ตารางวันของรายการ: หลายช่วงวัน + เวลา + ทำซ้ำ (ครั้งเดียว / ทุกสัปดาห์เลือกวัน / ทุกเดือนช่วงวันเดิม)
+   start/end ในตารางหลักยังเก็บ "กรอบนอก" ไว้ (ช่วงแรกสุด → วันสุดท้ายที่มีผล) ให้ของเดิมที่กรองด้วยช่วงวันยังใช้ได้ */
+function cleanSchedule(raw) {
+  if (!raw || typeof raw !== "object") return { value: null };
+  const ranges = (Array.isArray(raw.ranges) ? raw.ranges : []).slice(0, 12)
+    .map((x) => ({ s: ISO_RE.test(x && x.s) ? x.s : null, e: ISO_RE.test(x && x.e) ? x.e : null }))
+    .filter((x) => x.s)
+    .map((x) => ({ s: x.s, e: x.e && x.e >= x.s ? x.e : x.s }))
+    .sort((p, q) => (p.s < q.s ? -1 : p.s > q.s ? 1 : 0));
+  if (!ranges.length) return { error: "ต้องมีอย่างน้อย 1 ช่วงวัน" };
+  const t1 = TIME_RE.test(raw.t1) ? raw.t1 : "";
+  const t2 = TIME_RE.test(raw.t2) ? raw.t2 : "";
+  const r0 = raw.rep && typeof raw.rep === "object" ? raw.rep : {};
+  const type = ["weekly", "monthly"].indexOf(r0.type) !== -1 ? r0.type : "none";
+  const rep = { type };
+  let end = ranges.reduce((m, x) => (x.e > m ? x.e : m), ranges[0].e);
+  if (type !== "none") {
+    if (!ISO_RE.test(r0.until) || r0.until < ranges[0].s) return { error: "ทำซ้ำต้องมีวันสิ้นสุด (ถึงวันที่) ที่ไม่มาก่อนวันเริ่ม" };
+    if (r0.until > isoAdd(ranges[0].s, 731)) return { error: "ทำซ้ำได้ไม่เกิน 2 ปี" };
+    rep.until = r0.until;
+    end = r0.until;
+    if (type === "weekly") {
+      rep.days = (Array.isArray(r0.days) ? r0.days : []).map(Number)
+        .filter((d, i, a) => d >= 0 && d <= 6 && Number.isInteger(d) && a.indexOf(d) === i).sort();
+      if (!rep.days.length) return { error: "ทำซ้ำทุกสัปดาห์ ต้องเลือกวันอย่างน้อย 1 วัน" };
+      ranges.length = 1;   /* ทุกสัปดาห์ใช้แค่วันเริ่ม ช่วงอื่นไม่มีความหมาย */
+      ranges[0].e = ranges[0].s;
+    }
+  }
+  /* ช่วงเดียว ไม่มีเวลา ไม่ทำซ้ำ = รายการแบบเดิม ไม่ต้องเก็บตาราง */
+  const plain = ranges.length === 1 && !t1 && !t2 && type === "none";
+  return { value: plain ? null : { ranges, t1, t2, rep }, start: ranges[0].s, end };
+}
+function cleanAcc(raw) {
+  if (!raw || typeof raw !== "object" || !raw.need) return null;
+  return {
+    need: true,
+    type: raw.type === "coupon" ? "coupon" : "promo",
+    detail: String(raw.detail || "").trim().slice(0, 2000),
+    taskId: /^[A-Za-z0-9_-]{1,40}$/.test(String(raw.taskId || "")) ? raw.taskId : undefined,
+  };
+}
+
 function clean(input) {
-  const iso = /^\d{4}-\d{2}-\d{2}$/;
   const name = String(input.name || "").trim().slice(0, 200);
-  const start = iso.test(input.start) ? input.start : null;
-  const end = iso.test(input.end) ? input.end : start;
+  let start = ISO_RE.test(input.start) ? input.start : null;
+  let end = ISO_RE.test(input.end) ? input.end : start;
   if (!name) return { error: "ต้องมีชื่อแคมเปญ" };
+  const sc = input.scope !== "month" && input.schedule ? cleanSchedule(input.schedule) : { value: null };
+  if (sc.error) return { error: sc.error };
+  if (sc.value) { start = sc.start; end = sc.end; }
   if (!start) return { error: "วันเริ่มไม่ถูกต้อง" };
   if (end < start) return { error: "วันสิ้นสุดมาก่อนวันเริ่ม" };
+  /* หมวดย่อยชี้หมวดใหญ่และสี · client เก่า/MCP ที่ส่งมาแค่ kind → ใช้หมวดย่อยตั้งต้นของหมวดนั้น */
+  const kind0 = CAMPAIGN_KINDS.indexOf(input.kind) !== -1 ? input.kind : "campaign";
+  const sub = CAMPAIGN_SUBS[input.sub] ? input.sub : SUB_OF_KIND[kind0];
   return {
     value: {
       name: name,
@@ -105,12 +192,58 @@ function clean(input) {
       channels: JSON.stringify(Array.isArray(input.channels) ? input.channels.slice(0, 20) : []),
       branches: JSON.stringify(Array.isArray(input.branches) ? input.branches.slice(0, 20) : []),
       budget: Math.max(0, Math.round(Number(input.budget) || 0)),
-      owner: String(input.owner || "").trim().slice(0, 120),
+      owner: String(input.owner || "").trim().slice(0, 300),
       note: String(input.note || "").trim().slice(0, 4000),
-      color: /^#[0-9a-fA-F]{6}$/.test(String(input.color || "")) ? input.color : "#3370FF",
-      kind: CAMPAIGN_KINDS.indexOf(input.kind) !== -1 ? input.kind : "campaign",
+      color: CAMPAIGN_SUBS[sub].color,
+      kind: CAMPAIGN_SUBS[sub].kind,
+      sub: sub,
+      schedule: sc.value ? JSON.stringify(sc.value) : "",
+      acc: cleanAcc(input.acc),
     },
+    has: { sub: CAMPAIGN_SUBS[input.sub] ? 1 : 0, schedule: "schedule" in input, acc: "acc" in input },
   };
+}
+
+/* ติ๊ก "ให้ฝ่ายบัญชีตั้งค่าในระบบ" → สร้างงานให้ฝ่ายบัญชีครั้งเดียวต่อรายการ ผูกกับรายการในปฏิทิน
+   กำหนดส่ง 18:00 วันก่อนเริ่ม (เลยแล้วใช้วันนี้) · งานเดิมยังอยู่ = ไม่สร้างซ้ำ แค่ต่อรายละเอียดใหม่ถ้าแก้ */
+async function syncAccTask(db, campId, v, staffId) {
+  const acc = v.acc;
+  if (!acc || !acc.need) return acc;
+  const what = acc.type === "coupon" ? "คูปอง" : "โปรโมชั่น";
+  const title = "ตั้งค่า" + what + "ในระบบ — " + v.name;
+  const detail = "ฝ่ายการตลาดขอให้ตั้งค่า" + what + "ในระบบ\n" +
+    (acc.detail ? acc.detail + "\n" : "") + "ช่วงรายการ: " + v.start + (v.end !== v.start ? " ถึง " + v.end : "") +
+    "\n(สร้างอัตโนมัติจากปฏิทินการตลาด)";
+  if (acc.taskId) {
+    const t = await db.prepare("SELECT id, title, detail FROM tasks WHERE id = ?").bind(acc.taskId).first();
+    if (t) {
+      if (t.title !== title || t.detail !== detail) {
+        await db.prepare("UPDATE tasks SET title = ?, detail = ?, updated_at = ? WHERE id = ? AND status != 'done'")
+          .bind(title, detail, new Date().toISOString(), t.id).run();
+      }
+      return acc;
+    }
+  }
+  const now = new Date().toISOString();
+  const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  let dueDay = isoAdd(v.start, -1);
+  if (dueDay < today) dueDay = today;
+  const dueAt = new Date(dueDay + "T18:00:00+07:00").toISOString();
+  const id = "t_" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const accStaff = await db.prepare("SELECT id FROM staff WHERE id = ? AND active = 1").bind(ACC_STAFF_ID).first();
+  const stmts = [
+    db.prepare(
+      "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original) " +
+      "VALUES (?,?,?,NULL,'todo',?,'',1,?,?,?,NULL,NULL,?,'other','ondemand',NULL,0,?)"
+    ).bind(id, title, detail, dueAt, staffId || "system", now, now, campId, dueAt),
+    db.prepare("INSERT INTO task_updates (id,task_id,staff_id,kind,note,status_to,created_at) VALUES (?,?,?,?,?,?,?)")
+      .bind("u_" + crypto.randomUUID().replace(/-/g, "").slice(0, 16), id, staffId || "system", "create", "", "todo", now),
+  ];
+  if (accStaff) stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, ACC_STAFF_ID));
+  await db.batch(stmts);
+  acc.taskId = id;
+  await db.prepare("UPDATE campaigns SET acc = ? WHERE id = ?").bind(JSON.stringify(acc), campId).run();
+  return acc;
 }
 
 const LIST_SQL =
@@ -292,12 +425,15 @@ async function handleApi(request, env, url, ctx) {
     const v = parsed.value;
     const id = "c" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const now = new Date().toISOString();
+    const acc0 = v.acc ? Object.assign({}, v.acc, { taskId: undefined }) : null;
     await db.prepare(
-      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind,sub,schedule,acc) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-           v.owner, v.note, v.color, now, now, v.kind).run();
-    return json({ id: id });
+           v.owner, v.note, v.color, now, now, v.kind, v.sub, v.schedule, acc0 ? JSON.stringify(acc0) : "").run();
+    v.acc = acc0;
+    const acc = await syncAccTask(db, id, v, who.id);
+    return json({ id: id, accTaskId: acc && acc.taskId || null });
   }
 
   const idMatch = path.match(/^\/campaigns\/([A-Za-z0-9_-]{1,40})$/);
@@ -309,13 +445,26 @@ async function handleApi(request, env, url, ctx) {
       const parsed = clean(body);
       if (parsed.error) return json({ error: parsed.error }, 400);
       const v = parsed.value;
-      const res = await db.prepare(
+      const old = await db.prepare("SELECT kind, sub, schedule, acc, start_date, end_date FROM campaigns WHERE id = ?").bind(id).first();
+      if (!old) return json({ error: "ไม่พบแคมเปญนี้" }, 404);
+      /* client ที่ไม่รู้จักช่องใหม่ (MCP / หน้าเก่าที่ค้าง cache) ต้องไม่ล้างของเดิมทิ้ง */
+      if (!parsed.has.sub && v.kind === CAMPAIGN_SUBS[subOfRow(old)].kind) {
+        v.sub = subOfRow(old); v.color = CAMPAIGN_SUBS[v.sub].color;
+      }
+      if (!parsed.has.schedule && old.schedule && v.scope === "range" && v.start === old.start_date) {
+        v.schedule = old.schedule; v.end = old.end_date;
+      }
+      const oldAcc = safeObj(old.acc);
+      if (!parsed.has.acc) v.acc = oldAcc;
+      else if (v.acc && oldAcc && oldAcc.taskId && !v.acc.taskId) v.acc.taskId = oldAcc.taskId;
+      await db.prepare(
         "UPDATE campaigns SET name=?,start_date=?,end_date=?,scope=?,status=?,channels=?,branches=?," +
-        "budget=?,owner=?,note=?,color=?,updated_at=?,kind=? WHERE id=?"
+        "budget=?,owner=?,note=?,color=?,updated_at=?,kind=?,sub=?,schedule=?,acc=? WHERE id=?"
       ).bind(v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-             v.owner, v.note, v.color, new Date().toISOString(), v.kind, id).run();
-      if (!res.meta.changes) return json({ error: "ไม่พบแคมเปญนี้" }, 404);
-      return json({ ok: true });
+             v.owner, v.note, v.color, new Date().toISOString(), v.kind, v.sub, v.schedule,
+             v.acc ? JSON.stringify(v.acc) : "", id).run();
+      const acc = await syncAccTask(db, id, v, who.id);
+      return json({ ok: true, accTaskId: acc && acc.taskId || null });
     }
 
     if (method === "DELETE") {
