@@ -16,7 +16,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...ARTICLES.map((a) => `/blog/${a.slug}`),
   ]));
   return routes.map((path) => ({
-    url: `${SITE.url}${path === "/" ? "" : path}`,
+    /* ต้องมี / ปิดท้ายให้ตรง canonical (next.config trailingSlash) — ไม่งั้น Google เจอ 307 เด้งต่อทุกลิงก์ */
+    url: `${SITE.url}${path === "/" ? "/" : path.endsWith("/") ? path : path + "/"}`,
     changeFrequency: path === "/" || sale.includes(path) ? "weekly" : "monthly",
     priority: path === "/" ? 1 : sale.includes(path) || path.startsWith("/catalog") ? 0.8 : 0.6,
   }));
