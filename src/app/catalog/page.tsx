@@ -4,6 +4,7 @@ import { Container } from "@/components/Container";
 import { LineIcon } from "@/components/BrandIcons";
 import { OFFERS } from "@/lib/offers";
 import { OfferCard } from "@/components/sale/OfferCard";
+import { CATEGORIES } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 import { SAMPLE_GROUPS } from "@/lib/product-images";
 
@@ -134,6 +135,15 @@ export default function CatalogPage() {
             {OFFERS.map((o, i) => (
               <OfferCard key={o.key} o={o} featured={i === 0} />
             ))}
+          </div>
+          <div className="mt-8 text-center">
+            <p className="text-[14px] font-semibold text-muted">หรือเลือกดูตามหมวด</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {CATEGORIES.map((c) => (
+                <Link key={c.slug} href={`/catalog/${c.slug}`} className="rounded-full border border-hair bg-white px-4 py-2 text-[14px] font-semibold text-ink hover:border-ink">{c.name}</Link>
+              ))}
+              <Link href="/catalog/pha-hang" className="rounded-full border border-brand bg-white px-4 py-2 text-[14px] font-semibold text-brand hover:bg-brand hover:text-white">ผ้าหาง / ผ้าเหมา</Link>
+            </div>
           </div>
         </Container>
       </section>

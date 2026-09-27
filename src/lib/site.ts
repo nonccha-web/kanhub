@@ -49,6 +49,7 @@ export const FOOTER_COLUMNS: { title: string; links: NavItem[] }[] = [
       { label: "กระสอบผ้า 45 กก.", href: "/catalog/sack-45" },
       { label: "กระสอบผ้าโปรโมชั่น", href: "/grade-b/" },
       { label: "ผ้าสต๊อก · คิดราคา", href: "/catalog/stock" },
+      { label: "ผ้าหาง / ผ้าเหมา", href: "/catalog/pha-hang" },
     ],
   },
   {

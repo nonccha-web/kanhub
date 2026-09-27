@@ -7,6 +7,7 @@ import { SITE } from "@/lib/site";
 import { SAMPLE_GROUPS } from "@/lib/product-images";
 import { OFFERS, PROMO } from "@/lib/offers";
 import { OfferCard } from "@/components/sale/OfferCard";
+import { CATEGORIES } from "@/lib/categories";
 import stock from "@/lib/stock-prices.json";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
@@ -255,6 +256,15 @@ export default function Home() {
             {OFFERS.map((o, i) => (
               <OfferCard key={o.key} o={o} featured={i === 0} />
             ))}
+          </div>
+          <div className="mt-8 text-center">
+            <p className="text-[14px] font-semibold text-muted">หรือเลือกดูตามหมวด</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {CATEGORIES.map((c) => (
+                <Link key={c.slug} href={`/catalog/${c.slug}`} className="rounded-full border border-hair bg-white px-4 py-2 text-[14px] font-semibold text-ink hover:border-ink">{c.name}</Link>
+              ))}
+              <Link href="/catalog/pha-hang" className="rounded-full border border-brand bg-white px-4 py-2 text-[14px] font-semibold text-brand hover:bg-brand hover:text-white">ผ้าหาง / ผ้าเหมา</Link>
+            </div>
           </div>
         </Container>
       </section>

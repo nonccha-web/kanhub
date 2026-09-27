@@ -1,14 +1,23 @@
 import type { MetadataRoute } from "next";
 import { SITE, NAV } from "@/lib/site";
+import { CATEGORIES } from "@/lib/categories";
+import { ARTICLES } from "@/lib/blog-data";
 
 export const dynamic = "force-static";
 
+/* ทุกหน้าที่อยากให้ Google เก็บ — หน้าเพิ่มใหม่ต้องมาเติมที่นี่ (หน้า static ใน public/ ไม่ถูกเก็บอัตโนมัติ) */
 export default function sitemap(): MetadataRoute.Sitemap {
-  // หน้าแรกสำคัญสุด + หน้าอื่นๆ ตามเมนู (จะเปิดใช้เมื่อทำหน้าเสร็จ)
-  const routes = Array.from(new Set(["/", ...NAV.map((n) => n.href), "/catalog/bale", "/catalog/sack-45", "/grade-b/"]));
+  const sale = ["/catalog/bale", "/catalog/sack-45", "/catalog/pha-hang", "/grade-b/", "/winter/"];
+  const routes = Array.from(new Set([
+    "/",
+    ...NAV.map((n) => n.href),
+    ...sale,
+    ...CATEGORIES.map((c) => `/catalog/${c.slug}`),
+    ...ARTICLES.map((a) => `/blog/${a.slug}`),
+  ]));
   return routes.map((path) => ({
     url: `${SITE.url}${path === "/" ? "" : path}`,
-    changeFrequency: path === "/" ? "weekly" : "monthly",
-    priority: path === "/" ? 1 : 0.6,
+    changeFrequency: path === "/" || sale.includes(path) ? "weekly" : "monthly",
+    priority: path === "/" ? 1 : sale.includes(path) || path.startsWith("/catalog") ? 0.8 : 0.6,
   }));
 }

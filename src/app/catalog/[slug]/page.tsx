@@ -6,6 +6,9 @@ import { PageHero } from "@/components/PageHero";
 import { CtaBand } from "@/components/CtaBand";
 import { OfferInquiry } from "@/components/sale/OfferInquiry";
 import { offerBySlug } from "@/lib/offers";
+import { CATEGORIES, categoryBySlug } from "@/lib/categories";
+import { CategoryView } from "@/components/sale/CategoryView";
+import { SITE } from "@/lib/site";
 import { imagesFor } from "@/lib/product-images";
 
 /* หน้ารายละเอียดแบบขายที่ต้องสอบถาม/จอง — ก้อนผ้า 350 กก. และกระสอบ 45 กก.
@@ -21,11 +24,18 @@ const GALLERY: Record<string, string[]> = {
 
 export const dynamicParams = false;
 export function generateStaticParams() {
-  return SLUGS.map((slug) => ({ slug }));
+  return [...SLUGS, ...CATEGORIES.map((c) => c.slug)].map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const c = categoryBySlug(slug);
+  if (c) {
+    const t = `${c.h1} ราคาส่งรายตัว`;
+    const d = `${c.intro.slice(0, 120)} — KAN HUB โกดังเสื้อผ้ามือสองญี่ปุ่น ส่งทั่วไทย`;
+    return { title: t, description: d, keywords: c.keywords, alternates: { canonical: `/catalog/${c.slug}` },
+             openGraph: { title: t, description: d, url: `/catalog/${c.slug}`, images: [c.images[0]] } };
+  }
   const o = offerBySlug(slug);
   if (!o) return {};
   return {
@@ -39,14 +49,32 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function OfferPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const cat = categoryBySlug(slug);
+  if (cat) return <CategoryView c={cat} />;
   const o = offerBySlug(slug);
   if (!o || !(SLUGS as readonly string[]).includes(slug)) notFound();
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Product",
+        name: o.name,
+        description: o.what,
+        image: `${SITE.url}${o.cover}`,
+        brand: { "@type": "Brand", name: SITE.name },
+        ...(o.price ? { offers: { "@type": "AggregateOffer", priceCurrency: "THB", lowPrice: o.price.low, highPrice: o.price.high,
+          offerCount: o.groups.length, availability: "https://schema.org/InStock", url: `${SITE.url}${o.href}` } } : {}),
+      },
+      ...(o.faqs ? [{ "@type": "FAQPage", mainEntity: o.faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }] : []),
+    ],
+  };
   const imgs = GALLERY[slug] || [];
   const unit = slug === "bale" ? "ก้อน" : "กระสอบ";
 
   return (
     <>
-      <PageHero eyebrow={o.badge} title={o.name} subtitle={o.tagline} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <PageHero eyebrow={o.badge} title={o.seoTitle} subtitle={o.tagline} />
 
       <section className="bg-cream py-14">
         <Container>
@@ -108,7 +136,28 @@ export default async function OfferPage({ params }: { params: Promise<{ slug: st
             </div>
           )}
 
-          <div className="mt-10">
+          {o.faqs && (
+            <div className="mt-12">
+              <h2 className="text-xl font-bold text-ink">คำถามที่พบบ่อย</h2>
+              <div className="mt-4 space-y-3">
+                {o.faqs.map((f) => (
+                  <details key={f.q} className="rounded-2xl border border-hair bg-white p-5 open:shadow-sm">
+                    <summary className="cursor-pointer list-none text-[15px] font-semibold text-ink">{f.q}</summary>
+                    <p className="mt-2 text-[15px] leading-relaxed text-muted">{f.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-10 flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <Link key={c.slug} href={`/catalog/${c.slug}`} className="rounded-full border border-hair bg-white px-4 py-2 text-[14px] font-semibold text-ink hover:border-ink">{c.name}</Link>
+            ))}
+            <Link href="/catalog/pha-hang" className="rounded-full border border-hair bg-white px-4 py-2 text-[14px] font-semibold text-ink hover:border-ink">ผ้าหาง / ผ้าเหมา</Link>
+          </div>
+
+          <div className="mt-8">
             <Link href="/catalog" className="text-sm font-semibold text-brand hover:text-brand-dark">← ดูสินค้าทั้ง 4 แบบ</Link>
           </div>
         </Container>

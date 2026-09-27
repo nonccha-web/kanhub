@@ -78,6 +78,13 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           <div className="mt-10 rounded-2xl border border-hair bg-white p-6 text-center">
             <h3 className="text-lg font-bold text-ink">สนใจรับกระสอบไปขาย?</h3>
             <p className="mx-auto mt-1.5 max-w-md text-[15px] text-muted">ทักไลน์ KAN HUB ทีมงานช่วยเลือกก้อนที่เหมาะกับร้านคุณ ส่งทั่วไทย</p>
+            {a.links && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {a.links.map((l) => (
+                  <a key={l.href} href={l.href} className="inline-flex items-center justify-center rounded-xl bg-brand px-5 py-3 text-[15px] font-semibold text-white hover:bg-brand-dark">{l.label} →</a>
+                ))}
+              </div>
+            )}
             <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center justify-center rounded-xl bg-line px-6 py-3 text-[15px] font-semibold text-white hover:bg-line-dark">
               💬 ทักไลน์ดูราคา
             </a>
