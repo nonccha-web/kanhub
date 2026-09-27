@@ -484,6 +484,52 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 #ccAccFields{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
 #ccAccFields textarea{ min-height:70px; }
 .cc-hint a{ color:inherit; font-weight:600; }
+/* ── เลือกหลายรายการ ── */
+.cc-mbtns{ display:flex; gap:8px; }
+.cc-btn.on{ background:var(--text-primary); color:var(--bg-page); border-color:var(--text-primary); }
+.cc-gsel{ width:34px; text-align:center; padding-left:8px !important; padding-right:0 !important; }
+.cc-gsel input{ width:16px; height:16px; margin:0; cursor:pointer; accent-color:var(--text-primary); vertical-align:middle; }
+.cc-grp td.cc-gsel{ background:inherit; }
+.cc-gtab tr.sel td{ background:var(--accent-faint); }
+.cc-selmode .cc-bar{ cursor:copy; }
+.cc-bar.sel{ outline:2px solid var(--text-primary); outline-offset:-1px; box-shadow:0 0 0 3px var(--bg-card, #fff); }
+.cc-selmode .cc-bar:not(.sel){ opacity:.72; }
+.cc-bulk{ position:fixed; left:50%; bottom:18px; transform:translate(-50%, 20px); z-index:80; width:min(980px, calc(100vw - 32px));
+  opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
+.cc-bulk.show{ opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+.cc-bmain{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 10px; border-radius:12px;
+  background:var(--text-primary); color:var(--bg-page); box-shadow:0 12px 32px rgba(0,0,0,.22); }
+.cc-bmain b{ font-size:13px; padding:0 8px 0 4px; font-variant-numeric:tabular-nums; }
+.cc-bbtn{ font-family:inherit; font-size:13px; padding:7px 11px; border-radius:8px; border:0; cursor:pointer;
+  background:rgba(255,255,255,.12); color:inherit; }
+.cc-bbtn:hover{ background:rgba(255,255,255,.22); }
+.cc-bbtn.on{ background:var(--bg-page); color:var(--text-primary); font-weight:600; }
+.cc-bbtn.danger{ color:#FF9C9C; }
+.cc-bbtn.danger.on{ background:#D14343; color:#fff; }
+.cc-bbtn.ghost{ margin-left:auto; background:transparent; opacity:.8; }
+.cc-bpanel{ margin-bottom:8px; padding:12px 14px; border-radius:12px; background:var(--bg-card, #fff); border:1px solid var(--bg-glass-border);
+  box-shadow:0 12px 32px rgba(0,0,0,.14); display:flex; flex-direction:column; gap:8px; }
+.cc-bpanel > label{ font-size:12.5px; font-weight:600; color:var(--text-secondary); }
+.cc-brow{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.cc-brow input[type=date], .cc-brow input[type=number]{ padding:7px 10px; border:1px solid var(--bg-glass-border); border-radius:6px;
+  background:var(--bg-input); color:var(--text-primary); font-family:inherit; font-size:13px; }
+.cc-brow .cc-btn.primary{ margin-left:auto; }
+.cc-bpanel .cc-tagbox input{ flex:1; min-width:120px; border:0; padding:4px 2px; background:transparent; outline:none; font-family:inherit; font-size:13px; color:var(--text-primary); }
+.cc-bseg{ display:inline-flex; gap:4px; }
+.cc-bseg button{ font-family:inherit; font-size:12.5px; padding:5px 10px; border-radius:999px; border:1px solid var(--bg-glass-border);
+  background:transparent; color:var(--text-secondary); cursor:pointer; }
+.cc-bseg button[aria-pressed="true"]{ background:var(--text-primary); color:var(--bg-page); border-color:var(--text-primary); font-weight:600; }
+.cc-bnames{ font-size:12.5px; color:var(--text-secondary); line-height:1.6; }
+.cc-btn.danger{ background:#D14343; border-color:#D14343; color:#fff; }
+body.cc-hasbulk .container{ padding-bottom:150px; }
+.cc-okdlg{ position:fixed; inset:0; z-index:120; background:rgba(0,0,0,.35); display:grid; place-items:center; padding:16px; }
+.cc-okbox{ width:min(440px, 100%); max-height:80vh; overflow:auto; background:var(--bg-card, #fff); border-radius:12px; padding:18px 20px;
+  box-shadow:0 20px 50px rgba(0,0,0,.25); }
+.cc-okbox h3{ margin:0 0 8px; font-size:17px; }
+.cc-okbox ul{ list-style:none; margin:0 0 14px; padding:0; font-size:13.5px; line-height:1.7; color:var(--text-secondary); }
+.cc-okbox li:first-child{ font-weight:600; color:var(--text-primary); }
+.cc-okbox .cc-btn{ width:100%; justify-content:center; }
+@media (max-width:560px){ .cc-bbtn{ padding:6px 8px; font-size:12px; } .cc-bbtn.ghost{ margin-left:0; } }
 /* เมนู ⋯ มุมขวาบน */
 .cc-more-wrap{ position:relative; }
 .cc-morebtn{ padding-left:10px !important; padding-right:10px !important; }
@@ -790,6 +836,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=46"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=20"></script>
+<script src="campaign-calendar.js?v=21"></script>
 </body>
 </html>

@@ -420,6 +420,8 @@
 
   /* ---------- render ---------- */
   function render() {
+    sel = sel.filter(function (id) { return byId(id); });   /* รายการที่ถูกลบไปแล้วหลุดจากที่เลือก */
+    renderBulkBar();
     renderKindBar();
     renderBranchBar();
     renderViewBar();
@@ -564,7 +566,7 @@
       var barsH = bars.map(function (b) {
         var it = b.it, col = colorOf(it);
         /* กดแถบ = ไปหน้าสถานะ (งานป้าย/โพสต์ที่ผูก) · แก้รายละเอียดจากการ์ด hover หรือหน้าสถานะ */
-        return '<button class="cc-bar' + (b.contL ? " contl" : "") + (b.contR ? " contr" : "") + '" data-open="' + it.id +
+        return '<button class="cc-bar' + (b.contL ? " contl" : "") + (b.contR ? " contr" : "") + (sel.indexOf(it.id) !== -1 ? " sel" : "") + '" data-open="' + it.id +
           '" style="grid-column:' + (b.c0 + 1) + ' / ' + (b.c1 + 2) + ';grid-row:' + (b.lane + 2) + ';background:' + tint(col, .2) + ';color:' + ink(col) + ';border-left-color:' + col + '"' +
           ' title="' + esc(it.name) + " · " + fullRange(it) + '">' + kindDot(it) + "<b>" + esc(shortName(it.name)) + "</b>" +
           (b.c1 - b.c0 >= 1 ? statusBrief(it) : (hasMedia(stOf(it)) ? "" : '<span class="cc-st warn" title="ยังไม่มีสื่อ">!</span>')) +
@@ -589,9 +591,11 @@
       '<div class="cc-monthbar">' +
         '<button class="cc-back" id="ccBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>ทั้งปี ' + be(year) + "</button>" +
         "<h2>" + MONTHS[m] + " " + be(year) + "</h2>" +
-        '<button class="cc-btn" data-newmonth="1">+ แผนทั้งเดือนนี้</button>' +
+        '<span class="cc-mbtns"><button class="cc-btn' + (selMode ? " on" : "") + '" data-selmode="1" title="คลิกแถบในปฏิทินเพื่อเลือก แล้วแก้ทีเดียวจากแถบด้านล่าง">' +
+          (selMode ? "เสร็จ (ปิดโหมดเลือก)" : "เลือกหลายรายการ") + "</button>" +
+        '<button class="cc-btn" data-newmonth="1">+ แผนทั้งเดือนนี้</button></span>' +
       "</div>" + banner +
-      '<div class="cc-cal"><div class="cc-dow">' + DOW.map(function (x) { return "<div>" + x + "</div>"; }).join("") +
+      '<div class="cc-cal' + (selMode ? " cc-selmode" : "") + '"><div class="cc-dow">' + DOW.map(function (x) { return "<div>" + x + "</div>"; }).join("") +
       '</div><div class="cc-weeks">' + cells + "</div></div>" +
       renderBranchBoard(list);
   }
@@ -678,10 +682,11 @@
     return out;
   }
 
-  var GRID_COLS = 9;
+  var GRID_COLS = 10;
   function gridRow(it) {
     var brs = (it.branches || []), chs = (it.channels || []);
-    return '<tr data-gid="' + it.id + '" style="border-left:3px solid ' + colorOf(it) + '">' +
+    return '<tr data-gid="' + it.id + '" class="' + (sel.indexOf(it.id) !== -1 ? "sel" : "") + '" style="border-left:3px solid ' + colorOf(it) + '">' +
+      '<td class="cc-gsel"><input type="checkbox" data-sel="' + it.id + '"' + (sel.indexOf(it.id) !== -1 ? " checked" : "") + ' aria-label="เลือก ' + esc(it.name) + '"></td>' +
       '<td class="nm" data-cell="name" title="กดเพื่อแก้ชื่อ">' + kindDot(it) + '<span class="cc-gname">' + esc(it.name) + "</span>" +
         linkLine(it) + (it.note ? '<div class="cc-note">' + esc(it.note) + "</div>" : "") + "</td>" +
       '<td data-cell="kind" title="กดเพื่อเปลี่ยนประเภท">' + kindPill(it) + "</td>" +
@@ -708,7 +713,10 @@
     var body = groups.map(function (g) {
       var off = !!collapsed[g.key];
       var money = g.items.reduce(function (a, it) { return a + (Number(it.budget) || 0); }, 0);
-      var head = '<tr class="cc-grp' + (off ? " off" : "") + '"><td colspan="' + GRID_COLS + '">' +
+      var allOn = g.items.length && g.items.every(function (it) { return sel.indexOf(it.id) !== -1; });
+      var head = '<tr class="cc-grp' + (off ? " off" : "") + '"><td class="cc-gsel">' +
+        (g.items.length ? '<input type="checkbox" data-selgrp="' + esc(g.key) + '"' + (allOn ? " checked" : "") + ' aria-label="เลือกทั้งกลุ่ม ' + esc(g.label) + '" title="เลือกทั้งกลุ่ม">' : "") +
+        '</td><td colspan="' + (GRID_COLS - 1) + '">' +
         '<button type="button" class="cc-grpb" data-grpkey="' + esc(g.key) + '">' +
         '<svg class="cc-grpcar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' +
         "<b>" + esc(g.label) + "</b>" + (g.sub ? '<span class="cc-grpsub">' + esc(g.sub) + "</span>" : "") +
@@ -741,12 +749,173 @@
     $("ccView").innerHTML = bar + months +
       (list.length || groups.length
         ? '<div class="cc-tablewrap cc-gridwrap"><table class="cc-table cc-gtab"><thead><tr>' +
-          "<th>ชื่อ</th><th>ประเภท</th><th>ช่วงวัน</th><th>สถานะ</th><th>สาขา</th><th>ช่องทาง</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th>สื่อที่ผูกไว้</th>" +
+          '<th class="cc-gsel"></th>' + "<th>ชื่อ</th><th>ประเภท</th><th>ช่วงวัน</th><th>สถานะ</th><th>สาขา</th><th>ช่องทาง</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th>สื่อที่ผูกไว้</th>" +
           "</tr></thead>" + body + "</table></div>" +
-          '<p class="cc-ghint">กดที่ช่องเพื่อแก้ได้เลย · กดหัวกลุ่มเพื่อพับ · ปุ่ม + ท้ายกลุ่มจะเติม W/ประเภท/สาขาให้เอง · W1 = อาทิตย์แรก–9 · W2 = 10–16 · W3 = 17–23 · W4 = 24–สิ้นเดือน (สัปดาห์ที่คาบไปเดือนหน้านับเป็น W4 ของเดือนนี้ทั้งสัปดาห์)</p>'
+          '<p class="cc-ghint">ติ๊กช่องหน้าแถวเพื่อแก้หลายรายการทีเดียว (Shift = เลือกเป็นช่วง · สูงสุด ' + MAX_SEL + ' รายการ) · กดที่ช่องเพื่อแก้ได้เลย · กดหัวกลุ่มเพื่อพับ · ปุ่ม + ท้ายกลุ่มจะเติม W/ประเภท/สาขาให้เอง · W1 = อาทิตย์แรก–9 · W2 = 10–16 · W3 = 17–23 · W4 = 24–สิ้นเดือน (สัปดาห์ที่คาบไปเดือนหน้านับเป็น W4 ของเดือนนี้ทั้งสัปดาห์)</p>'
         : '<div class="cc-empty"><p>ยังไม่มี' + esc(what) + "ในช่วงนี้</p>" +
           '<button class="cc-btn primary" data-new="1">เพิ่ม' + esc(what) + "</button></div>");
   }
+
+  /* ============================================================
+     เลือกหลายรายการแล้วแก้ทีเดียว (นนท์ 27 ก.ย. 69) — ครั้งละไม่เกิน 10 รายการ
+     ตาราง: ติ๊กหน้าแถว / หัวกลุ่ม / Shift = ช่วง · ปฏิทิน: ปุ่ม "เลือกหลายรายการ" แล้วคลิกแถบ
+     แถบด้านล่างจอ → เลื่อนวัน · ตั้งวันใหม่ · ผู้รับผิดชอบ · สถานะ · ประเภท · สาขา · ลบ → POST /api/campaigns/bulk
+     ============================================================ */
+  var MAX_SEL = 10;
+  var sel = [], selMode = false, lastSel = null, bulkAct = "", bulkNames = [];
+  function toggleSel(id, on) {
+    var i = sel.indexOf(id);
+    if (on == null) on = i === -1;
+    if (on && i === -1) {
+      if (sel.length >= MAX_SEL) { toast("เลือกได้ครั้งละไม่เกิน " + MAX_SEL + " รายการ"); return false; }
+      sel.push(id);
+    } else if (!on && i !== -1) sel.splice(i, 1);
+    return true;
+  }
+  function clearSel() { sel = []; bulkAct = ""; lastSel = null; }
+  function selNames() { return sel.map(function (id) { var it = byId(id); return it ? it.name : ""; }).filter(Boolean); }
+
+  var BULK_ACTS = [["shift", "เลื่อนวัน"], ["dates", "ตั้งวันใหม่"], ["owner", "ผู้รับผิดชอบ"], ["status", "สถานะ"],
+                   ["sub", "ประเภท"], ["branches", "สาขา"], ["delete", "ลบ"]];
+  function bulkEl() {
+    var el = $("ccBulk");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ccBulk";
+      el.className = "cc-bulk";
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function modeSeg(cur) {
+    return '<div class="cc-bseg" data-bmode-grp>' + [["add", "เพิ่มเข้าไป"], ["replace", "แทนที่ทั้งหมด"], ["remove", "เอาออก"]].map(function (m) {
+      return '<button type="button" data-bmode="' + m[0] + '" aria-pressed="' + (cur === m[0]) + '">' + m[1] + "</button>";
+    }).join("") + "</div>";
+  }
+  var bulkMode = "add";
+  function bulkPanel() {
+    var n = sel.length, go = '<button type="button" class="cc-btn primary" data-bgo="1">ใช้กับ ' + n + " รายการ</button>";
+    if (bulkAct === "shift") return '<label>เลื่อนทุกรายการ</label><div class="cc-brow">' +
+      '<button type="button" class="cc-btn" data-bstep="-7">−7</button><button type="button" class="cc-btn" data-bstep="-1">−1</button>' +
+      '<input type="number" id="ccBDays" value="7" step="1" style="width:80px"> <span>วัน</span>' +
+      '<button type="button" class="cc-btn" data-bstep="1">+1</button><button type="button" class="cc-btn" data-bstep="7">+7</button>' + go + "</div>" +
+      '<div class="cc-hint">บวก = เลื่อนไปข้างหน้า · ลบ = ถอยหลัง · รายการที่มีหลายช่วง/ทำซ้ำ เลื่อนทั้งชุดเท่ากัน</div>';
+    if (bulkAct === "dates") return '<label>ตั้งช่วงวันใหม่ให้ทุกรายการ</label><div class="cc-brow">' +
+      '<input type="date" id="ccBStart"> <span>ถึง</span> <input type="date" id="ccBEnd">' + go + "</div>" +
+      '<div class="cc-hint" id="ccBDateHint">วันสิ้นสุดว่างไว้ = วันเดียว · รายการที่ตั้งหลายช่วง/ทำซ้ำไว้ จะเหลือช่วงนี้ช่วงเดียว</div>';
+    if (bulkAct === "owner") return '<label>ผู้รับผิดชอบ</label>' + modeSeg(bulkMode) +
+      '<div class="cc-brow"><div class="cc-tagbox" id="ccBOwners" style="flex:1">' + bulkNames.map(function (nm, i) {
+        return '<span class="cc-otag">' + esc(nm) + '<button type="button" data-bodel="' + i + '">&times;</button></span>';
+      }).join("") + '<input type="text" id="ccBOwnerIn" placeholder="พิมพ์ชื่อแล้วเลือก" autocomplete="off"></div>' + go + "</div>" +
+      '<div class="cc-hint">' + (bulkMode === "replace" ? "ทุกรายการจะเหลือแค่คนที่เลือก (ว่างไว้ = ล้างผู้รับผิดชอบ)" : bulkMode === "remove" ? "เอาคนที่เลือกออกจากทุกรายการ" : "เพิ่มคนที่เลือกเข้าไป คนเดิมยังอยู่") + "</div>";
+    if (bulkAct === "branches") return '<label>สาขา</label>' + modeSeg(bulkMode) +
+      '<div class="cc-brow"><div class="cc-choices" style="flex:1">' + BRANCHES.map(function (b) {
+        return '<button type="button" class="cc-choice" data-bbr="' + esc(b) + '" aria-pressed="' + (bulkNames.indexOf(b) !== -1) + '">' + esc(b) + "</button>";
+      }).join("") + "</div>" + go + "</div>";
+    if (bulkAct === "status") return '<label>เปลี่ยนสถานะเป็น</label><div class="cc-brow">' + ["plan", "live", "done"].map(function (st) {
+      return '<button type="button" class="cc-btn" data-bgo="1" data-bval="' + st + '">' + STATUS_LABEL[st] + "</button>";
+    }).join("") + "</div>";
+    if (bulkAct === "sub") return '<label>เปลี่ยนประเภทเป็น</label><div class="cc-brow cc-bsubs">' + SUBS.map(function (x) {
+      return '<button type="button" class="cc-subb" data-bgo="1" data-bval="' + x.k + '"><i style="background:' + x.c + '"></i>' + x.th + "</button>";
+    }).join("") + "</div>";
+    if (bulkAct === "delete") return '<label>ลบ ' + n + ' รายการนี้ออกจากปฏิทิน?</label><div class="cc-bnames">' + selNames().map(esc).join(" · ") + "</div>" +
+      '<div class="cc-brow"><button type="button" class="cc-btn danger" data-bgo="1">ยืนยันลบ ' + n + " รายการ</button>" +
+      '<span class="cc-hint" style="margin:0">โพสต์และงานที่ผูกไว้ไม่ถูกลบ แค่ปลดลิงก์</span></div>';
+    return "";
+  }
+  function renderBulkBar() {
+    var el = bulkEl();
+    document.body.classList.toggle("cc-hasbulk", sel.length > 0);
+    if (!sel.length) { el.classList.remove("show"); el.innerHTML = ""; return; }
+    el.innerHTML = (bulkAct ? '<div class="cc-bpanel">' + bulkPanel() + "</div>" : "") +
+      '<div class="cc-bmain"><b>เลือกอยู่ ' + sel.length + "/" + MAX_SEL + "</b>" +
+      BULK_ACTS.map(function (a) {
+        return '<button type="button" class="cc-bbtn' + (bulkAct === a[0] ? " on" : "") + (a[0] === "delete" ? " danger" : "") + '" data-bact="' + a[0] + '">' + a[1] + "</button>";
+      }).join("") +
+      '<button type="button" class="cc-bbtn ghost" data-bclear="1">ยกเลิกเลือก</button></div>';
+    el.classList.add("show");
+    var oi = $("ccBOwnerIn");
+    if (oi) {
+      attachPeople(oi, function (name) {
+        if (bulkNames.indexOf(name) === -1) bulkNames.push(name);
+        renderBulkBar();
+        setTimeout(function () { var x = $("ccBOwnerIn"); if (x) x.focus(); }, 0);
+      }, function (name) { return bulkNames.indexOf(name) !== -1; });
+      oi.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") e.preventDefault();
+        if (e.key === "Backspace" && !this.value && bulkNames.length) { bulkNames.pop(); renderBulkBar(); }
+      });
+    }
+    var bs = $("ccBStart");
+    if (bs) {
+      var hint = function () {
+        var a = $("ccBStart").value, b = $("ccBEnd").value;
+        $("ccBDateHint").textContent = a ? dayTag(a) + (b ? " → " + dayTag(b) : " · วันเดียว") : "วันสิ้นสุดว่างไว้ = วันเดียว · รายการที่ตั้งหลายช่วง/ทำซ้ำไว้ จะเหลือช่วงนี้ช่วงเดียว";
+      };
+      bs.addEventListener("input", hint); $("ccBEnd").addEventListener("input", hint);
+    }
+  }
+  /* กล่องยืนยันหลังแก้ — บอกชัดว่าแก้อะไรไปกี่รายการ (toast เล็กไป ไม่ชัวร์ว่าเข้าระบบ) */
+  function okDialog(title, lines) {
+    var d = document.createElement("div");
+    d.className = "cc-okdlg";
+    d.innerHTML = '<div class="cc-okbox" role="dialog" aria-modal="true"><h3>' + esc(title) + "</h3><ul>" +
+      lines.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + '</ul><button type="button" class="cc-btn primary">ตกลง</button></div>';
+    document.body.appendChild(d);
+    function close() { d.remove(); document.removeEventListener("keydown", onKey, true); }
+    function onKey(e) { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); close(); } }
+    d.addEventListener("click", function (e) { if (e.target === d || e.target.closest("button")) close(); });
+    document.addEventListener("keydown", onKey, true);
+    d.querySelector("button").focus();
+  }
+  async function runBulk(val) {
+    var body = { ids: sel.slice(), action: bulkAct }, what = "";
+    if (bulkAct === "shift") {
+      body.days = Math.round(Number($("ccBDays").value) || 0);
+      if (!body.days) { toast("ใส่จำนวนวันก่อน"); return; }
+      what = (body.days > 0 ? "เลื่อนไปข้างหน้า " : "ถอยหลัง ") + Math.abs(body.days) + " วัน";
+    } else if (bulkAct === "dates") {
+      body.start = $("ccBStart").value; body.end = $("ccBEnd").value || body.start;
+      if (!body.start) { toast("เลือกวันเริ่มก่อน"); return; }
+      what = "ตั้งช่วงวันใหม่เป็น " + segText(body.start, body.end);
+    } else if (bulkAct === "owner" || bulkAct === "branches") {
+      body.mode = bulkMode; body.names = bulkNames.slice();
+      if (!body.names.length && bulkMode !== "replace") { toast(bulkAct === "owner" ? "เลือกชื่อก่อน" : "เลือกสาขาก่อน"); return; }
+      var lbl = bulkAct === "owner" ? "ผู้รับผิดชอบ" : "สาขา";
+      what = bulkMode === "replace" ? lbl + " → " + (body.names.join(", ") || "(ว่าง)") : (bulkMode === "remove" ? "เอา " + body.names.join(", ") + " ออกจาก" + lbl : "เพิ่ม" + lbl + " " + body.names.join(", "));
+    } else if (bulkAct === "status") { body.status = val; what = "สถานะ → " + STATUS_LABEL[val]; }
+    else if (bulkAct === "sub") { body.sub = val; what = "ประเภท → " + SUB[val].th; }
+    else if (bulkAct === "delete") { what = "ลบออกจากปฏิทิน"; }
+    var names = selNames();
+    try {
+      var r = await api("/campaigns/bulk", { method: "POST", body: JSON.stringify(body) });
+      clearSel();
+      await loadAll();
+      render();
+      okDialog("แก้ " + r.changed + " รายการแล้ว", [what].concat(names.map(function (n) { return "• " + n; })));
+    } catch (e) { toast("แก้ไม่สำเร็จ: " + e.message); }
+  }
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest || !e.target.closest("#ccBulk")) return;
+    var t;
+    if ((t = e.target.closest("[data-bact]"))) {
+      bulkAct = bulkAct === t.dataset.bact ? "" : t.dataset.bact; bulkNames = []; bulkMode = "add";
+      renderBulkBar();
+      var f = document.querySelector("#ccBulk input"); if (f) f.focus();
+      return;
+    }
+    if (e.target.closest("[data-bclear]")) { clearSel(); render(); return; }
+    if ((t = e.target.closest("[data-bmode]"))) { bulkMode = t.dataset.bmode; renderBulkBar(); return; }
+    if ((t = e.target.closest("[data-bstep]"))) { var inp = $("ccBDays"); inp.value = (Number(inp.value) || 0) + Number(t.dataset.bstep); return; }
+    if ((t = e.target.closest("[data-bbr]"))) {
+      var b = t.dataset.bbr, i = bulkNames.indexOf(b);
+      if (i === -1) bulkNames.push(b); else bulkNames.splice(i, 1);
+      renderBulkBar(); return;
+    }
+    if ((t = e.target.closest("[data-bodel]"))) { bulkNames.splice(+t.dataset.bodel, 1); renderBulkBar(); return; }
+    if ((t = e.target.closest("#ccBOwners"))) { $("ccBOwnerIn").focus(); return; }
+    if ((t = e.target.closest("[data-bgo]"))) { runBulk(t.dataset.bval); return; }
+  });
 
   /* บันทึกการแก้ทีละช่อง — API รับก้อนเต็ม เลยรวมของเดิมกับของใหม่ก่อนส่ง */
   async function patchItem(id, fields) {
@@ -1369,6 +1538,7 @@
     if (!t) return;
     if (t.closest(".cc-hover")) { keepHover(); return; }   // อยู่ในการ์ดเอง อย่าปิด
     if (pinned) return;                                     // ปักไว้ ไม่สลับตามเมาส์
+    if (selMode && t.closest(".cc-bar")) return;           // โหมดเลือกหลายรายการ ไม่เด้งการ์ด
     var found = peekTargets(t);
     if (!found) return;
     clearTimeout(hoverTimer);
@@ -1888,11 +2058,49 @@
     e.target.value = "";
   });
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !$("ccDrawer").classList.contains("open") && (sel.length || selMode) && !document.querySelector(".cc-okdlg")) {
+      if (bulkAct) { bulkAct = ""; renderBulkBar(); } else { clearSel(); selMode = false; render(); }
+      return;
+    }
     if (e.key === "Escape") closeDrawer();
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && $("ccDrawer").classList.contains("open")) submit();
   });
 
   document.addEventListener("click", async function (e) {
+    if (e.target.closest && e.target.closest("#ccBulk")) return;
+    /* ---- เลือกหลายรายการ ---- */
+    var sm = e.target.closest("[data-selmode]");
+    if (sm) { selMode = !selMode; if (!selMode) clearSel(); hideHover(0, true); render(); return; }
+    var sb = e.target.closest("input[data-sel]");
+    if (sb) {
+      var id0 = sb.dataset.sel, want = sb.checked;
+      if (e.shiftKey && lastSel && lastSel !== id0) {
+        /* Shift = เลือกทุกแถวระหว่างอันล่าสุดกับอันนี้ ตามลำดับที่เห็นบนจอ */
+        var order = Array.prototype.map.call(document.querySelectorAll("input[data-sel]"), function (x) { return x.dataset.sel; });
+        var i1 = order.indexOf(lastSel), i2 = order.indexOf(id0);
+        if (i1 !== -1 && i2 !== -1) {
+          order.slice(Math.min(i1, i2), Math.max(i1, i2) + 1).some(function (x) { return !toggleSel(x, want); });
+        }
+      } else toggleSel(id0, want);
+      lastSel = id0;
+      render();
+      return;
+    }
+    var sg = e.target.closest("input[data-selgrp]");
+    if (sg) {
+      var grp = gridGroups(view.mode === "month" ? ofMonth(view.month) : ofYear()).filter(function (x) { return x.key === sg.dataset.selgrp; })[0];
+      if (grp) {
+        var on = sg.checked;
+        grp.items.some(function (it) { return !toggleSel(it.id, on); });
+      }
+      render();
+      return;
+    }
+    if (selMode) {
+      var bar0 = e.target.closest(".cc-bar[data-open]");
+      if (bar0) { toggleSel(bar0.dataset.open); render(); return; }
+      if (e.target.closest("[data-day]") && !e.target.closest(".cc-bar")) return;   /* โหมดเลือก: คลิกช่องว่างไม่เปิดฟอร์ม */
+    }
     var scopeBtn = e.target.closest("#cc-scope button");
     if (scopeBtn) { setSeg("#cc-scope", scopeBtn.dataset.v); applyScopeUI(); return; }
     var seg = e.target.closest("#cc-status button");

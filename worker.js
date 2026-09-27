@@ -10,6 +10,7 @@ import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
 const MAX_ATTACHMENTS_PER_CAMPAIGN = 6;
+const MAX_BULK_CAMPAIGNS = 10;   /* แก้หลายรายการทีเดียว — นนท์: 10 ก็พอ */
 const SEP = String.fromCharCode(31); // คั่น id กับชื่อไฟล์ใน GROUP_CONCAT
 /* ประเภทรายการในปฏิทิน — เดิมมีแต่ "แคมเปญ" นนท์ขอให้ติ๊กได้ว่าเป็นคอนเทนต์/แคมเปญ/โปรโมชั่น */
 const CAMPAIGN_KINDS = ["content", "campaign", "promo"];
@@ -434,6 +435,88 @@ async function handleApi(request, env, url, ctx) {
     v.acc = acc0;
     const acc = await syncAccTask(db, id, v, who.id);
     return json({ id: id, accTaskId: acc && acc.taskId || null });
+  }
+
+  /* ---- แก้หลายรายการทีเดียว (นนท์ 27 ก.ย. 69) — ครั้งละไม่เกิน 10 รายการ ----
+     body: { ids, action, ... }
+       shift     {days}                       เลื่อนทั้งชุด (รวมหลายช่วง/ทำซ้ำ) ไปข้างหน้า/ถอยหลัง
+       dates     {start, end}                 ตั้งช่วงวันใหม่ช่วงเดียว (ล้างหลายช่วง/ทำซ้ำ)
+       owner     {mode add|replace|remove, names[]}
+       branches  {mode add|replace|remove, names[]}
+       status    {status}  ·  sub {sub}  ·  delete */
+  if (path === "/campaigns/bulk" && method === "POST") {
+    const body = await request.json().catch(function () { return {}; });
+    const ids = Array.isArray(body.ids) ? body.ids.filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(String(x))) : [];
+    if (!ids.length) return json({ error: "ยังไม่ได้เลือกรายการ" }, 400);
+    if (ids.length > MAX_BULK_CAMPAIGNS) return json({ error: "แก้ได้ครั้งละไม่เกิน " + MAX_BULK_CAMPAIGNS + " รายการ" }, 413);
+    const act = String(body.action || "");
+    const ph = ids.map(() => "?").join(",");
+    const rows = ((await db.prepare("SELECT * FROM campaigns WHERE id IN (" + ph + ")").bind(...ids).all()).results) || [];
+    if (!rows.length) return json({ error: "ไม่พบรายการที่เลือก" }, 404);
+    const now = new Date().toISOString();
+
+    if (act === "delete") {
+      const st = [];
+      for (const r of rows) {
+        st.push(db.prepare("DELETE FROM attachments WHERE campaign_id = ?").bind(r.id),
+          db.prepare("UPDATE posts SET campaign_id = NULL WHERE campaign_id = ?").bind(r.id),
+          db.prepare("UPDATE tasks SET campaign_id = NULL WHERE campaign_id = ?").bind(r.id),
+          db.prepare("DELETE FROM campaigns WHERE id = ?").bind(r.id));
+      }
+      await db.batch(st);
+      return json({ ok: true, changed: rows.length });
+    }
+
+    const names = (Array.isArray(body.names) ? body.names : []).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 20);
+    const mode = ["add", "replace", "remove"].indexOf(body.mode) !== -1 ? body.mode : "add";
+    function mergeList(cur) {
+      if (mode === "replace") return names.slice();
+      if (mode === "remove") return cur.filter((x) => names.indexOf(x) === -1);
+      return cur.concat(names.filter((x) => cur.indexOf(x) === -1));
+    }
+    let err = null;
+    const updates = [];
+    for (const r of rows) {
+      const v = { name: r.name, start: r.start_date, end: r.end_date, scope: r.scope, status: r.status, owner: r.owner || "",
+        branches: safeParse(r.branches), kind: r.kind, sub: subOfRow(r), color: r.color, schedule: safeObj(r.schedule), acc: safeObj(r.acc) };
+      if (act === "shift") {
+        const n = Math.round(Number(body.days) || 0);
+        if (!n || Math.abs(n) > 366) { err = "จำนวนวันที่เลื่อนต้องอยู่ระหว่าง 1–366"; break; }
+        v.start = isoAdd(v.start, n); v.end = isoAdd(v.end, n);
+        if (v.schedule) {
+          v.schedule.ranges = (v.schedule.ranges || []).map((x) => ({ s: isoAdd(x.s, n), e: isoAdd(x.e || x.s, n) }));
+          if (v.schedule.rep && v.schedule.rep.until) v.schedule.rep.until = isoAdd(v.schedule.rep.until, n);
+        }
+      } else if (act === "dates") {
+        if (!ISO_RE.test(body.start)) { err = "เลือกวันเริ่ม"; break; }
+        const e = ISO_RE.test(body.end) ? body.end : body.start;
+        if (e < body.start) { err = "วันสิ้นสุดมาก่อนวันเริ่ม"; break; }
+        v.start = body.start; v.end = e; v.scope = "range"; v.schedule = null;
+      } else if (act === "owner") {
+        if (!names.length && mode !== "replace") { err = "เลือกชื่อก่อน"; break; }
+        v.owner = mergeList(String(v.owner).split(/\s*,\s*/).filter(Boolean)).join(", ").slice(0, 300);
+      } else if (act === "branches") {
+        if (!names.length && mode !== "replace") { err = "เลือกสาขาก่อน"; break; }
+        v.branches = mergeList(v.branches);
+      } else if (act === "status") {
+        if (["plan", "live", "done"].indexOf(body.status) === -1) { err = "สถานะไม่ถูกต้อง"; break; }
+        v.status = body.status;
+      } else if (act === "sub") {
+        if (!CAMPAIGN_SUBS[body.sub]) { err = "ประเภทไม่ถูกต้อง"; break; }
+        v.sub = body.sub; v.kind = CAMPAIGN_SUBS[body.sub].kind; v.color = CAMPAIGN_SUBS[body.sub].color;
+      } else { err = "ไม่รู้จักคำสั่งนี้"; break; }
+      updates.push({ id: r.id, v });
+    }
+    if (err) return json({ error: err }, 400);
+    await db.batch(updates.map(({ id, v }) => db.prepare(
+      "UPDATE campaigns SET start_date=?, end_date=?, scope=?, status=?, owner=?, branches=?, kind=?, sub=?, color=?, schedule=?, updated_at=? WHERE id=?"
+    ).bind(v.start, v.end, v.scope, v.status, v.owner, JSON.stringify(v.branches), v.kind, v.sub, v.color,
+           v.schedule ? JSON.stringify(v.schedule) : "", now, id)));
+    /* วันเปลี่ยน → งานฝ่ายบัญชีที่ผูกอยู่อัปเดตช่วงวันในรายละเอียดตาม */
+    if (act === "shift" || act === "dates") {
+      for (const u of updates) if (u.v.acc && u.v.acc.need) await syncAccTask(db, u.id, u.v, who.id);
+    }
+    return json({ ok: true, changed: updates.length });
   }
 
   const idMatch = path.match(/^\/campaigns\/([A-Za-z0-9_-]{1,40})$/);
