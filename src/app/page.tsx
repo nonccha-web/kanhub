@@ -162,13 +162,16 @@ const jsonLd = {
         acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     },
+    /* Google ถือว่า Product ที่ไม่มี image หรือ offers = ใช้ไม่ได้ (critical) — ต้องมีทั้งคู่ทุกตัว */
     ...OFFERS.map((o) => ({
       "@type": "Product",
       name: o.name,
       description: o.tagline,
-      category: "เสื้อผ้ามือสองญี่ปุ่น",
+      image: `${SITE.url}${o.cover}`,
       brand: { "@type": "Brand", name: SITE.name },
       url: `${SITE.url}${o.href}`,
+      ...(o.price ? { offers: { "@type": "AggregateOffer", priceCurrency: "THB", lowPrice: o.price.low, highPrice: o.price.high,
+        offerCount: o.groups.length, availability: "https://schema.org/InStock", url: `${SITE.url}${o.href}` } } : {}),
     })),
   ],
 };
