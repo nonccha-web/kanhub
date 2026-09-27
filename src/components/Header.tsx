@@ -19,18 +19,18 @@ export function Header() {
         <Logo priority />
 
         {/* เมนูหลัก (จอใหญ่) */}
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-1 xl:flex">
           {NAV.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
+            /* เลือกเมนูที่ href ยาวสุดที่ตรง — /catalog/stock ต้องไม่ไปติด "สินค้า" (/catalog) ด้วย */
+            const best = NAV.filter((n) => n.href !== "/" && pathname.startsWith(n.href))
+              .sort((a, b) => b.href.length - a.href.length)[0];
+            const active = item.href === "/" ? pathname === "/" : best?.href === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "rounded-lg px-3 py-2 text-[15px] font-medium transition-colors",
+                  "whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-medium transition-colors",
                   active
                     ? "text-brand"
                     : "text-ink/80 hover:text-brand hover:bg-cream-100"
@@ -56,7 +56,7 @@ export function Header() {
             type="button"
             aria-label="เปิดเมนู"
             onClick={() => setOpen((v) => !v)}
-            className="grid h-10 w-10 place-items-center rounded-lg border border-hair text-ink lg:hidden"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-hair text-ink xl:hidden"
           >
             <span className="sr-only">เมนู</span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -72,7 +72,7 @@ export function Header() {
 
       {/* เมนูมือถือ */}
       {open && (
-        <div className="border-t border-hair bg-cream lg:hidden">
+        <div className="border-t border-hair bg-cream xl:hidden">
           <Container className="flex flex-col py-3">
             {NAV.map((item) => (
               <Link

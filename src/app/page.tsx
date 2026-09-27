@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/Container";
-import { Countdown } from "@/components/home/Countdown";
 import { LineIcon, FbIcon } from "@/components/BrandIcons";
 import { FbEmbed } from "@/components/FbEmbed";
 import { SITE } from "@/lib/site";
-import { imagesFor, SAMPLE_GROUPS } from "@/lib/product-images";
+import { SAMPLE_GROUPS } from "@/lib/product-images";
+import { OFFERS, PROMO } from "@/lib/offers";
+import { OfferCard } from "@/components/sale/OfferCard";
+import stock from "@/lib/stock-prices.json";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
 
@@ -23,94 +25,19 @@ const TRUST = [
   { icon: "🚚", title: "ส่งทั่วไทย", desc: "มารับเองที่โกดังก็ได้" },
 ];
 
-// สินค้าเรือธง (ราคาเคาะจริงจากไฟล์ KAN — sheet "รวมทุกสินค้า")
-const PRODUCTS = [
-  {
-    img: "/img/products/tier-a/tokyo/1.jpg",
-    badge: "ขายดีที่สุด",
-    name: "ก้อนผ้า TOKYO",
-    code: "Tier A · ยกก้อน · ~350 กก.",
-    price: "15,750฿",
-    original: null,
-  },
-  {
-    img: "/img/products/tier-a/nagoya/1.jpg",
-    badge: "งานพรีเมียม",
-    name: "ก้อนผ้า NAGOYA",
-    code: "Tier A · ยกก้อน · ~350 กก.",
-    price: "14,000฿",
-    original: null,
-  },
-  {
-    img: "/img/products/tier-a/osaka/1.jpg",
-    badge: "คุ้มสุด",
-    name: "ก้อนผ้า OSAKA",
-    code: "Tier A · ยกก้อน · ~300 กก.",
-    price: "11,700฿",
-    original: null,
-  },
-];
+// รูปจริงของโปรปัจจุบัน (หน้า /grade-b/) — โชว์บนส่วนบนสุด
+const PROMO_SHOTS = ["dress-02", "tops-05", "skirt-04", "pants-03"].map((k) => `/grade-b/img/${k}-s.webp`);
+
+// ตัวอย่างเรทรายตัวบนหน้าแรก — ดึงจากชีต KAN#0 (stock-prices.json)
+const LADDER_ITEMS = ["ชุดเดรสคละแบบ", "เสื้อโค้ทวูล", "กางเกงยีนส์"]
+  .map((n) => stock.items.find((i) => i.name === n))
+  .filter((i): i is (typeof stock.items)[number] => !!i);
 
 // ตัวอย่างของในก้อน — โชว์บนหน้าแรก 8 รูป (คละหมวด) ที่เหลือดูได้ที่ /catalog#samples
 const HOME_SAMPLES = SAMPLE_GROUPS.flatMap((grp) =>
   grp.images.slice(0, grp.key === "jeans" ? 2 : 1).map((src) => ({ src, label: grp.label }))
 );
 const SAMPLE_TOTAL = SAMPLE_GROUPS.reduce((n, grp) => n + grp.images.length, 0);
-
-// สินค้าแนะนำแยกตามหมวดขายส่ง (Tier A–D) — ราคาเคาะจริงจาก kan-prices.json
-// รูปสินค้า: ดึงจาก PRODUCT_IMAGES (imagesFor) — ตัวไหนยังไม่มีรูปจะขึ้น placeholder
-const TIERS = [
-  {
-    key: "A",
-    accent: "#c8102e",
-    onGold: false,
-    title: "ก้อนผ้า — ยกก้อน",
-    desc: "ก้อนใหญ่ ~300–350 กก. นำเข้าตรงจากญี่ปุ่น คุ้มสุดต่อกิโล",
-    items: [
-      { name: "ก้อนผ้า TOKYO", unit: "ก้อน", price: "15,750฿" },
-      { name: "ก้อนผ้า NAGOYA", unit: "ก้อน", price: "14,000฿" },
-      { name: "ก้อนผ้า OSAKA", unit: "ก้อน", price: "11,700฿" },
-    ],
-  },
-  {
-    key: "B",
-    accent: "#e0a93b",
-    onGold: true,
-    title: "โค้ท & ไหมพรม",
-    desc: "งานหน้าหนาว ขายดีช่วงปลายปี — คิดเป็นถุง",
-    items: [
-      { name: "ไหมพรม", unit: "ถุง", price: "7,400฿" },
-      { name: "โค้ทรวม", unit: "ถุง", price: "5,800฿" },
-      { name: "โค้ทขนเป็ด", unit: "ถุง", price: "4,800฿" },
-      { name: "โค้ทผ้าบาง", unit: "ถุง", price: "3,100฿" },
-    ],
-  },
-  {
-    key: "C",
-    accent: "#0e7c66",
-    onGold: false,
-    title: "ผ้าเหมา & คัดแยก",
-    desc: "เริ่มต้นถูก ทดลองตลาดได้ — คิดเป็นถุง/ลัง",
-    items: [
-      { name: "ผ้าคัดแยกจากก้อน", unit: "ถุง", price: "7,850฿" },
-      { name: "ผ้าเหมาหาง", unit: "ถุง", price: "890฿" },
-      { name: "เหมาหางนคร", unit: "ลัง", price: "830฿" },
-    ],
-  },
-  {
-    key: "D",
-    accent: "#6b6360",
-    onGold: false,
-    title: "เบ็ดเตล็ด & งานพิเศษ",
-    desc: "กระเป๋า ผ้าพันคอ ของเล่น ฯลฯ — พาเลท/ลัง/แบ็ก",
-    items: [
-      { name: "ผ้าพันคอ", unit: "พาเลท", price: "13,800฿" },
-      { name: "กระเป๋าใบเล็ก", unit: "แบ็ก", price: "6,200฿" },
-      { name: "สินค้าเทศกาล", unit: "ลัง", price: "4,200฿" },
-      { name: "ของเล่น", unit: "ลัง", price: "880฿" },
-    ],
-  },
-];
 
 const WHY = [
   {
@@ -163,15 +90,15 @@ const REVIEWS = [
 const FAQ = [
   {
     q: "กระสอบมือสอง 1 กระสอบกี่ตัว?",
-    a: "ขึ้นกับหมวด — เสื้อยืด ~180–220 ตัว, ยีนส์ ~90–110 ตัว, เดรส ~160–200 ตัว ต่อกระสอบ 45 กก. เราระบุจำนวนโดยประมาณไว้ทุกการ์ดสินค้า",
+    a: "กระสอบ 45 กก. ขึ้นกับความหนาของผ้า — ผ้าบาง ~250 ตัว (เฉลี่ย ~20฿/ตัว), ผ้าหนา ~100 ตัว (~50฿/ตัว), ผ้าหนามาก ~60 ตัว (~83฿/ตัว) ราคาราว 5,000฿ ต่อกระสอบ",
   },
   {
     q: "เกรด A กับ B ต่างกันยังไง?",
-    a: "เกรด A คือสภาพดีพร้อมขาย ตำหนิน้อยมาก เหมาะแขวนร้าน · เกรด B มีตำหนิเล็กน้อย ราคาถูกกว่า เหมาะขายเหมา/ตลาดนัด",
+    a: "เกรด A คือสภาพดีพร้อมขาย ตำหนิน้อยมาก เหมาะแขวนร้าน · เกรด B-C มีตำหนิเล็กน้อย ราคาถูกกว่ามาก เหมาะขายเหมา/ตลาดนัด — กระสอบ 45 กก. เป็นเกรด A-B ส่วนกระสอบโปรโมชั่นเป็นเกรด B-C",
   },
   {
-    q: "สั่งกระสอบ ขั้นต่ำเท่าไหร่?",
-    a: "เริ่มได้ที่ 1 กระสอบ ไม่มีขั้นต่ำสูง เหมาะทั้งมือใหม่ทดลองตลาดและร้านประจำที่รับซ้ำ",
+    q: "สั่งขั้นต่ำเท่าไหร่?",
+    a: "ผ้าสต๊อกคัดเองเริ่มได้ตั้งแต่ 1 ตัว (ยิ่งเยอะยิ่งถูก คิดราคาเองได้ที่หน้า คิดราคา) · ถ้าให้เราเลือกให้ ขั้นต่ำ 100 กก. 1,500฿ รวมส่ง · กระสอบ 45 กก. และก้อน 350 กก. เริ่มที่ 1 กระสอบ/ก้อน",
   },
   {
     q: "มารับเองที่โกดังได้ไหม?",
@@ -234,18 +161,13 @@ const jsonLd = {
         acceptedAnswer: { "@type": "Answer", text: f.a },
       })),
     },
-    ...PRODUCTS.map((p) => ({
+    ...OFFERS.map((o) => ({
       "@type": "Product",
-      name: p.name,
-      category: "กระสอบเสื้อผ้ามือสองญี่ปุ่น",
+      name: o.name,
+      description: o.tagline,
+      category: "เสื้อผ้ามือสองญี่ปุ่น",
       brand: { "@type": "Brand", name: SITE.name },
-      offers: {
-        "@type": "Offer",
-        price: p.price.replace(/[^\d]/g, ""),
-        priceCurrency: "THB",
-        availability: "https://schema.org/InStock",
-        url: SITE.url,
-      },
+      url: `${SITE.url}${o.href}`,
     })),
   ],
 };
@@ -253,7 +175,7 @@ const jsonLd = {
 export const metadata = {
   title: "ขายส่งเสื้อผ้ามือสองญี่ปุ่น ยกกระสอบ · ก้อนผ้านำเข้าตรง",
   description:
-    "KAN HUB โกดังขายส่งก้อนผ้า/กระสอบเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรงไม่ผ่านคนกลาง คัดเกรด A ราคาส่งต้นทาง เริ่ม 1 กระสอบ ส่งทั่วไทย — เจ้าแรกภาคใต้",
+    "KAN HUB โกดังขายส่งเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรง — ก้อนผ้า 350 กก. · กระสอบ 45 กก. เกรด A-B · โปร 250 ตัว 1,500฿ ส่งฟรี · คัดเองรายตัวคิดราคาได้ ส่งทั่วไทย — เจ้าแรกภาคใต้",
   keywords: [
     "ก้อนผ้า", "ขายก้อนผ้า", "ผ้ากระสอบ", "ซื้อผ้ากระสอบ",
     "กระสอบเสื้อผ้ามือสอง", "เสื้อผ้ามือสองยกกระสอบ",
@@ -269,48 +191,39 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* ---------- HERO ---------- */}
-      <section className="relative isolate overflow-hidden bg-dark">
-        <Image
-          src="/img/hero-warehouse.jpg"
-          alt="โกดังกระสอบเสื้อผ้ามือสองญี่ปุ่น KAN HUB"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-black/45" />
-        <Container className="relative flex min-h-[560px] flex-col justify-end pb-12 pt-24">
-          <h1 className="fade-rise fade-rise-1 max-w-3xl text-4xl font-extrabold leading-[1.15] text-white sm:text-5xl">
-            โกดังขายส่งเสื้อผ้ามือสอง
-            <br />
-            ญี่ปุ่น นำเข้าตรง — เจ้าแรกภาคใต้
-          </h1>
-          <div className="fade-rise fade-rise-2 mt-5 flex flex-wrap gap-2">
-            {HERO_CHIPS.map((c) => (
-              <span
-                key={c}
-                className="rounded-full border border-white/25 bg-white/15 px-3.5 py-1.5 text-[13px] font-medium text-white backdrop-blur-sm"
-              >
-                ✓ {c}
+      {/* ---------- HERO = โปรตามซีซั่น (PROMO ใน offers.ts) ---------- */}
+      <section className="border-b border-hair bg-white">
+        <Container className="grid items-center gap-8 py-10 sm:py-14 lg:grid-cols-[1.1fr_1fr]">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-brand px-3.5 py-1 text-[13px] font-bold text-brand">
+              <span className="live-dot h-2 w-2 rounded-full bg-brand" /> ราคาพิเศษ จนกว่าของจะหมด
+            </span>
+            <h1 className="mt-4 font-extrabold leading-[1.05] text-ink">
+              <span className="block text-xl font-semibold text-muted sm:text-2xl">กระสอบผ้าโปรโมชั่น · เกรด B-C คละแบบ</span>
+              <span className="mt-1 block text-[64px] text-brand sm:text-[88px]">1,500<span className="ml-1 text-[0.4em] font-bold">บาท</span></span>
+              <span className="block text-4xl text-brand-dark sm:text-5xl">ได้ 250 ตัว</span>
+              <span className="mt-3 inline-flex items-baseline gap-2 text-3xl sm:text-4xl">ส่งฟรี<small className="text-[13px] font-semibold text-muted">*ภาคกลาง และภาคใต้</small></span>
+            </h1>
+            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted">
+              ผ้าปลดราวคละ <b className="text-ink">เสื้อแฟชั่น · เดรส · กางเกง · กระโปรง</b> เหมาะร้านเปิดท้าย ตลาดนัด ขายไลฟ์ ดูรูปจริงทุกตัวได้ในหน้าโปร
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a href={PROMO.href} className={`${btn} bg-brand px-8 text-[17px] text-white shadow-[0_5px_0_#9e0b22] hover:bg-brand-dark`}>
+                {PROMO.cta} · ดูรูปจริง
+              </a>
+              <Link href="/catalog" className={`${btn} border-[1.5px] border-ink text-ink hover:bg-cream-100`}>
+                ดูสินค้าทั้ง 4 แบบ
+              </Link>
+            </div>
+          </div>
+          <a href={PROMO.href} className="grid grid-cols-2 gap-2.5" aria-label="ดูรูปผ้าโปรโมชั่นทั้งหมด">
+            {PROMO_SHOTS.map((src, i) => (
+              <span key={src} className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-cream-100">
+                <Image src={src} alt="" fill priority={i < 2} sizes="(max-width:1024px) 50vw, 250px" className="object-cover" />
               </span>
             ))}
-          </div>
-          <div className="fade-rise fade-rise-3 mt-6 flex flex-wrap gap-3">
-            <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} bg-line text-white shadow-lg shadow-line/30 hover:bg-line-dark`}>
-              <LineIcon /> ทักไลน์ดูราคา
-            </a>
-            <Link href="/catalog" className={`${btn} border-[1.5px] border-white/40 text-white hover:bg-white/10`}>
-              ดูกระสอบทั้งหมด
-            </Link>
-          </div>
+          </a>
         </Container>
-        {/* จุด carousel */}
-        <div className="absolute bottom-5 right-5 flex gap-1.5">
-          <span className="h-2 w-6 rounded-full bg-white" />
-          <span className="h-2 w-2 rounded-full bg-white/45" />
-          <span className="h-2 w-2 rounded-full bg-white/45" />
-        </div>
       </section>
 
       {/* ---------- TRUST BAR ---------- */}
@@ -327,6 +240,65 @@ export default function Home() {
           ))}
         </Container>
       </section>
+
+      {/* ---------- 4 แบบขาย (แทนก้อนเรือธง + โปร TOKYO + Tier A–D เดิม) ---------- */}
+      <section className="bg-cream-100 py-16">
+        <Container>
+          <div className="text-center">
+            <Eyebrow>เลือกแบบที่ใช่</Eyebrow>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">ขายส่งเสื้อผ้ามือสองญี่ปุ่น 4 แบบ</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-[15px] text-muted">
+              ตั้งแต่ยกก้อน 350 กก. ไปจนถึงคัดเองทีละตัว — ราคาเฉลี่ยแยกทุกกลุ่ม เลือกตามงบได้เลย
+            </p>
+          </div>
+          <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {OFFERS.map((o, i) => (
+              <OfferCard key={o.key} o={o} featured={i === 0} />
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- คัดเองรายตัว: ตัวอย่างเรทจากชีต KAN#0 ---------- */}
+      <section className="bg-dark py-16 text-white">
+        <Container>
+          <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.2fr]">
+            <div>
+              <Eyebrow>คัดเองรายตัว</Eyebrow>
+              <h2 className="text-2xl font-bold sm:text-3xl">ยิ่งเยอะ ยิ่งถูก — คิดราคาเองได้ทันที</h2>
+              <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/70">
+                เลือกหมวด ใส่จำนวน ระบบคิดราคาตามขั้นให้เลย แล้วกดส่งให้ทีมงานยืนยันราคาและค่าส่ง หรือให้เราเลือกให้ เหมา 100 กก. 1,500฿ รวมส่ง
+              </p>
+              <Link href="/catalog/stock" className={`${btn} mt-6 bg-brand px-8 text-white hover:bg-brand-dark`}>
+                เปิดเครื่องคิดราคา →
+              </Link>
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+              <table className="w-full min-w-[440px] text-center text-[13px]">
+                <thead>
+                  <tr className="text-white/60">
+                    <th className="px-3 py-3 text-left font-medium">บาท/ตัว</th>
+                    {stock.steps.map((st) => (
+                      <th key={st.label} className="px-2 py-3 font-medium">{st.label.replace(" ตัวขึ้นไป", "+").replace(" ตัว", "")}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {LADDER_ITEMS.map((it) => (
+                    <tr key={it.sku} className="border-t border-white/10">
+                      <td className="px-3 py-3 text-left font-semibold">{it.name}</td>
+                      {it.prices.map((p, i) => (
+                        <td key={i} className={`px-2 py-3 tabular-nums ${i === it.prices.length - 1 ? "font-extrabold text-gold" : "text-white/85"}`}>{p}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Container>
+      </section>
+
 
       {/* ---------- VIDEO SHOWCASE (คลิปจากเพจ) + SEO ---------- */}
       <section className="bg-cream py-16">
@@ -421,191 +393,6 @@ export default function Home() {
                 }
               />
             </div>
-          </div>
-        </Container>
-      </section>
-
-      {/* ---------- PRODUCTS ---------- */}
-      <section className="bg-cream-100 py-16">
-        <Container>
-          <div className="text-center">
-            <Eyebrow>เลือกแบบที่ใช่</Eyebrow>
-            <h2 className="text-2xl font-bold text-ink sm:text-3xl">
-              ก้อนผ้านำเข้าตรงจากญี่ปุ่น คัดเกรด A
-            </h2>
-            <p className="mx-auto mt-2 max-w-xl text-[15px] text-muted">
-              เลือกก้อนตามเมืองต้นทาง — TOKYO · NAGOYA · OSAKA ราคาส่งเคาะจริงจากโกดัง
-            </p>
-          </div>
-          <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {PRODUCTS.map((p) => (
-              <div key={p.name} className="group overflow-hidden rounded-2xl border border-hair bg-white shadow-sm">
-                <div className="relative aspect-[4/3] overflow-hidden bg-[#2a2120]">
-                  <Image
-                    src={p.img}
-                    alt={p.name}
-                    fill
-                    sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 360px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <span className="absolute left-3 top-3 rounded-md bg-brand px-2.5 py-1 text-xs font-bold text-white">
-                    {p.badge}
-                  </span>
-                </div>
-                <div className="p-5">
-                  <h3 className="text-lg font-semibold text-ink">{p.name}</h3>
-                  <p className="mt-1 text-[13px] text-muted">{p.code}</p>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-2xl font-extrabold text-brand">{p.price}</span>
-                    {p.original && (
-                      <span className="text-sm text-muted line-through">{p.original}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-9 text-center">
-            <Link href="/catalog" className={`${btn} bg-brand text-white hover:bg-brand-dark`}>
-              ดูแคตตาล็อกทั้งหมด
-            </Link>
-          </div>
-        </Container>
-      </section>
-
-      {/* ---------- PROMO BANNER ---------- */}
-      <section className="bg-cream py-16">
-        <Container>
-          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-gold to-gold-dark px-6 py-10 sm:px-12">
-            <div className="flex flex-col items-center gap-8 text-center md:flex-row md:justify-between md:text-left">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-wide text-dark/70">
-                  ⚡ โปรเดือนนี้เท่านั้น
-                </p>
-                <h2 className="mt-2 text-2xl font-extrabold text-dark sm:text-3xl">
-                  ก้อนเด็ด — ก้อนผ้า TOKYO
-                </h2>
-                <div className="mt-2 flex flex-col items-center gap-1 md:items-start">
-                  <span className="text-4xl font-black text-brand sm:text-5xl">15,750฿ <span className="text-xl font-bold text-dark/70">/ ก้อน</span></span>
-                  <span className="text-sm font-medium text-dark/70">ยกก้อน ~350 กก. · Tier A · เหลือ 105 ก้อนในสต๊อก</span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-5">
-                <Countdown />
-                <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} w-full bg-brand text-white hover:bg-brand-dark`}>
-                  <LineIcon /> จองก้อนเด็ดเลย
-                </a>
-              </div>
-            </div>
-          </div>
-        </Container>
-      </section>
-
-      {/* ---------- สินค้าแนะนำแยกตามหมวด (Tier A–D) ---------- */}
-      <section className="bg-cream py-16">
-        <Container>
-          <div className="text-center">
-            <Eyebrow>ขายส่งยกกระสอบ</Eyebrow>
-            <h2 className="text-2xl font-bold text-ink sm:text-3xl">
-              สินค้าแนะนำ — แยกตามหมวด Tier A–D
-            </h2>
-            <p className="mx-auto mt-2 max-w-2xl text-[15px] text-muted">
-              เลือกงานให้เข้ากับหน้าร้าน ตั้งแต่ก้อนใหญ่ยกกระสอบ ไปจนถึงงานเบ็ดเตล็ดเริ่มต้นถูก — ราคาส่งเคาะจริงจากโกดัง
-            </p>
-          </div>
-
-          <div className="mt-10 space-y-12">
-            {TIERS.map((tier) => (
-              <div key={tier.key}>
-                {/* หัวข้อ Tier */}
-                <div className="flex items-center gap-3.5">
-                  <span
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-lg font-extrabold"
-                    style={{ background: tier.accent, color: tier.onGold ? "#1a1413" : "#fff" }}
-                  >
-                    {tier.key}
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-bold text-ink">
-                      Tier {tier.key} · {tier.title}
-                    </h3>
-                    <p className="text-[13px] text-muted">{tier.desc}</p>
-                  </div>
-                </div>
-
-                {/* การ์ดสินค้า — ใช้รูปจริงถ้ามี ไม่มีค่อยขึ้น placeholder */}
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {tier.items.map((it) => {
-                    const imgs = imagesFor(it.name);
-                    return (
-                    <div
-                      key={it.name}
-                      className="overflow-hidden rounded-2xl border border-hair bg-white shadow-sm"
-                    >
-                      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden border-b border-hair bg-cream-100">
-                        {imgs.length ? (
-                          <Image
-                            src={imgs[0]}
-                            alt={it.name}
-                            fill
-                            sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 300px"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <>
-                            <Image
-                              src="/img/logo-kanhub.png"
-                              alt=""
-                              width={885}
-                              height={418}
-                              aria-hidden
-                              className="w-24 opacity-[0.13]"
-                            />
-                            <span className="absolute bottom-2 text-[11px] text-muted/70">
-                              รูปสินค้าเร็วๆ นี้
-                            </span>
-                          </>
-                        )}
-                        <span
-                          className="absolute left-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-md text-xs font-bold"
-                          style={{ background: tier.accent, color: tier.onGold ? "#1a1413" : "#fff" }}
-                        >
-                          {tier.key}
-                        </span>
-                        {imgs.length > 1 && (
-                          <span className="absolute bottom-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
-                            📷 {imgs.length} รูป
-                          </span>
-                        )}
-                      </div>
-                      <div className="p-4">
-                        <h4 className="text-[15px] font-semibold text-ink">{it.name}</h4>
-                        <p className="mt-0.5 text-[12px] text-muted">ยกเป็น{it.unit}</p>
-                        <div className="mt-2 flex items-baseline gap-1">
-                          <span className="text-xl font-extrabold text-brand">{it.price}</span>
-                          <span className="text-[12px] text-muted">/ {it.unit}</span>
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-11 flex flex-wrap justify-center gap-3">
-            <a
-              href={SITE.lineUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${btn} bg-line text-white hover:bg-line-dark`}
-            >
-              <LineIcon /> ทักไลน์ขอราคาทุก Tier
-            </a>
-            <Link href="/catalog" className={`${btn} border-[1.5px] border-hair bg-white text-ink hover:bg-cream-100`}>
-              ดูแคตตาล็อกทั้งหมด
-            </Link>
           </div>
         </Container>
       </section>

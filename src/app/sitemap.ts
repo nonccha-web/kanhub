@@ -5,7 +5,7 @@ export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   // หน้าแรกสำคัญสุด + หน้าอื่นๆ ตามเมนู (จะเปิดใช้เมื่อทำหน้าเสร็จ)
-  const routes = Array.from(new Set(["/", ...NAV.map((n) => n.href)]));
+  const routes = Array.from(new Set(["/", ...NAV.map((n) => n.href), "/catalog/bale", "/catalog/sack-45", "/grade-b/"]));
   return routes.map((path) => ({
     url: `${SITE.url}${path === "/" ? "" : path}`,
     changeFrequency: path === "/" ? "weekly" : "monthly",

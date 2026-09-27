@@ -2,26 +2,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/Container";
 import { LineIcon } from "@/components/BrandIcons";
-import { TIERS } from "@/lib/tiers";
+import { OFFERS } from "@/lib/offers";
+import { OfferCard } from "@/components/sale/OfferCard";
 import { SITE } from "@/lib/site";
 import { SAMPLE_GROUPS } from "@/lib/product-images";
-import data from "@/lib/kan-prices.json";
 
 export const metadata = {
-  title: "ซื้อผ้ากระสอบ & ก้อนผ้ามือสองญี่ปุ่น — เลือกตาม Tier A–D",
+  title: "ซื้อก้อนผ้า กระสอบผ้า & ผ้ามือสองรายตัว — 4 แบบตามงบ",
   description:
-    "เลือกซื้อกระสอบ/ก้อนผ้าเสื้อผ้ามือสองญี่ปุ่นตามระดับงาน Tier A–D ของ KAN HUB — นำเข้าตรง คัดเกรด A ราคาส่งต้นทาง เริ่ม 1 กระสอบ ส่งทั่วไทย เปิดกระสอบถ่ายให้ดูก่อนส่ง",
+    "เสื้อผ้ามือสองญี่ปุ่นจาก KAN HUB 4 แบบ: ก้อนผ้า 350 กก. · กระสอบ 45 กก. เกรด A-B · กระสอบโปร 250 ตัว 1,500฿ ส่งฟรี · ผ้าสต๊อกรายตัว คิดราคาเองได้ — นำเข้าตรง ส่งทั่วไทย",
   keywords: ["ผ้ากระสอบ", "ซื้อผ้ากระสอบ", "กระสอบเสื้อผ้ามือสอง", "ก้อนผ้า", "เสื้อผ้ามือสองยกกระสอบ", "ขายส่งเสื้อผ้ามือสองญี่ปุ่น"],
   alternates: { canonical: "/catalog" },
 };
 
-type P = { tier: string; price_final: number | null };
-const products = data.products as P[];
-const baht = (n: number) => `${n.toLocaleString("en-US")}฿`;
-function range(key: string) {
-  const p = products.filter((x) => x.tier === key && x.price_final != null).map((x) => x.price_final as number);
-  return p.length ? { min: Math.min(...p), max: Math.max(...p) } : null;
-}
 
 const btn = "inline-flex items-center justify-center gap-1.5 rounded-xl px-6 py-3.5 text-[15px] font-semibold transition-colors";
 
@@ -36,14 +29,14 @@ const PAINS = [
 const PROMISES = [
   { icon: "🚢", t: "นำเข้าตรงญี่ปุ่น ไม่ผ่านคนกลาง", d: "ตู้เข้าท่าเรือตรงถึงโกดัง คุณได้ราคาต้นทาง กำไรเต็มไม้เต็มมือ" },
   { icon: "📸", t: "เปิดกระสอบถ่ายให้ดูก่อนส่ง", d: "บริษัทจริง มีโกดัง 4 สาขาให้มาดูของ เห็นของจริงทุกก้อน ไม่ต้องเสี่ยง" },
-  { icon: "🎯", t: "เลือกได้ 4 ระดับตามงบ", d: "Tier A–D เริ่มที่กระสอบเดียวก็ได้ เลือกงานให้ตรงกลุ่มลูกค้าหน้าร้าน" },
+  { icon: "🎯", t: "เลือกได้ 4 แบบตามงบ", d: "ตั้งแต่ยกก้อน 350 กก. ไปจนถึงคัดเองทีละตัว เลือกงานให้ตรงกลุ่มลูกค้าหน้าร้าน" },
 ];
 
 const STATS = [
   { n: "4", l: "สาขาโกดังภาคใต้" },
   { n: "100%", l: "นำเข้าตรงญี่ปุ่น" },
   { n: "1", l: "กระสอบก็เริ่มได้" },
-  { n: "เกรด A", l: "มาตรฐานการคัด" },
+  { n: "4 แบบ", l: "เลือกตามงบ" },
 ];
 
 const REVIEWS = [
@@ -69,19 +62,19 @@ export default function CatalogPage() {
       <section className="bg-dark py-16 text-white sm:py-20">
         <Container>
           <div className="max-w-3xl">
-            <Eyebrow>แคตตาล็อกขายส่ง · เริ่มที่ 1 กระสอบ</Eyebrow>
+            <Eyebrow>แคตตาล็อกขายส่ง · เริ่มได้ตั้งแต่ 1 ตัว</Eyebrow>
             <h1 className="text-3xl font-extrabold leading-tight sm:text-[42px] sm:leading-[1.15]">
               เปิดร้านเสื้อผ้ามือสองให้กำไรดี<br />เริ่มที่ “ก้อนผ้า” ญี่ปุ่นนำเข้าตรง
             </h1>
             <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-white/70">
-              เลือกกระสอบ/ก้อนผ้าคัดเกรด A ตามงบและกลุ่มลูกค้าของคุณ — บริษัทจริง เปิดกระสอบถ่ายให้ดูก่อนส่ง ส่งทั่วไทย
+              ยกก้อน ยกกระสอบ หรือคัดเองรายตัว เลือกตามงบและกลุ่มลูกค้าของคุณ — บริษัทจริง เปิดกระสอบถ่ายให้ดูก่อนส่ง ส่งทั่วไทย
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} bg-line text-white shadow-lg shadow-line/30 hover:bg-line-dark`}>
                 <LineIcon /> ทักไลน์ให้แนะนำก้อนที่ใช่
               </a>
               <a href="#tiers" className={`${btn} border-[1.5px] border-white/40 text-white hover:bg-white/10`}>
-                ดูสินค้าทั้ง 4 ระดับ ↓
+                ดูสินค้าทั้ง 4 แบบ ↓
               </a>
             </div>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-white/60">
@@ -129,49 +122,18 @@ export default function CatalogPage() {
         </Container>
       </section>
 
-      {/* 4. TIERS — the product menu */}
+      {/* 4. OFFERS — 4 แบบขาย (แทน Tier A–D) */}
       <section id="tiers" className="scroll-mt-20 bg-cream py-16">
         <Container>
           <div className="text-center">
             <Eyebrow>เลือกแบบที่ใช่</Eyebrow>
-            <h2 className="text-2xl font-bold text-ink sm:text-3xl">สินค้าทั้ง 4 ระดับ — เลือกตามงบ & กลุ่มลูกค้า</h2>
-            <p className="mx-auto mt-2 max-w-xl text-[15px] text-muted">กดเข้าไปดูรายละเอียด + ราคาของแต่ละ Tier ได้เลย</p>
+            <h2 className="text-2xl font-bold text-ink sm:text-3xl">สินค้าทั้ง 4 แบบ — เลือกตามงบ & กลุ่มลูกค้า</h2>
+            <p className="mx-auto mt-2 max-w-xl text-[15px] text-muted">ราคาเฉลี่ยแยกให้ทุกกลุ่ม กดเข้าไปดูรายละเอียด หรือคิดราคาเองได้เลย</p>
           </div>
-          <div className="mt-9 grid gap-6 sm:grid-cols-2">
-            {TIERS.map((t) => {
-              const r = range(t.key);
-              return (
-                <Link key={t.slug} href={`/catalog/${t.slug}`} className="group flex flex-col overflow-hidden rounded-2xl border border-hair bg-white transition-shadow hover:shadow-md">
-                  <div className="relative flex aspect-[16/7] items-end justify-between overflow-hidden p-4 text-white" style={{ background: `linear-gradient(135deg, ${t.accent}, #1a1413)` }}>
-                    {t.cover ? (
-                      <>
-                        <Image src={t.cover} alt={t.name} fill sizes="(max-width:640px) 100vw, 540px" className="object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-                        <span className="relative rounded-md px-2 py-0.5 text-xs font-bold" style={{ background: t.accent, color: t.onGold ? "#1a1413" : "#fff" }}>Tier {t.key}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-6xl font-black leading-none opacity-25">{t.key}</span>
-                        <span className="text-[11px] opacity-80">รูปสินค้าเร็วๆ นี้</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col p-6">
-                    <h3 className="text-lg font-bold text-ink">Tier {t.key} · {t.name}</h3>
-                    <p className="text-[13px] text-muted">{t.unitNote}</p>
-                    <p className="mt-3 flex-1 text-[15px] leading-relaxed text-muted">{t.tagline}</p>
-                    {r && (
-                      <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-[13px] text-muted">เริ่มต้น</span>
-                        <span className="text-xl font-extrabold text-brand">{baht(r.min)}</span>
-                        {r.max !== r.min && <span className="text-[13px] text-muted">– สูงสุด {baht(r.max)}</span>}
-                      </div>
-                    )}
-                    <span className="mt-4 text-sm font-semibold text-brand group-hover:text-brand-dark">ดู Tier {t.key} →</span>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {OFFERS.map((o, i) => (
+              <OfferCard key={o.key} o={o} featured={i === 0} />
+            ))}
           </div>
         </Container>
       </section>
@@ -260,7 +222,7 @@ export default function CatalogPage() {
       <section className="bg-dark-2 py-16 text-white">
         <Container className="max-w-3xl text-center">
           <h2 className="text-2xl font-bold sm:text-3xl">พร้อมเริ่มต้นแล้วใช่ไหม? ทักมาเลือกก้อนแรกกัน</h2>
-          <p className="mx-auto mt-3 max-w-xl text-[15px] text-white/65">บอกงบและกลุ่มลูกค้าร้านคุณ ทีมงานแนะนำ Tier ที่เหมาะที่สุดให้ พร้อมส่งรูป/คลิปของจริง</p>
+          <p className="mx-auto mt-3 max-w-xl text-[15px] text-white/65">บอกงบและกลุ่มลูกค้าร้านคุณ ทีมงานแนะนำแบบที่เหมาะที่สุดให้ พร้อมส่งรูป/คลิปของจริง</p>
 
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href={SITE.lineUrl} target="_blank" rel="noopener noreferrer" className={`${btn} bg-line text-white hover:bg-line-dark`}>

@@ -12,7 +12,7 @@ export const metadata = {
 };
 
 const POINTS = [
-  { icon: "🧺", title: "ยกก้อน–ยกถุง ราคาส่งต้นทาง", desc: "ตั้งแต่ก้อนใหญ่ 300–350 กก. ไปจนถึงถุง/ลัง เลือกได้ตามงบและพื้นที่ร้าน" },
+  { icon: "🧺", title: "ยกก้อน–ยกกระสอบ–รายตัว", desc: "ตั้งแต่ก้อน 350 กก. กระสอบ 45 กก. ไปจนถึงคัดเองทีละตัว เลือกได้ตามงบและพื้นที่ร้าน" },
   { icon: "📉", title: "ยิ่งรับเยอะ ยิ่งถูก", desc: "ราคาคิดเป็นขั้นบันไดตามจำนวน — รับมากได้ราคาส่งสุด เหมาะร้านประจำ" },
   { icon: "🚚", title: "ส่งทั่วไทย ถึงหน้าร้าน", desc: "จัดส่งทุกจังหวัด แจ้งเลขพัสดุติดตามได้ หรือมารับเองที่โกดัง 4 สาขา" },
   { icon: "🏷️", title: "ติดป้าย–พับ พร้อมขาย", desc: "เสริมบริการจัดก้อนสด คัด % หมวด ติดป้ายราคา พับใส่ถุง เปิดร้านได้ทันที" },
@@ -21,15 +21,15 @@ const POINTS = [
 const QTY_TIERS = [
   { range: "1–2 ตัว", note: "ราคาปลีก" },
   { range: "3–5 ตัว", note: "ถูกลง" },
-  { range: "6–11 ตัว", note: "ถูกลงอีก" },
-  { range: "12–99 ตัว", note: "ราคาส่ง" },
+  { range: "6–24 ตัว", note: "ถูกลงอีก" },
+  { range: "25–99 ตัว", note: "ราคาส่ง" },
   { range: "100 ตัว+", note: "ส่งสุด 🔥" },
 ];
 
 const STATS = [
   { n: "77", l: "จังหวัดจัดส่ง" },
   { n: "4", l: "สาขาให้มารับเอง" },
-  { n: "1", l: "กระสอบก็เริ่มได้" },
+  { n: "1", l: "ตัวก็เริ่มได้" },
   { n: "100%", l: "นำเข้าตรงญี่ปุ่น" },
 ];
 
@@ -97,7 +97,7 @@ export default function WholesalePage() {
             <p className="eyebrow mb-2.5">ยิ่งรับเยอะ ยิ่งถูก</p>
             <h2 className="text-2xl font-bold sm:text-3xl">ราคาต่อตัวลดลงตามจำนวนที่รับ</h2>
             <p className="mx-auto mt-2 max-w-xl text-[15px] text-white/65">
-              ราคาปลีกคิดเป็นขั้นบันได — รับ 100 ตัวขึ้นไปได้ราคาส่งสุด (ราคาจริงต่อรายการแจ้งในไลน์)
+              ราคาคิดเป็นขั้นบันได นับแยกต่อรายการ — รับ 100 ตัวขึ้นไปได้ราคาส่งสุด ลองคิดราคาเองได้เลย
             </p>
           </div>
           <div className="mt-9 grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -112,7 +112,12 @@ export default function WholesalePage() {
               </div>
             ))}
           </div>
-          <p className="mt-5 text-center text-[13px] text-white/50">ตัวอย่าง: เสื้อโค้ทเริ่ม 100฿/ตัว → เหลือ 45฿/ตัว เมื่อรับ 100 ตัวขึ้นไป</p>
+          <p className="mt-5 text-center text-[13px] text-white/50">ตัวอย่าง: เสื้อโค้ทวูล 100฿/ตัว → เหลือ 45฿/ตัว เมื่อรับ 100 ตัวขึ้นไป</p>
+          <div className="mt-6 text-center">
+            <Link href="/catalog/stock" className="inline-flex items-center justify-center rounded-xl bg-brand px-7 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-dark">
+              เปิดเครื่องคิดราคา →
+            </Link>
+          </div>
         </Container>
       </section>
 

@@ -31,6 +31,7 @@ export type NavItem = {
 export const NAV: NavItem[] = [
   { label: "หน้าแรก", href: "/" },
   { label: "สินค้า", href: "/catalog" },
+  { label: "คิดราคา", href: "/catalog/stock" },
   { label: "ทำไมต้อง KAN", href: "/why-us" },
   { label: "ขายส่งทั่วไทย", href: "/wholesale" },
   { label: "วิธีสั่งซื้อ", href: "/how-to-order" },
@@ -44,10 +45,10 @@ export const FOOTER_COLUMNS: { title: string; links: NavItem[] }[] = [
   {
     title: "สินค้า",
     links: [
-      { label: "Tier A · ก้อนผ้า", href: "/catalog/tier-a" },
-      { label: "Tier B · โค้ท & ไหมพรม", href: "/catalog/tier-b" },
-      { label: "Tier C · ผ้าเหมา & คัดแยก", href: "/catalog/tier-c" },
-      { label: "Tier D · เบ็ดเตล็ด", href: "/catalog/tier-d" },
+      { label: "ก้อนผ้า 350 กก.", href: "/catalog/bale" },
+      { label: "กระสอบผ้า 45 กก.", href: "/catalog/sack-45" },
+      { label: "กระสอบผ้าโปรโมชั่น", href: "/grade-b/" },
+      { label: "ผ้าสต๊อก · คิดราคา", href: "/catalog/stock" },
     ],
   },
   {

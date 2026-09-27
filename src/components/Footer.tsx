@@ -42,12 +42,17 @@ export function Footer() {
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((l, i) => (
                   <li key={`${l.href}-${i}`}>
-                    <Link
-                      href={l.href}
-                      className="text-sm text-white/60 transition-colors hover:text-white"
-                    >
-                      {l.label}
-                    </Link>
+                    {/* หน้าโปร (/grade-b/) เป็นไฟล์ static นอกแอป Next ต้องใช้ <a> ธรรมดา */}
+                    {l.href.startsWith("/grade-b") ? (
+                      <a href={l.href} className="text-sm text-white/60 transition-colors hover:text-white">{l.label}</a>
+                    ) : (
+                      <Link
+                        href={l.href}
+                        className="text-sm text-white/60 transition-colors hover:text-white"
+                      >
+                        {l.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

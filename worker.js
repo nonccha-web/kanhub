@@ -631,6 +631,13 @@ export default {
       return await serveAdmin(request, env, url);
     }
 
+    /* หน้า Tier A–D เดิมถูกแทนด้วย 4 แบบขาย (25 ก.ย. 69) — 301 ไปหน้าใหม่ อันดับ Google ไม่หาย */
+    const oldTier = url.pathname.match(/^\/catalog\/tier-([a-d])\/?$/);
+    if (oldTier) {
+      const to = { a: "/catalog/bale/", b: "/catalog/stock/", c: "/catalog/stock/", d: "/catalog/" }[oldTier[1]];
+      return Response.redirect(url.origin + to, 301);
+    }
+
     // --- โดเมนหลักสาธารณะ: ซ่อน /admin (กันเข้าตรง) ---
     if (host === "kan-hub.com" || host === "www.kan-hub.com") {
       if (url.pathname === "/admin" || url.pathname.indexOf("/admin/") === 0) {

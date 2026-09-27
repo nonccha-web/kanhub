@@ -99,3 +99,6 @@ body {
   .fade-rise, .live-dot, .attn-wiggle, .attn-glow { animation: none !important; }
   .fade-rise { opacity: 1 !important; }
 }
+
+/* หน้าเครื่องคิดราคามีแถบสรุปติดขอบล่าง — ยกปุ่ม LINE ลอยขึ้นพ้นปุ่ม "ส่งให้ทีมยืนยันราคา" */
+body:has(.calc-bar) .contact-fab { bottom: 132px; }

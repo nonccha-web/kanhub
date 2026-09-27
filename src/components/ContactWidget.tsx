@@ -4,7 +4,7 @@ import { LineIcon } from "./BrandIcons";
 /** ปุ่มลอยมุมขวาล่าง — แอด LINE ด่วน (ทั้งปุ่มกระดุกกระดิกเรียกความสนใจ) */
 export function ContactWidget() {
   return (
-    <div className="attn-glow fixed bottom-5 right-5 z-40 rounded-full">
+    <div className="contact-fab attn-glow fixed bottom-5 right-5 z-40 rounded-full">
       <a
         href={SITE.lineUrl}
         target="_blank"

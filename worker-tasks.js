@@ -1,4 +1,5 @@
 import { notifyReviewSubmitted, sendLark } from "./worker-lark.js";
+import STOCK_PRICES from "./src/lib/stock-prices.json";
 import { handleBlastApi } from "./worker-blast.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
@@ -2991,7 +2992,7 @@ export async function handleTicketIntake(request, env, ctx) {
    → POST /api/sale-lead (ไม่ต้องล็อกอิน) → ลงตาราง leads ขั้น "new" ให้ทีมขายรับไปโทรต่อ
    ตาราง leads ไม่มีช่อง ip จึงกันสแปมด้วย ช่องล่อ + เบอร์ซ้ำใน 24 ชม. ไม่สร้างใบใหม่ + เพดานรวมต่อ 10 นาที */
 const SALE_PAGES = {
-  "grade-b": { title: "ผ้าเกรด B-C เหมา 1,500 บ./250 ตัว", url: "kan-hub.com/grade-b",
+  "grade-b": { title: "ผ้าเกรด B-C เหมา 1,500 บ./250 ตัว", url: "kan-hub.com/grade-b", verb: "จองสิทธิ์",
                cats: { tops: "เสื้อแฟชั่นรวม", dress: "เดรส", pants: "กางเกงรวม", skirt: "กระโปรง" } },
   /* หน้า kan-hub.com/winter (เสื้อกันหนาวคัดรายตัว — นนท์ 27 ก.ย. 69) · cats = รหัสตัวสินค้าในหน้า ชื่อต้องตรงกับ public/winter/index.html */
   "winter": { title: "เสื้อกันหนาวคัดรายตัว (Winter Edit)", url: "kan-hub.com/winter", verb: "สอบถามเสื้อกันหนาว",
@@ -3003,7 +3004,63 @@ const SALE_PAGES = {
                       p21: "โค้ตมีฮู้ดซับเชอร์ปาสีดำ", p22: "FILA แจ็คเก็ตเท็ดดี้สีน้ำตาล", p23: "ฟลีซทูโทน ส้มอิฐ × เขียวขี้ม้า", p24: "ฮู้ดดี้ขนแกะสีครีม",
                       p25: "โค้ตคาเมลแต่งขนที่ข้อมือ", p26: "โค้ตสีเทาปกขน", p27: "เทรนช์โค้ตสีเบจ", p28: "UNIQLO โค้ตยาวสีม่วงอ่อน",
                       p29: "เทรนช์โค้ตทรงบานสีแดง" } },
+  /* 4 แบบขายบนเว็บหลัก (นนท์ 25 ก.ย. 69) — ราคาต่อหน่วยไว้ประเมินมูลค่าลีด ทีมขายยืนยันราคาจริงอีกที */
+  "bale": { title: "ก้อนผ้า 350 กก.", url: "kan-hub.com/catalog/bale", verb: "สอบถามก้อนผ้า",
+            choices: { OSAKA: 8000, NAGOYA: 11000 }, unit: "ก้อน", maxQty: 20 },
+  "sack-45": { title: "กระสอบผ้า 45 กก. เกรด A-B", url: "kan-hub.com/catalog/sack-45", verb: "สอบถามกระสอบ",
+               choices: { "ผ้าบาง": 5000, "ผ้าหนา": 5000, "ผ้าหนามาก": 5000 }, unit: "กระสอบ", maxQty: 50 },
+  "stock-pick": { title: "ผ้าสต๊อก คัดเองรายตัว", url: "kan-hub.com/catalog/stock", verb: "ขอยืนยันราคา" },
+  "stock-bulk": { title: "ผ้าสต๊อก เหมา 100 กก.", url: "kan-hub.com/catalog/stock", verb: "สั่งเหมา 100 กก." },
 };
+
+/* ราคารายตัวคิดซ้ำฝั่งเซิร์ฟเวอร์จากไฟล์เดียวกับหน้าเว็บ — ไม่เชื่อยอดที่เบราว์เซอร์ส่งมา */
+function stockUnitPrice(item, qty) {
+  const steps = STOCK_PRICES.steps;
+  for (let i = steps.length - 1; i >= 0; i--) if (qty >= steps[i].min) return item.prices[i];
+  return item.prices[0];
+}
+
+/* แปลงสิ่งที่ลูกค้าเลือกในฟอร์มเป็นข้อความลีด + มูลค่าประเมิน */
+function saleSummary(key, page, body) {
+  const baht = (n) => Number(n).toLocaleString("en-US");
+  const lines = [];
+  let est = 0;
+  if (page.cats) {   /* grade-b + winter — เลือกจากรายการในหน้า */
+    const cats = (Array.isArray(body.cats) ? body.cats : []).map(String).filter((k) => page.cats[k]);
+    if (cats.length) lines.push("สนใจ: " + cats.map((k) => page.cats[k]).join(", "));
+    if (key === "grade-b") est = 1500;
+  } else if (page.choices) {
+    const choice = page.choices[body.choice] ? String(body.choice) : "";
+    if (!choice) return { error: "เลือกแบบที่สนใจด้วยนะคะ" };
+    const qty = Math.min(page.maxQty, Math.max(1, parseInt(body.qty, 10) || 1));
+    lines.push(choice + " × " + qty + " " + page.unit);
+    est = page.choices[choice] * qty;
+  } else if (key === "stock-pick") {
+    const bySku = {};
+    STOCK_PRICES.items.forEach((it) => { bySku[it.sku] = it; });
+    let pcs = 0;
+    (Array.isArray(body.items) ? body.items : []).slice(0, 60).forEach((x) => {
+      const it = bySku[String(x && x.sku)];
+      const qty = Math.min(5000, Math.max(0, parseInt(x && x.qty, 10) || 0));
+      if (!it || !qty) return;
+      const unit = stockUnitPrice(it, qty);
+      lines.push("• " + it.name + " × " + qty + " ตัว @" + unit + " = " + baht(unit * qty) + " บ.");
+      est += unit * qty; pcs += qty;
+    });
+    if (!lines.length) return { error: "เลือกสินค้าอย่างน้อย 1 รายการนะคะ" };
+    lines.unshift("รวม " + baht(pcs) + " ตัว · ประมาณ " + baht(est) + " บ. (ยังไม่รวมค่าส่ง)");
+  } else if (key === "stock-bulk") {
+    const lots = Math.min(50, Math.max(1, parseInt(body.qty, 10) || 1));
+    const pickup = !!body.pickup;
+    est = lots * (pickup ? 1000 : 1500);
+    lines.push(lots * 100 + " กก. · " + (pickup ? "มารับเองที่โกดัง" : "ส่งถึงที่ (ฟรีภาคกลาง/ใต้)") + " · " + baht(est) + " บ.");
+  }
+  const prov = String(body.province || "").trim().slice(0, 60);
+  if (prov) lines.push("จังหวัด: " + prov);
+  const note = String(body.note || "").trim().slice(0, 300);
+  if (note) lines.push("หมายเหตุ: " + note);
+  return { lines, est };
+}
 
 export async function handleSaleLead(request, env, ctx) {
   const cors = {
@@ -3021,15 +3078,17 @@ export async function handleSaleLead(request, env, ctx) {
   const body = await readBody(request);
   if (String(body.website || "").trim()) return json({ ok: true }, 200, cors);  /* บอทกรอกช่องล่อ */
 
-  const page = SALE_PAGES[String(body.page || "")];
+  const key = String(body.page || "");
+  const page = Object.prototype.hasOwnProperty.call(SALE_PAGES, key) ? SALE_PAGES[key] : null;
   if (!page) return json({ error: "ไม่พบแคมเปญนี้" }, 400, cors);
   const name = String(body.name || "").trim().slice(0, 80);
   const phone = String(body.phone || "").replace(/\D/g, "").slice(0, 15);
   if (!name) return json({ error: "ใส่ชื่อด้วยนะคะ" }, 400, cors);
   if (!/^0\d{8,9}$/.test(phone)) return json({ error: "เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)" }, 400, cors);
-  const cats = (Array.isArray(body.cats) ? body.cats : []).map(String).filter((k) => page.cats[k]);
-  const catTh = cats.map((k) => page.cats[k]).join(", ");
-  const interest = page.title + (catTh ? " · สนใจ: " + catTh : "");
+  const sum = saleSummary(key, page, body);
+  if (sum.error) return json({ error: sum.error }, 400, cors);
+  const catTh = sum.lines.join("\n");
+  const interest = (page.title + (catTh ? "\n" + catTh : "")).slice(0, 1000);
   const detail = "เว็บ " + page.url;
 
   const now = nowIso();
@@ -3041,7 +3100,7 @@ export async function handleSaleLead(request, env, ctx) {
   const own = await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1 ORDER BY id").first();
   const by = (own && own.id) || "s_nont";
   if (dup) {
-    await leadAct(db, dup.id, by, "note", "ลงทะเบียนซ้ำจากเว็บ — " + name + (catTh ? " · สนใจ: " + catTh : ""), null, null).run();
+    await leadAct(db, dup.id, by, "note", "ส่งซ้ำจากเว็บ — " + name + " · " + page.title + (catTh ? "\n" + catTh : ""), null, null).run();
     return json({ ok: true }, 200, cors);
   }
   const since = new Date(Date.now() - 10 * 60000).toISOString();
@@ -3053,16 +3112,16 @@ export async function handleSaleLead(request, env, ctx) {
     db.prepare(
       "INSERT INTO leads (id,name,phone,line_id,source,source_detail,interest,branch,status,owner_id," +
       "est_value,bought_before,lost_reason,next_at,received_at,fb_name,created_by,created_at,updated_at,updated_by) " +
-      "VALUES (?,?,?,'','other',?,?,'','new',NULL,1500,0,'',NULL,?,'',?,?,?,?)"
-    ).bind(id, name, phone, detail, interest, now, by, now, now, by),
-    leadAct(db, id, by, "create", "จองสิทธิ์จากเว็บ " + page.url, null, "new"),
+      "VALUES (?,?,?,'','other',?,?,'','new',NULL,?,0,'',NULL,?,'',?,?,?,?)"
+    ).bind(id, name, phone, detail, interest, Math.round(sum.est || 0), now, by, now, now, by),
+    leadAct(db, id, by, "create", page.verb + "จากเว็บ " + page.url, null, "new"),
   ]);
 
   const hook = env.LARK_TICKET_WEBHOOK || env.LARK_KAN_WEBHOOK;
   if (hook) {
-    const text = "🛒 มีคนจองสิทธิ์ · " + page.title + "\n" +
+    const text = "🛒 " + page.verb + " · " + page.title + "\n" +
       "ชื่อ: " + name + " · โทร " + phone + "\n" +
-      (catTh ? "หมวดที่สนใจ: " + catTh + "\n" : "") +
+      (catTh ? catTh + "\n" : "") +
       "ดูในระบบ: https://admin.kan-hub.com/tasks/#/leads";
     const send = sendLark(hook, text).catch(function () {});
     if (ctx && ctx.waitUntil) ctx.waitUntil(send);
