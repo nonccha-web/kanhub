@@ -16,7 +16,9 @@
   var CHANNELS = ["หน้าร้าน","Facebook","LINE","TikTok","Shopee/Lazada","ขายส่ง"];
   /* นคร ตัดออก 9 ก.ย. 69 — เลิกดูแลแล้ว รายการเก่าที่เคยติดสาขานี้ยังเปิดดูได้ แค่เลือกใหม่ไม่ได้ */
   /* "อื่นๆ" = งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน — ต้องมีให้เลือก ไม่งั้นงานพวกนี้ตกหล่น */
-  var BRANCHES = ["Kan Hub","Kan Fashion","ชุมพร","สุราษฎร์","Central","สหไทย","อื่นๆ"];
+  /* เหลือ 4 สาขา (นนท์ 27 ก.ย. 69) — ชื่อเก่า สุราษฎร์/ชุมพร ย้ายในฐานข้อมูลเป็น Kan Store แล้ว
+     Kan Fashion / Central / สหไทย ตัดออก: รายการเก่าที่ติดไว้ยังโชว์และบันทึกทับได้ แค่เลือกใหม่ไม่ได้ */
+  var BRANCHES = ["Kan Hub","Kan Store สุราษฎร์","Kan Store ชุมพร","อื่นๆ"];
   var NO_BRANCH = "-";   /* ค่าพิเศษของตัวกรอง = รายการที่ยังไม่ระบุสาขา */
   // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
@@ -67,11 +69,17 @@
   var GROUP_KEYS = GROUPS.map(function (g) { return g[0]; });
   var view = { mode:"month", month:new Date().getMonth(), kind:"", branch:"", layout:"cal", group:"week" };
   try { view.kind = KINDS.indexOf(localStorage.getItem("kan-cc-kind")) !== -1 ? localStorage.getItem("kan-cc-kind") : ""; } catch (e) {}
-  try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}
+  try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}   /* ค่าที่จำไว้เป็นสาขาเก่า = กลับไปทุกสาขา */
   try { view.layout = localStorage.getItem("kan-cc-layout") === "grid" ? "grid" : "cal"; } catch (e) {}
   try { var _g = localStorage.getItem("kan-cc-group"); view.group = GROUP_KEYS.indexOf(_g) !== -1 ? _g : "week"; } catch (e) {}
   /* กลุ่มที่พับไว้ — จำแค่ในหน้านี้ ปิดแท็บแล้วกลับมากางใหม่หมด */
   var collapsed = {};
+  /* สาขาปัจจุบัน + สาขาเก่าที่ยังติดอยู่กับรายการ (จะได้ยังกรองดูของเก่าได้) */
+  function allBranches() {
+    var out = BRANCHES.slice();
+    items.forEach(function (it) { (it.branches || []).forEach(function (b) { if (out.indexOf(b) === -1) out.push(b); }); });
+    return out;
+  }
   function inBranch(it, b) {
     if (!b) return true;
     if (b === NO_BRANCH) return !it.branches || !it.branches.length;
@@ -143,12 +151,12 @@
   /* สร้างสื่อที่ขาดจากการ์ดทันที (นนท์ 19 ก.ย. 69: "ไม่มี LINE/ป้าย ควรมีปุ่มเพิ่ม task ให้เลย")
      LINE → แถวโพสต์ในตารางโพสต์ ช่องทาง Line OA เพจตามสาขา วันก่อนเริ่มโปรฯ (ถ้าเลยแล้วใช้วันนี้)
      ป้าย → งานป้าย 1 งานต่อสาขา มอบพิซซ่า กำหนดส่ง 18:00 วันก่อนเริ่มโปรฯ · ขั้นงาน 6 ขั้นสร้างเองที่ worker */
-  var PAGE_OF = { "ชุมพร": "pg_kst1", "สุราษฎร์": "pg_kst3", "Kan Fashion": "pg_fashion", "Kan Hub": "pg_hub" };
+  var PAGE_OF = { "Kan Store ชุมพร": "pg_kst1", "Kan Store สุราษฎร์": "pg_kst3", "Kan Fashion": "pg_fashion", "Kan Hub": "pg_hub" };
   var SIGN_OWNER = "s_julalak";
   function dayBefore(startISO) { var d = parseISO(startISO); d.setDate(d.getDate() - 1); var t = todayISO(); var r = iso(d.getFullYear(), d.getMonth(), d.getDate()); return r < t ? t : r; }
   async function makeMedia(kind, it, btn) {
     var brs = (it.branches || []).filter(function (b) { return PAGE_OF[b]; });
-    if (!brs.length) brs = ["สุราษฎร์"];
+    if (!brs.length) brs = ["Kan Store สุราษฎร์"];
     btn.disabled = true; btn.textContent = "กำลังสร้าง…";
     try {
       var when = dayBefore(it.start);
@@ -307,10 +315,22 @@
   }
   function covers(it, dayISO) { return occ(it).some(function (g) { return g[0] <= dayISO && dayISO <= g[1]; }); }
   /* W1–W4 ของเดือน: 1–9 · 10–16 · 17–23 · 24–สิ้นเดือน (นนท์กำหนด — ใช้ทุกที่ที่เลือกวัน) */
+  /* สัปดาห์ที่คาบ 2 เดือน (เช่น อา 27 ก.ย. – ส 3 ต.ค.) นับเป็น W4 ของเดือนเก่าทั้งสัปดาห์ (นนท์ 27 ก.ย. 69)
+     → วันต้นเดือนก่อนวันอาทิตย์แรกยกไป W4 เดือนก่อน · W1 เริ่มวันอาทิตย์แรก–9 · W4 = 24 ถึงเสาร์แรกของเดือนถัดไป */
   var W_START = [1, 10, 17, 24];
-  function wOf(day) { return day <= 9 ? 1 : day <= 16 ? 2 : day <= 23 ? 3 : 4; }
-  function wRange(y, m, w) { return [iso(y, m, W_START[w - 1]), iso(y, m, w === 4 ? daysIn(y, m) : W_START[w] - 1)]; }
-  function wTag(dISO) { return "W" + wOf(parseISO(dISO).getDate()); }
+  function carryDays(y, m) { var dw = new Date(y, m, 1).getDay(); return dw === 0 ? 0 : 7 - dw; }  /* วันต้นเดือนที่ยกไปเดือนก่อน */
+  function wRange(y, m, w) {
+    if (w === 1) return [iso(y, m, carryDays(y, m) + 1), iso(y, m, 9)];
+    if (w === 4) return [iso(y, m, 24), isoOf(addDays(new Date(y, m, daysIn(y, m)), carryDays(y, m + 1)))];
+    return [iso(y, m, W_START[w - 1]), iso(y, m, W_START[w] - 1)];
+  }
+  /* W ของวันนี้ + เดือนที่ W นั้นสังกัด */
+  function wInfo(dISO) {
+    var d = parseISO(dISO), y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+    if (day <= carryDays(y, m)) { var p = new Date(y, m, 0); y = p.getFullYear(); m = p.getMonth(); return { w: 4, y: y, m: m, carried: true }; }
+    return { w: day <= 9 ? 1 : day <= 16 ? 2 : day <= 23 ? 3 : 4, y: y, m: m, carried: false };
+  }
+  function wTag(dISO) { var x = wInfo(dISO); return "W" + x.w + (x.carried ? " " + MONTHS_SHORT[x.m] : ""); }
   function dayTag(dISO) { var d = parseISO(dISO); return wTag(dISO) + " · วัน" + DOW_FULL[d.getDay()]; }
   function hhmm(t) { return String(t || "").replace(":", "."); }
   function timeText(sc) {
@@ -538,7 +558,7 @@
           '" style="grid-column:' + (d + 1) + ';grid-row:1 / span ' + (nLanes + 2) + '"' +
           (inMonth ? ' data-day="' + dISO + '" role="button" tabindex="0" aria-label="เพิ่มรายการวันที่ ' + dt2.getDate() + '"' : "") + "></div>";
         nums += '<span class="cc-dnum' + (dISO === tISO ? " today" : "") + (inMonth ? "" : " out") + '" style="grid-column:' + (d + 1) + ';grid-row:1">' + dt2.getDate() +
-          (inMonth && W_START.indexOf(dt2.getDate()) !== -1 ? '<i class="cc-wtag" title="' + wTag(dISO) + ' เริ่มวันนี้">' + wTag(dISO) + "</i>" : "") + "</span>";
+          (inMonth && [carryDays(dt2.getFullYear(), dt2.getMonth()) + 1, 10, 17, 24].indexOf(dt2.getDate()) !== -1 ? '<i class="cc-wtag" title="' + wTag(dISO) + ' เริ่มวันนี้">' + wTag(dISO) + "</i>" : "") + "</span>";
         if (hidden[d]) mores += '<button type="button" class="cc-more" style="grid-column:' + (d + 1) + ';grid-row:' + (nLanes + 2) + '" data-daypeek="' + dISO + '" data-dayopen="' + dISO + '">+ อีก ' + hidden[d] + "</button>";
       }
       var barsH = bars.map(function (b) {
@@ -610,8 +630,8 @@
       }
       /* สัปดาห์ = W1–W4 ของเดือน (1–9 · 10–16 · 17–23 · 24–สิ้นเดือน) · ใช้วันแรกที่มีผลในเดือนที่เปิดอยู่ */
       function wBucket(dISO) {
-        var d = parseISO(dISO), w = wOf(d.getDate()), r = wRange(d.getFullYear(), d.getMonth(), w);
-        return bucket("w:" + r[0], "W" + w + " · " + MONTHS[d.getMonth()], segText(r[0], r[1]), { start: r[0], end: r[1] }, r[0]);
+        var x = wInfo(dISO), r = wRange(x.y, x.m, x.w);
+        return bucket("w:" + r[0], "W" + x.w + " · " + MONTHS[x.m], segText(r[0], r[1]), { start: r[0], end: r[1] }, r[0]);
       }
       var mA = view.mode === "month" ? iso(year, view.month, 1) : "", mB = view.mode === "month" ? iso(year, view.month, daysIn(year, view.month)) : "";
       list.filter(function (it) { return !isMonthPlan(it); }).forEach(function (it) {
@@ -723,7 +743,7 @@
         ? '<div class="cc-tablewrap cc-gridwrap"><table class="cc-table cc-gtab"><thead><tr>' +
           "<th>ชื่อ</th><th>ประเภท</th><th>ช่วงวัน</th><th>สถานะ</th><th>สาขา</th><th>ช่องทาง</th><th>งบ</th><th>ผู้รับผิดชอบ</th><th>สื่อที่ผูกไว้</th>" +
           "</tr></thead>" + body + "</table></div>" +
-          '<p class="cc-ghint">กดที่ช่องเพื่อแก้ได้เลย · กดหัวกลุ่มเพื่อพับ · ปุ่ม + ท้ายกลุ่มจะเติม W/ประเภท/สาขาให้เอง · W1 = วันที่ 1–9 · W2 = 10–16 · W3 = 17–23 · W4 = 24–สิ้นเดือน</p>'
+          '<p class="cc-ghint">กดที่ช่องเพื่อแก้ได้เลย · กดหัวกลุ่มเพื่อพับ · ปุ่ม + ท้ายกลุ่มจะเติม W/ประเภท/สาขาให้เอง · W1 = อาทิตย์แรก–9 · W2 = 10–16 · W3 = 17–23 · W4 = 24–สิ้นเดือน (สัปดาห์ที่คาบไปเดือนหน้านับเป็น W4 ของเดือนนี้ทั้งสัปดาห์)</p>'
         : '<div class="cc-empty"><p>ยังไม่มี' + esc(what) + "ในช่วงนี้</p>" +
           '<button class="cc-btn primary" data-new="1">เพิ่ม' + esc(what) + "</button></div>");
   }
@@ -948,7 +968,7 @@
     var el = $("ccBranchBar");
     if (!el) return;
     var base = view.kind ? items.filter(function (it) { return kindOf(it) === view.kind; }) : items;
-    var opts = [["", "ทุกสาขา", base.length]].concat(BRANCHES.map(function (b) {
+    var opts = [["", "ทุกสาขา", base.length]].concat(allBranches().map(function (b) {
       return [b, b, base.filter(function (it) { return inBranch(it, b); }).length];
     }));
     var none = base.filter(function (it) { return inBranch(it, NO_BRANCH); }).length;
@@ -1064,7 +1084,7 @@
     return peopleP;
   }
   var peopleBox = null;
-  function attachPeople(inp, onPick) {
+  function attachPeople(inp, onPick, exclude) {
     if (!inp || inp.dataset.people) return;
     inp.dataset.people = "1";
     inp.setAttribute("autocomplete", "off");
@@ -1100,6 +1120,7 @@
         if (document.activeElement !== inp) return;
         var q = inp.value.trim().toLowerCase();
         list = all.filter(function (p) {
+          if (exclude && exclude(p.name)) return false;
           return !q || p.name.toLowerCase().indexOf(q) !== -1 || p.alias.toLowerCase().indexOf(q) !== -1;
         }).slice(0, 8);
         if (!list.length || (list.length === 1 && list[0].name === inp.value.trim())) { close(); return; }
@@ -1131,31 +1152,39 @@
   }
   /* ผู้รับผิดชอบ = ติ๊กจากรายชื่อคนที่ลงทะเบียนในระบบ เลือกได้หลายคน (เดิมพิมพ์ชื่อเอง)
      ชื่อเก่าที่ไม่อยู่ในรายชื่อ (เอเจนซี/คนนอก) ยังโชว์เป็นตัวเลือกที่ติ๊กไว้ ไม่หายไปเอง */
-  var ownersReady = false, ownersFallback = "";
-  function splitOwners(s0) { return String(s0 || "").split(/\s*[,،]\s*/).map(function (x) { return x.trim(); }).filter(Boolean); }
-  function renderOwners(current) {
-    ownersReady = false;
-    ownersFallback = current || "";
-    var sel = splitOwners(current);
-    var host = $("cc-owners");
-    host.innerHTML = '<span class="cc-hint" style="margin:0">กำลังโหลดรายชื่อ…</span>';
-    var token = (renderOwners.n = (renderOwners.n || 0) + 1);
-    loadPeople().then(function (all) {
-      if (token !== renderOwners.n) return;
-      var names = all.map(function (p) { return p.name; });
-      sel.forEach(function (n) { if (names.indexOf(n) === -1) names.push(n); });
-      host.innerHTML = names.map(function (n) {
-        return '<button type="button" class="cc-choice" data-choice="owner" data-v="' + esc(n) + '" aria-pressed="' + (sel.indexOf(n) !== -1) + '">' + esc(n) + "</button>";
-      }).join("") || '<span class="cc-hint" style="margin:0">ยังไม่มีรายชื่อในระบบ</span>';
-      ownersReady = true;
-    });
+  var owners = [];
+  function splitOwners(s0) { return String(s0 || "").split(/\s*,\s*/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function drawOwners() {
+    $("cc-owner-tags").innerHTML = owners.map(function (n, i) {
+      return '<span class="cc-otag">' + esc(n) + '<button type="button" data-odel="' + i + '" aria-label="เอา ' + esc(n) + ' ออก">&times;</button></span>';
+    }).join("");
+    $("cc-owner-in").placeholder = owners.length ? "เพิ่มอีกคน…" : "พิมพ์ชื่อแล้วเลือก";
   }
+  function renderOwners(current) { owners = splitOwners(current); $("cc-owner-in").value = ""; drawOwners(); }
+  /* เลือกได้เฉพาะชื่อที่มีบัญชีในระบบ — พิมพ์แล้วขึ้นรายชื่อให้กด (ชื่อที่เลือกไปแล้วไม่ขึ้นซ้ำ) */
+  attachPeople($("cc-owner-in"), function (name) {
+    if (owners.indexOf(name) === -1) owners.push(name);
+    $("cc-owner-in").value = "";
+    drawOwners();
+    setTimeout(function () { $("cc-owner-in").focus(); }, 0);
+  }, function (name) { return owners.indexOf(name) !== -1; });
+  $("cc-owner-in").addEventListener("keydown", function (e) {
+    /* Enter ในช่องนี้ห้ามไปกดบันทึกทั้งฟอร์ม · Backspace ในช่องว่าง = ลบคนสุดท้าย */
+    if (e.key === "Enter") e.preventDefault();
+    if (e.key === "Backspace" && !this.value && owners.length) { owners.pop(); drawOwners(); }
+  });
+  $("cc-owners").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-odel]");
+    if (d) { owners.splice(+d.dataset.odel, 1); drawOwners(); return; }
+    $("cc-owner-in").focus();
+  });
 
   /* ---------- วันนี้ / สัปดาห์นี้ ใต้ปฏิทิน — ตอบคำถาม "วันนี้ต้องทำอะไร" โดยไม่ต้องไล่ทั้งปี ---------- */
   /* "สัปดาห์นี้" = W ของวันนี้ (1–9 · 10–16 · 17–23 · 24–สิ้นเดือน) ไม่ใช่ จันทร์–อาทิตย์ */
   function weekRange() {
     var t = new Date();
-    return wRange(t.getFullYear(), t.getMonth(), wOf(t.getDate()));
+    var x = wInfo(isoOf(t));
+    return wRange(x.y, x.m, x.w);
   }
   function overlaps(it, a, b) { return occ(it).some(function (g) { return g[0] <= b && g[1] >= a; }); }
   function soonRow(it, inBr) {
@@ -1417,7 +1446,10 @@
     $("cc-channels").innerHTML = CHANNELS.map(function (c) {
       return '<button type="button" class="cc-choice" data-choice="channel" data-v="' + esc(c) + '" aria-pressed="false">' + esc(c) + "</button>";
     }).join("");
-    $("cc-branches").innerHTML = BRANCHES.map(function (b) {
+    buildBranchChoices([]);
+  }
+  function buildBranchChoices(extra) {
+    $("cc-branches").innerHTML = BRANCHES.concat((extra || []).filter(function (b) { return BRANCHES.indexOf(b) === -1; })).map(function (b) {
       return '<button type="button" class="cc-choice" data-choice="branch" data-v="' + esc(b) + '" aria-pressed="false">' + esc(b) + "</button>";
     }).join("");
   }
@@ -1493,6 +1525,7 @@
     setSeg("#cc-status", preset.copyOf ? "plan" : (item ? item.status : (preset.status || "plan")));
     setChoices("channel", item ? item.channels : []);
     /* เพิ่มรายการตอนกรองสาขาอยู่ → ติ๊กสาขานั้นให้เลย */
+    buildBranchChoices(item ? item.branches : []);
     setChoices("branch", item ? item.branches : (preset.branch ? [preset.branch] : (view.branch && view.branch !== NO_BRANCH ? [view.branch] : [])));
     renderAttachments(preset.copyOf ? null : item);
     renderLinks(preset.copyOf ? null : item);
@@ -1711,8 +1744,7 @@
       status: getSeg("#cc-status", "plan"),
       channels: getChoices("channel"), branches: getChoices("branch"),
       budget: Number($("cc-budget").value) || 0,
-      /* รายชื่อยังโหลดไม่เสร็จ = ห้ามส่งค่าว่างไปทับของเดิม */
-      owner: ownersReady ? getChoices("owner").join(", ") : ownersFallback,
+      owner: owners.join(", "),
       note: $("cc-note").value.trim(),
       acc: accOn ? { need: true, type: getSeg("#cc-acctype", "promo"), detail: $("cc-accdetail").value.trim(), taskId: accTaskId || undefined } : null
     } };
@@ -1837,8 +1869,16 @@
   $("ccDelete").addEventListener("click", removeItem);
   $("ccScrim").addEventListener("click", closeDrawer);
   $("ccForm").addEventListener("submit", function (e) { e.preventDefault(); submit(); });
-  $("ccExport").addEventListener("click", exportFile);
-  $("ccImport").addEventListener("click", function () { $("ccFile").click(); });
+  function toggleMenu(open) {
+    var m = $("ccMenu"), on = open == null ? m.hidden : open;
+    m.hidden = !on;
+    $("ccMore").setAttribute("aria-expanded", String(on));
+  }
+  $("ccMore").addEventListener("click", function (e) { e.stopPropagation(); toggleMenu(); });
+  document.addEventListener("mousedown", function (e) { if (!e.target.closest(".cc-more-wrap")) toggleMenu(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") toggleMenu(false); });
+  $("ccExport").addEventListener("click", function () { toggleMenu(false); exportFile(); });
+  $("ccImport").addEventListener("click", function () { toggleMenu(false); $("ccFile").click(); });
   $("ccFile").addEventListener("change", function (e) {
     if (e.target.files && e.target.files[0]) importFile(e.target.files[0]);
     e.target.value = "";

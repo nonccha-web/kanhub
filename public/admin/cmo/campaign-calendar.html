@@ -484,6 +484,27 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 #ccAccFields{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
 #ccAccFields textarea{ min-height:70px; }
 .cc-hint a{ color:inherit; font-weight:600; }
+/* เมนู ⋯ มุมขวาบน */
+.cc-more-wrap{ position:relative; }
+.cc-morebtn{ padding-left:10px !important; padding-right:10px !important; }
+.cc-morebtn svg{ width:18px; height:18px; }
+.cc-menu{ position:absolute; right:0; top:calc(100% + 6px); z-index:40; min-width:210px; padding:6px; border-radius:10px;
+  background:var(--bg-card, #fff); border:1px solid var(--bg-glass-border); box-shadow:0 10px 30px rgba(0,0,0,.12); }
+.cc-menu[hidden]{ display:none; }
+.cc-menu > *{ display:flex; width:100%; align-items:center; gap:10px; padding:9px 10px; border:0; border-radius:7px; background:none;
+  font-family:inherit; font-size:13.5px; color:var(--text-primary); text-decoration:none; cursor:pointer; text-align:left; }
+.cc-menu > *:hover{ background:var(--bg-card-hover); }
+.cc-menu svg{ width:16px; height:16px; flex:none; color:var(--text-muted); }
+/* ผู้รับผิดชอบ: ช่องพิมพ์ + ชื่อที่เลือกเป็นป้ายในช่อง */
+.cc-tagbox{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 8px; min-height:40px; border:1px solid var(--bg-glass-border);
+  border-radius:6px; background:var(--bg-input); cursor:text; }
+.cc-tagbox:focus-within{ border-color:var(--accent); }
+.cc-tags-in{ display:contents; }
+.cc-otag{ display:inline-flex; align-items:center; gap:4px; font-size:12.5px; padding:3px 4px 3px 9px; border-radius:999px;
+  background:var(--bg-card-subtle); border:1px solid var(--bg-glass-border); color:var(--text-primary); }
+.cc-otag button{ border:0; background:none; padding:0 4px; font-size:14px; line-height:1; cursor:pointer; color:var(--text-muted); }
+.cc-otag button:hover{ color:var(--text-primary); }
+.cc-field .cc-tagbox input{ flex:1; min-width:120px; border:0 !important; padding:4px 2px; background:transparent; box-shadow:none !important; }
 /* ป้าย W บนเลขวันในปฏิทิน */
 .cc-wtag{ font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.02em; margin-left:4px; padding:0 4px; border-radius:3px;
   border:1px solid var(--bg-glass-border); color:var(--text-muted); vertical-align:1px; }
@@ -610,15 +631,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
         <div class="cc-yearlabel" id="ccYear"></div>
         <button id="ccNext" aria-label="ปีถัดไป"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
       </div>
-      <button class="cc-btn" id="ccExport" title="ดาวน์โหลดไฟล์สำรอง">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
-        สำรองไฟล์
-      </button>
-      <button class="cc-btn" id="ccImport" title="เปิดไฟล์สำรองที่เคยบันทึกไว้">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
-        นำเข้า
-      </button>
-      <input type="file" id="ccFile" accept="application/json" hidden>
       <div class="cc-modesw" id="ccModeSw" role="group" aria-label="มุมมอง">
         <button type="button" data-layout="cal" title="ปฏิทินรายเดือน">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
@@ -628,15 +640,29 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M3 15.5h18M9 10v11"/></svg>
           ตาราง
         </button>
-        <a href="campaign-deck.html" title="โหมดสไลด์สำหรับพรีเซนต์">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>
-          สไลด์
-        </a>
       </div>
       <button class="cc-btn primary" id="ccAdd">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         เพิ่มรายการ
       </button>
+      <!-- สำรองไฟล์ / นำเข้า / สไลด์ ใช้ไม่บ่อย รวมไว้ในปุ่มเดียวมุมขวาบน (นนท์ 27 ก.ย. 69) -->
+      <div class="cc-more-wrap">
+        <button class="cc-btn cc-morebtn" id="ccMore" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="เมนูเพิ่มเติม" title="สำรองไฟล์ · นำเข้า · สไลด์">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+        <div class="cc-menu" id="ccMenu" role="menu" hidden>
+          <a href="campaign-deck.html" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>
+            สไลด์ (พรีเซนต์)</a>
+          <button type="button" id="ccExport" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+            สำรองไฟล์</button>
+          <button type="button" id="ccImport" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
+            นำเข้าไฟล์สำรอง</button>
+        </div>
+        <input type="file" id="ccFile" accept="application/json" hidden>
+      </div>
     </div>
   </div>
 
@@ -730,8 +756,9 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
     <div class="cc-field"><label>ช่องทาง</label><div class="cc-choices" id="cc-channels"></div></div>
     <div class="cc-field"><label>สาขา</label><div class="cc-choices" id="cc-branches"></div>
       <div class="cc-hint">งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน ให้เลือก "อื่นๆ"</div></div>
-    <div class="cc-field"><label>ผู้รับผิดชอบ</label><div class="cc-choices" id="cc-owners"></div>
-      <div class="cc-hint">เลือกได้หลายคน · รายชื่อมาจากคนที่ลงทะเบียนในระบบ</div></div>
+    <div class="cc-field"><label for="cc-owner-in">ผู้รับผิดชอบ</label>
+      <div class="cc-tagbox" id="cc-owners"><span class="cc-tags-in" id="cc-owner-tags"></span><input type="text" id="cc-owner-in" placeholder="พิมพ์ชื่อแล้วเลือก" autocomplete="off"></div>
+      <div class="cc-hint">พิมพ์แล้วเลือกจากคนที่มีบัญชีในระบบ (รวมฝ่ายบัญชี) · ใส่ได้หลายคน</div></div>
     <div class="cc-field cc-accbox">
       <label class="cc-check"><input type="checkbox" id="cc-acc"> ต้องให้ฝ่ายบัญชีตั้งค่าในระบบ</label>
       <div id="ccAccFields" style="display:none">
@@ -763,6 +790,6 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 
 <script src="erp-menu.js?v=46"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=19"></script>
+<script src="campaign-calendar.js?v=20"></script>
 </body>
 </html>
