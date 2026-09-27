@@ -181,8 +181,9 @@
     show(0);
     return true;
   };
-  T.stop = function () {
+  T.stop = function (finished) {
     if (T.dead && !T.ui) return;
+    if (finished && typeof T.onFinish === 'function') { try { T.onFinish(T.name); } catch (e) {} }
     T.dead = true;
     T.seq++;
     window.removeEventListener('keydown', onKey, true);
@@ -194,7 +195,7 @@
   T.next = function () {
     var def = T.tours[T.name];
     if (!def) return;
-    if (T.i >= def.steps.length - 1) { T.stop(); return; }
+    if (T.i >= def.steps.length - 1) { T.stop(true); return; }
     show(T.i + 1);
   };
   T.prev = function () { if (T.i > 0) show(T.i - 1); };

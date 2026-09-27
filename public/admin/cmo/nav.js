@@ -127,7 +127,7 @@
         var go = function () { if (global.KAN_TOUR && global.KAN_TOUR.has(name)) global.KAN_TOUR.start(name); else location.href = "../tasks/#/all"; };
         if (global.KAN_TOUR) { go(); return; }
         var sc = document.createElement("script");
-        sc.src = "../tasks/tour.js?v=6";
+        sc.src = "../tasks/tour.js?v=10";
         sc.onload = go;
         sc.onerror = function () { location.href = "../tasks/#/all"; };
         document.head.appendChild(sc);

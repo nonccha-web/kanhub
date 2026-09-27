@@ -6547,13 +6547,22 @@
     return fetch(API + '/me', { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
-        S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || [];
+        S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || []; S.tourShown = x.j.tourShown || 0;
         if (!location.hash) location.hash = (!canSee('tasks') && canSee('crm')) ? '#/leads'
           : (S.me.role === 'owner' ? '#/all' : '#/me');
         Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {
           var T = global.KAN_TOUR;
-          /* เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง) ไม่ต้องพาทัวร์ตอนนั้น */
-          if (T && !T.seen() && location.hash.indexOf('#/task/') !== 0) setTimeout(function () { if (S.me && !T.active()) T.start('overview'); }, 900);
+          /* พาทัวร์เด้งเองสูงสุด 3 ครั้งต่อคน (จำที่เซิร์ฟเวอร์ ไม่ใช่เบราว์เซอร์) · ดูจนจบ = ไม่เด้งอีก · ปุ่ม "พาทัวร์" กดเองได้เสมอ
+             เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง/แจ้งเตือน) ไม่ต้องพาทัวร์ตอนนั้น */
+          var TOUR_AUTO_MAX = 3;
+          if (T) T.onFinish = function () { S.tourShown = TOUR_AUTO_MAX; fetch(API + '/me/tour', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{"done":true}' }).catch(function () {}); };
+          if (T && S.tourShown < TOUR_AUTO_MAX && location.hash.indexOf('#/task/') !== 0) setTimeout(function () {
+            if (!S.me || T.active()) return;
+            if (T.start('overview')) {
+              S.tourShown++;
+              fetch(API + '/me/tour', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(function () {});
+            }
+          }, 900);
         });
       }).catch(function (e) { renderSidebar(); renderLogin(e.message); });
   }

@@ -16,6 +16,7 @@ const SESSION_DAYS = 30;
    เวลานับ "ตรงเวลา" ใช้ตอนส่งรอตรวจ (submitted_at) ไม่ใช่ตอนหัวหน้ากดผ่าน
    ไม่งั้นหัวหน้าตรวจช้าแล้วน้องโดนนับว่าส่งช้า */
 const STATUSES = ["todo", "doing", "review", "done", "blocked"];
+const TOUR_AUTO_MAX = 3;   /* พาทัวร์เด้งเองได้กี่ครั้งต่อคน — ต้องตรงกับ tasks.js */
 const STATUS_TH = { todo: "รอทำ", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
 /* งานรูทีน = ทำซ้ำประจำ · งานตามสั่ง = สั่งเพิ่มเป็นครั้ง ๆ (ค่าเริ่มต้น) */
 const TASK_KINDS = ["ondemand", "routine"];
@@ -301,6 +302,8 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
   /* บัญชีที่ต้องใส่รหัสผ่านทุกครั้ง (ฝ่ายขาย/คนนอกทีมหลัก) — คนเดิมยังกดชื่อเข้าได้เหมือนเดิม */
   "ALTER TABLE staff ADD COLUMN require_pw INTEGER NOT NULL DEFAULT 0",
+  /* พาทัวร์เด้งเองได้กี่ครั้งแล้ว — จำรายคน (เดิมจำในเบราว์เซอร์ เปลี่ยนเครื่อง/ติดตั้งเป็นแอปแล้วขึ้นใหม่หมด) */
+  "ALTER TABLE staff ADD COLUMN tour_shown INTEGER NOT NULL DEFAULT 0",
   /* งานประจำทำวันไหนบ้าง — "0,1,2,3,4" = จ–ศ · ว่าง = ตามความถี่เดิม (นนท์ 22 ก.ย. 69 ขอลากยาวข้ามวัน) */
   "ALTER TABLE tasks ADD COLUMN repeat_days TEXT",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
@@ -1114,6 +1117,14 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* แจ้งเตือนเด้งบนเครื่อง (Web Push) — โค้ดอยู่ worker-push.js */
   if (path === "/push" || path.indexOf("/push/") === 0) return handlePushApi(request, env, path, method, me, ctx);
 
+  /* พาทัวร์เด้งเองสูงสุด 3 ครั้งต่อคน (นนท์ 27 ก.ย. 69) — เด้งทีนับที · ดูจนจบ = ไม่เด้งอีก */
+  if (path === "/me/tour" && method === "POST") {
+    const body = await readBody(request);
+    await db.prepare(body.done ? "UPDATE staff SET tour_shown = MAX(tour_shown, ?) WHERE id = ?" : "UPDATE staff SET tour_shown = MIN(tour_shown + 1, ?) WHERE id = ?")
+      .bind(TOUR_AUTO_MAX, me.id).run();
+    return json({ ok: true });
+  }
+
   if (path === "/me" && method === "GET") {
     const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
@@ -1123,8 +1134,10 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const kpiRows = (kpis.results || []).map((k) => (seeKpi ? k : {
       id: k.id, sort: k.sort, code: k.code, title: k.title, color: k.color, keywords: k.keywords,
     }));
+    const tr = await db.prepare("SELECT tour_shown FROM staff WHERE id = ?").bind(me.id).first().catch(() => null);
     return json({
       me: publicStaff(me),
+      tourShown: tr ? Number(tr.tour_shown) || 0 : 0,
       staff: (staff.results || []).map((r) => {
         const o = publicStaff(r);
         o.hasToken = !!r.api_token;
