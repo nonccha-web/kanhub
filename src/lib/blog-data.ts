@@ -1,4 +1,5 @@
-/* บทความ KAN HUB — แก้/เพิ่มบทความที่ไฟล์นี้ที่เดียว */
+/* บทความ KAN HUB — ชุดแรกอยู่ไฟล์นี้ ชุด 2 อยู่ blog-more.ts (รวมกันที่ ARTICLES ท้ายไฟล์) */
+import { ARTICLES_MORE } from "./blog-more";
 
 export type Article = {
   slug: string;
@@ -14,9 +15,11 @@ export type Article = {
   intro: string;
   sections: { heading: string; body: string[] }[];
   links?: { label: string; href: string }[];   // ปุ่มพาไปหน้าขายท้ายบทความ
+  tags?: string[];        // slug หน้าขายที่เกี่ยวข้อง — ใช้โชว์ "บทความที่เกี่ยวข้อง" ในหน้าสินค้า
+  primaryKw?: string;     // keyword หลัก 1 คำ/หน้า ห้ามซ้ำกับหน้าอื่น (กันแย่งอันดับกันเอง) · keywords ที่เหลือ = secondary
 };
 
-export const ARTICLES: Article[] = [
+const BASE: Article[] = [
   {
     slug: "pha-hang-kue-arai",
     title: "ผ้าหางคืออะไร? ต่างจากผ้าคัดเกรด A ยังไง ซื้อแบบไหนได้ต้นทุนต่อตัวต่ำสุด",
@@ -260,7 +263,7 @@ export const ARTICLES: Article[] = [
   },
   {
     slug: "tier-a-d-lueak-yangngai",
-    title: "ซื้อเสื้อผ้ามือสองกับ KAN HUB 4 แบบ เลือกยังไงให้เหมาะกับร้าน",
+    title: "ซื้อเสื้อผ้ามือสองแบบไหนดี? 4 แบบของ KAN HUB เลือกยังไงให้เหมาะกับร้าน",
     category: "เลือกของ",
     cover: "/img/blog/tier-guide.jpg",
     coverAlt: "คลังสินค้ากล่องเรียงซ้อน",
@@ -311,6 +314,63 @@ export const ARTICLES: Article[] = [
     ],
   },
 ];
+
+/* keyword หลักของแต่ละบทความ — ต้องไม่ซ้ำกันและไม่ซ้ำกับหน้าขาย (ดูตารางใน SEO-keywords.md)
+   บทความไหนไม่ได้ระบุ ใช้ keywords[0] */
+const PRIMARY: Record<string, string> = {
+  "pha-hang-kue-arai": "ผ้าหางคืออะไร",
+  "kon-pha-350-kilo-khum-mai": "ก้อนผ้า 350 กิโล คุ้มไหม",
+  "rakha-kon-pha-mue-song-2569": "ราคาก้อนผ้ามือสอง 2569",
+  "perd-ran-mue-song-thun-thao-rai": "เปิดร้านเสื้อผ้ามือสองใช้ทุนเท่าไหร่",
+  "perd-ran-mue-song": "เปิดร้านเสื้อผ้ามือสอง",
+  "grade-a-vs-b": "กระสอบเกรด A vs B",
+  "tang-rakha-khai-tor": "ตั้งราคาขายต่อเสื้อผ้ามือสอง",
+  "coat-maiphrom-nahnaao": "โค้ท-ไหมพรมญี่ปุ่น ทำไมขายดี",
+  "tier-a-d-lueak-yangngai": "ซื้อเสื้อผ้ามือสองแบบไหนดี",
+  "live-khai-technique": "ไลฟ์ขายเสื้อผ้ามือสอง",
+  "kon-pha-1-kon-dai-kee-tua": "ก้อนผ้า 1 ก้อนได้กี่ตัว",
+  "kon-pha-osaka-nagoya-tang-kan": "ก้อนผ้า OSAKA กับ NAGOYA",
+  "krasop-sua-pha-mue-song-45-kilo": "กระสอบเสื้อผ้ามือสอง 45 กก. ได้อะไรบ้าง",
+  "sap-wong-kan-sua-pha-mue-song": "ศัพท์วงการเสื้อผ้ามือสอง",
+  "pha-grade-bc-khai-hai-mot": "ผ้าเกรด B-C ขายยังไง",
+  "perd-ran-sua-pha-tua-la-10-baht": "เปิดร้านเสื้อผ้าตัวละ 10–20 บาท",
+  "dress-mue-song-yipun-khai-dai-rakha": "เดรสมือสองญี่ปุ่น ขายยังไง",
+  "yeans-mue-song-yipun-du-yang-ngai": "ยีนส์มือสองญี่ปุ่น",
+  "sua-pha-dek-mue-song-tua-la-15-baht": "ขายเสื้อผ้าเด็กมือสอง",
+  "coat-mue-song-rakha-song-tae-la-baep": "ราคาส่งโค้ทมือสอง",
+  "maiphrom-mue-song-khai-chuang-nai": "ไหมพรมมือสอง ขายช่วงไหนดี",
+  "sua-yuet-mue-song-yipun-khai-ngai": "เสื้อยืดมือสองญี่ปุ่น",
+  "khai-sua-pha-mue-song-talad-nat": "ขายเสื้อผ้ามือสองตลาดนัด",
+  "khai-sua-pha-mue-song-online-thai-rup": "ขายเสื้อผ้ามือสองออนไลน์",
+  "sak-rit-sua-pha-mue-song-kon-khai": "ซักรีดเสื้อผ้ามือสองก่อนขาย",
+  "kat-yaek-mut-tid-pai-jat-rao": "คัดแยกหมวด ติดป้ายราคา",
+  "sue-kon-pha-online-mai-don-kong": "ซื้อก้อนผ้าออนไลน์ไม่โดนโกง",
+  "sang-krasop-mue-song-tang-changwat": "สั่งกระสอบเสื้อผ้ามือสองต่างจังหวัด",
+  "laeng-rap-sua-pha-mue-song-phak-tai": "แหล่งรับเสื้อผ้ามือสองภาคใต้",
+  "stock-sua-pha-mue-song-khang-khai-mai-ok": "สต๊อกเสื้อผ้ามือสองค้าง ขายไม่ออก",
+  "sua-pha-mue-song-yipun-tam-mai-khon-chop": "เสื้อผ้ามือสองญี่ปุ่น ทำไมคนชอบ",
+};
+
+/* บทความชุดแรกไม่มี tags — ผูกกับหน้าขายไว้ที่นี่ */
+const TAGS: Record<string, string[]> = {
+  "pha-hang-kue-arai": ["pha-hang", "promo"],
+  "kon-pha-350-kilo-khum-mai": ["bale"],
+  "rakha-kon-pha-mue-song-2569": ["bale", "sack-45", "pha-hang", "stock"],
+  "perd-ran-mue-song-thun-thao-rai": ["stock", "promo", "sack-45"],
+  "perd-ran-mue-song": ["stock", "sack-45"],
+  "grade-a-vs-b": ["sack-45", "pha-hang"],
+  "tang-rakha-khai-tor": ["stock", "dress", "tops"],
+  "coat-maiphrom-nahnaao": ["coat-jacket", "knitwear"],
+  "tier-a-d-lueak-yangngai": ["bale", "sack-45", "stock"],
+  "live-khai-technique": ["promo", "pha-hang", "sack-45"],
+};
+
+export const ARTICLES: Article[] = [...ARTICLES_MORE, ...BASE]
+  .map((a) => ({ ...a, tags: a.tags ?? TAGS[a.slug] ?? [], primaryKw: PRIMARY[a.slug] ?? a.keywords[0] }))
+  .sort((a, b) => b.date.localeCompare(a.date));
+
+/** บทความที่ผูกกับหน้าขาย (tag = slug หน้า) — ใหม่สุดก่อน */
+export const articlesFor = (tag: string, n = 4) => ARTICLES.filter((a) => a.tags?.includes(tag)).slice(0, n);
 
 export const articleBySlug = (slug: string) => ARTICLES.find((a) => a.slug === slug);
 

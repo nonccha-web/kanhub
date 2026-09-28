@@ -9,6 +9,7 @@ import { OFFERS, PROMO } from "@/lib/offers";
 import { OfferCard } from "@/components/sale/OfferCard";
 import { CATEGORIES } from "@/lib/categories";
 import stock from "@/lib/stock-prices.json";
+import { ARTICLES } from "@/lib/blog-data";
 
 /* ---------- ข้อมูลหน้า (จาก Figma "home - kan hub") ---------- */
 
@@ -180,10 +181,10 @@ export const metadata = {
   title: "ขายส่งเสื้อผ้ามือสองญี่ปุ่น ยกกระสอบ · ก้อนผ้านำเข้าตรง",
   description:
     "KAN HUB โกดังขายส่งเสื้อผ้ามือสองญี่ปุ่น นำเข้าตรง — ก้อนผ้า 350 กก. · กระสอบ 45 กก. เกรด A-B · โปร 250 ตัว 1,500฿ ส่งฟรี · คัดเองรายตัวคิดราคาได้ ส่งทั่วไทย — เจ้าแรกภาคใต้",
+  /* primary ของหน้าแรก = โกดังขายส่งมือสองญี่ปุ่น (ไม่ใช้ "ก้อนผ้า" ซ้ำกับ /catalog/bale) */
   keywords: [
-    "ก้อนผ้า", "ขายก้อนผ้า", "ผ้ากระสอบ", "ซื้อผ้ากระสอบ",
-    "กระสอบเสื้อผ้ามือสอง", "เสื้อผ้ามือสองยกกระสอบ",
-    "เสื้อผ้ามือสองญี่ปุ่น", "ขายส่งเสื้อผ้ามือสอง",
+    "ขายส่งเสื้อผ้ามือสองญี่ปุ่น", "โกดังเสื้อผ้ามือสอง", "เสื้อผ้ามือสองญี่ปุ่น",
+    "ก้อนผ้า", "กระสอบเสื้อผ้ามือสอง", "ผ้าหาง", "เสื้อผ้ามือสองราคาถูก",
   ],
   alternates: { canonical: "/" },
 };
@@ -545,6 +546,32 @@ export default function Home() {
             <Link href="/contact" className={`${btn} border-[1.5px] border-white/40 text-white hover:bg-white/10`}>
               📍 นัดดูของที่โกดัง
             </Link>
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- บทความล่าสุด (ลิงก์ภายใน หน้าแรก → บทความ) ---------- */}
+      <section className="bg-cream py-16">
+        <Container>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <Eyebrow>ความรู้คนขายมือสอง</Eyebrow>
+              <h2 className="text-2xl font-bold text-ink sm:text-3xl">บทความล่าสุด</h2>
+            </div>
+            <Link href="/blog" className="text-[15px] font-semibold text-brand hover:text-brand-dark">ดูบทความทั้งหมด {ARTICLES.length} เรื่อง →</Link>
+          </div>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {ARTICLES.slice(0, 6).map((a) => (
+              <Link key={a.slug} href={`/blog/${a.slug}`} className="group overflow-hidden rounded-2xl border border-hair bg-white hover:shadow-md">
+                <div className="relative aspect-[16/9] bg-cream-100">
+                  <Image src={a.cover} alt={a.coverAlt} fill loading="lazy" sizes="(max-width:640px) 100vw, 360px" className="object-cover" />
+                </div>
+                <div className="p-5">
+                  <h3 className="text-[16px] font-semibold leading-snug text-ink group-hover:text-brand">{a.title}</h3>
+                  <p className="mt-2 text-[14px] text-muted">{a.excerpt}</p>
+                </div>
+              </Link>
+            ))}
           </div>
         </Container>
       </section>

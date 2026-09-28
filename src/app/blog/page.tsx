@@ -6,6 +6,7 @@ import { CtaBand } from "@/components/CtaBand";
 import { LineIcon, FbIcon } from "@/components/BrandIcons";
 import { SITE } from "@/lib/site";
 import { ARTICLES, CAT_COLOR } from "@/lib/blog-data";
+import { BlogGrid } from "@/components/BlogGrid";
 
 export const metadata = {
   title: "บทความ & เคล็ดลับเปิดร้านเสื้อผ้ามือสอง",
@@ -37,13 +38,6 @@ export default function BlogPage() {
 
       <section className="bg-cream py-16">
         <Container>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">ทั้งหมด</span>
-            {cats.map((c) => (
-              <span key={c} className="rounded-full border border-hair bg-white px-4 py-2 text-sm font-medium text-ink/80">{c}</span>
-            ))}
-          </div>
-
           {/* บทความเด่น */}
           <Link href={`/blog/${featured.slug}`} className="group mt-8 block overflow-hidden rounded-2xl border border-hair bg-white transition-shadow hover:shadow-md">
             <div className="grid md:grid-cols-2">
@@ -60,21 +54,13 @@ export default function BlogPage() {
             </div>
           </Link>
 
-          {/* กริดบทความ */}
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.map((a) => (
-              <Link key={a.slug} href={`/blog/${a.slug}`} className="group flex flex-col overflow-hidden rounded-2xl border border-hair bg-white transition-shadow hover:shadow-md">
-                <div className="relative h-40">
-                  <Image src={a.cover} alt={a.coverAlt} fill sizes="(max-width:640px) 100vw, 360px" className="object-cover" />
-                  <span className="absolute left-3 top-3"><Chip cat={a.category} /></span>
-                </div>
-                <div className="flex flex-1 flex-col p-5">
-                  <h3 className="text-[16px] font-semibold leading-snug text-ink group-hover:text-brand">{a.title}</h3>
-                  <p className="mt-2 flex-1 text-[14px] leading-relaxed text-muted">{a.excerpt}</p>
-                  <div className="mt-4 text-xs text-muted">อ่าน {a.readMin} นาที</div>
-                </div>
-              </Link>
-            ))}
+          {/* กริดบทความ — กรองหมวด + ดูเพิ่ม */}
+          <div className="mt-10">
+            <BlogGrid
+              items={rest.map((a) => ({ slug: a.slug, title: a.title, cover: a.cover, coverAlt: a.coverAlt, category: a.category, excerpt: a.excerpt, readMin: a.readMin }))}
+              cats={cats}
+              colors={CAT_COLOR}
+            />
           </div>
 
           <div className="mt-12 rounded-2xl border border-hair bg-cream-100 px-6 py-8 text-center">

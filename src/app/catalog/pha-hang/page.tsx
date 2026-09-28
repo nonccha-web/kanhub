@@ -5,6 +5,8 @@ import { CtaBand } from "@/components/CtaBand";
 import { StockBulk } from "@/components/sale/StockBulk";
 import { CATEGORIES } from "@/lib/categories";
 import { SITE } from "@/lib/site";
+import { RelatedArticles } from "@/components/RelatedArticles";
+import { SeeMore } from "@/components/SeeMore";
 
 /* ผ้าหาง / ผ้าเหมา / ผ้ากิโล — คำค้นกลุ่มนี้เดิมอยู่ที่ Tier C ซึ่งถูกรวมเข้าหน้าคิดราคาไปแล้ว
    หน้านี้ตอบคำว่า "ผ้าหางคืออะไร" + ขายจริง 2 แบบ: เหมา 100 กก. (ผ้าสต๊อก) และกระสอบโปรผ้าปลดราว */
@@ -128,12 +130,16 @@ export default function PhaHangPage() {
       <section className="bg-cream py-12">
         <Container className="max-w-3xl">
           <h2 className="text-xl font-bold text-ink">รูปจริงผ้าเหมาจากโกดัง</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {IMGS.map((src, i) => (
-              <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-hair bg-cream-100">
-                <Image src={src} alt={`ผ้าหาง ผ้าเหมา มือสอง KAN HUB ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 180px" className="object-cover" />
+          <div className="mt-4">
+            <SeeMore height={400} more={`ดูรูปทั้งหมด ${IMGS.length} รูป`} less="ย่อรูป">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {IMGS.map((src, i) => (
+                  <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-hair bg-cream-100">
+                    <Image src={src} alt={`ผ้าหาง ผ้าเหมา มือสอง KAN HUB ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 180px" className="object-cover" />
+                  </div>
+                ))}
               </div>
-            ))}
+            </SeeMore>
           </div>
 
           <h2 className="mt-12 text-xl font-bold text-ink">คำถามที่พบบ่อยเรื่องผ้าหาง</h2>
@@ -145,6 +151,8 @@ export default function PhaHangPage() {
               </details>
             ))}
           </div>
+
+          <RelatedArticles tag="pha-hang" title="อ่านเรื่องผ้าหางเพิ่ม" />
 
           <h2 className="mt-10 text-lg font-bold text-ink">อยากเลือกเองทีละหมวด</h2>
           <div className="mt-3 flex flex-wrap gap-2">

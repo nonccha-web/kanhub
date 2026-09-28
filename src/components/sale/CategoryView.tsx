@@ -5,6 +5,9 @@ import { CtaBand } from "@/components/CtaBand";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 import stock from "@/lib/stock-prices.json";
+import { SeeMore } from "@/components/SeeMore";
+import { RelatedArticles } from "@/components/RelatedArticles";
+import { OrderSteps } from "@/components/sale/OrderSteps";
 
 /* หน้าหมวดสินค้า (เดรส / ยีนส์ / กระโปรง / เสื้อ / เด็ก / โค้ท / ไหมพรม)
    ตารางราคาดึงจากชีต KAN#0 ทุกครั้งที่ build — แก้ราคาที่ชีตแล้วรัน etl/stock-prices.py */
@@ -137,13 +140,29 @@ export function CategoryView({ c }: { c: Category }) {
           </div>
 
           <h2 className="mt-12 text-xl font-bold text-ink">รูปจริง{c.name}จากโกดัง</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {c.images.map((src, i) => (
-              <div key={src} className="relative aspect-[3/4] overflow-hidden rounded-xl border border-hair bg-cream-100">
-                <Image src={src} alt={`${c.aka[i % c.aka.length]} ขายส่ง KAN HUB ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 260px" className="object-cover" />
+          <div className="mt-4">
+            <SeeMore height={560} more={`ดูรูปทั้งหมด ${c.images.length} รูป`} less="ย่อรูป">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {c.images.map((src, i) => (
+                  <div key={src} className="relative aspect-[3/4] overflow-hidden rounded-xl border border-hair bg-cream-100">
+                    <Image src={src} alt={`${c.aka[i % c.aka.length]} ขายส่ง KAN HUB ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 260px" className="object-cover" />
+                  </div>
+                ))}
               </div>
-            ))}
+            </SeeMore>
           </div>
+
+          <h2 className="mt-12 text-xl font-bold text-ink">เคล็ดลับขาย{c.name}ให้ได้ราคา</h2>
+          <ol className="mt-4 grid gap-3 md:grid-cols-3">
+            {c.tips.map((t, i) => (
+              <li key={t} className="rounded-2xl border border-hair bg-white p-5 text-[15px] leading-relaxed text-ink/85">
+                <span className="mb-2 grid h-8 w-8 place-items-center rounded-full bg-brand text-[14px] font-bold text-white">{i + 1}</span>
+                {t}
+              </li>
+            ))}
+          </ol>
+
+          <OrderSteps />
 
           <h2 className="mt-12 text-xl font-bold text-ink">คำถามที่พบบ่อย</h2>
           <div className="mt-4 space-y-3">
@@ -158,6 +177,8 @@ export function CategoryView({ c }: { c: Category }) {
           <p className="mt-10 text-[14px] leading-relaxed text-muted">
             ลูกค้าเรียกหมวดนี้หลายแบบ เช่น {c.aka.join(" · ")} — ทั้งหมดคือ{c.name}นำเข้าจากญี่ปุ่นของ KAN HUB โกดังขายส่งเสื้อผ้ามือสองภาคใต้ ส่งทั่วไทย
           </p>
+
+          <RelatedArticles tag={c.slug} title={`บทความเกี่ยวกับ${c.name}`} />
 
           <h2 className="mt-10 text-lg font-bold text-ink">หมวดอื่น</h2>
           <div className="mt-3 flex flex-wrap gap-2">

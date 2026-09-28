@@ -5,6 +5,16 @@ import { Container } from "@/components/Container";
 import { CtaBand } from "@/components/CtaBand";
 import { ARTICLES, articleBySlug, CAT_COLOR } from "@/lib/blog-data";
 import { SITE } from "@/lib/site";
+import { autolink } from "@/lib/autolink";
+import { OFFERS } from "@/lib/offers";
+import { CATEGORIES } from "@/lib/categories";
+
+/* tag → หน้าขาย (ขากลับของ internal link: บทความ → สินค้า) */
+const PAGES: Record<string, { name: string; href: string }> = {
+  ...Object.fromEntries(OFFERS.map((o) => [o.key === "promo" ? "promo" : o.slug, { name: o.name, href: o.href }])),
+  ...Object.fromEntries(CATEGORIES.map((c) => [c.slug, { name: c.name, href: `/catalog/${c.slug}/` }])),
+  "pha-hang": { name: "ผ้าหาง / ผ้าเหมา", href: "/catalog/pha-hang/" },
+};
 
 export const dynamicParams = false;
 
@@ -16,12 +26,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const a = articleBySlug(slug);
   if (!a) return {};
+  /* description ต้องมี keyword หลัก — ถ้าเขียนไม่ได้ใส่ไว้ เติมไว้หน้าประโยคให้เอง */
+  const pk = a.primaryKw ?? a.keywords[0];
+  const desc = a.seoDesc.replace(/\s/g, "").includes(pk.replace(/\s/g, "")) ? a.seoDesc : `${pk}: ${a.seoDesc}`;
   return {
     title: a.title,
-    description: a.seoDesc,
-    keywords: a.keywords,
+    description: desc,
+    keywords: [a.primaryKw ?? a.keywords[0], ...a.keywords.filter((k) => k !== a.primaryKw)],
     alternates: { canonical: `/blog/${a.slug}` },
-    openGraph: { type: "article", title: a.title, description: a.seoDesc, url: `/blog/${a.slug}`, images: [a.cover] },
+    openGraph: { type: "article", title: a.title, description: desc, url: `/blog/${a.slug}`, images: [a.cover] },
   };
 }
 
@@ -42,7 +55,12 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     mainEntityOfPage: `${SITE.url}/blog/${a.slug}`,
   };
 
-  const related = ARTICLES.filter((x) => x.slug !== a.slug).slice(0, 3);
+  /* บทความอื่นที่ใช้หน้าขายเดียวกันขึ้นก่อน แล้วค่อยเติมเรื่องล่าสุด */
+  const tags = a.tags ?? [];
+  const sameTopic = ARTICLES.filter((x) => x.slug !== a.slug && x.tags?.some((t) => tags.includes(t)));
+  const related = [...sameTopic, ...ARTICLES.filter((x) => x.slug !== a.slug && !sameTopic.includes(x))].slice(0, 3);
+  const used = new Set<string>();   // ลิงก์ในเนื้อหา: หน้าละครั้ง ทั้งบทความ
+  const products = tags.map((t) => PAGES[t]).filter(Boolean);
 
   return (
     <>
@@ -63,16 +81,27 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
         </div>
 
         <Container className="max-w-3xl pt-10">
-          <p className="text-[17px] font-medium leading-relaxed text-ink">{a.intro}</p>
+          <p className="text-[17px] font-medium leading-relaxed text-ink">{autolink(a.intro, used, 8, `/blog/${a.slug}/`)}</p>
 
           {a.sections.map((s) => (
             <section key={s.heading} className="mt-8">
               <h2 className="text-xl font-bold text-ink">{s.heading}</h2>
               {s.body.map((p, i) => (
-                <p key={i} className="mt-3 text-[16px] leading-relaxed text-ink/85">{p}</p>
+                <p key={i} className="mt-3 text-[16px] leading-relaxed text-ink/85">{autolink(p, used, 8, `/blog/${a.slug}/`)}</p>
               ))}
             </section>
           ))}
+
+          {products.length > 0 && (
+            <div className="mt-10">
+              <h2 className="text-lg font-bold text-ink">สินค้าที่เกี่ยวข้องกับบทความนี้</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {products.map((p) => (
+                  <a key={p.href} href={p.href} className="rounded-full border-[1.5px] border-ink bg-white px-4 py-2 text-[14px] font-semibold text-ink hover:bg-ink hover:text-white">{p.name} →</a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CTA ในบทความ */}
           <div className="mt-10 rounded-2xl border border-hair bg-white p-6 text-center">

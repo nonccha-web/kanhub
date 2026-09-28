@@ -9,6 +9,9 @@ import { offerBySlug } from "@/lib/offers";
 import { CATEGORIES, categoryBySlug } from "@/lib/categories";
 import { CategoryView } from "@/components/sale/CategoryView";
 import { SITE } from "@/lib/site";
+import { SeeMore } from "@/components/SeeMore";
+import { RelatedArticles } from "@/components/RelatedArticles";
+import { OrderSteps } from "@/components/sale/OrderSteps";
 import { imagesFor } from "@/lib/product-images";
 
 /* หน้ารายละเอียดแบบขายที่ต้องสอบถาม/จอง — ก้อนผ้า 350 กก. และกระสอบ 45 กก.
@@ -126,15 +129,21 @@ export default async function OfferPage({ params }: { params: Promise<{ slug: st
           {imgs.length > 0 && (
             <div className="mt-12">
               <h2 className="text-xl font-bold text-ink">รูปจริงจากโกดัง</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {imgs.map((src, i) => (
-                  <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-hair bg-cream-100">
-                    <Image src={src} alt={`${o.name} ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 260px" className="object-cover" />
+              <div className="mt-4">
+                <SeeMore height={420} more={`ดูรูปทั้งหมด ${imgs.length} รูป`} less="ย่อรูป">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {imgs.map((src, i) => (
+                      <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-hair bg-cream-100">
+                        <Image src={src} alt={`${o.name} ${i + 1}`} fill loading="lazy" sizes="(max-width:640px) 50vw, 260px" className="object-cover" />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </SeeMore>
               </div>
             </div>
           )}
+
+          <OrderSteps />
 
           {o.faqs && (
             <div className="mt-12">
@@ -149,6 +158,8 @@ export default async function OfferPage({ params }: { params: Promise<{ slug: st
               </div>
             </div>
           )}
+
+          <RelatedArticles tag={slug} />
 
           <div className="mt-10 flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
