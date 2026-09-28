@@ -4304,8 +4304,13 @@
     view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
     /* หน้าสถานะของโปรฯ/แคมเปญ — กดจากปฏิทินมาที่นี่ (นนท์ 19 ก.ย. 69: "ต้องเห็นว่ามีงานป้าย งานโพสต์ ทำยัง สถานะเป็นไง")
        โหลด S.tasks ด้วยเพื่อเอาขั้นของงานป้ายมาวาด funnel */
-    Promise.all([loadCampaigns(), api('/campaigns/' + cid + '/related'), loadPages(), loadTasks()]).then(function (r) {
+    /* คนที่ไม่มีหน้างานทีม (เห็นแต่ปฏิทิน) ดูหน้านี้แบบอ่านอย่างเดียว — ใช้เฉพาะงานที่ผูกกับรายการนี้ (นนท์ 28 ก.ย. 69) */
+    var ro = !canSee('tasks');
+    Promise.all([loadCampaigns(), api('/campaigns/' + cid + '/related'), loadPages(), ro ? Promise.resolve(null) : loadTasks()]).then(function (r) {
       var c = campaignById(cid), j = r[1];
+      if (ro) S.tasks = j.tasks || [];
+      /* อ่านอย่างเดียว: แถวงานกดเข้าไม่ได้ (หน้ารายละเอียดงานต้องมีสิทธิ์หน้างานทีม) · ซ่อนวงกลมเลือก/เมนู ⋯ */
+      view.classList.toggle('ro', ro);
       var tasks = (j.tasks || []).filter(function (t) { return !t.parentId; }), posts = j.posts || [];
       markSeq(tasks, '#/campaign/' + cid);
       var signs = tasks.filter(function (t) { return t.taskType === 'signage'; });
@@ -4317,8 +4322,8 @@
       var h = '<div class="top"><div><span class="kicker">' + esc(kindTh[c && c.kind] || 'ปฏิทินการตลาด') + '</span><h1>' + esc(c ? c.name : 'แคมเปญ') + '</h1>' +
         (c && c.start ? '<p>' + esc(thaiShort(c.start)) + (c.end && c.end !== c.start ? ' – ' + esc(thaiShort(c.end)) : '') +
           (c.status ? ' · ' + ({ plan: 'วางแผน', live: 'กำลังจัด', done: 'จบแล้ว' }[c.status] || c.status) : '') + '</p>' : '') +
-        '</div><div class="top-r"><a class="btn-ghost" href="' + CAL_URL + '#c=' + esc(cid) + '">แก้ไขรายละเอียดในปฏิทิน</a>' +
-        '<a class="btn" href="#/new?campaign=' + esc(cid) + '">+ สั่งงานให้โปรฯ นี้</a></div></div>';
+        '</div><div class="top-r"><a class="btn-ghost" href="' + CAL_URL + '#c=' + esc(cid) + '">' + (ro ? 'กลับไปปฏิทิน' : 'แก้ไขรายละเอียดในปฏิทิน') + '</a>' +
+        (ro ? '' : '<a class="btn" href="#/new?campaign=' + esc(cid) + '">+ สั่งงานให้โปรฯ นี้</a>') + '</div></div>';
 
       h += '<div class="cards">' +
         '<article class="hot"><span class="l">งานป้าย</span><b>' + signs.length + '</b><small>' + (signs.length ? 'ติดตั้งแล้ว ' + signs.filter(function (t) { return effStatus(t) === 'done'; }).length : 'ยังไม่มี') + '</small></article>' +
@@ -4334,7 +4339,7 @@
           return taskRow(t) + (st.length ? '<div class="cfun">' + signFunnel(t, st, true) + '</div>' : '');
         }).join('') + '</div>';
       } else {
-        h += '<div class="empty small">ยังไม่มีงานป้ายสำหรับโปรฯ นี้ — <a href="#/new?campaign=' + esc(cid) + '&ttype=signage">สั่งงานป้าย</a></div>';
+        h += '<div class="empty small">ยังไม่มีงานป้ายสำหรับโปรฯ นี้' + (ro ? '' : ' — <a href="#/new?campaign=' + esc(cid) + '&ttype=signage">สั่งงานป้าย</a>') + '</div>';
       }
       h += '</div>';
 
@@ -4351,7 +4356,7 @@
               '<td>' + (x.status === 'done' ? '<span class="pill done">โพสต์แล้ว</span>' : (late ? '<span class="pill late">ยังไม่โพสต์ · เลยวัน</span>' : '<span class="pill">' + esc(POST_STATUS_TH[x.status] || x.status || '') + '</span>')) + '</td></tr>';
           }).join('') + '</tbody></table></div>';
       } else {
-        h += '<div class="empty small">ยังไม่มีโพสต์ผูกกับโปรฯ นี้ — <a href="#/posts">ไปตารางโพสต์</a> แล้วเลือกปฏิทินการตลาดในแถว</div>';
+        h += '<div class="empty small">ยังไม่มีโพสต์ผูกกับโปรฯ นี้' + (ro ? '' : ' — <a href="#/posts">ไปตารางโพสต์</a> แล้วเลือกปฏิทินการตลาดในแถว') + '</div>';
       }
       h += '</div>';
 
@@ -6556,7 +6561,8 @@
              เปิดลิงก์ตรงมาที่งานใดงานหนึ่ง (คนกดจากกระดิ่ง/แจ้งเตือน) ไม่ต้องพาทัวร์ตอนนั้น */
           var TOUR_AUTO_MAX = 3;
           if (T) T.onFinish = function () { S.tourShown = TOUR_AUTO_MAX; fetch(API + '/me/tour', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{"done":true}' }).catch(function () {}); };
-          if (T && S.tourShown < TOUR_AUTO_MAX && location.hash.indexOf('#/task/') !== 0) setTimeout(function () {
+          /* คนที่ไม่มีหน้างานทีม (เปิดแต่ปฏิทิน/ลีด) ไม่ต้องเจอทัวร์ระบบงาน · เปิดหน้ารายการจากปฏิทินก็ไม่ต้องเด้ง */
+          if (T && S.tourShown < TOUR_AUTO_MAX && canSee('tasks') && location.hash.indexOf('#/task/') !== 0 && location.hash.indexOf('#/campaign/') !== 0) setTimeout(function () {
             if (!S.me || T.active()) return;
             if (T.start('overview')) {
               S.tourShown++;

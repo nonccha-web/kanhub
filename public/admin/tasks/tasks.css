@@ -1656,3 +1656,6 @@ td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:colo
   font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:12.5px; line-height:1.75; white-space:pre-wrap; }
 .tkprev .sec-h{ display:block; margin-bottom:12px; }
 .tkprev .sec-h p{ margin-top:4px; text-align:left; }
+/* หน้าแคมเปญแบบอ่านอย่างเดียว (คนที่ไม่มีหน้างานทีม — เปิดจาก "เปิดหน้าเต็ม" ในปฏิทิน) */
+.page.ro .trow{ pointer-events:none; }
+.page.ro .trow .st, .page.ro .trow .rowmenu, .page.ro .trow .tgo, .page.ro .group-h .gsel{ display:none !important; }

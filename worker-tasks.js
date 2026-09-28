@@ -1110,7 +1110,10 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* คนที่ได้เฉพาะหมวด CRM (ฝ่ายขาย) — แตะได้แค่ลีดกับของที่หน้าเว็บต้องใช้ตอนเปิดระบบ
      กันที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนเมนู */
   if (!canSee(me, "tasks")) {
-    const allowed = /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push)/.test(path);
+    /* คนที่เปิดปฏิทินการตลาดได้ (หมวดเอกสาร) แต่ไม่มีหน้างานทีม — กด "เปิดหน้าเต็ม" ของรายการในปฏิทินแล้วต้องเห็นได้
+       (นนท์ 28 ก.ย. 69) · อ่านอย่างเดียว เฉพาะงาน/โพสต์ที่ผูกกับรายการนั้น ไม่ได้รายการงานทั้งระบบ */
+    const calRead = method === "GET" && canSee(me, "docs") && /^\/(campaigns$|campaigns\/[A-Za-z0-9_-]{1,40}\/related$|pages$)/.test(path);
+    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push)/.test(path);
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
 
@@ -1598,7 +1601,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const campRel = path.match(/^\/campaigns\/([A-Za-z0-9_-]{1,40})\/related$/);
   if (campRel && method === "GET") {
     const cid = campRel[1];
-    const tr = await db.prepare(TASK_SELECT + "WHERE t.campaign_id = ?" + TASK_ORDER).bind(cid).all();
+    /* รวมงานย่อย (ขั้นของงานป้าย) ด้วย — หน้าแคมเปญวาดจุดขั้นงานจากตัวนี้ได้เลย ไม่ต้องโหลดงานทั้งระบบ */
+    const tr = await db.prepare(TASK_SELECT + "WHERE t.campaign_id = ? OR t.parent_id IN (SELECT id FROM tasks WHERE campaign_id = ?)" + TASK_ORDER).bind(cid, cid).all();
     let posts = [];
     try {
       const pr = await db.prepare(
