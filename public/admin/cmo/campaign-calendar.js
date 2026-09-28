@@ -1673,7 +1673,8 @@
         '<button type="button" class="cc-icon cc-dt-x" data-dtclose="1" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
       '<div class="cc-dt-body">' +
         "<h2>" + esc(it.name) + "</h2>" +
-        '<div class="cc-dt-when">' + fullRange(it) + (isMonthPlan(it) ? "" : '<small>' + esc(dayTag(it.start)) + "</small>") + "</div>" +
+        /* ไม่ใส่ป้าย W — หน้าต่างนี้ไว้อธิบายให้คนนอกทีมฟัง วันต้นเดือนที่ขึ้น "W4 เดือนก่อน" ทำให้งง (คุณออนเคยทัก) */
+        '<div class="cc-dt-when">' + fullRange(it) + "</div>" +
         (atts.length ? '<div class="cc-dt-pics n' + Math.min(atts.length, 3) + '">' + atts.map(function (a) {
           return '<button type="button" class="cc-dt-pic" data-zoom="' + a.id + '"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy" decoding="async"></button>';
         }).join("") + "</div>" : "") +
