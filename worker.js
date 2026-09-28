@@ -285,6 +285,8 @@ async function handleApi(request, env, url, ctx) {
   /* API ที่เหลือ (ปฏิทิน รูปแนบ KPI) ต้องเข้าสู่ระบบก่อน — เดิมเปิดให้ยิงตรงได้ */
   const who = await authFor(request, env);
   if (!who) return json({ error: "กรุณาเข้าสู่ระบบ", auth: false }, 401);
+  /* บัญชีชั่วคราวรออนุมัติ — ยังไม่ให้เห็นข้อมูลปฏิทิน/รูป/KPI */
+  if (who.pending) return json({ error: "บัญชีนี้รอหัวหน้าอนุมัติ", pending: true }, 403);
   if (path === "/kpi" && !canSee(who, "kpi")) return json({ error: "ไม่มีสิทธิ์ดูข้อมูล KPI" }, 403);
 
   // ---- รูปแนบ ----

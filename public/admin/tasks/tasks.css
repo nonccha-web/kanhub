@@ -1659,3 +1659,23 @@ td.rtover{ outline:2px dashed var(--k-ink); outline-offset:-3px; background:colo
 /* หน้าแคมเปญแบบอ่านอย่างเดียว (คนที่ไม่มีหน้างานทีม — เปิดจาก "เปิดหน้าเต็ม" ในปฏิทิน) */
 .page.ro .trow{ pointer-events:none; }
 .page.ro .trow .st, .page.ro .trow .rowmenu, .page.ro .trow .tgo, .page.ro .group-h .gsel{ display:none !important; }
+/* ขอเข้าใช้ระบบ (บัญชีชั่วคราว) + กล่องอนุมัติในหน้าทีม */
+.page.join .joinform{ max-width:720px; }
+.page.join .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.page.join .field{ margin-bottom:14px; }
+.hintx{ display:block; font-size:12px; color:var(--k-mut); margin-top:4px; font-weight:400; }
+label .hintx{ display:inline; }
+.joinsecs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.joinsec{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--k-line); border-radius:10px; cursor:pointer; background:var(--k-paper); }
+.joinsec input{ margin-top:4px; width:16px; height:16px; accent-color:var(--k-ink); flex:none; }
+.joinsec b{ display:block; font-size:14px; }
+.joinsec small{ display:block; font-size:12px; color:var(--k-mut); line-height:1.45; }
+.joinsec:has(input:checked){ border-color:var(--k-ink); }
+.joinreq{ display:flex; gap:14px; align-items:flex-start; justify-content:space-between; padding:14px 22px; border-top:1px solid var(--k-hair); }
+.joinreq:first-child{ border-top:0; }
+.joinreq .n small{ display:block; color:var(--k-mut); font-size:12.5px; margin:2px 0 6px; }
+.joinreq .acts{ display:flex; gap:8px; flex:none; }
+.secchip{ display:inline-flex; align-items:center; gap:5px; font-size:12.5px; margin:0 10px 4px 0; cursor:pointer; }
+#joinBox .sec-h{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+#joinBox .sec-h .btn-ghost{ margin-left:auto; }
+@media (max-width:640px){ .page.join .grid2, .joinsecs{ grid-template-columns:1fr; } .joinreq{ flex-direction:column; } }

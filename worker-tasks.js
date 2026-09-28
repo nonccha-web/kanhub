@@ -1,4 +1,4 @@
-import { handlePushApi } from "./worker-push.js";
+import { handlePushApi, ensurePushSchema } from "./worker-push.js";
 import { notifyReviewSubmitted, sendLark } from "./worker-lark.js";
 import STOCK_PRICES from "./src/lib/stock-prices.json";
 import { handleBlastApi } from "./worker-blast.js";
@@ -304,6 +304,11 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN require_pw INTEGER NOT NULL DEFAULT 0",
   /* พาทัวร์เด้งเองได้กี่ครั้งแล้ว — จำรายคน (เดิมจำในเบราว์เซอร์ เปลี่ยนเครื่อง/ติดตั้งเป็นแอปแล้วขึ้นใหม่หมด) */
   "ALTER TABLE staff ADD COLUMN tour_shown INTEGER NOT NULL DEFAULT 0",
+  /* บัญชีชั่วคราว "รออนุมัติ" — เข้าได้แค่ฟอร์มขอเข้าระบบ (นนท์ 28 ก.ย. 69) */
+  "ALTER TABLE staff ADD COLUMN pending INTEGER NOT NULL DEFAULT 0",
+  "CREATE TABLE IF NOT EXISTS join_requests (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, " +
+    "sections TEXT NOT NULL DEFAULT '', want_user TEXT NOT NULL, pw_salt TEXT NOT NULL, pw_hash TEXT NOT NULL, " +
+    "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT)",
   /* งานประจำทำวันไหนบ้าง — "0,1,2,3,4" = จ–ศ · ว่าง = ตามความถี่เดิม (นนท์ 22 ก.ย. 69 ขอลากยาวข้ามวัน) */
   "ALTER TABLE tasks ADD COLUMN repeat_days TEXT",
   "CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at)",
@@ -707,7 +712,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -719,7 +724,7 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   return row;
 }
@@ -728,6 +733,7 @@ function publicStaff(r) {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
     needsPassword: r.role === "owner" || !!r.require_pw,
+    pending: !!r.pending,
     canUpdateOthers: r.role === "owner" || !!r.can_update_others,
     canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
@@ -1107,6 +1113,92 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const canUpdateOthers = isOwner || !!me.can_update_others;
   /* เลื่อนกำหนดส่งได้เอง — ปกติสงวนไว้ให้หัวหน้ากับคนสั่งงาน เปิดรายคนได้ */
   const canReschedule = isOwner || !!me.can_reschedule;
+  /* ---- ขอเข้าระบบ (นนท์ 28 ก.ย. 69) ----
+     บัญชีชั่วคราว (pending) กรอกฟอร์ม → หัวหน้าอนุมัติ/ปฏิเสธในหน้าทีม → อนุมัติแล้วบัญชีกลายเป็นชื่อ/รหัส/สิทธิ์ที่ขอ */
+  if (me.pending) {
+    if (!(path === "/me" && method === "GET") && path !== "/join") return json({ error: "บัญชีนี้รอหัวหน้าอนุมัติ — กรอกฟอร์มขอเข้าระบบก่อนนะคะ", pending: true }, 403);
+  }
+  if (path === "/join" && method === "GET") {
+    const r = await db.prepare("SELECT id,first_name,last_name,sections,want_user,status,created_at FROM join_requests WHERE staff_id = ? ORDER BY created_at DESC LIMIT 1").bind(me.id).first();
+    return json({ request: r || null, pending: !!me.pending });
+  }
+  if (path === "/join" && method === "POST") {
+    if (!me.pending) return json({ error: "บัญชีนี้เข้าระบบได้แล้ว ไม่ต้องขอใหม่" }, 400);
+    const body = await readBody(request);
+    const first = String(body.firstName || "").trim().slice(0, 60), last = String(body.lastName || "").trim().slice(0, 60);
+    const user = String(body.username || "").trim().replace(/\s+/g, " ").slice(0, 30);
+    const pw = String(body.password || "");
+    if (!first || !last) return json({ error: "ใส่ชื่อและนามสกุล" }, 400);
+    if (user.length < 2 || /[()@,]/.test(user)) return json({ error: "ชื่อผู้ใช้ต้องยาว 2–30 ตัว และห้ามมี ( ) @ ," }, 400);
+    if (pw.length < 6 || pw.length > 100) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว" }, 400);
+    const secs = cleanSections(Array.isArray(body.sections) ? body.sections.join(",") : body.sections);
+    if (!secs) return json({ error: "เลือกสิทธิ์ที่ขออย่างน้อย 1 อย่าง" }, 400);
+    /* ชื่อบนปุ่มหน้าล็อกอินต้องไม่ซ้ำคนที่ใช้อยู่ */
+    const all = (await db.prepare("SELECT id,name FROM staff WHERE active = 1 AND id != ?").bind(me.id).all()).results || [];
+    const lbl = (n) => String(n || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/)[0].toLowerCase();
+    if (all.some((x) => lbl(x.name) === lbl(user))) return json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว ลองชื่ออื่นนะคะ" }, 409);
+    const salt = randHex(16), now = nowIso(), id = newId("jr_");
+    await db.batch([
+      db.prepare("DELETE FROM join_requests WHERE staff_id = ? AND status = 'pending'").bind(me.id),
+      db.prepare("INSERT INTO join_requests (id,staff_id,first_name,last_name,sections,want_user,pw_salt,pw_hash,status,created_at) VALUES (?,?,?,?,?,?,?,?,'pending',?)")
+        .bind(id, me.id, first, last, secs, user, salt, await pbkdf2Hex(pw, salt), now),
+    ]);
+    /* เด้งหาหัวหน้าทุกคน (แจ้งเตือนมือถือ) — หมวดพิเศษ ปิดไม่ได้ */
+    try {
+      await ensurePushSchema(db);
+      const owners = (await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all()).results || [];
+      if (owners.length) await db.batch(owners.map((o) => db.prepare(
+        "INSERT OR IGNORE INTO push_outbox (staff_id, kind, ref, title, body, url, created_at) VALUES (?, 'join', ?, ?, ?, '/tasks/#/team', ?)"
+      ).bind(o.id, "j:" + id, "คำขอเข้าระบบใหม่", first + " " + last + " · ขอ: " + secs, now)));
+    } catch (e) { /* แจ้งเตือนพังไม่ควรทำให้ส่งคำขอไม่ได้ */ }
+    return json({ ok: true, id });
+  }
+  if (path === "/join-requests" && method === "GET") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const rs = await db.prepare("SELECT j.id,j.staff_id,j.first_name,j.last_name,j.sections,j.want_user,j.created_at,s.name AS temp_name " +
+      "FROM join_requests j LEFT JOIN staff s ON s.id = j.staff_id WHERE j.status = 'pending' ORDER BY j.created_at").all();
+    const temps = await db.prepare("SELECT id,name,created_at FROM staff WHERE pending = 1 AND active = 1 ORDER BY created_at").all();
+    return json({ requests: rs.results || [], temps: temps.results || [] });
+  }
+  const jrMatch = path.match(/^\/join-requests\/([A-Za-z0-9_-]{1,40})\/(approve|reject)$/);
+  if (jrMatch && method === "POST") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const r = await db.prepare("SELECT * FROM join_requests WHERE id = ? AND status = 'pending'").bind(jrMatch[1]).first();
+    if (!r) return json({ error: "ไม่พบคำขอนี้ หรือจัดการไปแล้ว" }, 404);
+    const now = nowIso();
+    if (jrMatch[2] === "reject") {
+      await db.batch([
+        db.prepare("UPDATE join_requests SET status = 'rejected', decided_at = ?, decided_by = ? WHERE id = ?").bind(now, me.id, r.id),
+        db.prepare("UPDATE staff SET active = 0 WHERE id = ? AND pending = 1").bind(r.staff_id),
+      ]);
+      return json({ ok: true });
+    }
+    const body = await readBody(request);
+    const secs = body.sections != null ? cleanSections(Array.isArray(body.sections) ? body.sections.join(",") : body.sections) : r.sections;
+    /* ชื่อบนปุ่มล็อกอิน = ชื่อผู้ใช้ที่ขอ · วงเล็บ = ชื่อจริง (ปุ่มล็อกอินตัดวงเล็บทิ้งเอง) */
+    const name = r.want_user + " (" + r.first_name + " " + r.last_name + ")";
+    const aliases = [r.want_user, r.first_name].join(",");
+    await db.batch([
+      db.prepare("UPDATE staff SET name = ?, aliases = ?, sections = ?, pw_salt = ?, pw_hash = ?, require_pw = 1, pending = 0, active = 1 WHERE id = ?")
+        .bind(name, aliases, secs, r.pw_salt, r.pw_hash, r.staff_id),
+      db.prepare("UPDATE join_requests SET status = 'approved', sections = ?, decided_at = ?, decided_by = ? WHERE id = ?").bind(secs, now, me.id, r.id),
+      db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(r.staff_id),
+    ]);
+    return json({ ok: true, name, sections: secs.split(",").filter(Boolean) });
+  }
+  /* สร้างบัญชีชั่วคราวให้คนใหม่ไปกรอกฟอร์ม */
+  if (path === "/staff/temp" && method === "POST") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
+    const body = await readBody(request);
+    const name = String(body.name || "").trim().slice(0, 30), pw = String(body.password || "");
+    if (name.length < 2 || /[()@,]/.test(name)) return json({ error: "ชื่อบัญชีชั่วคราวต้องยาว 2–30 ตัว และห้ามมี ( ) @ ," }, 400);
+    if (pw.length < 6) return json({ error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว" }, 400);
+    const id = newId("s_"), salt = randHex(8), psalt = randHex(16);
+    await db.prepare("INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,sections,require_pw,pending,pw_salt,pw_hash) VALUES (?,?,?,'member',?,?,1,?,'',1,1,?,?)")
+      .bind(id, name, name, salt, await sha256Hex(salt + ":" + randHex(16)), nowIso(), psalt, await pbkdf2Hex(pw, psalt)).run();
+    return json({ ok: true, id });
+  }
+
   /* คนที่ได้เฉพาะหมวด CRM (ฝ่ายขาย) — แตะได้แค่ลีดกับของที่หน้าเว็บต้องใช้ตอนเปิดระบบ
      กันที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ซ่อนเมนู */
   if (!canSee(me, "tasks")) {

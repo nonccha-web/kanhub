@@ -6101,6 +6101,114 @@
   }
 
   /* ---------- ทีม ---------- */
+  /* ---------- ขอเข้าใช้ระบบ (นนท์ 28 ก.ย. 69) — บัญชีชั่วคราวกรอก หัวหน้าอนุมัติในหน้าทีม ---------- */
+  var JOIN_SECTIONS = [
+    ['tasks', 'งานทีม', 'งานทั้งหมด งานป้าย ตารางโพสต์ ปฏิทินการตลาด'],
+    ['docs',  'เอกสาร / ปฏิทิน', 'ปฏิทินการตลาด เอกสารแผนงาน รายงานการรับสาย'],
+    ['sales', 'ยอดขาย', 'ตัวเลขยอดขาย สินค้าขายดี กลุ่มลูกค้า การตลาด'],
+    ['kpi',   'KPI', 'เป้าและผล KPI'],
+    ['crm',   'ลีด (CRM)', 'รายชื่อลูกค้าที่ทักเข้ามา สำหรับฝ่ายขาย'],
+    ['blast', 'บรอดแคสต์ LINE', 'ส่งข้อความถึงลูกค้าใน LINE OA + SMS']
+  ];
+  function renderJoin() {
+    var view = $('#view');
+    view.className = 'page join';
+    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    api('/join').then(function (j) {
+      var r = j.request;
+      var sent = r && r.status === 'pending';
+      var picked = r ? String(r.sections || '').split(',') : [];
+      view.innerHTML = '<div class="top"><div><span class="kicker">ขอเข้าใช้ระบบ</span><h1>ยินดีต้อนรับสู่ KAN Admin</h1>' +
+        '<p>กรอกข้อมูลด้านล่างแล้วกดส่ง หัวหน้าจะอนุมัติสิทธิ์ให้ · อนุมัติแล้วใช้ชื่อผู้ใช้และรหัสผ่านที่ตั้งไว้ในฟอร์มนี้เข้าระบบได้เลย</p></div></div>' +
+        (sent ? '<div class="postbar ok">ส่งคำขอแล้วเมื่อ ' + esc(fmtFull(r.created_at)) + ' — รอหัวหน้าอนุมัติ · ถ้าจะแก้ข้อมูล แก้แล้วกดส่งใหม่ได้เลย</div>' : '') +
+        '<form class="sec joinform" id="joinForm" autocomplete="off"><div class="sec-b">' +
+        '<div class="grid2"><div class="field"><label class="label" for="jFirst">ชื่อ</label><input class="input" id="jFirst" value="' + esc(r ? r.first_name : '') + '" required></div>' +
+        '<div class="field"><label class="label" for="jLast">นามสกุล</label><input class="input" id="jLast" value="' + esc(r ? r.last_name : '') + '" required></div></div>' +
+        '<div class="field"><label class="label">สิทธิ์ที่ขอ <span class="hintx">(เลือกได้หลายข้อ)</span></label><div class="joinsecs">' +
+        JOIN_SECTIONS.map(function (x) {
+          return '<label class="joinsec"><input type="checkbox" value="' + x[0] + '"' + (picked.indexOf(x[0]) !== -1 ? ' checked' : '') + '>' +
+            '<span><b>' + esc(x[1]) + '</b><small>' + esc(x[2]) + '</small></span></label>';
+        }).join('') + '</div></div>' +
+        '<div class="grid2"><div class="field"><label class="label" for="jUser">ชื่อผู้ใช้ที่อยากได้</label><input class="input" id="jUser" value="' + esc(r ? r.want_user : '') + '" maxlength="30" required>' +
+        '<small class="hintx">ชื่อนี้จะขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ</small></div>' +
+        '<div class="field"><label class="label" for="jPw">รหัสผ่านที่อยากได้</label><input class="input" id="jPw" type="password" minlength="6" required>' +
+        '<small class="hintx">อย่างน้อย 6 ตัว</small></div></div>' +
+        '<div class="field"><label class="label" for="jPw2">พิมพ์รหัสผ่านอีกครั้ง</label><input class="input" id="jPw2" type="password" minlength="6" required></div>' +
+        '<div class="err" id="jErr" hidden></div>' +
+        '<button type="submit" class="btn">' + (sent ? 'ส่งคำขอใหม่' : 'ส่งคำขอ') + '</button>' +
+        '</div></form>';
+      $('#joinForm').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var err = $('#jErr'), secs = $$('.joinsec input:checked').map(function (x) { return x.value; });
+        var body = { firstName: $('#jFirst').value.trim(), lastName: $('#jLast').value.trim(), sections: secs,
+                     username: $('#jUser').value.trim(), password: $('#jPw').value };
+        var bad = !body.firstName || !body.lastName ? 'ใส่ชื่อและนามสกุล' : (!secs.length ? 'เลือกสิทธิ์ที่ขออย่างน้อย 1 อย่าง'
+          : (body.username.length < 2 ? 'ใส่ชื่อผู้ใช้' : (body.password.length < 6 ? 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัว'
+          : (body.password !== $('#jPw2').value ? 'รหัสผ่าน 2 ช่องไม่ตรงกัน' : ''))));
+        if (bad) { err.textContent = bad; err.hidden = false; return; }
+        err.hidden = true;
+        api('/join', 'POST', body).then(function () {
+          okDialog({ title: 'ส่งคำขอแล้ว', lines: ['ชื่อ: ' + body.firstName + ' ' + body.lastName, 'ชื่อผู้ใช้: ' + body.username,
+            'สิทธิ์ที่ขอ: ' + secs.map(function (k) { return JOIN_SECTIONS.filter(function (x) { return x[0] === k; })[0][1]; }).join(', ')],
+            note: 'รอหัวหน้าอนุมัติ อนุมัติแล้วเข้าระบบด้วยชื่อผู้ใช้และรหัสผ่านที่ตั้งไว้ได้เลย', onClose: renderJoin });
+        }).catch(function (e) { err.textContent = e.message; err.hidden = false; });
+      });
+    }).catch(function (e) { view.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  /* กล่องในหน้าทีม: คำขอเข้าระบบ + บัญชีชั่วคราว (หัวหน้า) */
+  function loadJoinBox() {
+    var host = $('#joinBox');
+    if (!host) return;
+    api('/join-requests').then(function (j) {
+      var reqs = j.requests || [], waiting = (j.temps || []).filter(function (t) { return !reqs.some(function (r) { return r.staff_id === t.id; }); });
+      host.innerHTML = '<div class="sec"><div class="sec-h"><h2>คำขอเข้าระบบ</h2><p>' + (reqs.length ? reqs.length + ' คำขอรออนุมัติ' : 'ไม่มีคำขอค้าง') + '</p>' +
+        '<button type="button" class="btn-ghost" data-temp-new>+ สร้างบัญชีชั่วคราว</button></div><div class="sec-b tight">' +
+        reqs.map(function (r) {
+          var secs = String(r.sections || '').split(',');
+          return '<div class="joinreq" data-jr="' + esc(r.id) + '"><div class="n"><b>' + esc(r.first_name + ' ' + r.last_name) + '</b>' +
+            '<small>ชื่อผู้ใช้ที่ขอ: <b>' + esc(r.want_user) + '</b> · ส่งเมื่อ ' + esc(fmtFull(r.created_at)) + ' · จากบัญชีชั่วคราว ' + esc(r.temp_name || '') + '</small>' +
+            '<div class="secchips">' + JOIN_SECTIONS.map(function (x) {
+              return '<label class="secchip"><input type="checkbox" value="' + x[0] + '"' + (secs.indexOf(x[0]) !== -1 ? ' checked' : '') + '> ' + esc(x[1]) + '</label>';
+            }).join('') + '</div><small class="hintx">ติ๊กเพิ่ม/เอาออกได้ก่อนกดอนุมัติ</small></div>' +
+            '<div class="acts"><button type="button" class="btn" data-jr-ok="' + esc(r.id) + '">อนุมัติ</button>' +
+            '<button type="button" class="btn-ghost" data-jr-no="' + esc(r.id) + '">ปฏิเสธ</button></div></div>';
+        }).join('') +
+        (waiting.length ? '<p class="hintx" style="margin:8px 0 0">บัญชีชั่วคราวที่ยังไม่ได้กรอกฟอร์ม: ' + waiting.map(function (t) { return esc(t.name); }).join(', ') + '</p>' : '') +
+        '</div></div>';
+    }).catch(function () { host.innerHTML = ''; });
+  }
+  document.addEventListener('click', function (ev) {
+    var b;
+    if ((b = ev.target.closest('[data-jr-ok]'))) {
+      var row = b.closest('.joinreq'), secs = $$('input:checked', row).map(function (x) { return x.value; });
+      if (!secs.length) { toast('ติ๊กสิทธิ์อย่างน้อย 1 อย่าง', true); return; }
+      b.disabled = true;
+      api('/join-requests/' + b.getAttribute('data-jr-ok') + '/approve', 'POST', { sections: secs }).then(function (j) {
+        okDialog({ title: 'อนุมัติแล้ว', lines: ['บัญชี: ' + j.name, 'สิทธิ์: ' + secs.map(function (k) { return JOIN_SECTIONS.filter(function (x) { return x[0] === k; })[0][1]; }).join(', ')],
+          note: 'เข้าระบบด้วยชื่อผู้ใช้และรหัสผ่านที่เขาตั้งไว้ในฟอร์ม · รหัสชั่วคราวใช้ไม่ได้แล้ว' });
+        return api('/me').then(function (m) { S.staff = m.staff || S.staff; render(); });
+      }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-jr-no]'))) {
+      if (!confirm('ปฏิเสธคำขอนี้? บัญชีชั่วคราวจะถูกปิดใช้งาน')) return;
+      api('/join-requests/' + b.getAttribute('data-jr-no') + '/reject', 'POST', {}).then(function () { toast('ปฏิเสธแล้ว'); loadJoinBox(); })
+        .catch(function (e) { toast(e.message, true); });
+      return;
+    }
+    if (ev.target.closest('[data-temp-new]')) {
+      var nm = prompt('ชื่อบัญชีชั่วคราว (จะขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ) เช่น Bow');
+      if (!nm) return;
+      var pw = prompt('ตั้งรหัสผ่านชั่วคราว (อย่างน้อย 6 ตัว)');
+      if (!pw) return;
+      api('/staff/temp', 'POST', { name: nm.trim(), password: pw }).then(function () {
+        okDialog({ title: 'สร้างบัญชีชั่วคราวแล้ว', lines: ['ลิงก์: https://admin.kan-hub.com', 'กดชื่อ: ' + nm.trim(), 'รหัสผ่าน: ' + pw],
+          note: 'ส่ง 3 บรรทัดนี้ให้เขา เข้าแล้วจะเจอฟอร์มขอเข้าระบบ กรอกเสร็จคำขอจะมาขึ้นที่กล่องนี้' });
+        loadJoinBox();
+      }).catch(function (e) { toast(e.message, true); });
+    }
+  });
+
   function renderTeam() {
     var view = $('#view');
     view.className = 'page';
@@ -6115,11 +6223,12 @@
       (S.viewAs ? '<div class="postbar warn">กำลังดูทั้งระบบในมุมของ <b>' + esc((staffById(S.viewAs) || {}).name || '') +
         '</b> — เห็นเมนู งาน และกระดิ่งเหมือนที่เขาเห็น · แก้อะไรไม่ได้ในโหมดนี้ ' +
         '<button type="button" class="btn-text" data-viewas-off>เลิกดู</button></div>' : '');
+    if (owner && !S.viewAs) h += '<div id="joinBox"></div>';
     h += '<div class="two"><div class="sec"><div class="sec-h"><h2>สมาชิก</h2><p>' + S.staff.filter(function (s) { return s.active; }).length + ' คนใช้งานอยู่</p></div><div class="sec-b tight">' +
       S.staff.map(function (s) {
         return '<div class="team-row' + (s.active ? '' : ' off') + '">' + avatar(s, 'lg') + '<div class="n"><b>' + esc(s.name) + (s.role === 'owner' ? ' <span class="pill doing" style="margin-left:6px">หัวหน้า</span>' : '') + (s.active ? '' : ' <span class="pill todo">ปิดใช้งาน</span>') +
           (s.role === 'owner' && !s.hasPassword ? ' <span class="pill late">ยังไม่ตั้งรหัสผ่าน</span>' : '') + '</b>' +
-          '<small>' + (s.role === 'owner' ? 'เข้าด้วยรหัสผ่าน' : 'กดชื่อเข้าได้เลย') + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
+          '<small>' + (s.pending ? '<b style="color:var(--k-warn)">บัญชีชั่วคราว — รออนุมัติ</b>' : (s.role === 'owner' || s.needsPassword ? 'เข้าด้วยรหัสผ่าน' : 'กดชื่อเข้าได้เลย')) + ' · @' + esc(s.aliases || shortName(s)) + '</small>' +
           '<div class="secchips">' + (s.role === 'owner'
             ? '<span class="pill doing">เห็นทุกหมวด</span>'
             : SECTION_LIST.map(function (sc) {
@@ -6196,6 +6305,7 @@
     h += '<div class="sec" id="storageBox"><div class="sec-h"><h2>พื้นที่เก็บรูป</h2></div><div class="sec-b"><p class="hint">กำลังอ่าน…</p></div></div>';
     h += '</div></div>';
     view.innerHTML = h;
+    loadJoinBox();
 
     var bkBtn = $('#bkRun');
     if (bkBtn) bkBtn.addEventListener('click', function () {
@@ -6488,6 +6598,8 @@
   function render() {
     S.route = parseRoute();
     popClose();
+    /* บัญชีชั่วคราวรออนุมัติ — เห็นแค่ฟอร์มขอเข้าระบบ */
+    if (S.me && S.me.pending) { renderSidebar(); renderHeaderUser(); return renderJoin(); }
     /* คนที่มีเฉพาะหมวดลีด ให้อยู่แต่หน้าลีด (กันซ้ำกับด่านฝั่งเซิร์ฟเวอร์) */
     if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead'].indexOf(S.route.name) === -1) {
       location.hash = '#/leads';
