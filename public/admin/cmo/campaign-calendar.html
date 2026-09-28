@@ -535,6 +535,46 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
 .cc-okbox li:first-child{ font-weight:600; color:var(--text-primary); }
 .cc-okbox .cc-btn{ width:100%; justify-content:center; }
 @media (max-width:560px){ .cc-bbtn{ padding:6px 8px; font-size:12px; } .cc-bbtn.ghost{ margin-left:0; } }
+/* ── หน้าต่างรายละเอียด (เปิดโชว์บนปฏิทิน ไม่ย้ายหน้า) ── */
+.cc-dt{ position:fixed; inset:0; z-index:150; background:rgba(12,12,10,.55); display:none; align-items:center; justify-content:center; padding:24px; }
+.cc-dt.open{ display:flex; }
+html.cc-dt-on{ overflow:hidden; }
+.cc-dt-box{ position:relative; width:min(980px, 100%); max-height:calc(100vh - 48px); overflow:auto; background:var(--bg-card, #fff);
+  border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.3); display:flex; flex-direction:column; }
+.cc-dt-bar{ height:8px; flex:none; border-radius:16px 16px 0 0; }
+.cc-dt-hd{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 26px 0; }
+.cc-dt-tags{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.cc-dt-x svg{ width:22px; height:22px; }
+.cc-dt-body{ padding:8px 26px 20px; }
+.cc-dt-body h2{ margin:6px 0 6px; font-size:30px; line-height:1.25; font-weight:700; letter-spacing:-.2px; }
+.cc-dt-when{ font-size:17px; color:var(--text-secondary); margin-bottom:18px; }
+.cc-dt-when small{ margin-left:10px; font-size:13px; color:var(--text-muted); }
+.cc-dt-pics{ display:grid; gap:10px; margin-bottom:18px; }
+.cc-dt-pics.n1{ grid-template-columns:1fr; } .cc-dt-pics.n2{ grid-template-columns:1fr 1fr; } .cc-dt-pics.n3{ grid-template-columns:repeat(3,1fr); }
+.cc-dt-pic{ border:0; padding:0; background:var(--bg-card-subtle); border-radius:10px; overflow:hidden; cursor:zoom-in; aspect-ratio:4/3; }
+.cc-dt-pics.n1 .cc-dt-pic{ aspect-ratio:auto; max-height:520px; }
+.cc-dt-pic img{ width:100%; height:100%; object-fit:cover; display:block; }
+.cc-dt-pics.n1 .cc-dt-pic img{ object-fit:contain; max-height:520px; }
+.cc-dt-note{ white-space:pre-wrap; font-size:16px; line-height:1.7; color:var(--text-primary); background:var(--bg-card-subtle);
+  border-radius:10px; padding:14px 16px; margin-bottom:18px; }
+.cc-dt-facts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 20px; margin-bottom:18px; }
+.cc-dt-f > span{ display:block; font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px; }
+.cc-dt-f > div{ font-size:14.5px; }
+.cc-dt-st h3{ font-size:14px; margin:0 0 8px; color:var(--text-secondary); }
+.cc-dt-ft{ position:sticky; bottom:0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+  padding:12px 26px; border-top:1px solid var(--bg-glass-border); background:var(--bg-card, #fff); border-radius:0 0 16px 16px; }
+.cc-dt-nav{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.cc-dt-nav .cc-btn:disabled{ opacity:.4; cursor:default; }
+.cc-dt-acts{ display:flex; align-items:center; gap:8px; }
+.cc-dt-link{ font-size:12.5px; color:var(--text-muted); margin-right:6px; }
+.cc-dt-zoom{ position:fixed; inset:0; z-index:160; background:rgba(0,0,0,.88); display:flex; align-items:center; justify-content:center; cursor:zoom-out; padding:20px; }
+.cc-dt-zoom img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; }
+@media (max-width:640px){
+  .cc-dt{ padding:0; } .cc-dt-box{ max-height:100vh; height:100%; border-radius:0; }
+  .cc-dt-body h2{ font-size:23px; } .cc-dt-pics.n3{ grid-template-columns:1fr 1fr; }
+  .cc-dt-hd, .cc-dt-body, .cc-dt-ft{ padding-left:16px; padding-right:16px; }
+  .cc-dt-link{ display:none; }
+}
 /* เมนู ⋯ มุมขวาบน */
 .cc-more-wrap{ position:relative; }
 .cc-morebtn{ padding-left:10px !important; padding-right:10px !important; }
@@ -848,6 +888,6 @@ body.cc-hasbulk .container{ padding-bottom:150px; }
 
 <script src="erp-menu.js?v=47"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=23"></script>
+<script src="campaign-calendar.js?v=24"></script>
 </body>
 </html>

@@ -1508,7 +1508,7 @@
           statusBlock(it) +
           (it.note ? '<div class="cc-hover-note clamp">' + esc(it.note.replace(/^\[[^\]]*\]\s*/, "")) + "</div>" : "") +
           (linkLine(it) ? '<div class="cc-hover-meta">' + linkLine(it) + "</div>" : "") +
-          '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn ghost" data-open="' + it.id + '">เปิดหน้าเต็ม</button>' +
+          '<div class="cc-hover-acts"><button type="button" class="cc-hover-btn" data-detail="' + it.id + '">ดูรายละเอียด</button>' +
           '<button type="button" class="cc-hover-btn ghost" data-edit="' + it.id + '">แก้ไขรายละเอียด</button>' +
           '<button type="button" class="cc-hover-btn ghost" data-dup="' + it.id + '" title="ก๊อปอันนี้เป็นรายการใหม่">ทำสำเนา</button></div>' +
         "</div>";
@@ -1640,6 +1640,115 @@
     return a.getDate() + " " + MONTHS[a.getMonth()] + (same ? "" : " " + be(a.getFullYear())) +
            " – " + b.getDate() + " " + MONTHS[b.getMonth()] + " " + be(b.getFullYear());
   }
+
+  /* ============================================================
+     หน้าต่างรายละเอียด (นนท์ 28 ก.ย. 69: เปิดรายละเอียดแล้วไม่อยากให้ย้ายไปหน้างาน
+     อยากเปิดโชว์อธิบายกิจกรรมให้คนอื่นดู) — ซ้อนบนปฏิทิน อ่านอย่างเดียว ‹ › ไล่ทีละรายการในเดือนที่เปิดอยู่
+     ============================================================ */
+  var detailId = null;
+  function detailSeq() {
+    var list = view.mode === "month" && view.month != null ? ofMonth(view.month) : ofYear();
+    var key = function (it) {
+      if (view.mode === "month" && view.month != null) {
+        var a = iso(year, view.month, 1), b = iso(year, view.month, daysIn(year, view.month));
+        var g = occ(it).filter(function (x) { return x[0] <= b && x[1] >= a; })[0];
+        if (g) return g[0] < a ? a : g[0];
+      }
+      return it.start;
+    };
+    return list.slice().sort(function (x, y) { var p = key(x), q = key(y); return p < q ? -1 : p > q ? 1 : (x.name < y.name ? -1 : 1); });
+  }
+  function fact(label, html) {
+    return '<div class="cc-dt-f"><span>' + label + "</span><div>" + html + "</div></div>";
+  }
+  function detailHtml(it) {
+    var x = subOf(it), c = x.c, atts = it.attachments || [];
+    var seq = detailSeq(), pos = seq.map(function (y) { return y.id; }).indexOf(it.id);
+    var chips = function (arr) { return arr && arr.length ? arr.map(function (v) { return '<span class="cc-tag">' + esc(v) + "</span>"; }).join("") : '<span class="cc-gmute">—</span>'; };
+    var acc = it.acc && it.acc.need
+      ? "ตั้งค่า" + (it.acc.type === "coupon" ? "คูปอง" : "โปรโมชั่น") + "ในระบบ" + (it.acc.detail ? " — " + esc(it.acc.detail) : "")
+      : '<span class="cc-gmute">ไม่ต้อง</span>';
+    return '<div class="cc-dt-bar" style="background:' + c + '"></div>' +
+      '<div class="cc-dt-hd"><div class="cc-dt-tags">' + kindPill(it) + '<span class="cc-pill ' + it.status + '">' + STATUS_LABEL[it.status] + "</span></div>" +
+        '<button type="button" class="cc-icon cc-dt-x" data-dtclose="1" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+      '<div class="cc-dt-body">' +
+        "<h2>" + esc(it.name) + "</h2>" +
+        '<div class="cc-dt-when">' + fullRange(it) + (isMonthPlan(it) ? "" : '<small>' + esc(dayTag(it.start)) + "</small>") + "</div>" +
+        (atts.length ? '<div class="cc-dt-pics n' + Math.min(atts.length, 3) + '">' + atts.map(function (a) {
+          return '<button type="button" class="cc-dt-pic" data-zoom="' + a.id + '"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy" decoding="async"></button>';
+        }).join("") + "</div>" : "") +
+        (it.note ? '<div class="cc-dt-note">' + esc(it.note) + "</div>" : "") +
+        '<div class="cc-dt-facts">' +
+          fact("สาขา", chips(it.branches)) + fact("ช่องทาง", chips(it.channels)) +
+          fact("ผู้รับผิดชอบ", it.owner ? esc(it.owner) : '<span class="cc-gmute">—</span>') +
+          fact("งบ", it.budget ? "฿ " + baht(it.budget) : '<span class="cc-gmute">—</span>') +
+          fact("ฝ่ายบัญชี", acc) +
+        "</div>" +
+        '<div class="cc-dt-st"><h3>สื่อและงานที่ผูกไว้</h3>' + statusBlock(it) + "</div>" +
+      "</div>" +
+      '<div class="cc-dt-ft">' +
+        '<div class="cc-dt-nav"><button type="button" class="cc-btn" data-dtstep="-1"' + (pos <= 0 ? " disabled" : "") + '>‹ ก่อนหน้า</button>' +
+        '<span>' + (pos + 1) + " / " + seq.length + '</span>' +
+        '<button type="button" class="cc-btn" data-dtstep="1"' + (pos < 0 || pos >= seq.length - 1 ? " disabled" : "") + ">ถัดไป ›</button></div>" +
+        '<div class="cc-dt-acts"><a class="cc-dt-link" href="' + TASKS_BASE + "#/campaign/" + encodeURIComponent(it.id) + '">เปิดในหน้างานทีม</a>' +
+        '<button type="button" class="cc-btn" data-dtedit="' + it.id + '">แก้ไข</button>' +
+        '<button type="button" class="cc-btn primary" data-dtclose="1">ปิด</button></div>' +
+      "</div>";
+  }
+  function openDetail(id) {
+    var it = byId(id);
+    if (!it) return;
+    hideHover(0, true);
+    detailId = id;
+    var ov = $("ccDetail");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "ccDetail";
+      ov.className = "cc-dt";
+      ov.innerHTML = '<div class="cc-dt-box" role="dialog" aria-modal="true" aria-label="รายละเอียดรายการ"></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener("click", function (e) {
+        if (e.target === ov || e.target.closest("[data-dtclose]")) { closeDetail(); return; }
+        var st = e.target.closest("[data-dtstep]");
+        if (st) { stepDetail(Number(st.dataset.dtstep)); return; }
+        var ed = e.target.closest("[data-dtedit]");
+        if (ed) { var eit = byId(ed.dataset.dtedit); closeDetail(); if (eit) openDrawer(eit, null, null); return; }
+        var z = e.target.closest("[data-zoom]");
+        if (z) { zoomPic(z.dataset.zoom); return; }
+      });
+    }
+    ov.querySelector(".cc-dt-box").innerHTML = detailHtml(it);
+    ov.querySelector(".cc-dt-box").scrollTop = 0;
+    ov.classList.add("open");
+    document.documentElement.classList.add("cc-dt-on");
+  }
+  function closeDetail() {
+    var ov = $("ccDetail");
+    if (ov) ov.classList.remove("open");
+    document.documentElement.classList.remove("cc-dt-on");
+    detailId = null;
+  }
+  function stepDetail(d) {
+    var seq = detailSeq(), i = seq.map(function (y) { return y.id; }).indexOf(detailId);
+    var nx = seq[i + d];
+    if (nx) openDetail(nx.id);
+  }
+  function zoomPic(aid) {
+    var z = document.createElement("div");
+    z.className = "cc-dt-zoom";
+    z.innerHTML = '<img src="' + API + "/attachments/" + aid + '" alt="">';
+    z.addEventListener("click", function () { z.remove(); });
+    document.body.appendChild(z);
+  }
+  /* คีย์บอร์ดตอนพรีเซนต์: ← → รายการก่อน/ถัดไป · Esc ปิด (ดักก่อนตัวอื่น) */
+  document.addEventListener("keydown", function (e) {
+    if (!detailId) return;
+    var zoom = document.querySelector(".cc-dt-zoom");
+    if (e.key === "Escape") { e.stopImmediatePropagation(); e.preventDefault(); if (zoom) zoom.remove(); else closeDetail(); }
+    else if (zoom) return;
+    else if (e.key === "ArrowRight") { e.preventDefault(); stepDetail(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); stepDetail(-1); }
+  }, true);
 
   /* ---------- drawer ---------- */
   /* ปุ่มประเภท 2 ชั้น: หัว = หมวดใหญ่ · ปุ่ม = หมวดย่อยพร้อมจุดสี */
@@ -2303,10 +2412,11 @@
     if (e.target.closest("[data-newmonth]")) { openDrawer(null, iso(year, view.month, 1), "month"); return; }
     var mk = e.target.closest("[data-mk]");
     if (mk) { var itm = byId(mk.dataset.mkid); if (itm) makeMedia(mk.dataset.mk, itm, mk); return; }
+    var dt = e.target.closest("[data-detail]");
+    if (dt) { openDetail(dt.dataset.detail); return; }
     var op = e.target.closest("[data-open]");
     if (op) {
-      /* ปุ่ม "เปิดหน้าเต็ม" ในการ์ด → หน้าสถานะเต็ม · กดแถบ/รายการในปฏิทิน → ปักการ์ดสถานะไว้ตรงนี้ */
-      if (op.classList.contains("cc-hover-btn")) { location.href = TASKS_BASE + "#/campaign/" + encodeURIComponent(op.dataset.open); return; }
+      /* กดแถบ/รายการในปฏิทิน → ปักการ์ดสถานะไว้ตรงนี้ (ปุ่ม "ดูรายละเอียด" ในการ์ดเปิดหน้าต่างบนปฏิทิน ไม่ย้ายหน้า) */
       var f1 = peekTargets(op);
       if (f1) { clearTimeout(hoverTimer); pinned = false; showHover(f1.list, op, f1.day); pinned = true; }
       return;
