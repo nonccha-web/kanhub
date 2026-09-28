@@ -18,7 +18,8 @@
   /* "อื่นๆ" = งานที่ไม่ได้อยู่ในสาขา เช่น on tour / ออกบูธ / ออนไลน์ล้วน — ต้องมีให้เลือก ไม่งั้นงานพวกนี้ตกหล่น */
   /* เหลือ 4 สาขา (นนท์ 27 ก.ย. 69) — ชื่อเก่า สุราษฎร์/ชุมพร ย้ายในฐานข้อมูลเป็น Kan Store แล้ว
      Kan Fashion / Central / สหไทย ตัดออก: รายการเก่าที่ติดไว้ยังโชว์และบันทึกทับได้ แค่เลือกใหม่ไม่ได้ */
-  var BRANCHES = ["Kan Hub","Kan Store สุราษฎร์","Kan Store ชุมพร","อื่นๆ"];
+  /* Kan Fashion ใส่กลับ 28 ก.ย. 69 — หน้าโปรโมชั่นลูกค้า (LINE) แยกดูรายสาขา 4 หน้าร้าน */
+  var BRANCHES = ["Kan Hub","Kan Store สุราษฎร์","Kan Store ชุมพร","Kan Fashion","อื่นๆ"];
   var NO_BRANCH = "-";   /* ค่าพิเศษของตัวกรอง = รายการที่ยังไม่ระบุสาขา */
   // Central / สหไทย = ห้างข้างนอกที่เราไปลงของ ไม่ใช่สาขาเรา
   var STATUS_LABEL = { plan:"วางแผน", live:"กำลังทำ", done:"จบแล้ว" };
@@ -969,7 +970,7 @@
                  scope: next.scope || "range", status: next.status || "plan",
                  channels: next.channels || [], branches: next.branches || [],
                  budget: Number(next.budget) || 0, owner: next.owner || "", note: next.note || "",
-                 schedule: next.schedule || null, acc: next.acc || null };
+                 schedule: next.schedule || null, acc: next.acc || null, custMsg: next.custMsg || "" };
     try {
       if (online) { await api("/campaigns/" + id, { method: "PUT", body: JSON.stringify(data) }); await loadAll(); }
       else { items = items.map(function (x) { return x.id === id ? Object.assign({}, x, data, { id: id }) : x; }); cacheLocal(); }
@@ -1678,6 +1679,7 @@
         (atts.length ? '<div class="cc-dt-pics n' + Math.min(atts.length, 3) + '">' + atts.map(function (a) {
           return '<button type="button" class="cc-dt-pic" data-zoom="' + a.id + '"><img src="' + API + "/attachments/" + a.id + '" alt="' + esc(a.fileName) + '" loading="lazy" decoding="async"></button>';
         }).join("") + "</div>" : "") +
+        (it.custMsg ? '<div class="cc-dt-cust"><small>ข้อความถึงลูกค้า (โชว์ในหน้าโปรโมชั่น LINE)</small>' + esc(it.custMsg) + "</div>" : "") +
         (it.note ? '<div class="cc-dt-note">' + esc(it.note) + "</div>" : "") +
         '<div class="cc-dt-facts">' +
           fact("สาขา", chips(it.branches)) + fact("ช่องทาง", chips(it.channels)) +
@@ -1865,6 +1867,7 @@
     accTaskId = acc && !preset.copyOf ? (acc.taskId || null) : null;   /* สำเนา = ต้องได้งานบัญชีใหม่ของตัวเอง */
     applyAccUI();
     $("cc-note").value = item ? (item.note || "") : "";
+    $("cc-cust").value = item ? (item.custMsg || "") : "";
     $("ccErr").textContent = "";
     /* สำเนาเริ่มที่ "วางแผน" เสมอ ก๊อปโปรฯ ที่จบแล้วมาแล้วขึ้นว่าจบแล้วตั้งแต่ยังไม่ทำ = อ่านผิด */
     setSeg("#cc-status", preset.copyOf ? "plan" : (item ? item.status : (preset.status || "plan")));
@@ -2102,6 +2105,7 @@
       budget: Number($("cc-budget").value) || 0,
       owner: owners.join(", "),
       note: $("cc-note").value.trim(),
+      custMsg: $("cc-cust").value.trim(),
       acc: accOn ? { need: true, type: getSeg("#cc-acctype", "promo"), detail: $("cc-accdetail").value.trim(), taskId: accTaskId || undefined } : null
     } };
   }

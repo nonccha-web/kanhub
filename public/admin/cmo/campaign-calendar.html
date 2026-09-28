@@ -575,6 +575,11 @@ html.cc-dt-on{ overflow:hidden; }
   .cc-dt-hd, .cc-dt-body, .cc-dt-ft{ padding-left:16px; padding-right:16px; }
   .cc-dt-link{ display:none; }
 }
+/* ข้อความถึงลูกค้า — กรอบเตือนให้รู้ว่าลูกค้าเห็น */
+.cc-custbox{ border:1px solid #F2B705; background:rgba(242,183,5,.07); border-radius:8px; padding:10px 12px; }
+.cc-custhint{ color:var(--text-secondary); }
+.cc-dt-cust{ border-left:3px solid #F2B705; padding:10px 14px; margin-bottom:18px; font-size:15px; white-space:pre-wrap; }
+.cc-dt-cust small{ display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px; }
 /* เมนู ⋯ มุมขวาบน */
 .cc-more-wrap{ position:relative; }
 .cc-morebtn{ padding-left:10px !important; padding-right:10px !important; }
@@ -745,6 +750,9 @@ html.cc-dt-on{ overflow:hidden; }
           <a href="campaign-deck.html" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>
             สไลด์ (พรีเซนต์)</a>
+          <a href="https://kan-hub.com/promo/" target="_blank" rel="noopener" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7M10 14 21 3M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
+            หน้าโปรโมชั่นที่ลูกค้าเห็น</a>
           <button type="button" id="ccExport" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
             สำรองไฟล์</button>
@@ -869,7 +877,10 @@ html.cc-dt-on{ overflow:hidden; }
       </div>
     </div>
     <div class="cc-field"><label for="cc-budget">งบ (บาท)</label><input type="number" id="cc-budget" min="0" step="100" placeholder="0"></div>
-    <div class="cc-field"><label for="cc-note">รายละเอียด</label><textarea id="cc-note" placeholder="สิ่งที่ต้องทำ ของแถม เงื่อนไข ฯลฯ"></textarea></div>
+    <div class="cc-field cc-custbox"><label for="cc-cust">ข้อความถึงลูกค้า</label>
+      <textarea id="cc-cust" maxlength="2000" placeholder="เช่น ซื้อครบ 500 บาท ลด 50 บาท · เฉพาะหน้าร้าน · ของมีจำนวนจำกัด"></textarea>
+      <div class="cc-hint cc-custhint">⚠ กรอกช่องนี้แล้ว <b>ลูกค้าจะเห็น</b>ในหน้าโปรโมชั่นของ LINE (kan-hub.com/promo) — ลูกค้าเห็นล่วงหน้า 1 วันก่อนเริ่ม พร้อมรูปแรกที่แนบเป็นแบนเนอร์ · ว่างไว้ = ลูกค้าเห็นแค่รูป ชื่อ และวันที่</div></div>
+    <div class="cc-field"><label for="cc-note">รายละเอียด <span class="cc-hint" style="display:inline;font-weight:400">(ภายในทีม ลูกค้าไม่เห็น)</span></label><textarea id="cc-note" placeholder="สิ่งที่ต้องทำ ของแถม เงื่อนไข ฯลฯ"></textarea></div>
     <div class="cc-err" id="ccErr"></div>
   </form>
   <footer>
@@ -888,6 +899,6 @@ html.cc-dt-on{ overflow:hidden; }
 
 <script src="erp-menu.js?v=47"></script>
 <script src="nav.js?v=29"></script>
-<script src="campaign-calendar.js?v=25"></script>
+<script src="campaign-calendar.js?v=26"></script>
 </body>
 </html>

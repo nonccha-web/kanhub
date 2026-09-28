@@ -49,7 +49,8 @@ function ensureCampaignSchema(db, env) {
       ]);
       try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
       /* หมวดย่อย · ตารางวัน (หลายช่วง/เวลา/ทำซ้ำ) · งานฝ่ายบัญชี — 27 ก.ย. 69 */
-      for (const col of ["sub TEXT NOT NULL DEFAULT ''", "schedule TEXT NOT NULL DEFAULT ''", "acc TEXT NOT NULL DEFAULT ''"]) {
+      /* cust_msg = ข้อความถึงลูกค้า โชว์ในหน้าโปรโมชั่นสาธารณะ kan-hub.com/promo (28 ก.ย. 69) */
+      for (const col of ["sub TEXT NOT NULL DEFAULT ''", "schedule TEXT NOT NULL DEFAULT ''", "acc TEXT NOT NULL DEFAULT ''", "cust_msg TEXT NOT NULL DEFAULT ''"]) {
         try { await db.prepare("ALTER TABLE campaigns ADD COLUMN " + col).run(); } catch (e) { /* มีแล้ว */ }
       }
       /* รายการเก่า: ยกเข้าหมวดย่อยตั้งต้นของหมวดใหญ่ + เปลี่ยนสีเป็นสีของหมวด (ทำครั้งเดียว เพราะ sub ถูกเติมแล้ว) */
@@ -115,6 +116,7 @@ function rowToCampaign(r) {
     sub: subOfRow(r),
     schedule: safeObj(r.schedule),
     acc: safeObj(r.acc),
+    custMsg: r.cust_msg || "",
     posts: { total: r.n_posts || 0, done: r.n_posts_done || 0 },
     tasks: { total: r.n_tasks || 0, open: r.n_tasks_open || 0 },
     attachments: attachments,
@@ -204,8 +206,9 @@ function clean(input) {
       sub: sub,
       schedule: sc.value ? JSON.stringify(sc.value) : "",
       acc: cleanAcc(input.acc),
+      custMsg: String(input.custMsg || "").trim().slice(0, 2000),
     },
-    has: { sub: CAMPAIGN_SUBS[input.sub] ? 1 : 0, schedule: "schedule" in input, acc: "acc" in input },
+    has: { sub: CAMPAIGN_SUBS[input.sub] ? 1 : 0, schedule: "schedule" in input, acc: "acc" in input, custMsg: "custMsg" in input },
   };
 }
 
@@ -432,10 +435,10 @@ async function handleApi(request, env, url, ctx) {
     const now = new Date().toISOString();
     const acc0 = v.acc ? Object.assign({}, v.acc, { taskId: undefined }) : null;
     await db.prepare(
-      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind,sub,schedule,acc) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind,sub,schedule,acc,cust_msg) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-           v.owner, v.note, v.color, now, now, v.kind, v.sub, v.schedule, acc0 ? JSON.stringify(acc0) : "").run();
+           v.owner, v.note, v.color, now, now, v.kind, v.sub, v.schedule, acc0 ? JSON.stringify(acc0) : "", v.custMsg).run();
     v.acc = acc0;
     const acc = await syncAccTask(db, id, v, who.id);
     return json({ id: id, accTaskId: acc && acc.taskId || null });
@@ -532,7 +535,7 @@ async function handleApi(request, env, url, ctx) {
       const parsed = clean(body);
       if (parsed.error) return json({ error: parsed.error }, 400);
       const v = parsed.value;
-      const old = await db.prepare("SELECT kind, sub, schedule, acc, start_date, end_date FROM campaigns WHERE id = ?").bind(id).first();
+      const old = await db.prepare("SELECT kind, sub, schedule, acc, start_date, end_date, cust_msg FROM campaigns WHERE id = ?").bind(id).first();
       if (!old) return json({ error: "ไม่พบแคมเปญนี้" }, 404);
       /* client ที่ไม่รู้จักช่องใหม่ (MCP / หน้าเก่าที่ค้าง cache) ต้องไม่ล้างของเดิมทิ้ง */
       if (!parsed.has.sub && v.kind === CAMPAIGN_SUBS[subOfRow(old)].kind) {
@@ -541,15 +544,16 @@ async function handleApi(request, env, url, ctx) {
       if (!parsed.has.schedule && old.schedule && v.scope === "range" && v.start === old.start_date) {
         v.schedule = old.schedule; v.end = old.end_date;
       }
+      if (!parsed.has.custMsg) v.custMsg = old.cust_msg || "";
       const oldAcc = safeObj(old.acc);
       if (!parsed.has.acc) v.acc = oldAcc;
       else if (v.acc && oldAcc && oldAcc.taskId && !v.acc.taskId) v.acc.taskId = oldAcc.taskId;
       await db.prepare(
         "UPDATE campaigns SET name=?,start_date=?,end_date=?,scope=?,status=?,channels=?,branches=?," +
-        "budget=?,owner=?,note=?,color=?,updated_at=?,kind=?,sub=?,schedule=?,acc=? WHERE id=?"
+        "budget=?,owner=?,note=?,color=?,updated_at=?,kind=?,sub=?,schedule=?,acc=?,cust_msg=? WHERE id=?"
       ).bind(v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
              v.owner, v.note, v.color, new Date().toISOString(), v.kind, v.sub, v.schedule,
-             v.acc ? JSON.stringify(v.acc) : "", id).run();
+             v.acc ? JSON.stringify(v.acc) : "", v.custMsg, id).run();
       const acc = await syncAccTask(db, id, v, who.id);
       return json({ ok: true, accTaskId: acc && acc.taskId || null });
     }
@@ -664,6 +668,100 @@ async function serveAdmin(request, env, url) {
   return env.ASSETS.fetch(new Request(url, request));
 }
 
+/* ============================================================
+   หน้าโปรโมชั่นสาธารณะ (นนท์ 28 ก.ย. 69) — kan-hub.com/promo ใส่ในริชเมนู LINE OA
+   · ลูกค้าเห็นล่วงหน้าแค่ 1 วัน: รายการที่มีผลวันนี้ หรือเริ่มพรุ่งนี้ (เวลาไทย) · ทุกประเภท · ไม่รวมที่ "จบแล้ว"
+   · เฉพาะ 4 สาขาหน้าร้าน (สหไทย / Central / อื่นๆ ไม่โชว์)
+   · ส่งออกแค่ ชื่อ ประเภท วันที่ เวลา สาขา ข้อความถึงลูกค้า รูป — ไม่มีรายละเอียดภายใน งบ ผู้รับผิดชอบ
+   ============================================================ */
+const PUBLIC_BRANCHES = ["Kan Store สุราษฎร์", "Kan Store ชุมพร", "Kan Fashion", "Kan Hub"];
+const SUB_TH = { promo: "โปรโมชั่น", privilege: "สิทธิพิเศษ", newlot: "ล็อตใหม่", event: "แคมเปญ / อีเว้นท์",
+  queue: "จองคิว", closed: "ปิดร้าน", content: "คอนเทนต์" };
+function dayIso(d) { return d.toISOString().slice(0, 10); }
+function isoDow(isoDay) { return new Date(isoDay + "T00:00:00Z").getUTCDay(); }
+function monthShift(isoDay, k) {
+  const d = new Date(isoDay + "T00:00:00Z"), y = d.getUTCFullYear(), m = d.getUTCMonth() + k;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return dayIso(new Date(Date.UTC(y, m, Math.min(d.getUTCDate(), last))));
+}
+/* ช่วงที่มีผลซึ่งครอบวันนั้น [เริ่ม, จบ] หรือ null — ตรรกะเดียวกับ occ() ในหน้าปฏิทิน */
+function activeSeg(row, day) {
+  const sc = safeObj(row.schedule), rep = sc && sc.rep ? sc.rep : { type: "none" };
+  if (!sc || !Array.isArray(sc.ranges) || !sc.ranges.length) {
+    return row.start_date <= day && day <= row.end_date ? [row.start_date, row.end_date] : null;
+  }
+  if (row.scope === "month" && rep.type === "monthly") {
+    if (day < row.start_date || day > rep.until) return null;
+    const d = new Date(day + "T00:00:00Z");
+    return [dayIso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))), dayIso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)))];
+  }
+  if (rep.type === "weekly") {
+    const days = rep.days || [], first = sc.ranges[0].s;
+    const on = (x) => x >= first && x <= rep.until && days.indexOf(isoDow(x)) !== -1;
+    if (!on(day)) return null;
+    let a = day, b = day;
+    for (let i = 0; i < 7 && on(isoAdd(a, -1)); i++) a = isoAdd(a, -1);
+    for (let i = 0; i < 7 && on(isoAdd(b, 1)); i++) b = isoAdd(b, 1);
+    return [a, b];
+  }
+  if (rep.type === "monthly") {
+    if (day > rep.until) return null;
+    for (let k = 0; k < 25; k++) {
+      for (const r of sc.ranges) {
+        const a = monthShift(r.s, k), b0 = monthShift(r.e || r.s, k), b = b0 > rep.until ? rep.until : b0;
+        if (a > rep.until) continue;
+        if (a <= day && day <= b) return [a, b];
+      }
+    }
+    return null;
+  }
+  for (const r of sc.ranges) if (r.s <= day && day <= (r.e || r.s)) return [r.s, r.e || r.s];
+  return null;
+}
+async function visiblePromos(db) {
+  const today = dayIso(new Date(Date.now() + 7 * 3600000)), tomorrow = isoAdd(today, 1);
+  const rows = ((await db.prepare(
+    "SELECT c.*, (SELECT GROUP_CONCAT(a.id) FROM attachments a WHERE a.campaign_id = c.id) AS att " +
+    "FROM campaigns c WHERE c.status != 'done' AND c.start_date <= ? AND c.end_date >= ?"
+  ).bind(tomorrow, today).all()).results) || [];
+  const out = [];
+  for (const r of rows) {
+    const brs = safeParse(r.branches).filter((b) => PUBLIC_BRANCHES.indexOf(b) !== -1);
+    if (!brs.length) continue;
+    const segToday = activeSeg(r, today), seg = segToday || activeSeg(r, tomorrow);
+    if (!seg) continue;
+    const sc = safeObj(r.schedule) || {}, sub = subOfRow(r);
+    out.push({
+      id: r.id, name: r.name, type: SUB_TH[sub] || "", color: (CAMPAIGN_SUBS[sub] || {}).color || "#E10501",
+      start: seg[0], end: seg[1], tomorrow: !segToday, t1: sc.t1 || "", t2: sc.t2 || "",
+      branches: brs, message: r.cust_msg || "",
+      images: String(r.att || "").split(",").filter(Boolean).sort(),
+    });
+  }
+  out.sort((x, y) => (x.tomorrow - y.tomorrow) || (x.start < y.start ? -1 : x.start > y.start ? 1 : 0));
+  return { today, tomorrow, branches: PUBLIC_BRANCHES, promos: out };
+}
+async function handlePublicPromos(request, env, url) {
+  const db = env.KAN_ERP;
+  if (!db || request.method !== "GET") return new Response("Not found", { status: 404 });
+  await ensureCampaignSchema(db, env);
+  const data = await visiblePromos(db);
+  const img = url.pathname.match(/^\/api\/promos\/img\/([A-Za-z0-9_-]{1,40})$/);
+  if (img) {
+    /* ให้เฉพาะรูปของรายการที่กำลังโชว์ — รูปอื่นในระบบยังต้องล็อกอิน */
+    const ok = data.promos.some((p) => p.images.indexOf(img[1]) !== -1);
+    if (!ok) return new Response("Not found", { status: 404 });
+    const wantThumb = url.searchParams.get("s") === "thumb";
+    const row = await db.prepare("SELECT mime, " + (wantThumb ? "COALESCE(thumb, data)" : "data") + " AS data FROM attachments WHERE id = ?").bind(img[1]).first();
+    if (!row) return new Response("Not found", { status: 404 });
+    const raw = String(row.data).replace(/^data:[^,]*,/, "");
+    const bin = atob(raw), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Response(bytes, { headers: { "content-type": wantThumb ? "image/jpeg" : (row.mime || "image/jpeg"), "cache-control": "public, max-age=600" } });
+  }
+  return new Response(JSON.stringify(data), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" } });
+}
+
 export default {
   /* cron จาก wrangler.jsonc — แจ้งงานเข้ากลุ่ม Lark 3 รอบ/วัน */
   async scheduled(event, env, ctx) {
@@ -694,6 +792,8 @@ export default {
     if (url.pathname === "/api/tickets") return handleTicketIntake(request, env, ctx);
     /* ปุ่ม "สนใจสั่งซื้อ" หน้าขายสาธารณะ (kan-hub.com/grade-b) → ลีดใน CRM */
     if (url.pathname === "/api/sale-lead") return handleSaleLead(request, env, ctx);
+    /* หน้าโปรโมชั่นสำหรับลูกค้า (kan-hub.com/promo · ริชเมนู LINE OA) — ไม่ต้องล็อกอิน ส่งออกเฉพาะข้อมูลที่ลูกค้าควรเห็น */
+    if (url.pathname === "/api/promos" || url.pathname.indexOf("/api/promos/img/") === 0) return handlePublicPromos(request, env, url);
     const isAdminHost = host.indexOf("admin.") === 0 || host.endsWith(".workers.dev") ||
                         host === "localhost" || host === "127.0.0.1"; // localhost = ตอน wrangler dev
 
