@@ -24,17 +24,17 @@
       /* ปฏิทินการตลาด (คอนเทนต์/แคมเปญ/โปรโมชั่น) เป็นแกนที่โพสต์และงานผูกอยู่ จึงอยู่กลุ่มเดียวกับงานทีม */
       { icon: 'clipboard', label: 'งานทีม', sec: 'tasks', items: [
         /* ปฏิทินอยู่บนสุด = หน้าแรกของระบบ (นนท์ 18 ก.ย. 69) */
-        { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html' },
+        { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html', f: 'cal' },
         /* งานของฉัน = สวิตช์ในหน้างานทั้งหมด · แจ้งเตือน = กระดิ่งมุมขวาบน (นนท์ 19 ก.ย. 69) */
-        { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all' },
+        { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all', f: 'all' },
         /* ตรวจงานแบบปัดการ์ด — นนท์ 20 ก.ย. 69: ของที่ค้างที่หัวหน้าอยู่กองเดียว ปัดผ่าน/ตีกลับทีละใบ */
         { icon: 'check',     label: 'ปัดตรวจงาน',      tasks: '#/review', sec: 'admin' },
         /* CRM — ลีดจากแอด/เพจ · การตลาดบันทึก ทีมขายไล่ปิด (นนท์ 21 ก.ย. 69) */
-        { icon: 'users',     label: 'ลีด (CRM)',       tasks: '#/leads', sec: 'crm' },
-        { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage' },
+        { icon: 'users',     label: 'ลีด (CRM)',       tasks: '#/leads', sec: 'crm', f: 'leads', dup: true },
+        { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage', f: 'signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
-        { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts' },
-        { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report' },
+        { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts', f: 'posts' },
+        { icon: 'chart',     label: 'สรุปผลงานรายเดือน', tasks: '#/report', f: 'report' },
         { icon: 'users',     label: 'ทีม + สิทธิ์',    tasks: '#/team', sec: 'admin' }
       ]},
 
@@ -45,29 +45,29 @@
       /* บรอดแคสต์ LINE OA + SMS (นนท์สั่ง 23 ก.ย. 69) — งานประจำของคนดูแลเพจ จึงอยู่หมวด "ทำงาน"
          ต้องมีหมวดสิทธิ์ blast ถึงจะเห็น เพราะกดแล้วข้อความวิ่งถึงลูกค้าจริง */
       { icon: 'send', label: 'บรอดแคสต์ LINE', sec: 'blast', note: 'ยิง LINE + SMS · เลือกเพจ เลือกคน', items: [
-        { icon: 'send',        label: 'ส่งบรอดแคสต์',      tasks: '#/blast' },
-        { icon: 'grid',        label: 'ริชเมนู',            tasks: '#/richmenu' },
-        { icon: 'users',       label: 'ผู้ติดตาม LINE',     tasks: '#/lineusers' },
-        { icon: 'shieldcheck', label: 'ตั้งค่าเพจ + SMS',   tasks: '#/blastsetup' }
+        { icon: 'send',        label: 'ส่งบรอดแคสต์',      tasks: '#/blast', f: 'blast' },
+        { icon: 'grid',        label: 'ริชเมนู',            tasks: '#/richmenu', f: 'blast' },
+        { icon: 'users',       label: 'ผู้ติดตาม LINE',     tasks: '#/lineusers', f: 'blast' },
+        { icon: 'shieldcheck', label: 'ตั้งค่าเพจ + SMS',   tasks: '#/blastsetup', f: 'blast' }
       ]},
 
       /* สมาชิกระบบ (HR) — เพิ่มคนทีละหลายคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ · 29 ก.ย. 69) */
       { direct: true, icon: 'users', label: 'สมาชิกระบบ', sec: 'hr', note: 'เพิ่มคน · ชื่อผู้ใช้/รหัส · สิทธิ์',
-        items: [{ icon: 'users', label: 'สมาชิกระบบ', tasks: '#/people', sec: 'hr' }] },
+        items: [{ icon: 'users', label: 'สมาชิกระบบ', tasks: '#/people', sec: 'hr', f: 'people' }] },
 
       /* ฝ่ายขายที่เห็นเฉพาะ CRM — เมนูเดี่ยว ไม่ต้องกางกลุ่มงานทีม */
       { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ · ไล่ปิดการขาย',
-        items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm' }] },
+        items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm', f: 'leads' }] },
 
       /* เมนูของตัวเอง ไม่ต้องกางกลุ่ม — นนท์ขอให้แยกออกมาเลย (20 ก.ย. 69) */
       { direct: true, icon: 'clock', label: 'ประวัติการแก้ไข', sec: 'tasks', note: 'ใครแก้อะไร · ย้อนเวอร์ชันได้',
-        items: [{ icon: 'clock', label: 'ประวัติการแก้ไข', tasks: '#/history' }] },
+        items: [{ icon: 'clock', label: 'ประวัติการแก้ไข', tasks: '#/history', f: 'history' }] },
 
       /* เรื่องที่ลูกค้า/ทีมกรอกเข้ามาจากฟอร์มหน้าเว็บ kan-hub.com/help (นนท์ 24 ก.ย. 69)
          ของใหม่เด้งเข้ากลุ่ม Lark ทันที หน้านี้ไว้ไล่ปิดทีละเรื่อง */
       /* ทุกคนเห็น (รวมโบว์/ฝ่ายขาย) — นนท์ 29 ก.ย. 69 */
       { direct: true, icon: 'alert', label: 'แจ้งปัญหา', note: 'เรื่องจากลูกค้า/ทีม · ปิดทีละใบ',
-        items: [{ icon: 'alert', label: 'แจ้งปัญหา', tasks: '#/tickets' }] }
+        items: [{ icon: 'alert', label: 'แจ้งปัญหา', tasks: '#/tickets', f: 'tickets' }] }
 
     ]},
 
@@ -75,23 +75,23 @@
     { id: 'ready', label: 'ตัวเลข', groups: [
 
       { icon: 'trophy', label: 'KPI', sec: 'kpi', items: [
-        { icon: 'trophy',   label: 'KPI 2570 (เป้า + งานที่ผูก)', tasks: '#/kpi' },
-        { icon: 'chart',    label: 'KPI Dashboard 2026',        cmo: 'kpi.html' },
-        { icon: 'filetext', label: 'กรอกผล KPI รายเดือน',        cmo: 'kpi.html?mode=edit' }
+        { icon: 'trophy',   label: 'KPI 2570 (เป้า + งานที่ผูก)', tasks: '#/kpi', f: 'kpi' },
+        { icon: 'chart',    label: 'KPI Dashboard 2026',        cmo: 'kpi.html', f: 'kpi' },
+        { icon: 'filetext', label: 'กรอกผล KPI รายเดือน',        cmo: 'kpi.html?mode=edit', f: 'kpi' }
       ]},
       { icon: 'chart', label: 'ยอดขาย', sec: 'sales', items: [
-        { icon: 'dashboard', label: 'แดชบอร์ดยอดขาย (หลัก)', sales: 'sales/' },
-        { icon: 'chart',     label: 'ภาพรวมยอดขาย', sales: '#/overview' },
-        { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers' },
-        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers' }
+        { icon: 'dashboard', label: 'แดชบอร์ดยอดขาย (หลัก)', sales: 'sales/', f: 'sales' },
+        { icon: 'chart',     label: 'ภาพรวมยอดขาย', sales: '#/overview', f: 'sales' },
+        { icon: 'zap',       label: 'สินค้าขายดี',    sales: '#/bestsellers', f: 'sales' },
+        { icon: 'users',     label: 'กลุ่มลูกค้า',     sales: '#/customers', f: 'sales' }
       ]},
       { icon: 'megaphone', label: 'การตลาด', items: [
-        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo', sec: 'sales' },
-        { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales', sec: 'sales' },
-        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads', sec: 'sales' },
-        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html', sec: 'docs' },
-        { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html', sec: 'docs' },
-        { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan', sec: 'sales' }
+        { icon: 'target',    label: 'ข้อเสนอโปรโมชัน', sales: '#/promo', sec: 'sales', f: 'sales' },
+        { icon: 'zap',       label: 'โปรรายสาขา (จากฝ่ายขาย)', sales: '#/promo-sales', sec: 'sales', f: 'sales' },
+        { icon: 'megaphone', label: 'รายงานโฆษณา (Meta)', sales: '#/ads', sec: 'sales', f: 'sales' },
+        { icon: 'phone',     label: 'รายงานการรับสาย', cmo: 'tele-dashboard.html', sec: 'docs', f: 'docs' },
+        { icon: 'monitor',   label: 'สไลด์แผนการตลาด', cmo: 'campaign-deck.html', sec: 'docs', f: 'docs' },
+        { icon: 'clipboard', label: 'แผนลงมือ',       sales: '#/plan', sec: 'sales', f: 'sales' }
       ]}
 
     ]},
@@ -220,6 +220,19 @@
   }
   /* สิทธิ์: item.sec / group.sec = ต้องมีหมวดนั้นถึงเห็น · 'admin' = เฉพาะหัวหน้า
      opts.sections ไม่ส่งมา = โชว์ทุกอย่าง (หน้าที่ยังไม่ได้ต่อระบบล็อกอิน) */
+  /* สิทธิ์รายเมนู (opts.perms จาก /api/t/me) — มีค่าเมื่อไรใช้ตัวนี้แทนหมวด · เมนูหัวหน้า (admin) ยังใช้ role */
+  function itemVis(it, g, opts) {
+    if (opts && opts.perms && !opts.owner && it.f) { return !!opts.perms[it.f] && opts.perms[it.f] !== 'none'; }
+    return visible(it.sec || g.sec, opts);
+  }
+  function groupVis(g, opts) {
+    if (opts && opts.perms && !opts.owner) {
+      if (g.sec === 'admin') { return false; }
+      /* dup = ลิงก์ซ้ำของเมนูเดี่ยว (ลีดในกลุ่มงานทีม) ไม่นับเป็นเหตุให้กางทั้งกลุ่ม */
+      return g.items.some(function (it) { return !it.dup && itemVis(it, g, opts); });
+    }
+    return visible(g.sec, opts) && g.items.some(function (it) { return itemVis(it, g, opts); });
+  }
   function visible(sec, opts) {
     if (!sec) { return true; }
     if (!opts || !opts.sections) { return true; }
@@ -261,9 +274,9 @@
       var shownGroups = [];
       SECTIONS.forEach(function (sec) {
         sec.groups.forEach(function (g) {
-          if (!visible(g.sec, opts)) { return; }
+          if (!groupVis(g, opts)) { return; }
           if (g.direct) { return; }   /* ลิงก์เดี่ยวไม่เข้าลำดับกลุ่มพับ */
-          if (g.items.some(function (it) { return visible(it.sec || g.sec, opts); })) { shownGroups.push(g); }
+          shownGroups.push(g);
         });
       });
       var openIdx = -1;
@@ -282,10 +295,7 @@
       var gi = -1;
       SECTIONS.forEach(function (sec) {
         /* กลุ่มที่ไม่มีสิทธิ์ตัดทิ้งทั้งกลุ่ม ถ้าหมดทั้งหมวดก็ไม่ต้องขึ้นหัวหมวด */
-        var groups = sec.groups.filter(function (g) {
-          if (!visible(g.sec, opts)) { return false; }
-          return g.items.some(function (it) { return visible(it.sec || g.sec, opts); });
-        });
+        var groups = sec.groups.filter(function (g) { return groupVis(g, opts); });
         if (!groups.length) { return; }
         /* หมวดที่ไม่ได้ใช้ทุกวัน ยุบเป็นกล่องเดียว พับไว้ เปิดเองเมื่อหน้าปัจจุบันอยู่ข้างใน (นนท์ 9 ก.ย.) */
         if (sec.boxed) {
@@ -302,7 +312,7 @@
             '<div class="erp-sub">';
           groups.forEach(function (g) {
             h += '<div class="erp-subh">' + esc(g.label) + '</div>';
-            g.items.filter(function (it) { return visible(it.sec || g.sec, opts); }).forEach(function (it) {
+            g.items.filter(function (it) { return itemVis(it, g, opts); }).forEach(function (it) {
               var on2 = keyOf(it) === opts.active ? ' on' : '';
               var badge2 = (it.badge && badges[it.badge]) ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';
               h += '<a class="erp-link' + on2 + '" href="' + href(it, opts) + '">' +
@@ -334,7 +344,7 @@
                 (g.note ? '<small>' + esc(g.note) + '</small>' : '') + '</span>' +
               '<span class="erp-chev">▾</span></button>' +
             '<div class="erp-sub">';
-          g.items.filter(function (it) { return visible(it.sec || g.sec, opts); }).forEach(function (it) {
+          g.items.filter(function (it) { return itemVis(it, g, opts); }).forEach(function (it) {
             var on = keyOf(it) === opts.active ? ' on' : '';
             var badge = (it.badge && badges[it.badge])
               ? '<span class="erp-badge">' + badges[it.badge] + '</span>' : '';

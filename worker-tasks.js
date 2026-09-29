@@ -315,6 +315,9 @@ const ALTERS = [
   /* ชื่อจริงแยกช่อง — หน้าสมาชิกระบบ (HR) · name ยังเป็นชื่อบนปุ่มล็อกอิน "ชื่อผู้ใช้ (ชื่อ นามสกุล)" */
   "ALTER TABLE staff ADD COLUMN first_name TEXT",
   "ALTER TABLE staff ADD COLUMN last_name TEXT",
+  /* เบอร์โทร (เก็บเป็นข้อมูลอย่างเดียว) + สิทธิ์รายเมนู JSON {feature: edit|view|none} — 29 ก.ย. 69 */
+  "ALTER TABLE staff ADD COLUMN phone TEXT",
+  "ALTER TABLE staff ADD COLUMN perms TEXT",
   "CREATE TABLE IF NOT EXISTS join_requests (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, " +
     "sections TEXT NOT NULL DEFAULT '', want_user TEXT NOT NULL, pw_salt TEXT NOT NULL, pw_hash TEXT NOT NULL, " +
     "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT)",
@@ -384,6 +387,72 @@ const KPI_SEED = [
 /* hr = หน้า "สมาชิกระบบ" — เพิ่มคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ HR · 29 ก.ย. 69) ให้ได้เฉพาะหัวหน้า */
 const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast", "hr"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
+/* ---- สิทธิ์รายเมนู (นนท์ 29 ก.ย. 69) ----
+   feature = เมนูใน sidebar · แต่ละอันผูกกับหมวดสิทธิ์เดิม (sec) ที่เซิร์ฟเวอร์ใช้กันหน้าเว็บอยู่แล้ว
+   perms ว่าง = คิดจาก sections เดิม (ทุกเมนูในหมวดที่มี = แก้ได้) · perms มีค่า = sections คิดตาม perms
+   "แจ้งปัญหา" ทุกคนต้องเห็นเสมอ (ไม่มี none) */
+export const FEATURES = [
+  { k: "cal", sec: "docs", g: "งานทีม", th: "ปฏิทินการตลาด" },
+  { k: "all", sec: "tasks", g: "งานทีม", th: "งานทั้งหมด / งานของฉัน" },
+  { k: "signage", sec: "tasks", g: "งานทีม", th: "งานป้าย" },
+  { k: "posts", sec: "tasks", g: "งานทีม", th: "ตารางโพสต์" },
+  { k: "report", sec: "tasks", g: "งานทีม", th: "สรุปผลงานรายเดือน" },
+  { k: "history", sec: "tasks", g: "งานทีม", th: "ประวัติการแก้ไข" },
+  { k: "leads", sec: "crm", g: "ขาย", th: "ลีด (CRM)" },
+  { k: "blast", sec: "blast", g: "ขาย", th: "บรอดแคสต์ LINE + SMS" },
+  { k: "tickets", sec: null, g: "ทั่วไป", th: "แจ้งปัญหา" },
+  { k: "people", sec: "hr", g: "ทั่วไป", th: "สมาชิกระบบ (HR)" },
+  { k: "kpi", sec: "kpi", g: "ตัวเลข", th: "KPI" },
+  { k: "sales", sec: "sales", g: "ตัวเลข", th: "ยอดขาย / การตลาด" },
+  { k: "docs", sec: "docs", g: "ตัวเลข", th: "รายงานการรับสาย / สไลด์แผน" },
+];
+const PERM_LEVELS = ["edit", "view", "none"];
+export function permsOf(row) {
+  const out = {};
+  if (!row) return out;
+  if (row.role === "owner") { FEATURES.forEach((f) => { out[f.k] = "edit"; }); return out; }
+  let p = null;
+  try { p = row.perms ? JSON.parse(row.perms) : null; } catch (e) { p = null; }
+  const secs = sectionsOf(row);
+  FEATURES.forEach((f) => {
+    if (p && p[f.k]) out[f.k] = PERM_LEVELS.indexOf(p[f.k]) !== -1 ? p[f.k] : "none";
+    else out[f.k] = (!f.sec || secs.indexOf(f.sec) !== -1) ? "edit" : "none";
+  });
+  if (out.tickets === "none") out.tickets = "edit";
+  return out;
+}
+function cleanPerms(obj) {
+  const out = {};
+  FEATURES.forEach((f) => { const v = obj && obj[f.k]; out[f.k] = PERM_LEVELS.indexOf(v) !== -1 ? v : "none"; });
+  if (out.tickets === "none") out.tickets = "view";
+  return out;
+}
+function sectionsFromPerms(p) {
+  const secs = [];
+  FEATURES.forEach((f) => { if (f.sec && p[f.k] && p[f.k] !== "none" && secs.indexOf(f.sec) === -1) secs.push(f.sec); });
+  return secs.join(",");
+}
+/* เส้นทาง API → เมนู ใช้กัน "ดูอย่างเดียว" ที่เซิร์ฟเวอร์ */
+export function featureOfPath(path) {
+  if (/^\/(posts|pages)(\/|$)/.test(path)) return "posts";
+  if (/^\/tasks(\/|$)/.test(path)) return "tasks";
+  if (/^\/leads(\/|$)/.test(path)) return "leads";
+  if (/^\/blast\//.test(path)) return "blast";
+  if (/^\/people(\/|$)/.test(path)) return "people";
+  if (/^\/tickets(\/|$)/.test(path)) return "tickets";
+  if (/^\/kpis?(\/|$)/.test(path)) return "kpi";
+  if (/^\/campaigns(\/|$)/.test(path)) return "cal";
+  return null;
+}
+export function viewOnlyFor(row, path) {
+  const f = featureOfPath(path);
+  if (!f || !row || row.role === "owner") return false;
+  const p = permsOf(row);
+  /* งานทั่วไปกับงานป้ายใช้ API /tasks ชุดเดียวกัน — ห้ามเขียนเมื่อดูอย่างเดียวทั้งสองเมนู */
+  if (f === "tasks") return p.all !== "edit" && p.signage !== "edit" && (p.all === "view" || p.signage === "view");
+  return p[f] === "view";
+}
+
 function sectionsOf(row) {
   if (!row) return [];
   if (row.role === "owner") return SECTION_KEYS.slice();
@@ -763,7 +832,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -775,12 +844,12 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   if (row.role === "owner") {
     const va = getCookie(request, VIEWAS_COOKIE);
     if (va && va !== row.id && /^[A-Za-z0-9_-]{1,40}$/.test(va)) {
-      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(va).first();
+      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(va).first();
       if (t && t.active && !t.pending && t.role !== "owner") { t._viewAsBy = { id: row.id, name: row.name }; return t; }
     }
   }
@@ -789,7 +858,7 @@ async function currentStaff(request, db) {
 function publicStaff(r) {
   return {
     id: r.id, name: r.name, aliases: r.aliases || "", role: r.role, active: !!r.active,
-    email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r),
+    email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r), perms: permsOf(r),
     needsPassword: r.role === "owner" || !!r.require_pw,
     pending: !!r.pending,
     canUpdateOthers: r.role === "owner" || !!r.can_update_others,
@@ -1183,6 +1252,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   }
   /* กำลังดูในมุมของคนอื่น = อ่านอย่างเดียว กันกดอะไรแทนเขาโดยไม่ตั้งใจ */
   if (me._viewAsBy && method !== "GET") return json({ error: "กำลังดูในมุมของ " + me.name + " — อ่านอย่างเดียว กดกลับเป็นตัวเองก่อนถึงจะแก้ได้", viewAs: true }, 403);
+  /* เมนูที่ตั้งไว้ "ดูอย่างเดียว" — แก้/เพิ่ม/ลบไม่ได้ (กันที่เซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนปุ่ม) */
+  if (method !== "GET" && viewOnlyFor(me, path) && !/\/(read|seen)$/.test(path)) return json({ error: "สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว", viewOnly: true }, 403);
   const isOwner = me.role === "owner";
   /* พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล — หัวหน้าเปิดให้รายคนในหน้า "ทีม + สิทธิ์" */
   const canUpdateOthers = isOwner || !!me.can_update_others;
@@ -1197,7 +1268,10 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
      สิทธิ์ hr หรือหัวหน้า · HR แตะบัญชีหัวหน้าไม่ได้ และให้สิทธิ์ hr กับใครไม่ได้ */
   if (path === "/people" && method === "GET") {
     if (!canSee(me, "hr")) return json({ error: "ไม่มีสิทธิ์จัดการสมาชิก" }, 403);
-    const rs = (await db.prepare("SELECT id,name,aliases,role,active,pending,sections,first_name,last_name,require_pw,pw_hash,created_at FROM staff ORDER BY role = 'owner' DESC, active DESC, created_at").all()).results || [];
+    const rs = (await db.prepare("SELECT id,name,aliases,role,active,pending,sections,perms,phone,first_name,last_name,require_pw,pw_hash,created_at FROM staff ORDER BY role = 'owner' DESC, active DESC, created_at").all()).results || [];
+    const rolesRow = isOwner ? await db.prepare("SELECT value FROM task_settings WHERE key = 'perm_roles'").first() : null;
+    let roles = [];
+    try { roles = rolesRow && rolesRow.value ? JSON.parse(rolesRow.value) : []; } catch (e) { roles = []; }
     return json({ people: rs.map((r) => {
       const inParen = (String(r.name || "").match(/\(([^)]*)\)/) || [])[1] || "";
       const label = String(r.name || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/)[0] || r.name;
@@ -1205,16 +1279,43 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       return {
         id: r.id, owner: r.role === "owner", active: !!r.active, pending: !!r.pending,
         username: label, firstName: r.first_name || rest.split(/\s+/)[0] || "", lastName: r.last_name || rest.split(/\s+/).slice(1).join(" "),
-        sections: sectionsOf(r), hasPassword: !!r.pw_hash, needsPassword: r.role === "owner" || !!r.require_pw, createdAt: r.created_at,
+        sections: sectionsOf(r), perms: permsOf(r), phone: r.phone || "",
+        hasPassword: !!r.pw_hash, needsPassword: r.role === "owner" || !!r.require_pw, createdAt: r.created_at,
       };
-    }), canGrantHr: isOwner });
+    }), canGrantHr: isOwner, features: FEATURES, roles });
+  }
+  /* บทบาทสำเร็จรูปที่หัวหน้าตั้งเอง (โหมด Advanced) — [{id,name,perms}] */
+  if (path === "/people/roles" && method === "PUT") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้า" }, 403);
+    const body = await readBody(request);
+    const list = (Array.isArray(body.roles) ? body.roles : []).slice(0, 30).map((r) => ({
+      id: /^[A-Za-z0-9_-]{1,40}$/.test(String(r.id || "")) ? String(r.id) : newId("r_"),
+      name: String(r.name || "").trim().slice(0, 40) || "บทบาทใหม่",
+      perms: cleanPerms(r.perms || {}),
+    }));
+    await db.prepare("INSERT INTO task_settings (key,value) VALUES ('perm_roles', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(list)).run();
+    return json({ ok: true, roles: list });
+  }
+  /* โหมด Advanced: ตั้งสิทธิ์รายเมนูของคนเดียว (หัวหน้า) — ไม่ต้องกรอกชื่อ/นามสกุลใหม่ */
+  if (path === "/people/perms" && method === "POST") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้า" }, 403);
+    const body = await readBody(request);
+    const cur = await db.prepare("SELECT id,name,role,sections,perms FROM staff WHERE id = ?").bind(String(body.id || "")).first();
+    if (!cur) return json({ error: "ไม่พบบัญชีนี้" }, 404);
+    if (cur.role === "owner") return json({ error: "หัวหน้าได้สิทธิ์ทุกเมนูอยู่แล้ว" }, 400);
+    const perms = cleanPerms(body.perms || {});
+    const secs = sectionsFromPerms(perms);
+    await db.prepare("UPDATE staff SET perms = ?, sections = ? WHERE id = ?").bind(JSON.stringify(perms), secs, cur.id).run();
+    await logChange(db, { by: me.id, entity: "staff", entityId: cur.id, action: "update", title: cur.name,
+      before: { sections: cur.sections, perms: cur.perms || null }, after: { sections: secs, perms }, summary: "ตั้งสิทธิ์รายเมนู" });
+    return json({ ok: true, perms, sections: secs.split(",").filter(Boolean) });
   }
   if (path === "/people" && method === "POST") {
     if (!canSee(me, "hr")) return json({ error: "ไม่มีสิทธิ์จัดการสมาชิก" }, 403);
     const body = await readBody(request);
     const rows = Array.isArray(body.rows) ? body.rows.slice(0, 200) : [];
     if (!rows.length) return json({ error: "ไม่มีรายการให้บันทึก" }, 400);
-    const all = (await db.prepare("SELECT id,name,role,active,sections,first_name,last_name,require_pw FROM staff").all()).results || [];
+    const all = (await db.prepare("SELECT id,name,role,active,sections,perms,phone,first_name,last_name,require_pw FROM staff").all()).results || [];
     const lbl = (n) => String(n || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/)[0].toLowerCase();
     const errors = [], stmts = [], done = [], now = nowIso();
     const seen = {};
@@ -1227,14 +1328,26 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const cur = r.id ? all.find((x) => x.id === r.id) : null;
       if (r.id && !cur) { errors.push(line + "ไม่พบบัญชีนี้"); continue; }
       if (cur && cur.role === "owner") { errors.push(line + "บัญชีหัวหน้าแก้ที่หน้า ทีม + สิทธิ์ เท่านั้น"); continue; }
-      /* HR ให้สิทธิ์ hr ไม่ได้ · ถ้าเดิมมีอยู่ (หัวหน้าให้ไว้) คงไว้ตามเดิม */
-      if (!isOwner) {
+      const phone = r.phone === undefined ? (cur ? cur.phone || "" : "") : String(r.phone || "").replace(/[^0-9+\- ]/g, "").trim().slice(0, 20);
+      /* สิทธิ์รายเมนู: ส่ง perms มา = ใช้ตามนั้น แล้วคิดหมวด (sections) จาก perms
+         ส่งแค่ sections (ตาราง Excel) = ทุกเมนูในหมวดนั้นแก้ได้ ล้าง perms เก่าทิ้ง */
+      let perms = null;
+      if (r.perms && typeof r.perms === "object") {
+        perms = cleanPerms(r.perms);
+        /* HR (ไม่ใช่หัวหน้า) ใช้โหมด Basic: ติ๊ก = แก้ได้ · ให้สิทธิ์สมาชิกระบบกับคนอื่นไม่ได้ (ของเดิมคงไว้) */
+        if (!isOwner) {
+          FEATURES.forEach((f) => { if (perms[f.k] === "view" && f.k !== "tickets") perms[f.k] = "edit"; });
+          const hadHr = cur ? permsOf(cur).people !== "none" : false;
+          if (!hadHr) perms.people = "none"; else if (cur) perms.people = permsOf(cur).people;
+        }
+        secs = sectionsFromPerms(perms);
+      } else if (!isOwner) {
         const had = cur ? String(cur.sections || "").split(",").indexOf("hr") !== -1 : false;
         secs = secs.split(",").filter((k) => k && (k !== "hr" || had)).join(",");
       }
       if (!first || !last) { errors.push(line + "ใส่ชื่อและนามสกุล"); continue; }
       if (user.length < 2 || /[()@,]/.test(user)) { errors.push(line + "ชื่อผู้ใช้ต้องยาว 2–30 ตัว ไม่มีเว้นวรรค และห้ามมี ( ) @ ,"); continue; }
-      if (!secs) { errors.push(line + "เลือกสิทธิ์อย่างน้อย 1 อย่าง"); continue; }
+      if (!secs && !(perms && FEATURES.some((f) => f.k !== "tickets" && perms[f.k] !== "none"))) { errors.push(line + "เลือกสิทธิ์อย่างน้อย 1 เมนู"); continue; }
       if (!cur && pw.length < 6) { errors.push(line + "คนใหม่ต้องตั้งรหัสผ่านอย่างน้อย 6 ตัว"); continue; }
       if (pw && pw.length < 6) { errors.push(line + "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว"); continue; }
       const key = user.toLowerCase();
@@ -1244,17 +1357,17 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const name = user + " (" + first + " " + last + ")";
       const active = r.active === false ? 0 : 1;
       if (cur) {
-        const sets = ["name = ?", "first_name = ?", "last_name = ?", "sections = ?", "active = ?", "pending = 0"];
-        const vals = [name, first, last, secs, active];
+        const sets = ["name = ?", "first_name = ?", "last_name = ?", "sections = ?", "active = ?", "pending = 0", "phone = ?", "perms = ?"];
+        const vals = [name, first, last, secs, active, phone, perms ? JSON.stringify(perms) : null];
         if (pw) { const salt = randHex(16); sets.push("pw_salt = ?", "pw_hash = ?", "require_pw = 1"); vals.push(salt, await pbkdf2Hex(pw, salt)); }
         stmts.push(db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals, cur.id));
         if (pw) stmts.push(db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(cur.id));
-        done.push({ id: cur.id, name, action: "update", before: { name: cur.name, sections: cur.sections, active: !!cur.active }, after: { name, sections: secs, active: !!active, password: pw ? "ตั้งใหม่" : undefined } });
+        done.push({ id: cur.id, name, action: "update", before: { name: cur.name, sections: cur.sections, perms: cur.perms || null, phone: cur.phone || "", active: !!cur.active }, after: { name, sections: secs, perms, phone, active: !!active, password: pw ? "ตั้งใหม่" : undefined } });
       } else {
         const id = newId("s_"), salt = randHex(8), psalt = randHex(16);
-        stmts.push(db.prepare("INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,sections,require_pw,pending,pw_salt,pw_hash,first_name,last_name) VALUES (?,?,?,'member',?,?,?,?,?,1,0,?,?,?,?)")
-          .bind(id, name, [user, first].join(","), salt, await sha256Hex(salt + ":" + randHex(16)), active, now, secs, psalt, await pbkdf2Hex(pw, psalt), first, last));
-        done.push({ id, name, action: "create", after: { name, sections: secs, active: !!active } });
+        stmts.push(db.prepare("INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,sections,require_pw,pending,pw_salt,pw_hash,first_name,last_name,phone,perms) VALUES (?,?,?,'member',?,?,?,?,?,1,0,?,?,?,?,?,?)")
+          .bind(id, name, [user, first].join(","), salt, await sha256Hex(salt + ":" + randHex(16)), active, now, secs, psalt, await pbkdf2Hex(pw, psalt), first, last, phone, perms ? JSON.stringify(perms) : null));
+        done.push({ id, name, action: "create", after: { name, sections: secs, perms, phone, active: !!active } });
       }
     }
     if (errors.length) return json({ error: "ยังบันทึกไม่ได้ — แก้ " + errors.length + " แถวก่อน", errors }, 400);
@@ -1378,7 +1491,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   }
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,perms,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -2234,7 +2347,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       sets.push("name = ?"); vals.push(name);
     }
     if (body.aliases != null) { sets.push("aliases = ?"); vals.push(String(body.aliases).trim().slice(0, 200)); }
-    if (body.sections != null) { sets.push("sections = ?"); vals.push(cleanSections(body.sections)); }
+    /* ติ๊กหมวดจากหน้าทีม = กลับไปใช้สิทธิ์ทั้งหมวด ล้างสิทธิ์รายเมนูที่ตั้งไว้ (ไม่งั้นสองที่ขัดกัน) */
+    if (body.sections != null) { sets.push("sections = ?", "perms = NULL"); vals.push(cleanSections(body.sections)); }
     /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้เพื่ออัปเดตงานแทนเติ้ล */
     if (body.canUpdateOthers != null) { sets.push("can_update_others = ?"); vals.push(body.canUpdateOthers ? 1 : 0); }
     if (body.canReschedule != null) { sets.push("can_reschedule = ?"); vals.push(body.canReschedule ? 1 : 0); }

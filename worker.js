@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake, handleSaleLead, campaignPurge } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake, handleSaleLead, campaignPurge, viewOnlyFor } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
@@ -288,6 +288,7 @@ async function handleApi(request, env, url, ctx) {
   /* บัญชีชั่วคราวรออนุมัติ — ยังไม่ให้เห็นข้อมูลปฏิทิน/รูป/KPI */
   if (who.pending) return json({ error: "บัญชีนี้รอหัวหน้าอนุมัติ", pending: true }, 403);
   if (who._viewAsBy && request.method !== "GET") return json({ error: "กำลังดูในมุมของ " + who.name + " — อ่านอย่างเดียว" }, 403);
+  if (request.method !== "GET" && viewOnlyFor(who, path)) return json({ error: "สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว" }, 403);
   if (path === "/kpi" && !canSee(who, "kpi")) return json({ error: "ไม่มีสิทธิ์ดูข้อมูล KPI" }, 403);
 
   // ---- รูปแนบ ----

@@ -60,7 +60,7 @@
     var menuHTML = global.ERP_MENU
       ? global.ERP_MENU.render({ ctx: "cmo", active: "cmo:" + here,
           salesBase: ERP_BASE, cmoBase: "", tasksBase: "../tasks/",
-          sections: me ? me.sections : [], owner: !!me && me.role === "owner" })
+          sections: me ? me.sections : [], perms: me ? me.perms : null, owner: !!me && me.role === "owner" })
       : "";
     var h = menuHTML +
       '<div class="erp-foot">' +

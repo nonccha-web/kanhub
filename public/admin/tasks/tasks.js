@@ -124,7 +124,7 @@
   }
   /* ตัวตนที่ใช้ตัดสินสิทธิ์ — โหมด "ดูในมุมของ" จะกลายเป็นอ่านอย่างเดียว */
   function amOwner() { return !S.viewAs && S.me && S.me.role === 'owner'; }
-  function readOnly() { return !!S.viewAs || !!S.viewAsBy; }   /* viewAsBy = หัวหน้ากำลังดูแทนคนอื่นจากแถบบน (ทั้งระบบ) */
+  function readOnly() { return !!S.viewAs || !!S.viewAsBy || (S.route && featLevel(ROUTE_FEAT[S.route.name]) === 'view'); }   /* viewAsBy = หัวหน้ากำลังดูแทนคนอื่นจากแถบบน (ทั้งระบบ) */
   /* ตรวจผ่าน = หัวหน้าคนเดียว (นนท์ 21 ก.ย. 69) — คนสั่งงานตรวจงานที่ตัวเองสั่งไม่ได้แล้ว
      ส่วน canEditRow (แก้/ลบ) ยังเป็นของหัวหน้าหรือคนสั่งเหมือนเดิม คนละเรื่องกัน */
   function canApprove() { return !readOnly() && !!S.me && S.me.role === 'owner'; }
@@ -572,7 +572,7 @@
     return fetch(API + path, opt).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (r.status === 401) { S.me = null; renderLogin(); throw new Error(j.error || 'กรุณาเข้าสู่ระบบ'); }
-        if (!r.ok) throw new Error(j.error || ('ผิดพลาด ' + r.status));
+        if (!r.ok) { var er = new Error(j.error || ('ผิดพลาด ' + r.status)); er.data = j; throw er; }
         return j;
       });
     });
@@ -596,9 +596,18 @@
     if (!S.me) return { sections: [], owner: false, as: null };
     if (S.viewAs) {
       var v = staffById(S.viewAs);
-      if (v) return { sections: v.sections || [], owner: v.role === 'owner', as: v };
+      if (v) return { sections: v.sections || [], perms: v.perms || null, owner: v.role === 'owner', as: v };
     }
-    return { sections: S.me.sections || [], owner: S.me.role === 'owner', as: null };
+    return { sections: S.me.sections || [], perms: S.me.perms || null, owner: S.me.role === 'owner', as: null };
+  }
+  /* สิทธิ์รายเมนู: edit | view | none (29 ก.ย. 69) · หัวหน้า = edit ทุกเมนู */
+  var ROUTE_FEAT = { all: 'all', me: 'all', task: 'all', new: 'all', board: 'all', signage: 'signage', posts: 'posts', report: 'report',
+                     history: 'history', leads: 'leads', lead: 'leads', blast: 'blast', richmenu: 'blast', lineusers: 'blast', blastsetup: 'blast',
+                     people: 'people', tickets: 'tickets', kpi: 'kpi', campaign: 'cal' };
+  function featLevel(k) {
+    var e = effRights();
+    if (e.owner || !k) return 'edit';
+    return (e.perms && e.perms[k]) || 'edit';
   }
   function canSee(sec) {
     var e = effRights();
@@ -630,7 +639,7 @@
     var eff = effRights();
     var h = global.ERP_MENU.render({ ctx: 'tasks', active: 'tasks:' + (ROUTE_KEY[S.route.name] || '#/me'),
       salesBase: '../mkt/index.html', cmoBase: '../cmo/', tasksBase: '',
-      sections: eff.sections, owner: eff.owner,
+      sections: eff.sections, perms: eff.perms, owner: eff.owner,
       badges: S.notif.unread ? { mentions: S.notif.unread } : {} });
     h += '<div class="erp-foot">' +
       '<button type="button" class="erp-theme" data-theme-toggle><span id="theme-icon"></span> <span id="theme-label"></span></button>' +
@@ -5046,7 +5055,7 @@
       var h = '<div class="top"><div><span class="kicker">ตารางโพสต์' + (P.page ? ' · ' + esc(pageName(P.page)) : '') + '</span>' +
         '<h1>คอนเทนต์ ' + esc(label) + '</h1>' +
         '<p>เขียวคือโพสต์แล้ว แดงคือเลยวันแล้วยังไม่โพสต์ เหลืองคือโพสต์แล้วแต่ยังไม่มีลิงก์ — กดวันในปฏิทินเพื่อดูและอัปเดตโพสต์ของวันนั้น</p></div>' +
-        '<div class="top-r"><button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button></div></div>';
+        '<div class="top-r">' + (readOnly() ? '<span class="pill">ดูอย่างเดียว</span>' : '<button type="button" class="btn" id="newPost">+ เพิ่มโพสต์</button>') + '</div></div>';
 
       h += '<div class="cards">' +
         '<article class="hot"><span class="l">โพสต์ในช่วงนี้</span><b>' + posts.length + '</b><small>' + esc(d[0] ? d[0] + ' → ' + d[1] : 'ทุกวัน') + '</small></article>' +
@@ -6217,23 +6226,11 @@
   function peopleChanged() {
     return (pgrid ? pgrid.rows : []).filter(function (r) { return !personBlank(r) && (!r.id || personSig(r) !== r._sig); });
   }
-  function renderPeople() {
-    var view = $('#view');
-    view.className = 'page people';
-    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
-    api('/people').then(function (j) {
-      peopleCanHr = !!j.canGrantHr;
-      var owners = (j.people || []).filter(function (p) { return p.owner; });
-      var rows = (j.people || []).filter(function (p) { return !p.owner && !p.pending; }).map(function (p) {
-        var r = { id: p.id, firstName: p.firstName, lastName: p.lastName, username: p.username, password: '',
-                  sections: (p.sections || []).slice(), active: p.active, hasPassword: p.hasPassword, needsPassword: p.needsPassword };
-        r._sig = personSig(r);
-        return r;
-      });
-      view.innerHTML = '<div class="top"><div><span class="kicker">สมาชิกระบบ</span><h1>ใครใช้ระบบนี้บ้าง</h1>' +
-        '<p>กด <b>+ แถว / + 5 แถว / + 10 แถว</b> ใต้หัวข้อนี้ แล้วพิมพ์ไล่ทีละช่องได้เหมือน Excel หรือก็อปจาก Excel มาวางทั้งก้อน (เรียงคอลัมน์ ชื่อ · นามสกุล · ชื่อผู้ใช้ · รหัสผ่าน · สิทธิ์) · ' +
-        '<b>ชื่อผู้ใช้</b> คือชื่อที่ขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ · คนเดิมเว้นช่องรหัสผ่านว่าง = ใช้แบบเดิม · แก้เสร็จกด <b>บันทึก</b> ครั้งเดียว</p></div></div>' +
-        (owners.length ? '<p class="hint">หัวหน้า (แก้ในหน้า ทีม + สิทธิ์): ' + owners.map(function (o) { return esc(o.username); }).join(', ') + '</p>' : '') +
+  /* นำเข้าหลายคนจาก Excel (พับไว้ใต้รายชื่อ) — แถวใหม่ล้วน คนเดิมแก้ผ่านฟอร์ม */
+  function mountPeopleGrid(host) {
+    (function () {
+      var rows = [];
+      host.innerHTML = '<p class="hint">กด <b>+ แถว / + 5 แถว / + 10 แถว</b> แล้วพิมพ์ไล่ หรือก็อปจาก Excel มาวางทั้งก้อน · เรียงคอลัมน์ ชื่อ · นามสกุล · ชื่อผู้ใช้ · รหัสผ่าน · สิทธิ์</p>' +
         '<div class="sec"><div class="sec-b tight"><div id="peopleHost"></div></div></div><div id="peopleBar"></div>';
       pgrid = global.KAN_GRID.create($('#peopleHost'), {
         id: 'people',
@@ -6280,7 +6277,7 @@
         ]
       });
       renderPeopleBar();
-    }).catch(function (e) { view.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    })();
   }
   function renderPeopleBar(errs) {
     var host = $('#peopleBar');
@@ -6314,10 +6311,312 @@
             return (x.action === 'create' ? 'เพิ่ม ' : 'แก้ ') + x.name + (pw[u.toLowerCase()] ? ' · ชื่อผู้ใช้ ' + u + ' · รหัส ' + pw[u.toLowerCase()] : '');
           }),
           note: (added.length ? 'ส่งชื่อผู้ใช้กับรหัสผ่านให้แต่ละคน เข้าได้ที่ https://admin.kan-hub.com · ' : '') + 'รหัสผ่านจะไม่แสดงอีกหลังปิดหน้าต่างนี้',
-          onClose: function () { return api('/me').then(function (m) { S.staff = m.staff || S.staff; renderPeople(); }); } });
+          onClose: function () { PP.showGrid = false; return api('/me').then(function (m) { S.staff = m.staff || S.staff; renderPeople(); }); } });
       }).catch(function (e) {
         renderPeopleBar([e.message]);
       });
+      return;
+    }
+  });
+
+  /* ---------- สมาชิกระบบ 2 โหมด (นนท์ 29 ก.ย. 69) ----------
+     Basic (โบว์/HR): การ์ดกรอก ชื่อ นามสกุล เบอร์ ชื่อผู้ใช้ รหัสผ่าน + ติ๊กเมนูใน sidebar ที่ให้เข้า
+     Advanced (หัวหน้าคนเดียว): ซ้าย=บทบาท/สมาชิก · กลาง=เมนู · ขวา=แก้ได้/ดูอย่างเดียว/ไม่มีสิทธิ์ (แบบ Lark) */
+  var PP = { data: null, mode: 'basic', form: null, showGrid: false, subj: null, feat: 'cal', work: null, dirty: false, roles: null };
+  try { if (localStorage.getItem('kan-pp-mode') === 'adv') PP.mode = 'adv'; } catch (e) {}
+  var PP_LV = { edit: 'แก้ได้', view: 'ดูอย่างเดียว', none: 'ไม่มีสิทธิ์' };
+  var PP_PRESETS = [
+    ['งานคอนเทนต์', ['cal', 'all', 'signage', 'posts', 'report', 'history']],
+    ['ฝ่ายขาย', ['leads']],
+    ['ฝ่ายบัญชี', ['cal', 'all', 'report']],
+    ['ทุกเมนู', null]
+  ];
+  var PP_BUILTIN = [
+    { id: '_admin', name: 'Administrator', note: 'แก้ได้ทุกเมนู', fn: function () { return 'edit'; } },
+    { id: '_editor', name: 'Editor', note: 'ทำงานได้ ดูตัวเลขอย่างเดียว', fn: function (k) {
+        return ['people', 'blast'].indexOf(k) !== -1 ? 'none' : (['kpi', 'sales', 'docs'].indexOf(k) !== -1 ? 'view' : 'edit'); } },
+    { id: '_viewer', name: 'Viewer', note: 'ดูได้อย่างเดียว', fn: function (k) { return ['people', 'blast'].indexOf(k) !== -1 ? 'none' : 'view'; } }
+  ];
+  function ppFeats() { return (PP.data && PP.data.features) || []; }
+  function ppBuiltinPerms(b) { var o = {}; ppFeats().forEach(function (f) { o[f.k] = b.fn(f.k); }); o.tickets = o.tickets === 'none' ? 'view' : o.tickets; return o; }
+  function ppPerson(id) { return ((PP.data && PP.data.people) || []).filter(function (p) { return p.id === id; })[0] || null; }
+  function ppMenuChips(p) {
+    var f = ppFeats().filter(function (x) { return x.k !== 'tickets' && p.perms && p.perms[x.k] && p.perms[x.k] !== 'none'; });
+    if (!f.length) return '<span class="tkmut">—</span>';
+    return f.map(function (x) { return '<span class="pp-chip' + (p.perms[x.k] === 'view' ? ' v' : '') + '">' + esc(x.th) + (p.perms[x.k] === 'view' ? ' · ดู' : '') + '</span>'; }).join('');
+  }
+  function renderPeople() {
+    var view = $('#view');
+    view.className = 'page people';
+    if (!PP.data) view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    api('/people').then(function (j) {
+      PP.data = j;
+      peopleCanHr = !!j.canGrantHr;
+      if (!j.canGrantHr) PP.mode = 'basic';
+      if (PP.roles == null || !PP.dirty) PP.roles = (j.roles || []).map(function (r) { return { id: r.id, name: r.name, perms: Object.assign({}, r.perms) }; });
+      paintPeople();
+    }).catch(function (e) { view.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  function paintPeople() {
+    var view = $('#view'), j = PP.data, owner = !!j.canGrantHr;
+    var h = '<div class="top"><div><span class="kicker">สมาชิกระบบ</span><h1>ใครใช้ระบบนี้บ้าง</h1>' +
+      '<p>' + (PP.mode === 'adv'
+        ? 'โหมด Advanced — เลือกบทบาทหรือสมาชิกทางซ้าย · เลือกเมนูตรงกลาง · ตั้งว่า แก้ได้ / ดูอย่างเดียว / ไม่มีสิทธิ์ ทางขวา แล้วกดบันทึก'
+        : 'เพิ่มคนที่จะใช้ระบบ ตั้งชื่อผู้ใช้กับรหัสผ่าน แล้วติ๊กว่าให้เข้าเมนูไหนใน sidebar ได้บ้าง · <b>ชื่อผู้ใช้</b> คือชื่อที่ขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ') + '</p></div>' +
+      '<div class="top-r">' + (owner ? '<div class="seg pp-mode"><button type="button" data-ppmode="basic" class="' + (PP.mode === 'basic' ? 'on' : '') + '">Basic</button>' +
+        '<button type="button" data-ppmode="adv" class="' + (PP.mode === 'adv' ? 'on' : '') + '">Advanced</button></div>' : '') +
+      (PP.mode === 'basic' ? '<button type="button" class="btn" data-pp="add">+ เพิ่มสมาชิก</button>' : '') + '</div></div>';
+    h += PP.mode === 'adv' ? ppAdvHtml() : ppBasicHtml();
+    view.innerHTML = h;
+    if (PP.mode === 'basic' && PP.showGrid) mountPeopleGrid($('#ppGrid'));
+    var f0 = $('#ppForm input[name=firstName]');
+    if (f0 && PP.form && PP.form._focus) { f0.focus(); PP.form._focus = false; }
+  }
+  /* ---- Basic ---- */
+  function ppBasicHtml() {
+    var j = PP.data, list = (j.people || []).filter(function (p) { return !p.pending; });
+    var h = PP.form ? ppFormHtml() : '';
+    h += '<div class="sec"><div class="sec-h"><div><h2>สมาชิกทั้งหมด</h2><p>' + list.filter(function (p) { return p.active; }).length + ' คนที่ใช้งานอยู่</p></div></div>' +
+      '<div class="sec-b tight"><table class="pp-table"><thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อ – นามสกุล</th><th>เบอร์โทร</th><th>เมนูที่เข้าได้</th><th>สถานะ</th><th></th></tr></thead><tbody>' +
+      list.map(function (p) {
+        return '<tr class="' + (p.active ? '' : 'off') + '"><td><b>' + esc(p.username) + '</b></td>' +
+          '<td>' + esc([p.firstName, p.lastName].filter(Boolean).join(' ') || '—') + '</td>' +
+          '<td>' + (p.phone ? esc(p.phone) : '<span class="tkmut">—</span>') + '</td>' +
+          '<td class="pp-chips">' + (p.owner ? '<span class="pp-chip own">หัวหน้า · ทุกเมนู</span>' : ppMenuChips(p)) + '</td>' +
+          '<td>' + (p.active ? 'ใช้งาน' : '<span class="tkmut">ปิดใช้งาน</span>') + '</td>' +
+          '<td class="r">' + (p.owner ? '' : '<button type="button" class="btn-ghost sm" data-ppedit="' + esc(p.id) + '">แก้ไข</button>') + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    h += '<div class="pp-bulk"><button type="button" class="btn-text" data-pp="grid">' + (PP.showGrid ? '▾ ซ่อนตารางนำเข้า' : '▸ เพิ่มหลายคนพร้อมกัน (วางจาก Excel)') + '</button>' +
+      (PP.showGrid ? '<div id="ppGrid"></div>' : '') + '</div>';
+    return h;
+  }
+  function ppFormHtml() {
+    var f = PP.form, isNew = !f.id, owner = !!PP.data.canGrantHr;
+    var feats = ppFeats(), groups = [];
+    feats.forEach(function (x) { if (groups.indexOf(x.g) === -1) groups.push(x.g); });
+    var fld = function (name, label, val, attrs, hint) {
+      return '<label class="pp-f"><span>' + label + '</span><input name="' + name + '" value="' + esc(val || '') + '" ' + (attrs || '') + '>' + (hint ? '<small>' + hint + '</small>' : '') + '</label>';
+    };
+    return '<div class="pp-card" id="ppForm"><div class="pp-card-h"><h3>' + (isNew ? 'เพิ่มสมาชิกใหม่' : 'แก้ไข: ' + esc(f.username)) + '</h3>' +
+      '<button type="button" class="btn-text" data-pp="cancel">ปิด</button></div>' +
+      '<div class="pp-fields">' +
+        fld('firstName', 'ชื่อ *', f.firstName, 'autocomplete="off"') +
+        fld('lastName', 'นามสกุล *', f.lastName, 'autocomplete="off"') +
+        fld('phone', 'เบอร์โทร', f.phone, 'inputmode="tel" autocomplete="off" placeholder="08x-xxx-xxxx"', 'เก็บไว้เป็นข้อมูลติดต่อ') +
+        fld('username', 'ชื่อผู้ใช้ *', f.username, 'autocomplete="off" placeholder="เช่น Bow"', 'ขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ · ห้ามเว้นวรรค') +
+        '<label class="pp-f"><span>' + (isNew ? 'รหัสผ่าน *' : 'รหัสผ่านใหม่') + '</span><span class="pp-pw"><input name="password" value="' + esc(f.password || '') + '" autocomplete="new-password" placeholder="' + (isNew ? 'อย่างน้อย 6 ตัว' : 'เว้นว่าง = ใช้รหัสเดิม') + '">' +
+          '<button type="button" class="btn-ghost sm" data-pp="genpw">สุ่มรหัส</button></span></label>' +
+        (isNew ? '' : '<label class="pp-f pp-active"><span>สถานะ</span><span><input type="checkbox" name="active"' + (f.active !== false ? ' checked' : '') + '> ใช้งานอยู่</span></label>') +
+      '</div>' +
+      '<div class="pp-perm-h"><b>เมนูที่เข้าได้</b><span class="pp-presets">ลัด: ' + PP_PRESETS.map(function (x, i) { return '<button type="button" class="btn-ghost sm" data-pppre="' + i + '">' + esc(x[0]) + '</button>'; }).join('') +
+        '<button type="button" class="btn-ghost sm" data-pppre="clear">ล้าง</button></span></div>' +
+      '<div class="pp-perms">' + groups.map(function (g) {
+        return '<fieldset><legend>' + esc(g) + '</legend>' + feats.filter(function (x) { return x.g === g; }).map(function (x) {
+          var lv = f.perms[x.k] || 'none';
+          if (x.k === 'tickets') return '<label class="pp-ck dis"><input type="checkbox" checked disabled> ' + esc(x.th) + ' <small>ทุกคนเห็น</small></label>';
+          if (x.k === 'people' && !owner) return lv !== 'none' ? '<label class="pp-ck dis"><input type="checkbox" checked disabled> ' + esc(x.th) + ' <small>หัวหน้าให้ไว้</small></label>' : '';
+          return '<label class="pp-ck"><input type="checkbox" data-ppf="' + x.k + '"' + (lv !== 'none' ? ' checked' : '') + '> ' + esc(x.th) +
+            (lv === 'view' ? ' <small>ดูอย่างเดียว</small>' : '') + '</label>';
+        }).join('') + '</fieldset>';
+      }).join('') + '</div>' +
+      '<div class="pp-foot"><span class="err pp-err" id="ppErr"></span><button type="button" class="btn-ghost" data-pp="cancel">ยกเลิก</button>' +
+      '<button type="button" class="btn" data-pp="save">' + (isNew ? 'เพิ่มสมาชิก' : 'บันทึก') + '</button></div></div>';
+  }
+  function ppReadForm() {
+    var box = $('#ppForm'), f = PP.form;
+    if (!box) return f;
+    $$('input[name]', box).forEach(function (i) { f[i.name] = i.type === 'checkbox' ? i.checked : i.value; });
+    $$('input[data-ppf]', box).forEach(function (i) {
+      var k = i.getAttribute('data-ppf');
+      f.perms[k] = i.checked ? (f.perms[k] === 'view' ? 'view' : 'edit') : 'none';
+    });
+    return f;
+  }
+  function ppOpenForm(p) {
+    var perms = {};
+    ppFeats().forEach(function (x) { perms[x.k] = p && p.perms ? p.perms[x.k] || 'none' : (x.k === 'tickets' ? 'edit' : 'none'); });
+    PP.form = p ? { id: p.id, firstName: p.firstName, lastName: p.lastName, phone: p.phone, username: p.username, password: '', active: p.active, perms: perms, _focus: true }
+                : { id: null, firstName: '', lastName: '', phone: '', username: '', password: '', active: true, perms: perms, _focus: true };
+    paintPeople();
+    var box = $('#ppForm'); if (box) box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  function ppSave() {
+    var f = ppReadForm(), err = $('#ppErr');
+    var miss = [];
+    if (!String(f.firstName).trim()) miss.push('ชื่อ');
+    if (!String(f.lastName).trim()) miss.push('นามสกุล');
+    if (String(f.username).trim().length < 2) miss.push('ชื่อผู้ใช้');
+    if (!f.id && String(f.password).length < 6) miss.push('รหัสผ่าน (อย่างน้อย 6 ตัว)');
+    if (f.id && f.password && String(f.password).length < 6) miss.push('รหัสผ่านอย่างน้อย 6 ตัว');
+    if (!ppFeats().some(function (x) { return x.k !== 'tickets' && f.perms[x.k] && f.perms[x.k] !== 'none'; })) miss.push('ติ๊กเมนูอย่างน้อย 1 อย่าง');
+    if (miss.length) { err.textContent = 'ยังขาด: ' + miss.join(' · '); return; }
+    var btn = $('#ppForm [data-pp="save"]'); btn.disabled = true;
+    api('/people', 'POST', { rows: [{ id: f.id || undefined, firstName: f.firstName, lastName: f.lastName, username: f.username, phone: f.phone,
+      password: f.password || undefined, perms: f.perms, active: f.active !== false }] }).then(function (j) {
+      var saved = (j.saved || [])[0] || {};
+      var pw = f.password, user = String(f.username).trim();
+      PP.form = null;
+      okDialog({ title: saved.action === 'create' ? 'เพิ่มสมาชิกแล้ว' : 'บันทึกแล้ว',
+        lines: [saved.name || user].concat(pw ? ['ชื่อผู้ใช้: ' + user, 'รหัสผ่าน: ' + pw] : []),
+        note: (pw ? 'ส่งชื่อผู้ใช้กับรหัสผ่านให้เจ้าตัว เข้าได้ที่ https://admin.kan-hub.com · รหัสผ่านจะไม่แสดงอีกหลังปิดหน้าต่างนี้' : ''),
+        onClose: function () { return api('/me').then(function (m) { S.staff = m.staff || S.staff; renderPeople(); }); } });
+    }).catch(function (e) {
+      btn.disabled = false;
+      err.innerHTML = esc(e.message) + (e.data && e.data.errors ? '<br>' + e.data.errors.map(function (x) { return esc(x.replace(/^แถวที่ 1: /, '')); }).join('<br>') : '');
+    });
+  }
+  /* ---- Advanced (หัวหน้า) ---- */
+  function ppSubjects() {
+    var out = PP_BUILTIN.map(function (b) { return { type: 'role', id: b.id, name: b.name, note: b.note, builtin: true, perms: ppBuiltinPerms(b) }; });
+    (PP.roles || []).forEach(function (r) { out.push({ type: 'role', id: r.id, name: r.name, note: 'บทบาทที่ตั้งเอง', perms: r.perms }); });
+    ((PP.data && PP.data.people) || []).filter(function (p) { return !p.pending; }).forEach(function (p) {
+      out.push({ type: 'person', id: p.id, name: p.username, note: [p.firstName, p.lastName].filter(Boolean).join(' '), owner: p.owner, active: p.active, perms: p.perms });
+    });
+    return out;
+  }
+  function ppCurSubj() {
+    var all = ppSubjects();
+    if (!PP.subj) { var firstP = all.filter(function (x) { return x.type === 'person' && !x.owner; })[0]; PP.subj = firstP ? { type: 'person', id: firstP.id } : { type: 'role', id: '_admin' }; }
+    return all.filter(function (x) { return x.type === PP.subj.type && x.id === PP.subj.id; })[0] || all[0];
+  }
+  function ppAdvHtml() {
+    var subs = ppSubjects(), cur = ppCurSubj();
+    if (!PP.work || PP.work._key !== cur.type + ':' + cur.id) { PP.work = Object.assign({}, cur.perms); PP.work._key = cur.type + ':' + cur.id; PP.dirty = false; }
+    var locked = cur.builtin || cur.owner;
+    var feats = ppFeats(), groups = [];
+    feats.forEach(function (x) { if (groups.indexOf(x.g) === -1) groups.push(x.g); });
+    var feat = feats.filter(function (x) { return x.k === PP.feat; })[0] || feats[0];
+    var item = function (x) {
+      var on = x.type === cur.type && x.id === cur.id;
+      return '<button type="button" class="pp-subj' + (on ? ' on' : '') + (x.active === false ? ' off' : '') + '" data-ppsubj="' + x.type + ':' + esc(x.id) + '">' +
+        '<span class="pp-ico">' + (x.type === 'role' ? (x.builtin ? '◆' : '◇') : esc(String(x.name).charAt(0).toUpperCase())) + '</span>' +
+        '<span><b>' + esc(x.name) + '</b><small>' + esc(x.owner ? 'หัวหน้า · ทุกเมนู' : x.note || '') + '</small></span></button>';
+    };
+    var roleOpts = subs.filter(function (x) { return x.type === 'role'; });
+    var h = '<div class="pp-adv">' +
+      '<aside class="pp-col pp-left"><div class="pp-lh">บทบาทสำเร็จรูป</div>' + subs.filter(function (x) { return x.type === 'role'; }).map(item).join('') +
+        '<button type="button" class="pp-subj add" data-pp="addrole"><span class="pp-ico">+</span><span><b>เพิ่มบทบาท</b></span></button>' +
+        '<div class="pp-lh">สมาชิก</div>' + subs.filter(function (x) { return x.type === 'person'; }).map(item).join('') + '</aside>' +
+      '<div class="pp-col pp-mid"><div class="pp-mh">' + esc(cur.name) + (cur.type === 'role' ? ' <small>บทบาท</small>' : '') + '</div>' +
+        groups.map(function (g) {
+          return '<div class="pp-gh">' + esc(g) + '</div>' + feats.filter(function (x) { return x.g === g; }).map(function (x) {
+            var lv = PP.work[x.k] || 'none';
+            return '<button type="button" class="pp-feat' + (x.k === feat.k ? ' on' : '') + '" data-ppfeat="' + x.k + '"><span>' + esc(x.th) + '</span><i class="lv ' + lv + '">' + PP_LV[lv] + '</i></button>';
+          }).join('');
+        }).join('') + '</div>' +
+      '<div class="pp-col pp-right">' +
+        '<div class="pp-rh">' + esc(feat.th) + '</div>' +
+        (locked ? '<p class="hint">' + (cur.owner ? 'หัวหน้าได้สิทธิ์ทุกเมนูเสมอ แก้ไม่ได้' : 'บทบาทสำเร็จรูปแก้ไม่ได้ — ใช้เป็นแม่แบบ กด "ใช้กับสมาชิก" ด้านล่าง หรือเพิ่มบทบาทของตัวเอง') + '</p>' : '') +
+        '<div class="pp-lvls">' + ['edit', 'view', 'none'].map(function (lv) {
+          var dis = locked || (feat.k === 'tickets' && lv === 'none');
+          return '<label class="pp-lv' + (dis ? ' dis' : '') + '"><input type="radio" name="pplv" value="' + lv + '"' + ((PP.work[feat.k] || 'none') === lv ? ' checked' : '') + (dis ? ' disabled' : '') + '>' +
+            '<span><b>' + PP_LV[lv] + '</b><small>' + ({ edit: 'เห็นเมนู เพิ่ม แก้ ลบได้', view: 'เห็นเมนู เปิดดูได้ แต่กดบันทึก/แก้/ลบไม่ได้', none: 'ไม่เห็นเมนูนี้ใน sidebar และเข้าไม่ได้' }[lv]) +
+            (feat.k === 'tickets' && lv === 'none' ? ' · หน้านี้ทุกคนต้องเห็น' : '') + '</small></span></label>';
+        }).join('') + '</div>' +
+        (!locked ? '<div class="pp-bulkset">ทั้งหมดเป็น: <button type="button" class="btn-ghost sm" data-ppall="edit">แก้ได้</button><button type="button" class="btn-ghost sm" data-ppall="view">ดูอย่างเดียว</button><button type="button" class="btn-ghost sm" data-ppall="none">ไม่มีสิทธิ์</button></div>' : '') +
+        (cur.type === 'person' && !cur.owner
+          ? '<div class="pp-apply"><span>ใช้บทบาท</span><select id="ppRoleSel">' + roleOpts.map(function (r) { return '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>'; }).join('') + '</select>' +
+            '<button type="button" class="btn-ghost sm" data-pp="applyrole">คัดลอกสิทธิ์</button></div>' : '') +
+        (cur.type === 'role'
+          ? (!cur.builtin ? '<div class="pp-apply"><span>ชื่อบทบาท</span><input id="ppRoleName" value="' + esc(cur.name) + '"><button type="button" class="btn-text danger" data-pp="delrole">ลบบทบาท</button></div>' : '') +
+            '<div class="pp-apply"><span>ใช้กับสมาชิก</span><select id="ppApplyTo">' + subs.filter(function (x) { return x.type === 'person' && !x.owner; }).map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' +
+            '<button type="button" class="btn-ghost sm" data-pp="applyto">ใช้บทบาทนี้</button></div>' : '') +
+        (!locked ? '<div class="pp-foot"><span class="hint" style="margin:0">' + (PP.dirty ? 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก' : 'ยังไม่มีอะไรเปลี่ยน') + '</span>' +
+          '<button type="button" class="btn" data-pp="advsave"' + (PP.dirty ? '' : ' disabled') + '>บันทึก</button></div>' : '') +
+      '</div></div>';
+    return h;
+  }
+  function ppSaveRoles() {
+    return api('/people/roles', 'PUT', { roles: PP.roles }).then(function (j) { PP.roles = j.roles; PP.data.roles = j.roles; });
+  }
+  function ppAdvSave() {
+    var cur = ppCurSubj(), perms = Object.assign({}, PP.work); delete perms._key;
+    if (cur.type === 'person') {
+      return api('/people/perms', 'POST', { id: cur.id, perms: perms }).then(function () {
+        PP.dirty = false; PP.work = null; toast('บันทึกสิทธิ์ของ ' + cur.name + ' แล้ว'); renderPeople();
+      }).catch(function (e) { toast(e.message, true); });
+    }
+    var r = (PP.roles || []).filter(function (x) { return x.id === cur.id; })[0];
+    if (!r) return;
+    r.perms = perms;
+    var nm = $('#ppRoleName'); if (nm && nm.value.trim()) r.name = nm.value.trim();
+    return ppSaveRoles().then(function () { PP.dirty = false; PP.work = null; toast('บันทึกบทบาท ' + r.name + ' แล้ว'); paintPeople(); })
+      .catch(function (e) { toast(e.message, true); });
+  }
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (t.name === 'pplv' && PP.work) { PP.work[PP.feat] = t.value; PP.dirty = true; paintPeople(); return; }
+    if (t.id === 'ppRoleName') { PP.dirty = true; var bs = $('[data-pp="advsave"]'); if (bs) bs.disabled = false; }
+  });
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-ppmode],[data-pp],[data-ppedit],[data-pppre],[data-ppsubj],[data-ppfeat],[data-ppall]');
+    if (!b || !$('#view.people, .page.people')) return;
+    if (b.hasAttribute('data-ppmode')) {
+      if (PP.dirty && !confirm('ยังไม่ได้บันทึกสิทธิ์ที่แก้ไว้ — ทิ้งการแก้ไข?')) return;
+      PP.mode = b.getAttribute('data-ppmode'); PP.dirty = false; PP.work = null;
+      try { localStorage.setItem('kan-pp-mode', PP.mode); } catch (e) {}
+      paintPeople(); return;
+    }
+    if (b.hasAttribute('data-ppedit')) { ppOpenForm(ppPerson(b.getAttribute('data-ppedit'))); return; }
+    if (b.hasAttribute('data-pppre')) {
+      ppReadForm();
+      var v = b.getAttribute('data-pppre'), f = PP.form;
+      var keys = v === 'clear' ? [] : (PP_PRESETS[+v][1] || ppFeats().map(function (x) { return x.k; }).filter(function (k) { return k !== 'people'; }));
+      ppFeats().forEach(function (x) {
+        if (x.k === 'tickets' || (x.k === 'people' && !PP.data.canGrantHr)) return;
+        f.perms[x.k] = keys.indexOf(x.k) !== -1 ? (f.perms[x.k] === 'view' ? 'view' : 'edit') : 'none';
+      });
+      paintPeople(); return;
+    }
+    if (b.hasAttribute('data-ppsubj')) {
+      if (PP.dirty && !confirm('ยังไม่ได้บันทึกสิทธิ์ที่แก้ไว้ — ทิ้งการแก้ไข?')) return;
+      var sp = b.getAttribute('data-ppsubj').split(':'); PP.subj = { type: sp[0], id: sp.slice(1).join(':') }; PP.work = null; paintPeople(); return;
+    }
+    if (b.hasAttribute('data-ppfeat')) { PP.feat = b.getAttribute('data-ppfeat'); paintPeople(); return; }
+    if (b.hasAttribute('data-ppall')) {
+      var lv = b.getAttribute('data-ppall');
+      ppFeats().forEach(function (x) { PP.work[x.k] = (x.k === 'tickets' && lv === 'none') ? 'view' : lv; });
+      PP.dirty = true; paintPeople(); return;
+    }
+    var a = b.getAttribute('data-pp');
+    if (a === 'add') { ppOpenForm(null); return; }
+    if (a === 'cancel') { PP.form = null; paintPeople(); return; }
+    if (a === 'grid') { PP.showGrid = !PP.showGrid; paintPeople(); return; }
+    if (a === 'save') { ppSave(); return; }
+    if (a === 'genpw') {
+      var chars = 'abcdefghjkmnpqrstuvwxyz23456789', pw = '';
+      for (var i = 0; i < 8; i++) pw += chars.charAt(Math.floor(Math.random() * chars.length));
+      var inp = $('#ppForm input[name=password]'); if (inp) inp.value = pw;
+      return;
+    }
+    if (a === 'advsave') { ppAdvSave(); return; }
+    if (a === 'addrole') {
+      var nr = { id: 'r_' + Date.now().toString(36), name: 'บทบาทใหม่', perms: ppBuiltinPerms(PP_BUILTIN[2]) };
+      PP.roles = (PP.roles || []).concat([nr]);
+      ppSaveRoles().then(function () { PP.subj = { type: 'role', id: PP.roles[PP.roles.length - 1].id }; PP.work = null; paintPeople(); var n = $('#ppRoleName'); if (n) { n.focus(); n.select(); } })
+        .catch(function (e) { toast(e.message, true); });
+      return;
+    }
+    if (a === 'delrole') {
+      var cr = ppCurSubj();
+      if (!confirm('ลบบทบาท "' + cr.name + '"? (สิทธิ์ของสมาชิกที่เคยคัดลอกไปแล้วไม่เปลี่ยน)')) return;
+      PP.roles = (PP.roles || []).filter(function (x) { return x.id !== cr.id; });
+      ppSaveRoles().then(function () { PP.subj = null; PP.work = null; PP.dirty = false; paintPeople(); }).catch(function (e) { toast(e.message, true); });
+      return;
+    }
+    if (a === 'applyrole') {
+      var rid = $('#ppRoleSel').value, role = ppSubjects().filter(function (x) { return x.type === 'role' && x.id === rid; })[0];
+      if (!role) return;
+      var key = PP.work._key; PP.work = Object.assign({}, role.perms); PP.work._key = key; PP.dirty = true;
+      toast('คัดลอกสิทธิ์จาก ' + role.name + ' แล้ว — กดบันทึกเพื่อใช้จริง'); paintPeople(); return;
+    }
+    if (a === 'applyto') {
+      var pid = $('#ppApplyTo').value, cs = ppCurSubj(), pp = ppPerson(pid);
+      if (!pp) return;
+      var perms2 = Object.assign({}, PP.work); delete perms2._key;
+      if (!confirm('ตั้งสิทธิ์ของ ' + pp.username + ' ตามบทบาท "' + cs.name + '"?')) return;
+      api('/people/perms', 'POST', { id: pid, perms: perms2 }).then(function () { toast('ตั้งสิทธิ์ ' + pp.username + ' ตาม ' + cs.name + ' แล้ว'); renderPeople(); })
+        .catch(function (e) { toast(e.message, true); });
       return;
     }
   });
@@ -6841,6 +7140,15 @@
     if (sameView) keepScroll(); else window.scrollTo(0, 0);
     if (S.route.name !== 'inbox') {
       loadNotif().then(function () { renderSidebar(); renderHeaderUser(); });
+    }
+    /* เมนูที่ตั้ง "ไม่มีสิทธิ์" → ไม่ให้เข้า · หน้าแรก (งานของฉัน) ปิดอยู่ → พาไปเมนูแรกที่เปิดให้ */
+    var rf = ROUTE_FEAT[S.route.name];
+    if (S.me && rf && featLevel(rf) === 'none') {
+      var firstOk = [['all', '#/me'], ['posts', '#/posts'], ['signage', '#/signage'], ['report', '#/report'], ['history', '#/history'],
+                     ['leads', '#/leads'], ['blast', '#/blast'], ['people', '#/people'], ['tickets', '#/tickets']]
+        .filter(function (x) { return featLevel(x[0]) !== 'none'; })[0];
+      if ((S.route.name === 'me' || S.route.name === 'all') && firstOk && firstOk[1] !== '#/me') { location.hash = firstOk[1]; return; }
+      return denyView('เมนูนี้');
     }
     switch (S.route.name) {
       case 'all': return renderAll();
