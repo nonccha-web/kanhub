@@ -6822,11 +6822,11 @@
     /* บัญชีชั่วคราวรออนุมัติ — เห็นแค่ฟอร์มขอเข้าระบบ */
     if (S.me && S.me.pending) { renderSidebar(); renderHeaderUser(); return renderJoin(); }
     /* คนที่มีเฉพาะหมวดลีด ให้อยู่แต่หน้าลีด (กันซ้ำกับด่านฝั่งเซิร์ฟเวอร์) */
-    if (S.me && !S.me.pending && !canSee('tasks') && !canSee('crm') && canSee('hr') && S.route.name !== 'people') {
+    if (S.me && !S.me.pending && !canSee('tasks') && !canSee('crm') && canSee('hr') && ['people', 'tickets'].indexOf(S.route.name) === -1) {
       location.hash = '#/people';
       S.route = parseRoute();
     }
-    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead', 'people'].indexOf(S.route.name) === -1) {
+    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead', 'people', 'tickets'].indexOf(S.route.name) === -1) {
       location.hash = '#/leads';
       S.route = parseRoute();
     }

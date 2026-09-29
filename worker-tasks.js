@@ -1362,7 +1362,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     /* คนที่เปิดปฏิทินการตลาดได้ (หมวดเอกสาร) แต่ไม่มีหน้างานทีม — กด "เปิดหน้าเต็ม" ของรายการในปฏิทินแล้วต้องเห็นได้
        (นนท์ 28 ก.ย. 69) · อ่านอย่างเดียว เฉพาะงาน/โพสต์ที่ผูกกับรายการนั้น ไม่ได้รายการงานทั้งระบบ */
     const calRead = method === "GET" && canSee(me, "docs") && /^\/(campaigns$|campaigns\/[A-Za-z0-9_-]{1,40}\/related$|pages$)/.test(path);
-    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push|people)/.test(path);
+    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push|people|tickets)/.test(path);
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
 
