@@ -1,0 +1,119 @@
+/* แชทรวม LINE (29 ก.ย. 69) — กล่องแชท 3 ช่อง + สถิติ */
+.page.chat-page{ padding:0 !important; max-width:none !important; }
+.ch-wrap{ display:grid; grid-template-columns:340px minmax(0,1fr) 300px; height:calc(100vh - 56px); background:var(--k-paper); border-top:1px solid var(--k-line); }
+.ch-list{ border-right:1px solid var(--k-line); display:flex; flex-direction:column; min-height:0; }
+.ch-lh{ padding:14px 14px 8px; border-bottom:1px solid var(--k-line); }
+.ch-title{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+.ch-title b{ font-size:17px; font-weight:600; }
+.ch-search{ width:100%; border:1px solid var(--k-line); border-radius:9px; padding:8px 11px; font:inherit; font-size:13px; background:var(--k-bg, var(--k-paper)); color:var(--k-ink); }
+.ch-tabs, .ch-chs{ display:flex; flex-wrap:wrap; gap:4px; margin-top:9px; }
+.ch-tabs button, .ch-chs button{ border:1px solid var(--k-line); background:transparent; border-radius:999px; padding:4px 10px; font:inherit; font-size:12px; color:var(--k-soft); cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+.ch-tabs button.on, .ch-chs button.on{ background:var(--k-ink); color:var(--k-paper); border-color:var(--k-ink); }
+.ch-tabs i{ font-style:normal; font-size:10.5px; min-width:17px; padding:0 5px; line-height:16px; border-radius:99px; background:var(--k-hair); color:var(--k-soft); text-align:center; }
+.ch-tabs i.hot{ background:var(--k-bad); color:#fff; }
+.ch-tabs button.on i{ background:rgba(255,255,255,.2); color:inherit; }
+.ch-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; flex:none; }
+.ch-items{ overflow-y:auto; flex:1; min-height:0; }
+.ch-item{ display:flex; gap:10px; padding:11px 14px; border-bottom:1px solid var(--k-hair); text-decoration:none; color:inherit; position:relative; }
+.ch-item:hover{ background:var(--k-hair); }
+.ch-item.on{ background:color-mix(in srgb, var(--k-info) 10%, transparent); box-shadow:inset 3px 0 0 var(--k-info); }
+.ch-av{ border-radius:50%; flex:none; object-fit:cover; display:grid; place-items:center; font-weight:600; font-size:14px; background:var(--k-hair); }
+.ch-it-m{ min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; }
+.ch-it-t{ display:flex; justify-content:space-between; gap:8px; }
+.ch-it-t b{ font-size:13.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-item.unread .ch-it-t b{ font-weight:700; }
+.ch-it-t time{ font-size:11px; color:var(--k-mut); flex:none; }
+.ch-it-p{ font-size:12.5px; color:var(--k-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-it-p em{ font-style:normal; color:var(--k-mut); }
+.ch-item.unread .ch-it-p{ color:var(--k-ink); }
+.ch-it-f{ display:flex; flex-wrap:wrap; gap:4px 8px; font-size:11px; color:var(--k-mut); align-items:center; }
+.ch-pg{ display:inline-flex; align-items:center; gap:4px; }
+.ch-wait{ color:var(--k-warn); font-weight:600; }
+.ch-wait.late{ color:var(--k-bad); }
+.ch-as{ color:var(--k-soft); }
+.ch-as.none{ color:var(--k-bad); }
+.ch-mock{ font-size:10.5px; color:var(--k-mut); border:1px dashed var(--k-line); border-radius:4px; padding:0 4px; }
+.ch-badge{ position:absolute; right:14px; top:34px; min-width:19px; height:19px; border-radius:99px; background:#06C755; color:#fff; font-size:11px; font-weight:600; display:grid; place-items:center; padding:0 5px; }
+.ch-empty{ padding:40px 20px; text-align:center; color:var(--k-mut); font-size:13px; line-height:1.8; }
+.ch-empty.big{ padding-top:22vh; font-size:15px; color:var(--k-soft); }
+.ch-empty small{ display:block; font-size:12.5px; color:var(--k-mut); }
+.ch-empty .btn-ghost{ margin-top:10px; }
+.ch-room{ display:flex; flex-direction:column; min-width:0; min-height:0; background:color-mix(in srgb, var(--k-hair) 45%, var(--k-paper)); }
+.ch-head{ display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--k-line); background:var(--k-paper); }
+.ch-hd-m{ min-width:0; flex:1; }
+.ch-hd-m b{ display:block; font-size:15px; font-weight:600; }
+.ch-hd-m small{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--k-mut); }
+.ch-hd-r{ display:flex; align-items:center; gap:8px; }
+.ch-hd-r select{ border:1px solid var(--k-line); border-radius:8px; padding:6px 8px; font:inherit; font-size:12.5px; background:var(--k-paper); color:var(--k-ink); }
+.ch-msgs{ flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:6px; }
+.ch-day{ text-align:center; margin:10px 0 4px; }
+.ch-day span{ font-size:11px; color:var(--k-mut); background:var(--k-paper); border:1px solid var(--k-line); border-radius:99px; padding:2px 10px; }
+.ch-msg{ display:flex; flex-direction:column; max-width:68%; }
+.ch-msg.in{ align-self:flex-start; align-items:flex-start; }
+.ch-msg.out{ align-self:flex-end; align-items:flex-end; }
+.ch-bub{ padding:9px 13px; border-radius:16px; font-size:14px; line-height:1.55; word-break:break-word; }
+.ch-msg.in .ch-bub{ background:var(--k-paper); border:1px solid var(--k-line); border-bottom-left-radius:5px; }
+.ch-msg.out .ch-bub{ background:#06C755; color:#fff; border-bottom-right-radius:5px; }
+.ch-msg.out .ch-bub a{ color:#fff; }
+.ch-msg.media .ch-bub{ padding:0; background:none !important; border:0 !important; }
+.ch-msg.fail .ch-bub{ background:var(--k-bad); }
+.ch-img{ max-width:260px; max-height:320px; border-radius:12px; display:block; border:1px solid var(--k-line); }
+.ch-stk{ width:110px; height:auto; display:block; }
+.ch-sys{ color:var(--k-mut); font-size:12.5px; }
+.ch-meta{ font-size:10.5px; color:var(--k-mut); margin:3px 4px 0; }
+.ch-comp{ border-top:1px solid var(--k-line); background:var(--k-paper); padding:10px 14px; position:relative; }
+.ch-comp-row{ display:flex; align-items:flex-end; gap:8px; }
+.ch-comp textarea{ flex:1; resize:none; border:1px solid var(--k-line); border-radius:12px; padding:9px 12px; font:inherit; font-size:14px; line-height:1.45; background:var(--k-paper); color:var(--k-ink); max-height:160px; }
+.ch-ib{ width:36px; height:38px; border:1px solid var(--k-line); border-radius:10px; background:transparent; cursor:pointer; display:grid; place-items:center; font-size:15px; flex:none; }
+.ch-ib:hover{ background:var(--k-hair); }
+.ch-pv{ position:relative; display:inline-block; margin-bottom:8px; }
+.ch-pv img{ max-height:110px; border-radius:10px; border:1px solid var(--k-line); display:block; }
+.ch-pv button{ position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; border:0; background:var(--k-ink); color:var(--k-paper); cursor:pointer; font-size:11px; }
+.ch-qr{ position:absolute; left:14px; right:14px; bottom:62px; max-height:300px; overflow:auto; background:var(--k-paper); border:1px solid var(--k-line); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.12); padding:6px; z-index:5; }
+.ch-qr > button{ display:block; width:100%; text-align:left; border:0; background:none; border-radius:8px; padding:8px 10px; cursor:pointer; font:inherit; color:inherit; }
+.ch-qr > button:hover{ background:var(--k-hair); }
+.ch-qr > button b{ display:block; font-size:12.5px; }
+.ch-qr > button span{ display:block; font-size:12px; color:var(--k-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-qr .btn-text{ width:auto; margin:4px 10px; }
+.ch-side{ border-left:1px solid var(--k-line); overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+.ch-card{ border:1px solid var(--k-line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:8px; }
+.ch-card .hint{ margin:0; }
+.ch-prof{ align-items:center; text-align:center; }
+.ch-prof > b{ font-size:15px; }
+.ch-prof > small{ font-size:12px; color:var(--k-mut); }
+.ch-prof dl{ display:grid; grid-template-columns:auto 1fr; gap:4px 10px; width:100%; text-align:left; font-size:12.5px; margin:6px 0 0; }
+.ch-prof dt{ color:var(--k-mut); }
+.ch-prof dd{ margin:0; }
+.ch-f{ display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--k-soft); }
+.ch-f small{ color:var(--k-mut); }
+.ch-f input, .ch-f textarea, .ch-sim input{ border:1px solid var(--k-line); border-radius:8px; padding:7px 9px; font:inherit; font-size:13px; background:var(--k-paper); color:var(--k-ink); resize:vertical; }
+.ch-sim{ display:flex; gap:6px; }
+.ch-sim input{ flex:1; min-width:0; }
+@media (max-width:1180px){ .ch-wrap{ grid-template-columns:300px minmax(0,1fr); } .ch-side{ display:none; } }
+@media (max-width:760px){
+  .ch-wrap{ grid-template-columns:1fr; height:auto; min-height:calc(100vh - 56px); }
+  .ch-room{ min-height:70vh; }
+  .ch-msg{ max-width:85%; }
+}
+/* สถิติ */
+.chat-stats .tbar{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+.cs-bars{ display:flex; align-items:flex-end; gap:4px; height:190px; padding-top:18px; }
+.cs-bar{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; position:relative; }
+.cs-col{ flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; gap:2px; }
+.cs-col i{ display:block; width:42%; max-width:16px; border-radius:3px 3px 0 0; min-height:1px; }
+.cs-col i.a{ background:var(--k-ink); }
+.cs-col i.b{ background:#06C755; opacity:.55; }
+.cs-bar span{ font-size:10.5px; color:var(--k-mut); height:12px; }
+.cs-bar em{ position:absolute; top:-2px; font-style:normal; font-size:10.5px; color:var(--k-soft); }
+.cs-two{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+.cs-two .sec{ margin-bottom:22px; }
+.cs-heat{ display:flex; flex-direction:column; gap:3px; overflow-x:auto; }
+.cs-hr{ display:grid; grid-template-columns:28px repeat(24, minmax(14px,1fr)); gap:3px; align-items:center; }
+.cs-hr span{ font-size:11px; color:var(--k-mut); }
+.cs-hr b{ font-size:10px; font-weight:400; color:var(--k-mut); }
+.cs-hr i{ height:18px; border-radius:3px; background:#06C755; }
+@media (max-width:900px){ .cs-two{ grid-template-columns:1fr; } }
+.ch-wh{ display:flex; flex-direction:column; gap:3px; font-size:12px; padding:6px 0; border-top:1px solid var(--k-hair); }
+.ch-wh em{ font-style:normal; font-size:11px; color:var(--k-mut); }
+.ch-wh em.ok{ color:var(--k-ok); }
+.ch-wh code{ font-size:10.5px; word-break:break-all; color:var(--k-soft); background:var(--k-hair); padding:3px 6px; border-radius:5px; user-select:all; }

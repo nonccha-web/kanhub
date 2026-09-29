@@ -2,6 +2,7 @@ import { handlePushApi, ensurePushSchema } from "./worker-push.js";
 import { notifyReviewSubmitted, sendLark } from "./worker-lark.js";
 import STOCK_PRICES from "./src/lib/stock-prices.json";
 import { handleBlastApi } from "./worker-blast.js";
+import { handleChatApi } from "./worker-chat.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
@@ -385,7 +386,7 @@ const KPI_SEED = [
    หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
 /* crm = หน้าลีดอย่างเดียว (ต้น/ตาล ฝ่ายขาย — นนท์ 21 ก.ย. 69) */
 /* hr = หน้า "สมาชิกระบบ" — เพิ่มคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ HR · 29 ก.ย. 69) ให้ได้เฉพาะหัวหน้า */
-const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast", "hr"];
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast", "hr", "chat"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
 /* ---- สิทธิ์รายเมนู (นนท์ 29 ก.ย. 69) ----
    feature = เมนูใน sidebar · แต่ละอันผูกกับหมวดสิทธิ์เดิม (sec) ที่เซิร์ฟเวอร์ใช้กันหน้าเว็บอยู่แล้ว
@@ -398,6 +399,7 @@ export const FEATURES = [
   { k: "posts", sec: "tasks", g: "งานทีม", th: "ตารางโพสต์" },
   { k: "report", sec: "tasks", g: "งานทีม", th: "สรุปผลงานรายเดือน" },
   { k: "history", sec: "tasks", g: "งานทีม", th: "ประวัติการแก้ไข" },
+  { k: "chat", sec: "chat", g: "ขาย", th: "แชทลูกค้า (LINE)" },
   { k: "leads", sec: "crm", g: "ขาย", th: "ลีด (CRM)" },
   { k: "blast", sec: "blast", g: "ขาย", th: "บรอดแคสต์ LINE + SMS" },
   { k: "tickets", sec: null, g: "ทั่วไป", th: "แจ้งปัญหา (เรื่องที่แจ้งเข้ามา)" },
@@ -437,6 +439,7 @@ export function featureOfPath(path) {
   if (/^\/(posts|pages)(\/|$)/.test(path)) return "posts";
   if (/^\/tasks(\/|$)/.test(path)) return "tasks";
   if (/^\/leads(\/|$)/.test(path)) return "leads";
+  if (/^\/chat\//.test(path)) return "chat";
   if (/^\/blast\//.test(path)) return "blast";
   if (/^\/people(\/|$)/.test(path)) return "people";
   if (/^\/tickets(\/|$)/.test(path)) return "tickets";
@@ -1475,7 +1478,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     /* คนที่เปิดปฏิทินการตลาดได้ (หมวดเอกสาร) แต่ไม่มีหน้างานทีม — กด "เปิดหน้าเต็ม" ของรายการในปฏิทินแล้วต้องเห็นได้
        (นนท์ 28 ก.ย. 69) · อ่านอย่างเดียว เฉพาะงาน/โพสต์ที่ผูกกับรายการนั้น ไม่ได้รายการงานทั้งระบบ */
     const calRead = method === "GET" && canSee(me, "docs") && /^\/(campaigns$|campaigns\/[A-Za-z0-9_-]{1,40}\/related$|pages$)/.test(path);
-    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push|people|tickets)/.test(path);
+    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push|people|tickets|chat\/)/.test(path);
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
 
@@ -3279,6 +3282,9 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       return json({ ok: true });
     }
   }
+
+  /* ---- แชทรวม LINE (/chat/*) — โค้ดอยู่ worker-chat.js ---- */
+  if (path.indexOf("/chat/") === 0) return handleChatApi(env, db, request, url, path, method, me, permsOf(me).chat, isOwner);
 
   /* ---- บรอดแคสต์ LINE OA + SMS (/blast/*) — โค้ดอยู่ worker-blast.js ---- */
   if (path.indexOf("/blast/") === 0) {

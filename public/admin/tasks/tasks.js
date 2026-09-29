@@ -589,7 +589,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup', people: '#/people' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup', people: '#/people', chat: '#/chat', chatstats: '#/chatstats' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -603,7 +603,7 @@
   /* สิทธิ์รายเมนู: edit | view | none (29 ก.ย. 69) · หัวหน้า = edit ทุกเมนู */
   var ROUTE_FEAT = { all: 'all', me: 'all', task: 'all', new: 'all', board: 'all', signage: 'signage', posts: 'posts', report: 'report',
                      history: 'history', leads: 'leads', lead: 'leads', blast: 'blast', richmenu: 'blast', lineusers: 'blast', blastsetup: 'blast',
-                     people: 'people', tickets: 'tickets', kpi: 'kpi', campaign: 'cal' };
+                     people: 'people', tickets: 'tickets', kpi: 'kpi', campaign: 'cal', chat: 'chat', chatstats: 'chat' };
   function featLevel(k) {
     var e = effRights();
     if (e.owner || !k) return 'edit';
@@ -7167,6 +7167,10 @@
       case 'lead': return S.route.id ? renderLead(S.route.id) : renderLeads();
       /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js
          ถ้าไฟล์โหลดไม่ขึ้น (deploy ไม่ครบ / เน็ตหลุด) ต้องบอกให้รู้ ไม่ใช่ปล่อยจอขาว */
+      /* แชทรวม LINE — หน้าอยู่ในไฟล์ chat.js */
+      case 'chat': case 'chatstats':
+        if (!global.KAN_CHAT) { $('#view').innerHTML = '<div class="err">ไฟล์ chat.js ยังไม่ขึ้นเซิร์ฟเวอร์ — กดรีเฟรชอีกครั้ง</div>'; return; }
+        return global.KAN_CHAT.render(S.route);
       case 'blast': case 'richmenu': case 'lineusers': case 'blastsetup':
         if (!global.KAN_BLAST) {
           $('#view').className = 'page';
@@ -7190,6 +7194,10 @@
   function boot() {
     wireLightbox();
     /* ส่งเครื่องมือที่ใช้ร่วมกันให้หน้าบรอดแคสต์ (blast.js) — จะได้ไม่ต้องก๊อปฟังก์ชันซ้ำ */
+    if (global.KAN_CHAT) global.KAN_CHAT.init({
+      API: API, api: api, esc: esc, toast: toast, staffById: staffById, activeStaff: function () { return S.staff.filter(function (s) { return s.active && !s.pending; }); },
+      isOwner: function () { return !!S.me && S.me.role === 'owner' && !S.viewAsBy; },
+    });
     if (global.KAN_BLAST) global.KAN_BLAST.init({
       API: API, api: api, esc: esc, toast: toast, okDialog: okDialog,
       fmtAgo: fmtAgo, fmtFull: fmtFull, toLocalInput: toLocalInput, fromLocalInput: fromLocalInput,

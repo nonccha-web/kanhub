@@ -23,6 +23,7 @@ export const PUSH_KINDS = [
   { k: "due",     th: "งานใกล้ถึงกำหนด",                 desc: "เตือนก่อนถึงกำหนดส่ง 1 ชั่วโมง" },
   { k: "overdue", th: "สรุปงานเลยกำหนด ทุกเช้า 09:00",   desc: "งานของเราที่เลยกำหนดแล้วยังไม่เสร็จ" },
   { k: "lead",    th: "ลีดใหม่",                          desc: "ลูกค้าทักเข้ามาใหม่ในหน้าลีด", crm: true },
+  { k: "chat",    th: "แชทลูกค้า LINE",                   desc: "ลูกค้าทักเข้ามาใหม่ หรือทักกลับมาหลังเราตอบไปแล้ว", chat: true },
 ];
 const KIND_KEYS = PUSH_KINDS.map((x) => x.k);
 
@@ -289,7 +290,8 @@ function jres(o, status) {
 }
 function kindsFor(me) {
   const secs = String(me.sections || "").split(",");
-  return PUSH_KINDS.filter((x) => !x.crm || me.role === "owner" || secs.indexOf("crm") !== -1);
+  return PUSH_KINDS.filter((x) => (!x.crm || me.role === "owner" || secs.indexOf("crm") !== -1) &&
+                                  (!x.chat || me.role === "owner" || secs.indexOf("chat") !== -1));
 }
 export async function handlePushApi(request, env, path, method, me, ctx) {
   const db = env.KAN_ERP;

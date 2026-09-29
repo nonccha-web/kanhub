@@ -8,6 +8,7 @@ import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
 import { pushTick } from "./worker-push.js";
+import { handleLineWebhook, serveChatMedia } from "./worker-chat.js";
 const PUSH_CRON = "*/5 * * * *";   /* รอบแจ้งเตือนเด้ง (ใกล้ถึงกำหนด/เลยกำหนด/เก็บตก) — แยกจาก cron บอต Lark */
 
 const MAX_ATTACHMENT_BYTES = 1500000; // ~1.5MB ต่อรูป (ย่อฝั่งเบราว์เซอร์มาก่อนแล้ว)
@@ -799,6 +800,11 @@ export default {
     /* ฟอร์มแจ้งปัญหาหน้าเว็บสาธารณะ (kan-hub.com/help — แปะไว้ใน rich menu ไลน์)
        ต้องยิงได้โดยไม่ต้องล็อกอินและไม่ใช่ admin host จึงดักไว้ก่อนด่านโฮสต์ */
     if (url.pathname === "/api/tickets") return handleTicketIntake(request, env, ctx);
+    /* แชทรวม LINE: webhook รายเพจ (LINE ยิงเข้ามา ไม่มีคุกกี้) + รูปในแชท (LINE ต้องดึงรูปที่เราส่งได้) */
+    const lw = url.pathname.match(/^\/api\/line\/webhook\/([A-Za-z0-9_-]{1,40})$/);
+    if (lw) { await ensureTaskSchema(env.KAN_ERP); return handleLineWebhook(request, env, ctx, lw[1]); }
+    const cmd = url.pathname.match(/^\/api\/chat\/media\/([0-9a-f]{32})$/);
+    if (cmd) return serveChatMedia(env, cmd[1]);
     /* ปุ่ม "สนใจสั่งซื้อ" หน้าขายสาธารณะ (kan-hub.com/grade-b) → ลีดใน CRM */
     if (url.pathname === "/api/sale-lead") return handleSaleLead(request, env, ctx);
     /* หน้าโปรโมชั่นสำหรับลูกค้า (kan-hub.com/promo · ริชเมนู LINE OA) — ไม่ต้องล็อกอิน ส่งออกเฉพาะข้อมูลที่ลูกค้าควรเห็น */

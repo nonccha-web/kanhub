@@ -42,6 +42,12 @@
       { direct: true, icon: 'network', label: 'งานประจำของทีม', sec: 'admin', note: 'ดูทีละคน/เทียบ 4 คน · หาช่องที่ยังว่าง',
         items: [{ icon: 'network', label: 'งานประจำของทีม', tasks: '#/routine', sec: 'admin' }] },
 
+      /* แชทรวม LINE OA แบบ Zaapi/Pancake (นนท์ 29 ก.ย. 69) — ทีมตอบลูกค้าในที่เดียว + สถิติ */
+      { icon: 'message', label: 'แชทลูกค้า', sec: 'chat', note: 'LINE ทุกเพจ · ตอบในที่เดียว', items: [
+        { icon: 'message', label: 'กล่องแชท',  tasks: '#/chat', f: 'chat' },
+        { icon: 'chart', label: 'สถิติแชท',  tasks: '#/chatstats', f: 'chat' }
+      ]},
+
       /* บรอดแคสต์ LINE OA + SMS (นนท์สั่ง 23 ก.ย. 69) — งานประจำของคนดูแลเพจ จึงอยู่หมวด "ทำงาน"
          ต้องมีหมวดสิทธิ์ blast ถึงจะเห็น เพราะกดแล้วข้อความวิ่งถึงลูกค้าจริง */
       { icon: 'send', label: 'บรอดแคสต์ LINE', sec: 'blast', note: 'ยิง LINE + SMS · เลือกเพจ เลือกคน', items: [
@@ -162,6 +168,7 @@
 
   /* ไอคอน Lucide (แทน emoji) — แก้/เพิ่มที่นี่ */
   var ICONS = {
+    message:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/>',
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="14" width="3" height="3" rx="1"/>',
     dashboard:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
