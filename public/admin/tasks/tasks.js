@@ -589,7 +589,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup', people: '#/people', chat: '#/chat', chatstats: '#/chatstats' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup', people: '#/people', chat: '#/chat', chatstats: '#/chatstats', linesetup: '#/linesetup' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -7168,7 +7168,7 @@
       /* บรอดแคสต์ LINE OA + SMS — หน้าอยู่ในไฟล์ blast.js
          ถ้าไฟล์โหลดไม่ขึ้น (deploy ไม่ครบ / เน็ตหลุด) ต้องบอกให้รู้ ไม่ใช่ปล่อยจอขาว */
       /* แชทรวม LINE — หน้าอยู่ในไฟล์ chat.js */
-      case 'chat': case 'chatstats':
+      case 'chat': case 'chatstats': case 'linesetup':
         if (!global.KAN_CHAT) { $('#view').innerHTML = '<div class="err">ไฟล์ chat.js ยังไม่ขึ้นเซิร์ฟเวอร์ — กดรีเฟรชอีกครั้ง</div>'; return; }
         return global.KAN_CHAT.render(S.route);
       case 'blast': case 'richmenu': case 'lineusers': case 'blastsetup':

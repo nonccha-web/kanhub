@@ -49,6 +49,7 @@
 .erp-sec{ display:flex; align-items:center; gap:7px; padding:14px 10px 6px; font-size:11px; font-weight:600; color:var(--k-mut); }
 .erp-sec::before{ content:''; width:6px; height:6px; border-radius:99px; background:var(--k-ok); flex:none; }
 .erp-sec.work::before{ background:var(--k-purple); }
+.erp-sec.kanchat::before{ background:#06C755; }
 .erp-sec.pending::before{ background:var(--k-warn); }
 .erp-sec.ref::before{ background:var(--k-line); }
 .erp-gh{ display:flex; align-items:center; gap:10px; width:100%; font-family:inherit; font-size:13.5px; font-weight:600;

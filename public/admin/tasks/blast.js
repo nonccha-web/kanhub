@@ -38,7 +38,7 @@
     return '<div class="bl-mode"><b>โหมดทดสอบ</b> — ยังไม่ได้ต่อ LINE ของจริง ' +
       'กดส่งแล้วระบบจะบันทึกผลไว้ให้ดูครบทุกขั้น แต่ไม่มีข้อความออกไปถึงลูกค้า' +
       (extra ? ' ' + extra : '') +
-      ' <a href="#/blastsetup">ใส่ Channel access token</a></div>';
+      ' <a href="#/linesetup">ใส่ Channel access token</a></div>';
   }
   function chanById(id) {
     var list = (HOME && HOME.channels) || [];
@@ -103,7 +103,7 @@
             '<div class="bl-ch-f">' + (c.hasToken
               ? '<span class="bl-ok">ต่อ LINE แล้ว ••••' + esc(c.tokenTail) + '</span>'
               : '<span class="bl-warn">ยังไม่ได้ใส่ token</span>') +
-              '<a class="btn-text" href="#/blastsetup">ตั้งค่า</a></div></div>';
+              '<a class="btn-text" href="#/linesetup">ตั้งค่า</a></div></div>';
         }).join('') + '</div></div></div>';
 
       /* ---- ใบบรอดแคสต์ ---- */
@@ -1050,29 +1050,15 @@
     loadHome(true).then(function (j) {
       var v = view();
       v.className = 'page';
-      var h = '<div class="top"><div><span class="kicker">ตั้งค่า</span><h1>เพจ LINE OA + SMS</h1>' +
-        '<p>ใส่ Channel access token ของแต่ละเพจตรงนี้ ใส่แล้วระบบจะยิงของจริงให้ทันที ไม่ต้องแก้โค้ด</p></div>' +
-        '<div class="top-r"><button type="button" class="btn" id="chAdd">+ เพิ่มเพจ</button></div></div>';
-      h += '<div class="bl-note"><b>ยังไม่ต้องใส่ตอนนี้ก็ได้</b> — ระบบเดินครบทุกขั้นในโหมดทดสอบอยู่แล้ว ' +
-        'token หาได้ที่ LINE Developers → เลือก Channel → แท็บ Messaging API → Channel access token (long-lived)</div>';
+      var h = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>ตั้งค่า SMS</h1>' +
+        '<p>ผู้ให้บริการ SMS สำหรับบรอดแคสต์ · เพจ LINE และ token ตั้งที่หน้า "ตั้งค่า LINE"</p></div></div>';
 
-      h += '<div class="sec"><div class="sec-h"><h2>เพจทั้งหมด</h2><p>' + j.channels.length + ' เพจ</p></div><div class="sec-b">' +
-        j.channels.map(function (c) {
-          return '<div class="bl-setrow" data-setch="' + esc(c.id) + '">' +
-            '<div class="grid3">' +
-            '<div class="field"><label class="label">ชื่อเพจ</label><input class="input" data-f="name" value="' + esc(c.name) + '"></div>' +
-            '<div class="field"><label class="label">LINE ID</label><input class="input" data-f="basicId" value="' + esc(c.basicId) + '" placeholder="@xxxx"></div>' +
-            '<div class="field"><label class="label">โควตาข้อความ/เดือน</label><input class="input" type="number" data-f="quotaLimit" value="' + (c.quotaLimit || 0) + '"></div>' +
-            '</div><div class="grid3">' +
-            '<div class="field" style="grid-column:span 2"><label class="label">Channel access token <small>' +
-              (c.hasToken ? 'ใส่แล้ว ••••' + esc(c.tokenTail) + ' — พิมพ์ทับเพื่อเปลี่ยน' : 'ยังไม่ได้ใส่') + '</small></label>' +
-            '<input class="input" data-f="token" type="password" placeholder="' + (c.hasToken ? '••••••••••••' : 'วาง token ที่นี่') + '"></div>' +
-            '<div class="field"><label class="label">สีประจำเพจ</label><input class="input" type="color" data-f="color" value="' + esc(c.color || '#06C755') + '"></div>' +
-            '</div>' +
-            '<div class="acts"><button type="button" class="btn-ghost sm" data-chsave="' + esc(c.id) + '">บันทึกเพจนี้</button>' +
-            '<button type="button" class="btn-text" data-chdel="' + esc(c.id) + '">ลบเพจ</button>' +
-            '<span class="hint">' + num(c.followers) + ' ผู้ติดตาม · ใช้โควตาไปแล้ว ' + num(c.quotaUsed) + '</span></div></div>';
-        }).join('') + '</div></div>';
+      /* เพจ LINE + token/secret/webhook ย้ายไปหน้า "ตั้งค่า LINE" ใน Kan Chat แล้ว (29 ก.ย. 69) */
+      h += '<div class="sec"><div class="sec-h"><div><h2>เพจ LINE OA</h2><p>' + j.channels.length + ' เพจ</p></div>' +
+        (X.isOwner() ? '<a class="btn-ghost sm" href="#/linesetup">ไปหน้าตั้งค่า LINE →</a>' : '') + '</div><div class="sec-b">' +
+        '<p class="hint">ใส่ token / secret / webhook ของแต่ละเพจที่หน้า <b>ตั้งค่า LINE</b> ในเมนู Kan Chat — ใช้ร่วมกันทั้งกล่องแชท บรอดแคสต์ และริชเมนู</p>' +
+        j.channels.map(function (c) { return '<div class="bl-setrow"><b>' + esc(c.name) + '</b> <span class="hint">' + (c.hasToken ? 'ต่อ LINE แล้ว' : 'โหมดจำลอง') + ' · ' + num(c.followers) + ' ผู้ติดตาม</span></div>'; }).join('') +
+        '</div></div>';
 
       h += '<div class="sec"><div class="sec-h"><h2>SMS</h2><p>ยังไม่ได้เลือกผู้ให้บริการ</p></div><div class="sec-b">' +
         '<div class="bl-note">ส่ง SMS จริงต้องมีบัญชีกับผู้ให้บริการในไทยก่อน (ThaiBulkSMS · SMSMKT · 8x8 หรือเจ้าอื่น) ' +

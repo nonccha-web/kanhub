@@ -162,7 +162,7 @@
       var h0 = '';
       if (X.isOwner()) {
         /* ต่อ LINE จริง: ใส่ token/secret ที่หน้าตั้งค่าบรอดแคสต์ แล้วเอา Webhook URL ไปวางใน LINE Developers */
-        h0 += '<div class="ch-card"><b>ต่อ LINE จริง</b><p class="hint">1) ใส่ Channel access token + Channel secret ของแต่ละเพจที่ <a href="#/blastsetup">ตั้งค่าเพจ</a> · 2) คัดลอก Webhook URL ไปวางใน LINE Developers แล้วเปิด Use webhook</p>' +
+        h0 += '<div class="ch-card"><b>ต่อ LINE จริง</b><p class="hint">1) ใส่ Channel access token + Channel secret ของแต่ละเพจที่ <a href="#/linesetup">ตั้งค่า LINE</a> · 2) คัดลอก Webhook URL ไปวางใน LINE Developers แล้วเปิด Use webhook</p>' +
           C.channels.filter(function (c) { return c.chat; }).map(function (c) {
             var u = location.origin + c.webhook;
             return '<div class="ch-wh"><span><span class="ch-dot" style="background:' + esc(c.color) + '"></span> <b>' + esc(c.name) + '</b> ' +
@@ -350,8 +350,137 @@
     $('#csWrap').innerHTML = h;
   }
 
+  /* ---------------- ตั้งค่า LINE Messaging API (หัวหน้า) ---------------- */
+  var LS = { test: {} };
+  function renderSetup() {
+    var v = $('#view');
+    v.className = 'page line-setup';
+    if (!X.isOwner()) { v.innerHTML = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>ตั้งค่า LINE</h1><p>หน้านี้สำหรับหัวหน้าเท่านั้น</p></div></div>'; return; }
+    if (!$('#lsWrap')) v.innerHTML = '<div id="lsWrap"><div class="loading">กำลังโหลด…</div></div>';
+    api('/chat/setup').then(function (j) { paintSetup(j); }).catch(function (e) { $('#lsWrap').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  function paintSetup(j) {
+    var h = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>ตั้งค่า LINE Messaging API</h1>' +
+      '<p>ต่อ LINE OA แต่ละเพจเข้ากล่องแชท บรอดแคสต์ และริชเมนู — ใส่ token + secret แล้วกด "ต่อ Webhook ให้อัตโนมัติ" ระบบตั้งค่าที่ฝั่ง LINE ให้เอง</p></div>' +
+      '<div class="top-r"><button type="button" class="btn" data-ls="add">+ เพิ่มเพจ LINE</button></div></div>';
+    h += '<ol class="ls-steps"><li><b>เปิด LINE Developers</b><span>developers.line.biz → Provider → เลือก Channel ของเพจ (Messaging API)</span></li>' +
+      '<li><b>คัดลอก 2 ค่ามาวาง</b><span>แท็บ Basic settings → <i>Channel secret</i> · แท็บ Messaging API → <i>Channel access token (long-lived)</i> กด Issue</span></li>' +
+      '<li><b>กด "ต่อ Webhook ให้อัตโนมัติ"</b><span>ระบบตั้ง Webhook URL ที่ LINE ให้ และให้ LINE ยิงทดสอบ</span></li>' +
+      '<li><b>เปิด "Use webhook"</b><span>ในแท็บ Messaging API ของ LINE Developers (ปุ่มนี้ LINE ไม่ให้เปิดผ่านระบบอื่น) · ถ้าจะให้ทีมตอบจากที่นี่ ปิด Auto-reply ใน LINE OA Manager ด้วย</span></li></ol>';
+    h += j.channels.map(function (c) {
+      var t = LS.test[c.id];
+      var st = !c.hasToken ? ['โหมดจำลอง', ''] : (!c.hasSecret ? ['ขาด Channel secret', 'warn'] : (t && t.ok && t.webhook && t.webhook.isOurs && t.webhook.active ? ['ต่อแล้ว · รับแชทได้', 'ok'] : ['ใส่ token แล้ว — กดทดสอบ', 'warn']));
+      return '<div class="sec ls-card' + (c.active ? '' : ' off') + '" data-lsch="' + esc(c.id) + '"><div class="sec-h"><div><h2><span class="ch-dot" style="background:' + esc(c.color) + '"></span> ' + esc(c.name) +
+          (c.basicId ? ' <small>' + esc(c.basicId) + '</small>' : '') + '</h2><p><span class="ls-st ' + st[1] + '">' + st[0] + '</span>' +
+          (c.convos ? ' · แชทจริง ' + num(c.convos) + ' ห้อง' : '') + '</p></div>' +
+          '<label class="ls-sw"><input type="checkbox" data-f="chat"' + (c.chat ? ' checked' : '') + '> เข้ากล่องแชท</label></div>' +
+        '<div class="sec-b"><div class="ls-grid">' +
+          '<label class="pp-f"><span>ชื่อเพจ</span><input data-f="name" value="' + esc(c.name) + '"></label>' +
+          '<label class="pp-f"><span>LINE ID</span><input data-f="basicId" value="' + esc(c.basicId) + '" placeholder="@xxxx (ทดสอบแล้วเติมให้เอง)"></label>' +
+          '<label class="pp-f"><span>สีประจำเพจ</span><input data-f="color" type="color" value="' + esc(c.color || '#06C755') + '"></label>' +
+          '<label class="pp-f ls-wide"><span>Channel access token ' + (c.hasToken ? '<small>ใส่แล้ว ••••' + esc(c.tokenTail) + ' — วางใหม่เพื่อเปลี่ยน</small>' : '<small>ยังไม่ได้ใส่</small>') + '</span>' +
+            '<input data-f="token" type="password" autocomplete="off" placeholder="' + (c.hasToken ? '••••••••••••' : 'วาง token (long-lived)') + '"></label>' +
+          '<label class="pp-f"><span>Channel secret ' + (c.hasSecret ? '<small>ใส่แล้ว</small>' : '<small>ยังไม่ได้ใส่</small>') + '</span>' +
+            '<input data-f="secret" type="password" autocomplete="off" placeholder="' + (c.hasSecret ? '••••••••' : 'วาง secret') + '"></label>' +
+        '</div>' +
+        '<div class="ls-wh"><span>Webhook URL</span><code>' + esc(c.webhook) + '</code><button type="button" class="btn-text" data-lscopy="' + esc(c.webhook) + '">คัดลอก</button></div>' +
+        (t ? lsTestHtml(t) : '') +
+        '<div class="ls-acts"><button type="button" class="btn" data-ls="save">บันทึก</button>' +
+          '<button type="button" class="btn-ghost sm" data-ls="test"' + (c.hasToken ? '' : ' disabled') + '>ทดสอบการเชื่อมต่อ</button>' +
+          '<button type="button" class="btn-ghost sm" data-ls="webhook"' + (c.hasToken && c.hasSecret ? '' : ' disabled') + '>ต่อ Webhook ให้อัตโนมัติ</button>' +
+          '<span class="ls-sp"></span>' +
+          (c.hasToken ? '<button type="button" class="btn-text" data-ls="cleartok">ลบ token/secret</button>' : '') +
+          '<button type="button" class="btn-text" data-ls="toggle">' + (c.active ? 'ปิดใช้งานเพจ' : 'เปิดใช้งานเพจ') + '</button>' +
+          '<button type="button" class="btn-text danger" data-ls="del">ลบเพจ</button></div>' +
+        '</div></div>';
+    }).join('');
+    h += '<div class="sec"><div class="sec-h"><div><h2>ที่เก็บรูปในแชท</h2><p>' + (j.r2 ? 'Cloudflare R2 — เก็บถาวร ไม่จำกัดขนาด' : 'ยังไม่ได้เปิด R2 — เก็บในฐานข้อมูลไปก่อน รูปละไม่เกิน ~1.4MB') + '</p></div></div></div>';
+    $('#lsWrap').innerHTML = h;
+  }
+  function lsTestHtml(t) {
+    if (!t.ok) return '<div class="ls-res bad">' + esc(t.error || 'เชื่อมต่อไม่สำเร็จ') + '</div>';
+    var w = t.webhook, q = t.quota;
+    return '<div class="ls-res">' +
+      (t.bot ? '<div class="ls-bot">' + (t.bot.picture ? '<img src="' + esc(t.bot.picture) + '" alt="">' : '') + '<span><b>' + esc(t.bot.name) + '</b><small>' + esc(t.bot.basicId) + ' · โหมด ' + esc(t.bot.chatMode === 'chat' ? 'แชท' : (t.bot.chatMode || '—')) + '</small></span><em class="ok">token ใช้ได้</em></div>' : '') +
+      '<ul>' +
+      '<li>' + (w && w.isOurs ? '✓ Webhook ชี้มาที่ระบบเราแล้ว' : '✗ Webhook ยังไม่ได้ชี้มาที่ระบบเรา' + (w && w.endpoint ? ' (ตอนนี้ไปที่ ' + esc(w.endpoint) + ')' : '')) + '</li>' +
+      '<li>' + (w && w.active ? '✓ เปิด Use webhook แล้ว' : '✗ ยังไม่ได้เปิด Use webhook ใน LINE Developers') + '</li>' +
+      '<li>' + (t.hasSecret ? '✓ มี Channel secret' : '✗ ยังไม่มี Channel secret') + '</li>' +
+      (q ? '<li>โควตาข้อความเดือนนี้: ' + (q.type === 'limited' ? 'ใช้ไป ' + num(t.used) + ' / ' + num(q.value) : 'ไม่จำกัด · ใช้ไป ' + num(t.used)) + '</li>' : '') +
+      (t.test ? '<li>' + (t.test.success ? '✓ LINE ยิงทดสอบเข้ามาถึงระบบแล้ว' : '✗ LINE ยิงทดสอบไม่ผ่าน: ' + esc((t.test.statusCode || '') + ' ' + (t.test.reason || '') + ' ' + (t.test.detail || ''))) + '</li>' : '') +
+      '</ul></div>';
+  }
+  function lsBody(card) {
+    var b = {};
+    $$('[data-f]', card).forEach(function (i) {
+      var f = i.getAttribute('data-f');
+      if (i.type === 'checkbox') b[f] = i.checked;
+      else if ((f === 'token' || f === 'secret') && !i.value.trim()) return;
+      else b[f] = i.value.trim();
+    });
+    return b;
+  }
+  document.addEventListener('click', function (ev) {
+    if (!$('#lsWrap')) return;
+    var b = ev.target.closest('[data-ls],[data-lscopy]');
+    if (!b) return;
+    if (b.hasAttribute('data-lscopy')) {
+      var u = b.getAttribute('data-lscopy');
+      (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { toast('คัดลอก Webhook URL แล้ว'); }, function () { prompt('คัดลอก URL นี้', u); });
+      return;
+    }
+    var a = b.getAttribute('data-ls');
+    if (a === 'add') {
+      var name = prompt('ชื่อเพจ LINE ใหม่ (เช่น Kan Store)');
+      if (!name) return;
+      api('/chat/setup', 'POST', { name: name }).then(function () { toast('เพิ่มเพจแล้ว — ใส่ token + secret ต่อได้เลย'); renderSetup(); }).catch(fail);
+      return;
+    }
+    var card = b.closest('[data-lsch]'), id = card && card.getAttribute('data-lsch');
+    if (!id) return;
+    if (a === 'save') {
+      var body = lsBody(card);
+      api('/chat/setup/' + id, 'PUT', body).then(function () {
+        toast('บันทึกแล้ว');
+        if (body.token || body.secret) return api('/chat/setup/' + id + '/test', 'POST', {}).then(function (t) { LS.test[id] = t; });
+      }).then(renderSetup).catch(fail);
+      return;
+    }
+    if (a === 'test' || a === 'webhook') {
+      b.disabled = true; b.textContent = 'กำลังเช็ค…';
+      var p = a === 'test' ? api('/chat/setup/' + id + '/test', 'POST', {})
+        : api('/chat/setup/' + id + '/webhook', 'POST', {}).then(function (w) {
+            if (!w.ok) return w;
+            return api('/chat/setup/' + id + '/test', 'POST', {}).then(function (t) { t.test = w.test; return t; });
+          });
+      p.then(function (t) { LS.test[id] = t; toast(t.ok ? (a === 'webhook' ? 'ตั้ง Webhook ให้แล้ว' : 'เชื่อมต่อได้') : (t.error || 'ไม่สำเร็จ'), !t.ok); renderSetup(); })
+        .catch(function (e) { LS.test[id] = { ok: false, error: e.message }; renderSetup(); });
+      return;
+    }
+    if (a === 'cleartok') {
+      if (!confirm('ลบ token และ secret ของเพจนี้? เพจจะกลับเป็นโหมดจำลอง รับ/ส่งแชทจริงไม่ได้')) return;
+      api('/chat/setup/' + id, 'PUT', { clearToken: true }).then(function () { delete LS.test[id]; renderSetup(); }).catch(fail);
+      return;
+    }
+    if (a === 'toggle') {
+      var on = card.classList.contains('off');
+      api('/chat/setup/' + id, 'PUT', { active: on }).then(renderSetup).catch(fail);
+      return;
+    }
+    if (a === 'del') {
+      if (!confirm('ลบเพจนี้พร้อมผู้ติดตาม ริชเมนู และแชทจำลองของเพจนี้? ย้อนกลับไม่ได้')) return;
+      api('/chat/setup/' + id, 'DELETE').then(function () { toast('ลบเพจแล้ว'); renderSetup(); }).catch(fail);
+    }
+  });
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (!$('#lsWrap') || !t.matches || !t.matches('.ls-sw input[data-f="chat"]')) return;
+    var id = t.closest('[data-lsch]').getAttribute('data-lsch');
+    api('/chat/setup/' + id, 'PUT', { chat: t.checked }).then(function () { toast(t.checked ? 'เปิดเพจนี้ในกล่องแชทแล้ว' : 'เอาเพจนี้ออกจากกล่องแชทแล้ว'); }).catch(fail);
+  });
+
   global.KAN_CHAT = {
     init: function (x) { X = x; },
-    render: function (route) { if (route.name === 'chatstats') { if (C.timer) { clearInterval(C.timer); C.timer = null; } return renderStats(); } return renderChat(route); },
+    render: function (route) { if (route.name === 'linesetup') { if (C.timer) { clearInterval(C.timer); C.timer = null; } return renderSetup(); } if (route.name === 'chatstats') { if (C.timer) { clearInterval(C.timer); C.timer = null; } return renderStats(); } return renderChat(route); },
   };
 })(window);

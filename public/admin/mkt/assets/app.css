@@ -1,4 +1,4 @@
-@import url('../../assets/erp-shell.css?v=13');   /* เลขต้องตรงกับ tasks.css / cmo/styles.css ไม่งั้นมือถือแคชเปลือกเก่าที่ไม่มีสไตล์เมนูใหม่ */   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar */
+@import url('../../assets/erp-shell.css?v=14');   /* เลขต้องตรงกับ tasks.css / cmo/styles.css ไม่งั้นมือถือแคชเปลือกเก่าที่ไม่มีสไตล์เมนูใหม่ */   /* เปลือกระบบชุดเดียวกับ M CRM: โทเคนสี + sidebar */
 :root{
   /* พื้น/กระดาษ/เส้น ชุดเดียวกับ M CRM · teal/indigo/amber ของกราฟคงเดิม · ตัวเลข Plex Mono */
   --bg:#F4F3EF; --card:#FFFFFF; --ink:#0B0B0A; --sub:#575652; --muted:#8B8A84;

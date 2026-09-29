@@ -42,21 +42,6 @@
       { direct: true, icon: 'network', label: 'งานประจำของทีม', sec: 'admin', note: 'ดูทีละคน/เทียบ 4 คน · หาช่องที่ยังว่าง',
         items: [{ icon: 'network', label: 'งานประจำของทีม', tasks: '#/routine', sec: 'admin' }] },
 
-      /* แชทรวม LINE OA แบบ Zaapi/Pancake (นนท์ 29 ก.ย. 69) — ทีมตอบลูกค้าในที่เดียว + สถิติ */
-      { icon: 'message', label: 'แชทลูกค้า', sec: 'chat', note: 'LINE ทุกเพจ · ตอบในที่เดียว', items: [
-        { icon: 'message', label: 'กล่องแชท',  tasks: '#/chat', f: 'chat' },
-        { icon: 'chart', label: 'สถิติแชท',  tasks: '#/chatstats', f: 'chat' }
-      ]},
-
-      /* บรอดแคสต์ LINE OA + SMS (นนท์สั่ง 23 ก.ย. 69) — งานประจำของคนดูแลเพจ จึงอยู่หมวด "ทำงาน"
-         ต้องมีหมวดสิทธิ์ blast ถึงจะเห็น เพราะกดแล้วข้อความวิ่งถึงลูกค้าจริง */
-      { icon: 'send', label: 'บรอดแคสต์ LINE', sec: 'blast', note: 'ยิง LINE + SMS · เลือกเพจ เลือกคน', items: [
-        { icon: 'send',        label: 'ส่งบรอดแคสต์',      tasks: '#/blast', f: 'blast' },
-        { icon: 'grid',        label: 'ริชเมนู',            tasks: '#/richmenu', f: 'blast' },
-        { icon: 'users',       label: 'ผู้ติดตาม LINE',     tasks: '#/lineusers', f: 'blast' },
-        { icon: 'shieldcheck', label: 'ตั้งค่าเพจ + SMS',   tasks: '#/blastsetup', f: 'blast' }
-      ]},
-
       /* สมาชิกระบบ (HR) — เพิ่มคนทีละหลายคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ · 29 ก.ย. 69) */
       { direct: true, icon: 'users', label: 'สมาชิกระบบ', sec: 'hr', note: 'เพิ่มคน · ชื่อผู้ใช้/รหัส · สิทธิ์',
         items: [{ icon: 'users', label: 'สมาชิกระบบ', tasks: '#/people', sec: 'hr', f: 'people' }] },
@@ -75,6 +60,24 @@
       { direct: true, icon: 'alert', label: 'แจ้งปัญหา', note: 'เรื่องจากลูกค้า/ทีม · ปิดทีละใบ',
         items: [{ icon: 'alert', label: 'แจ้งปัญหา', tasks: '#/tickets', f: 'tickets' }] }
 
+    ]},
+
+    /* ── Kan Chat: แชทรวม LINE + บรอดแคสต์ + ริชเมนู + ตั้งค่า LINE เป็นเมนูชุดของตัวเอง (นนท์ 29 ก.ย. 69) ── */
+    { id: 'kanchat', label: 'Kan Chat', groups: [
+      { direct: true, icon: 'message', label: 'กล่องแชท', sec: 'chat', note: 'LINE ทุกเพจ · ตอบในที่เดียว',
+        items: [{ icon: 'message', label: 'กล่องแชท', tasks: '#/chat', f: 'chat' }] },
+      { direct: true, icon: 'chart', label: 'สถิติแชท', sec: 'chat', note: 'ทักเข้ามา · ค้างตอบ · ตอบเร็วแค่ไหน',
+        items: [{ icon: 'chart', label: 'สถิติแชท', tasks: '#/chatstats', f: 'chat' }] },
+      { direct: true, icon: 'send', label: 'บรอดแคสต์', sec: 'blast', note: 'ยิง LINE + SMS · เลือกเพจ เลือกคน',
+        items: [{ icon: 'send', label: 'บรอดแคสต์', tasks: '#/blast', f: 'blast' }] },
+      { direct: true, icon: 'grid', label: 'ริชเมนู', sec: 'blast', note: 'เปลี่ยนแบนเนอร์ปุ่มล่างแชท',
+        items: [{ icon: 'grid', label: 'ริชเมนู', tasks: '#/richmenu', f: 'blast' }] },
+      { direct: true, icon: 'users', label: 'ผู้ติดตาม LINE', sec: 'blast', note: 'รายชื่อคนที่แอดเพจ',
+        items: [{ icon: 'users', label: 'ผู้ติดตาม LINE', tasks: '#/lineusers', f: 'blast' }] },
+      { direct: true, icon: 'shieldcheck', label: 'ตั้งค่า LINE', sec: 'admin', note: 'Messaging API · token · webhook',
+        items: [{ icon: 'shieldcheck', label: 'ตั้งค่า LINE', tasks: '#/linesetup', sec: 'admin' }] },
+      { direct: true, icon: 'phone', label: 'ตั้งค่า SMS', sec: 'blast', note: 'ผู้ให้บริการ SMS',
+        items: [{ icon: 'phone', label: 'ตั้งค่า SMS', tasks: '#/blastsetup', f: 'blast' }] }
     ]},
 
     /* ── ตัวเลข: ของที่เปิดดูเวลาจะตัดสินใจหรือเอาไปโชว์ ───────────────────── */

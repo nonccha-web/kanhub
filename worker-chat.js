@@ -394,6 +394,101 @@ export async function handleChatApi(env, db, request, url, path, method, me, lvl
 
   if (path === "/chat/stats" && method === "GET") return json(await chatStats(db, url));
 
+  /* ---- ตั้งค่า LINE Messaging API (หัวหน้า) — หน้า #/linesetup ใน Kan Chat ---- */
+  if (path.indexOf("/chat/setup") === 0) {
+    if (!isOwner) return json({ error: "ตั้งค่า LINE ได้เฉพาะหัวหน้า" }, 403);
+    const origin = new URL(request.url).origin;
+    const out = (c, extra) => Object.assign({
+      id: c.id, name: c.name, basicId: c.basic_id, color: c.color, chat: !!c.chat, active: !!c.active,
+      hasToken: !!c.token, tokenTail: c.token ? c.token.slice(-4) : "", hasSecret: !!c.secret,
+      quotaLimit: c.quota_limit || 0, note: c.note || "", webhook: origin + "/api/line/webhook/" + c.id,
+    }, extra || {});
+    if (path === "/chat/setup" && method === "GET") {
+      const rs = (await db.prepare("SELECT * FROM line_channels ORDER BY sort, name").all()).results || [];
+      const cnt = (await db.prepare("SELECT channel_id, COUNT(*) n, MAX(last_msg_at) last FROM chat_convos WHERE mock = 0 GROUP BY channel_id").all()).results || [];
+      const by = {}; cnt.forEach((r) => { by[r.channel_id] = r; });
+      return json({ channels: rs.map((c) => out(c, { convos: by[c.id] ? by[c.id].n : 0, lastMsg: by[c.id] ? by[c.id].last : null })), r2: !!env.CHAT_MEDIA });
+    }
+    if (path === "/chat/setup" && method === "POST") {
+      const body = await readBody(request);
+      const name = String(body.name || "").trim().slice(0, 80);
+      if (!name) return json({ error: "ต้องใส่ชื่อเพจ" }, 400);
+      const id = "ch_" + randKey(6);
+      const last = await db.prepare("SELECT MAX(sort) m FROM line_channels").first();
+      await db.prepare("INSERT INTO line_channels (id,name,basic_id,color,active,sort,created_at,chat) VALUES (?,?,?,?,1,?,?,1)")
+        .bind(id, name, String(body.basicId || "").slice(0, 40), String(body.color || "#06C755").slice(0, 20), ((last && last.m) || 0) + 1, now).run();
+      return json({ ok: true, id });
+    }
+    const sm = path.match(/^\/chat\/setup\/([A-Za-z0-9_-]{1,40})(\/[a-z]+)?$/);
+    if (!sm) return json({ error: "ไม่รู้จักคำสั่ง" }, 404);
+    const ch = await db.prepare("SELECT * FROM line_channels WHERE id = ?").bind(sm[1]).first();
+    if (!ch) return json({ error: "ไม่พบเพจนี้" }, 404);
+    const act = sm[2] || "";
+    if (!act && method === "PUT") {
+      const body = await readBody(request);
+      const sets = [], vals = [];
+      const put = (col, v) => { sets.push(col + " = ?"); vals.push(v); };
+      if (body.name != null && String(body.name).trim()) put("name", String(body.name).trim().slice(0, 80));
+      if (body.basicId != null) put("basic_id", String(body.basicId).trim().slice(0, 40));
+      if (body.color != null) put("color", String(body.color).slice(0, 20));
+      if (body.token) put("token", String(body.token).trim().slice(0, 400));
+      if (body.secret) put("secret", String(body.secret).trim().slice(0, 200));
+      if (body.clearToken) { put("token", ""); put("secret", ""); }
+      if (body.chat != null) put("chat", body.chat ? 1 : 0);
+      if (body.active != null) put("active", body.active ? 1 : 0);
+      if (body.quotaLimit != null) put("quota_limit", Math.max(0, Math.round(Number(body.quotaLimit) || 0)));
+      if (sets.length) await db.prepare("UPDATE line_channels SET " + sets.join(", ") + " WHERE id = ?").bind(...vals, ch.id).run();
+      return json({ ok: true });
+    }
+    if (!act && method === "DELETE") {
+      const n = await db.prepare("SELECT COUNT(*) n FROM chat_convos WHERE channel_id = ? AND mock = 0").bind(ch.id).first();
+      if (n && n.n) return json({ error: "เพจนี้มีแชทจริงอยู่ " + n.n + " ห้อง — ปิดการใช้งานแทนการลบ" }, 400);
+      await db.batch([
+        db.prepare("DELETE FROM chat_msgs WHERE convo_id IN (SELECT id FROM chat_convos WHERE channel_id = ?)").bind(ch.id),
+        db.prepare("DELETE FROM chat_convos WHERE channel_id = ?").bind(ch.id),
+        db.prepare("DELETE FROM line_users WHERE channel_id = ?").bind(ch.id),
+        db.prepare("DELETE FROM rich_menus WHERE channel_id = ?").bind(ch.id),
+        db.prepare("DELETE FROM line_channels WHERE id = ?").bind(ch.id),
+      ]);
+      return json({ ok: true });
+    }
+    if (!ch.token) return json({ error: "ยังไม่ได้ใส่ Channel access token" }, 400);
+    const call = async (url2, init) => {
+      const r = await lineFetch(ch, url2, init);
+      let j = null; try { j = await r.json(); } catch (e) { j = null; }
+      return { ok: r.ok, status: r.status, j };
+    };
+    /* ทดสอบ: token ใช้ได้ไหม · ชื่อ/ID เพจจริง · webhook ตั้งไว้ที่ไหน เปิดใช้อยู่ไหม · โควตาเดือนนี้ */
+    if (act === "/test" && method === "POST") {
+      const info = await call("https://api.line.me/v2/bot/info");
+      if (!info.ok) return json({ ok: false, error: info.status === 401 ? "token ไม่ถูกต้อง หรือหมดอายุ" : "LINE ตอบกลับ " + info.status + " " + JSON.stringify(info.j || {}).slice(0, 200) });
+      const wh = await call("https://api.line.me/v2/bot/channel/webhook/endpoint");
+      const quota = await call("https://api.line.me/v2/bot/message/quota");
+      const used = await call("https://api.line.me/v2/bot/message/quota/consumption");
+      const mine = origin + "/api/line/webhook/" + ch.id;
+      /* เก็บ LINE ID กับรูปจริงไว้ ไม่ต้องพิมพ์เอง */
+      if (info.j && info.j.basicId && !ch.basic_id) await db.prepare("UPDATE line_channels SET basic_id = ? WHERE id = ?").bind(info.j.basicId, ch.id).run();
+      if (quota.ok && quota.j && quota.j.type === "limited") await db.prepare("UPDATE line_channels SET quota_limit = ? WHERE id = ?").bind(quota.j.value || 0, ch.id).run();
+      if (used.ok && used.j) await db.prepare("UPDATE line_channels SET quota_used = ? WHERE id = ?").bind(used.j.totalUsage || 0, ch.id).run();
+      return json({ ok: true,
+        bot: info.j ? { name: info.j.displayName, basicId: info.j.basicId, picture: info.j.pictureUrl || "", chatMode: info.j.chatMode || "", markAsRead: info.j.markAsReadMode || "" } : null,
+        webhook: wh.ok && wh.j ? { endpoint: wh.j.endpoint || "", active: !!wh.j.active, isOurs: (wh.j.endpoint || "") === mine } : null,
+        quota: quota.ok && quota.j ? { type: quota.j.type, value: quota.j.value || 0 } : null,
+        used: used.ok && used.j ? used.j.totalUsage || 0 : null, hasSecret: !!ch.secret });
+    }
+    /* ตั้ง Webhook URL ให้เพจนี้ชี้มาที่ระบบเรา แล้วให้ LINE ยิงทดสอบ (ปุ่ม Use webhook ต้องเปิดเองใน LINE Developers) */
+    if (act === "/webhook" && method === "POST") {
+      if (!ch.secret) return json({ error: "ใส่ Channel secret ก่อน ไม่งั้นระบบตรวจลายเซ็นข้อความจาก LINE ไม่ได้" }, 400);
+      const mine = origin + "/api/line/webhook/" + ch.id;
+      const set = await call("https://api.line.me/v2/bot/channel/webhook/endpoint", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: mine }) });
+      if (!set.ok) return json({ ok: false, error: "ตั้ง webhook ไม่สำเร็จ: " + set.status + " " + JSON.stringify(set.j || {}).slice(0, 200) });
+      const test = await call("https://api.line.me/v2/bot/channel/webhook/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: mine }) });
+      const wh = await call("https://api.line.me/v2/bot/channel/webhook/endpoint");
+      return json({ ok: true, endpoint: mine, test: test.j || null, active: !!(wh.j && wh.j.active) });
+    }
+    return json({ error: "ไม่รู้จักคำสั่ง" }, 404);
+  }
+
   /* ---- โหมดจำลอง (หัวหน้า): สร้าง/ล้างแชทตัวอย่าง · จำลองลูกค้าพิมพ์เข้ามา ---- */
   if (path === "/chat/mock/seed" && method === "POST") {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้า" }, 403);
