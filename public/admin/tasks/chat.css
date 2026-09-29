@@ -150,3 +150,31 @@
 .ls-sp{ flex:1; }
 @media (max-width:1000px){ .ls-steps{ grid-template-columns:1fr 1fr; } .ls-grid{ grid-template-columns:1fr 1fr; } }
 @media (max-width:600px){ .ls-steps, .ls-grid{ grid-template-columns:1fr; } .ls-grid .ls-wide{ grid-column:auto; } }
+
+/* สถิติ SMS */
+.cs-sms{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:12px; }
+.cs-sms > div{ border:1px solid var(--k-line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:2px; }
+.cs-sms span{ font-size:12px; color:var(--k-mut); }
+.cs-sms b{ font-size:22px; font-weight:600; }
+.cs-sms small{ font-size:11.5px; color:var(--k-mut); }
+/* ส่ง SMS */
+.sms-grid{ display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:22px; align-items:start; }
+.sms-side{ position:sticky; top:72px; }
+.sms-page .pp-f textarea, .sms-page .pp-f select{ border:1px solid var(--k-line); border-radius:8px; padding:8px 10px; font:inherit; font-size:14px; color:var(--k-ink); background:var(--k-paper); resize:vertical; }
+.sms-cnt{ margin-top:8px; font-size:12.5px; color:var(--k-soft); }
+.sms-cnt .warn{ color:var(--k-warn); }
+.sms-sts{ display:flex; flex-wrap:wrap; gap:4px 14px; margin:4px 0 10px 26px; align-items:center; }
+.bl-check.sm{ font-size:12.5px; }
+.sms-dl{ display:grid; grid-template-columns:auto 1fr; gap:8px 14px; font-size:13px; margin:0 0 12px; }
+.sms-dl dt{ color:var(--k-mut); }
+.sms-dl dd{ margin:0; }
+.sms-dl small{ color:var(--k-mut); }
+.sms-sample{ display:flex; flex-direction:column; gap:3px; font-size:12px; margin-bottom:12px; max-height:180px; overflow:auto; }
+.sms-sample i{ font-style:normal; color:var(--k-mut); font-size:11px; }
+.sms-go{ width:100%; }
+.sms-phone{ background:var(--k-hair); border-radius:14px; padding:16px; }
+.sms-bub{ background:var(--k-paper); border:1px solid var(--k-line); border-radius:14px; border-bottom-left-radius:4px; padding:10px 12px; font-size:14px; line-height:1.5; word-break:break-word; }
+.sms-phone small{ display:block; margin-top:6px; font-size:11px; color:var(--k-mut); }
+.sms-row{ cursor:pointer; }
+.sms-row:hover td{ background:var(--k-hair); }
+@media (max-width:1000px){ .sms-grid{ grid-template-columns:1fr; } .sms-side{ position:static; } .cs-sms{ grid-template-columns:repeat(2, minmax(0,1fr)); } }

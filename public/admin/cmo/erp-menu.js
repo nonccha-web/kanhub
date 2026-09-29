@@ -29,8 +29,6 @@
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all', f: 'all' },
         /* ตรวจงานแบบปัดการ์ด — นนท์ 20 ก.ย. 69: ของที่ค้างที่หัวหน้าอยู่กองเดียว ปัดผ่าน/ตีกลับทีละใบ */
         { icon: 'check',     label: 'ปัดตรวจงาน',      tasks: '#/review', sec: 'admin' },
-        /* CRM — ลีดจากแอด/เพจ · การตลาดบันทึก ทีมขายไล่ปิด (นนท์ 21 ก.ย. 69) */
-        { icon: 'users',     label: 'ลีด (CRM)',       tasks: '#/leads', sec: 'crm', f: 'leads', dup: true },
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage', f: 'signage' },
         /* ตารางโพสต์อยู่ชั้นเดียวกับงานป้าย/งานอื่น — นนท์ขอให้อยู่กลุ่มเดียวกัน ไม่แยกหมวด (18 ก.ย. 69) */
         { icon: 'megaphone', label: 'ตารางโพสต์',      tasks: '#/posts', f: 'posts' },
@@ -45,10 +43,6 @@
       /* สมาชิกระบบ (HR) — เพิ่มคนทีละหลายคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ · 29 ก.ย. 69) */
       { direct: true, icon: 'users', label: 'สมาชิกระบบ', sec: 'hr', note: 'เพิ่มคน · ชื่อผู้ใช้/รหัส · สิทธิ์',
         items: [{ icon: 'users', label: 'สมาชิกระบบ', tasks: '#/people', sec: 'hr', f: 'people' }] },
-
-      /* ฝ่ายขายที่เห็นเฉพาะ CRM — เมนูเดี่ยว ไม่ต้องกางกลุ่มงานทีม */
-      { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ · ไล่ปิดการขาย',
-        items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm', f: 'leads' }] },
 
       /* เมนูของตัวเอง ไม่ต้องกางกลุ่ม — นนท์ขอให้แยกออกมาเลย (20 ก.ย. 69) */
       { direct: true, icon: 'clock', label: 'ประวัติการแก้ไข', sec: 'tasks', note: 'ใครแก้อะไร · ย้อนเวอร์ชันได้',
@@ -66,18 +60,23 @@
     { id: 'kanchat', label: 'Kan Chat', groups: [
       { direct: true, icon: 'message', label: 'กล่องแชท', sec: 'chat', note: 'LINE ทุกเพจ · ตอบในที่เดียว',
         items: [{ icon: 'message', label: 'กล่องแชท', tasks: '#/chat', f: 'chat' }] },
-      { direct: true, icon: 'chart', label: 'สถิติแชท', sec: 'chat', note: 'ทักเข้ามา · ค้างตอบ · ตอบเร็วแค่ไหน',
-        items: [{ icon: 'chart', label: 'สถิติแชท', tasks: '#/chatstats', f: 'chat' }] },
-      { direct: true, icon: 'send', label: 'บรอดแคสต์', sec: 'blast', note: 'ยิง LINE + SMS · เลือกเพจ เลือกคน',
-        items: [{ icon: 'send', label: 'บรอดแคสต์', tasks: '#/blast', f: 'blast' }] },
+      /* CRM ย้ายมาอยู่ Kan Chat (นนท์ 29 ก.ย. 69) — ลีดจากแอด/เพจ/แชท · ทีมขายไล่ปิด */
+      { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ/แชท · ไล่ปิดการขาย',
+        items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm', f: 'leads' }] },
+      { direct: true, icon: 'send', label: 'บรอดแคสต์ LINE', sec: 'blast', note: 'ยิงหาคนที่แอดเพจ · เลือกเพจ เลือกกลุ่ม',
+        items: [{ icon: 'send', label: 'บรอดแคสต์ LINE', tasks: '#/blast', f: 'blast' }] },
+      { direct: true, icon: 'smartphone', label: 'ส่ง SMS', sec: 'sms', note: 'ส่งเข้าเบอร์โทรลูกค้าโดยตรง',
+        items: [{ icon: 'smartphone', label: 'ส่ง SMS', tasks: '#/sms', f: 'sms' }] },
+      { direct: true, icon: 'chart', label: 'สถิติแชท & SMS', sec: 'chat', note: 'ทักเข้ามา · ค้างตอบ · ตอบเร็ว · SMS',
+        items: [{ icon: 'chart', label: 'สถิติแชท & SMS', tasks: '#/chatstats', f: 'chat' }] },
       { direct: true, icon: 'grid', label: 'ริชเมนู', sec: 'blast', note: 'เปลี่ยนแบนเนอร์ปุ่มล่างแชท',
         items: [{ icon: 'grid', label: 'ริชเมนู', tasks: '#/richmenu', f: 'blast' }] },
       { direct: true, icon: 'users', label: 'ผู้ติดตาม LINE', sec: 'blast', note: 'รายชื่อคนที่แอดเพจ',
         items: [{ icon: 'users', label: 'ผู้ติดตาม LINE', tasks: '#/lineusers', f: 'blast' }] },
       { direct: true, icon: 'shieldcheck', label: 'ตั้งค่า LINE', sec: 'admin', note: 'Messaging API · token · webhook',
         items: [{ icon: 'shieldcheck', label: 'ตั้งค่า LINE', tasks: '#/linesetup', sec: 'admin' }] },
-      { direct: true, icon: 'phone', label: 'ตั้งค่า SMS', sec: 'blast', note: 'ผู้ให้บริการ SMS',
-        items: [{ icon: 'phone', label: 'ตั้งค่า SMS', tasks: '#/blastsetup', f: 'blast' }] }
+      { direct: true, icon: 'phone', label: 'ตั้งค่า SMS', sec: 'admin', note: 'ผู้ให้บริการ · ชื่อผู้ส่ง · ค่าส่ง',
+        items: [{ icon: 'phone', label: 'ตั้งค่า SMS', tasks: '#/smssetup', sec: 'admin' }] }
     ]},
 
     /* ── ตัวเลข: ของที่เปิดดูเวลาจะตัดสินใจหรือเอาไปโชว์ ───────────────────── */

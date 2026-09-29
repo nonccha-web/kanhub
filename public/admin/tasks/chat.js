@@ -305,8 +305,10 @@
     var v = $('#view');
     v.className = 'page chat-stats';
     if (!$('#csWrap')) v.innerHTML = '<div id="csWrap"><div class="loading">กำลังโหลด…</div></div>';
-    Promise.all([api('/chat/stats?days=' + ST.days + (ST.ch ? '&ch=' + encodeURIComponent(ST.ch) : '')), C.channels.length ? null : api('/chat/convos?tab=pending')]).then(function (r) {
+    Promise.all([api('/chat/stats?days=' + ST.days + (ST.ch ? '&ch=' + encodeURIComponent(ST.ch) : '')), C.channels.length ? null : api('/chat/convos?tab=pending'),
+                 api('/sms/stats?days=' + ST.days).catch(function () { return null; })]).then(function (r) {
       if (r[1]) { C.channels = r[1].channels; }
+      ST.sms = r[2];
       paintStats(r[0]);
     }).catch(function (e) { $('#csWrap').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
   }
@@ -315,7 +317,7 @@
     var mx = Math.max.apply(null, s.daily.map(function (d) { return Math.max(d.custs, d.replies); }).concat([1]));
     var hmx = Math.max.apply(null, s.heat.map(function (r) { return Math.max.apply(null, r); }).concat([1]));
     var DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
-    var h = '<div class="top"><div><span class="kicker">แชทลูกค้า</span><h1>สถิติแชท LINE</h1><p>ลูกค้าทักเข้ามากี่คน ตอบไปแล้วกี่คน ค้างอยู่กี่คน และทีมตอบเร็วแค่ไหน · นับตามเวลาไทย</p></div>' +
+    var h = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>สถิติแชท & SMS</h1><p>ลูกค้าทักเข้ามากี่คน ตอบไปแล้วกี่คน ค้างอยู่กี่คน และทีมตอบเร็วแค่ไหน · นับตามเวลาไทย</p></div>' +
       '<div class="top-r"><a class="btn-ghost" href="#/chat">← กล่องแชท</a></div></div>' +
       '<div class="tbar"><div class="seg">' + [[1, 'วันนี้'], [7, '7 วัน'], [30, '30 วัน'], [90, '90 วัน']].map(function (x) {
         return '<button type="button" data-csdays="' + x[0] + '" class="' + (ST.days === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>' +
@@ -347,6 +349,18 @@
         return '<div class="cs-hr"><span>' + DOW[d] + '</span>' + s.heat[d].map(function (n, hr) {
           return '<i title="' + DOW[d] + ' ' + hr + ':00 · ' + n + ' ข้อความ" style="opacity:' + (n ? (0.15 + 0.85 * n / hmx).toFixed(2) : 0.05) + '"></i>'; }).join('') + '</div>';
       }).join('') + '</div></div></div>';
+    /* SMS — ส่งแยกจาก LINE คิดเงินตามเครดิต (เห็นเฉพาะคนที่มีสิทธิ์เมนูส่ง SMS) */
+    var sm = ST.sms;
+    if (sm) {
+      h += '<div class="sec"><div class="sec-h"><div><h2>SMS</h2><p>' + (sm.days === 1 ? 'วันนี้' : sm.days + ' วันล่าสุด') + ' · ทุกเพจ' + (sm.live ? '' : ' · ยังเป็นโหมดจำลอง') + '</p></div><a class="btn-ghost sm" href="#/sms">ไปหน้าส่ง SMS →</a></div>' +
+        '<div class="sec-b"><div class="cs-sms">' +
+        '<div><span>ส่งไป</span><b>' + num(sm.sends) + '</b><small>ครั้ง</small></div>' +
+        '<div><span>ผู้รับ</span><b>' + num(sm.targets) + '</b><small>เบอร์</small></div>' +
+        '<div><span>ส่งถึง</span><b>' + num(sm.sent) + '</b><small>' + (sm.fail ? 'ไม่สำเร็จ ' + num(sm.fail) : 'ครบ') + '</small></div>' +
+        '<div><span>เครดิตที่ใช้</span><b>' + num(sm.credits) + '</b><small>เครดิต</small></div>' +
+        '<div><span>ค่าส่ง</span><b>' + Number(sm.cost || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + '</b><small>บาท (' + sm.rate + ' บ./เครดิต)</small></div>' +
+        '</div></div></div>';
+    }
     $('#csWrap').innerHTML = h;
   }
 

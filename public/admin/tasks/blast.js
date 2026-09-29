@@ -75,9 +75,8 @@
 
       var v = view();
       v.className = 'page';
-      var h = '<div class="top"><div><span class="kicker">LINE OA + SMS</span><h1>บรอดแคสต์</h1>' +
-        '<p>ส่งข้อความถึงคนที่แอดเพจ LINE ของเรา เลือกได้ว่าจะยิงเพจไหน ทุกคนหรือเฉพาะกลุ่ม — ' +
-        'และพ่วง SMS ไปพร้อมกันในใบเดียวได้</p></div>' +
+      var h = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>บรอดแคสต์ LINE</h1>' +
+        '<p>ส่งข้อความถึงคนที่แอดเพจ LINE ของเรา เลือกได้ว่าจะยิงเพจไหน ทุกคนหรือเฉพาะกลุ่ม · ส่ง SMS แยกที่เมนู <a href="#/sms">ส่ง SMS</a></p></div>' +
         '<div class="top-r"><a class="btn-ghost" href="#/richmenu">ริชเมนู</a>' +
         '<button type="button" class="btn" id="blNew">+ สร้างบรอดแคสต์</button></div></div>';
       h += modeBar();
@@ -153,6 +152,8 @@
       if (!E.b.audience || !E.b.audience.kind) E.b.audience = { kind: 'all' };
       if (!E.b.audience.sms) E.b.audience.sms = { useLine: true, leads: false, leadStatus: [], numbers: '' };
       if (E.b.status === 'sent') { renderReport(); return; }
+      /* LINE กับ SMS แยกกันแล้ว (นนท์ 29 ก.ย. 69) — ร่างเก่าที่เคยติ๊ก SMS ไว้ ส่งเป็น LINE อย่างเดียว */
+      E.b.smsOn = false;
       var p = E.b.taskId ? api('/tasks/' + E.b.taskId).catch(function () { return null; }) : Promise.resolve(null);
       return p.then(function (tj) {
         if (tj && tj.task) {
@@ -261,24 +262,6 @@
       '<button type="button" class="btn-ghost sm" data-add="image">+ รูป</button>' +
       '<button type="button" class="btn-ghost sm" data-add="card">+ การ์ดมีปุ่ม</button>' +
       (E.taskFiles.length ? '<span class="hint">รูปในงานนี้มี ' + E.taskFiles.length + ' รูป เลือกใช้ได้เลย</span>' : '') +
-      '</div></div></div>';
-
-    /* ---- ขั้น 4: SMS ---- */
-    var sms = a.sms || {};
-    h += '<div class="sec"><div class="sec-h"><h2><i class="bl-step">4</i>ส่ง SMS ด้วยไหม</h2>' +
-      '<p>ยังไม่ได้เลือกผู้ให้บริการ SMS — นับจำนวนให้ดูก่อนได้</p></div><div class="sec-b">' +
-      '<label class="bl-switch"><input type="checkbox" id="smsOn"' + (b.smsOn ? ' checked' : '') + '>' +
-      '<span>ส่ง SMS พร้อมกับ LINE ในใบเดียวกัน</span></label>' +
-      '<div id="smsBox"' + (b.smsOn ? '' : ' hidden') + ' class="bl-smsbox">' +
-      '<div class="field"><label class="label">ข้อความ SMS <small>ภาษาไทย 70 ตัวอักษร = 1 ข้อความ</small></label>' +
-      '<textarea class="textarea" id="smsText" rows="3" placeholder="สั้น ๆ ตรงประเด็น + ลิงก์">' + esc(b.smsText || '') + '</textarea>' +
-      '<div class="hint" id="smsCount"></div></div>' +
-      '<div class="field"><label class="label">ส่งถึงใคร</label>' +
-      '<label class="bl-check"><input type="checkbox" id="smsUseLine"' + (sms.useLine ? ' checked' : '') + '> เบอร์ของคนที่เลือกไว้ข้างบน</label>' +
-      '<label class="bl-check"><input type="checkbox" id="smsLeads"' + (sms.leads ? ' checked' : '') + '> ลีดใน CRM ที่มีเบอร์</label>' +
-      '</div>' +
-      '<div class="field"><label class="label">เบอร์เพิ่มเอง <small>วางทีละบรรทัดหรือคั่นด้วยคอมมา</small></label>' +
-      '<textarea class="textarea" id="smsNums" rows="2" placeholder="0812345678&#10;0899999999">' + esc(sms.numbers || '') + '</textarea></div>' +
       '</div></div></div>';
 
     h += '</div>';   /* /bl-main */
