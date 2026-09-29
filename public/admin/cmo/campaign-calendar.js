@@ -1538,10 +1538,14 @@
     if (list.length === 1) {
       var it = list[0];
       var atts = it.attachments || [];
+      /* แบนเนอร์เต็มภาพ ไม่ตัดขอบ (นนท์ 29 ก.ย. 69: เดิมเรียง 3 รูปในแถบ 104px รูปแนวตั้งโดนตัดจนอ่านไม่ออก)
+         กรอบสูงตายตัว วางตำแหน่งการ์ดได้ถูกตั้งแต่ก่อนรูปโหลด · กดรูปเปิดเต็มจอ · รูปที่เหลือเป็นรูปเล็กข้างล่าง */
       var pics = atts.length
-        ? '<div class="cc-hover-pics">' + atts.slice(0, 3).map(function (a) {
-            return '<img src="' + API + "/attachments/" + a.id + '?s=thumb" alt="" decoding="async">';
-          }).join("") + "</div>"
+        ? '<button type="button" class="cc-hover-cover" data-zoom="' + atts[0].id + '" title="กดดูรูปเต็ม">' +
+            '<img src="' + API + "/attachments/" + atts[0].id + '" alt="" decoding="async"></button>' +
+          (atts.length > 1 ? '<div class="cc-hover-more">' + atts.slice(1, 5).map(function (a) {
+            return '<button type="button" data-zoom="' + a.id + '"><img src="' + API + "/attachments/" + a.id + '?s=thumb" alt="" decoding="async"></button>';
+          }).join("") + (atts.length > 5 ? '<span>+' + (atts.length - 5) + '</span>' : "") + "</div>" : "")
         : "";
       body = '<div class="cc-hover-bar" style="background:' + colorOf(it) + '"></div>' + pics +
         '<div class="cc-hover-body">' + head +
@@ -1578,8 +1582,20 @@
         }).join("") + "</div>";
     }
     el.innerHTML = body;
+    el.classList.toggle("haspic", list.length === 1 && !!(list[0].attachments || []).length);
     el.classList.add("show");
 
+    hoverAnchor = anchor;
+    placeHover();
+    /* รูปโหลดเสร็จแล้วการ์ดสูงขึ้นตามสัดส่วนรูปจริง → วางตำแหน่งใหม่ไม่ให้ล้นจอ */
+    Array.prototype.forEach.call(el.querySelectorAll(".cc-hover-cover img"), function (im) {
+      if (!im.complete) im.addEventListener("load", function () { if (hoverAnchor === anchor) placeHover(); });
+    });
+  }
+  var hoverAnchor = null;
+  function placeHover() {
+    var el = hoverCard(), anchor = hoverAnchor;
+    if (!anchor || !document.body.contains(anchor)) return;
     var r = anchor.getBoundingClientRect();
     el.style.visibility = "hidden";
     el.style.left = "0px";
@@ -1784,6 +1800,10 @@
     var nx = seq[i + d];
     if (nx) openDetail(nx.id);
   }
+  document.addEventListener("click", function (e) {
+    var z = e.target.closest && e.target.closest(".cc-hover [data-zoom]");
+    if (z) { e.preventDefault(); zoomPic(z.dataset.zoom); }
+  });
   function zoomPic(aid) {
     var z = document.createElement("div");
     z.className = "cc-dt-zoom";
