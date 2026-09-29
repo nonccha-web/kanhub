@@ -400,7 +400,7 @@ export const FEATURES = [
   { k: "history", sec: "tasks", g: "งานทีม", th: "ประวัติการแก้ไข" },
   { k: "leads", sec: "crm", g: "ขาย", th: "ลีด (CRM)" },
   { k: "blast", sec: "blast", g: "ขาย", th: "บรอดแคสต์ LINE + SMS" },
-  { k: "tickets", sec: null, g: "ทั่วไป", th: "แจ้งปัญหา" },
+  { k: "tickets", sec: null, g: "ทั่วไป", th: "แจ้งปัญหา (เรื่องที่แจ้งเข้ามา)" },
   { k: "people", sec: "hr", g: "ทั่วไป", th: "สมาชิกระบบ (HR)" },
   { k: "kpi", sec: "kpi", g: "ตัวเลข", th: "KPI" },
   { k: "sales", sec: "sales", g: "ตัวเลข", th: "ยอดขาย / การตลาด" },

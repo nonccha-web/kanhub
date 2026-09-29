@@ -6341,7 +6341,7 @@
   function ppBuiltinPerms(b) { var o = {}; ppFeats().forEach(function (f) { o[f.k] = b.fn(f.k); }); o.tickets = o.tickets === 'none' ? 'view' : o.tickets; return o; }
   function ppPerson(id) { return ((PP.data && PP.data.people) || []).filter(function (p) { return p.id === id; })[0] || null; }
   function ppMenuChips(p) {
-    var f = ppFeats().filter(function (x) { return x.k !== 'tickets' && p.perms && p.perms[x.k] && p.perms[x.k] !== 'none'; });
+    var f = ppFeats().filter(function (x) { return p.perms && p.perms[x.k] && p.perms[x.k] !== 'none'; });   /* รวมแจ้งปัญหาด้วย — นนท์ทักว่าหายจากรายชื่อ */
     if (!f.length) return '<span class="tkmut">—</span>';
     return f.map(function (x) { return '<span class="pp-chip' + (p.perms[x.k] === 'view' ? ' v' : '') + '">' + esc(x.th) + (p.perms[x.k] === 'view' ? ' · ดู' : '') + '</span>'; }).join('');
   }
