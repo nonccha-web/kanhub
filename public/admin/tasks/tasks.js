@@ -4993,19 +4993,32 @@
     if (!campNow && P.campaign && !q.view) {
       try { var _v = localStorage.getItem('kan-posts-view'); P.view = ['cal', 'list'].indexOf(_v) !== -1 ? _v : 'cal'; } catch (e) { P.view = 'cal'; }
       P.range = 'month';
+      P.month = null;
     }
     P.campaign = campNow;
     if (q.view) P.view = q.view;
     var d = postRangeDates();
     /* ดึงทั้งช่วงโดยไม่กรองเพจที่เซิร์ฟเวอร์ เพื่อให้นับแยกรายเพจได้ในคราวเดียว
        ดูเฉพาะโปรฯ = ดึงทุกวันของโปรฯ นั้น (โพสต์ LINE มักอยู่วันก่อนเริ่ม อาจคนละเดือน) */
-    var qs = '?' + (P.campaign ? 'campaign=' + encodeURIComponent(P.campaign) + (P.view === 'cal' && d[0] ? '&from=' + d[0] + '&to=' + d[1] : '')
+    var qs = '?' + (P.campaign ? 'campaign=' + encodeURIComponent(P.campaign)
       : (d[0] ? 'from=' + d[0] + '&to=' + d[1] : ''));
     Promise.all([loadPages(), api('/posts' + qs), loadCampaigns()]).then(function (r) {
       var activePages = {};
       (S.pages || []).forEach(function (pg) { activePages[pg.id] = 1; });
       var all = (r[1].posts || []).filter(function (x) { return activePages[x.pageId]; });
-      if (P.campaign) all = all.filter(function (x) { return x.campaignId === P.campaign; });
+      if (P.campaign) {
+        all = all.filter(function (x) { return x.campaignId === P.campaign; });
+        /* ดูเฉพาะโปรฯ ในโหมดปฏิทิน: เดือนนี้ไม่มีโพสต์ของโปรฯ → กระโดดไปเดือนที่มี (โพสต์ถัดไป หรือล่าสุด) ไม่ให้จอว่าง */
+        if (P.view === 'cal') {
+          if (all.length && !all.some(function (x) { return x.date >= d[0] && x.date <= d[1]; })) {
+            var t0 = ymd(new Date()), ds = all.map(function (x) { return x.date; }).sort();
+            var pickD = ds.filter(function (x) { return x >= t0; })[0] || ds[ds.length - 1];
+            P.month = pickD.slice(0, 7);
+            d = postRangeDates();
+          }
+          all = all.filter(function (x) { return x.date >= d[0] && x.date <= d[1]; });
+        }
+      }
       var posts = P.page ? all.filter(function (x) { return x.pageId === P.page; }) : all;
       var shown = posts.filter(function (x) {
         if (P.status === 'left') return x.status !== 'done';
