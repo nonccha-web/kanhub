@@ -2,7 +2,7 @@
    KAN Admin — งานทีม (Task) · หน้าตาชุดเดียวกับหลังบ้าน M CRM
    โทเคนสี/sidebar/แถบบน มาจาก ../assets/erp-shell.css
    ============================================================ */
-@import url('../assets/erp-shell.css?v=12');
+@import url('../assets/erp-shell.css?v=13');
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
 
 *{ box-sizing:border-box; margin:0; padding:0; }
@@ -1680,16 +1680,6 @@ label .hintx{ display:inline; }
 #joinBox .sec-h .btn-ghost{ margin-left:auto; }
 @media (max-width:640px){ .page.join .grid2, .joinsecs{ grid-template-columns:1fr; } .joinreq{ flex-direction:column; } }
 
-/* หัวหน้าสลับดูมุมของคนอื่นจากแถบบน (29 ก.ย. 69) */
-.hdr-viewas{ display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 10px; border:1px solid var(--k-line); border-radius:8px;
-  font-size:12px; color:var(--k-mut); background:var(--k-paper); }
-.hdr-viewas select{ border:0; background:transparent; font:inherit; font-size:12.5px; color:var(--k-ink); padding:2px 2px; max-width:130px; cursor:pointer; }
-.hdr-viewas select:focus{ outline:none; }
-.hdr-viewas.on{ border-color:var(--k-warn); }
-.hdr-viewas.on select{ font-weight:600; }
-.hdr-viewas button{ border:0; background:transparent; color:var(--k-mut); font:inherit; font-size:11px; cursor:pointer; padding:0 6px; }
-.hdr-viewas button:hover{ color:var(--k-bad); }
-@media (max-width:760px){ .hdr-viewas > span{ display:none; } }
 /* หน้าสมาชิกระบบ */
 .people-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
 .people-bar .bad{ color:var(--k-bad); }

@@ -213,3 +213,13 @@ html.tour-on .erp-scrim{ pointer-events:none; }
 .erp-direct .erp-glabel small{ font-size:10.5px; font-weight:400; color:var(--k-mut); }
 html.erp-collapsed .erp-sidebar:not(:hover) .erp-direct .erp-glabel,
 html.erp-collapsed .layout > aside:not(:hover) .erp-direct .erp-glabel{ display:none; }
+
+/* ชื่อบนแถบบน = ตัวเลือกดูระบบในมุมของคนอื่น (หัวหน้า · 29 ก.ย. 69) */
+.erp-user.erp-vas{ padding-right:10px; }
+.erp-user.erp-vas select{ border:0; background:transparent; font:inherit; font-weight:500; color:var(--k-ink); max-width:170px;
+  padding:0 2px; cursor:pointer; text-overflow:ellipsis; }
+.erp-user.erp-vas select:focus{ outline:none; }
+.erp-user.erp-vas small{ font-size:11px; color:var(--k-mut); white-space:nowrap; }
+.erp-user.erp-vas.on{ border-color:var(--k-warn); box-shadow:0 0 0 2px color-mix(in srgb, var(--k-warn) 22%, transparent); }
+.erp-user.erp-vas.on select{ font-weight:600; }
+@media (max-width:760px){ .erp-user.erp-vas small{ display:none; } .erp-user.erp-vas select{ max-width:110px; } }

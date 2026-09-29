@@ -11,6 +11,12 @@ import { handleBlastApi } from "./worker-blast.js";
 //  - รูปแนบเก็บ base64 ใน D1 แบบเดียวกับปฏิทินแคมเปญ (ย่อฝั่งเบราว์เซอร์ก่อน)
 
 const COOKIE = "kan_tsess";
+/* หัวหน้าสลับดูระบบในมุมของคนอื่น (นนท์ 29 ก.ย. 69) — คุกกี้นี้มีผลเฉพาะเมื่อเซสชันจริงเป็นหัวหน้า
+   เซิร์ฟเวอร์ตอบเหมือนเป็นคนนั้นทุกหน้า (เมนู สิทธิ์ ข้อมูล) แต่ห้ามเขียนอะไรทั้งสิ้น */
+const VIEWAS_COOKIE = "kan_viewas";
+function viewAsCookie(value, maxAge) {
+  return VIEWAS_COOKIE + "=" + value + "; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=" + maxAge;
+}
 const SESSION_DAYS = 30;
 /* review = น้องส่งงานแล้วรอหัวหน้าตรวจ · done = หัวหน้าตรวจผ่านแล้ว
    เวลานับ "ตรงเวลา" ใช้ตอนส่งรอตรวจ (submitted_at) ไม่ใช่ตอนหัวหน้ากดผ่าน
@@ -771,6 +777,13 @@ async function currentStaff(request, db) {
   if (expect !== sig) return null;
   const row = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
+  if (row.role === "owner") {
+    const va = getCookie(request, VIEWAS_COOKIE);
+    if (va && va !== row.id && /^[A-Za-z0-9_-]{1,40}$/.test(va)) {
+      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(va).first();
+      if (t && t.active && !t.pending && t.role !== "owner") { t._viewAsBy = { id: row.id, name: row.name }; return t; }
+    }
+  }
   return row;
 }
 function publicStaff(r) {
@@ -1143,16 +1156,33 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     }
 
     const tok = await makeSession(db, row.id);
-    return json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
+    const res = json({ ok: true, me: publicStaff(row) }, 200, { "set-cookie": cookieHeader(tok, SESSION_DAYS * 86400) });
+    res.headers.append("set-cookie", viewAsCookie("", 0));
+    return res;
   }
 
   if (path === "/logout" && method === "POST") {
-    return json({ ok: true }, 200, { "set-cookie": cookieHeader("", 0) });
+    const res = json({ ok: true }, 200, { "set-cookie": cookieHeader("", 0) });
+    res.headers.append("set-cookie", viewAsCookie("", 0));
+    return res;
   }
 
   /* --- ต้องล็อกอินตั้งแต่ตรงนี้ --- */
   const me = await currentStaff(request, db);
   if (!me) return json({ error: "กรุณาเข้าสู่ระบบ", auth: false }, 401);
+  /* สลับมุมมอง: POST /viewas {staffId} — '' = กลับเป็นตัวเอง · ใช้ได้เฉพาะเซสชันหัวหน้า */
+  if (path === "/viewas" && method === "POST") {
+    if (!(me.role === "owner" || me._viewAsBy)) return json({ error: "เฉพาะหัวหน้า" }, 403);
+    const body = await readBody(request);
+    const sid = String(body.staffId || "");
+    if (!sid) return json({ ok: true, viewAs: null }, 200, { "set-cookie": viewAsCookie("", 0) });
+    const t = await db.prepare("SELECT id,name,role,active,pending FROM staff WHERE id = ?").bind(sid).first();
+    if (!t || !t.active || t.pending) return json({ error: "ไม่พบชื่อนี้" }, 404);
+    if (t.role === "owner") return json({ ok: true, viewAs: null }, 200, { "set-cookie": viewAsCookie("", 0) });
+    return json({ ok: true, viewAs: { id: t.id, name: t.name } }, 200, { "set-cookie": viewAsCookie(t.id, 12 * 3600) });
+  }
+  /* กำลังดูในมุมของคนอื่น = อ่านอย่างเดียว กันกดอะไรแทนเขาโดยไม่ตั้งใจ */
+  if (me._viewAsBy && method !== "GET") return json({ error: "กำลังดูในมุมของ " + me.name + " — อ่านอย่างเดียว กดกลับเป็นตัวเองก่อนถึงจะแก้ได้", viewAs: true }, 403);
   const isOwner = me.role === "owner";
   /* พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล — หัวหน้าเปิดให้รายคนในหน้า "ทีม + สิทธิ์" */
   const canUpdateOthers = isOwner || !!me.can_update_others;
@@ -1359,6 +1389,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const tr = await db.prepare("SELECT tour_shown FROM staff WHERE id = ?").bind(me.id).first().catch(() => null);
     return json({
       me: publicStaff(me),
+      viewAsBy: me._viewAsBy || null,
       tourShown: tr ? Number(tr.tour_shown) || 0 : 0,
       staff: (staff.results || []).map((r) => {
         const o = publicStaff(r);

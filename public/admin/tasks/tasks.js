@@ -124,7 +124,7 @@
   }
   /* ตัวตนที่ใช้ตัดสินสิทธิ์ — โหมด "ดูในมุมของ" จะกลายเป็นอ่านอย่างเดียว */
   function amOwner() { return !S.viewAs && S.me && S.me.role === 'owner'; }
-  function readOnly() { return !!S.viewAs; }
+  function readOnly() { return !!S.viewAs || !!S.viewAsBy; }   /* viewAsBy = หัวหน้ากำลังดูแทนคนอื่นจากแถบบน (ทั้งระบบ) */
   /* ตรวจผ่าน = หัวหน้าคนเดียว (นนท์ 21 ก.ย. 69) — คนสั่งงานตรวจงานที่ตัวเองสั่งไม่ได้แล้ว
      ส่วน canEditRow (แก้/ลบ) ยังเป็นของหัวหน้าหรือคนสั่งเหมือนเดิม คนละเรื่องกัน */
   function canApprove() { return !readOnly() && !!S.me && S.me.role === 'owner'; }
@@ -653,14 +653,8 @@
       (S.viewAs && staffById(S.viewAs) && S.me.role !== 'owner'
         ? '<span class="asview">ดูในมุมของ <b>' + esc(shortName(staffById(S.viewAs))) + '</b>' +
           '<button type="button" data-viewas-off>เลิกดู</button></span>' : '') +
-      /* หัวหน้าสลับดูหน้าจอในมุมของใครก็ได้ ไม่ต้องล็อกอินใหม่ (นนท์ 29 ก.ย. 69) — อ่านอย่างเดียว */
-      (S.me.role === 'owner' ? '<label class="hdr-viewas' + (S.viewAs ? ' on' : '') + '" title="ดูหน้าจอในมุมของคนอื่น (อ่านอย่างเดียว)"><span>ดูในมุมของ</span>' +
-        '<select id="hdrViewAs"><option value="">ตัวเอง</option>' +
-        S.staff.filter(function (x) { return x.active && x.id !== S.me.id && !x.pending; }).map(function (x) {
-          return '<option value="' + esc(x.id) + '"' + (S.viewAs === x.id ? ' selected' : '') + '>' + esc(shortName(x)) + '</option>';
-        }).join('') + '</select>' + (S.viewAs ? '<button type="button" data-viewas-off title="กลับเป็นมุมของตัวเอง">เลิกดู</button>' : '') + '</label>' : '') +
-      '<span class="erp-user"><i>' + esc(initials(S.me.name)) + '</i><b>' + esc(S.me.name) + '</b>' +
-      '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
+      /* ชื่อบนแถบบน = ตัวเลือก "ดูในมุมของ" สำหรับหัวหน้า (ชุดเดียวกับทุกหน้า อยู่ใน erp-menu.js) */
+      global.ERP_MENU.userChip(S.me, S.viewAsBy);
     tb.textContent = shortName(S.me);
   }
   /* ปุ่ม "พาทัวร์": ให้เลือกทัวร์ของหน้าที่เปิดอยู่ (ถ้ามี) หรือภาพรวมทั้งระบบ — เนื้อหาทัวร์อยู่ใน tour.js */
@@ -6155,20 +6149,6 @@
   });
   setInterval(liveRefresh, 45000);
 
-  /* สลับมุมมองจากแถบบน — ใช้กลไก view-as เดิม (เหมือนเลือกในหน้าทีม) */
-  document.addEventListener('change', function (ev) {
-    if (!ev.target || ev.target.id !== 'hdrViewAs') return;
-    S.viewAs = ev.target.value || null;
-    S.tasks = null;
-    renderSidebar(); renderHeaderUser();
-    if (S.viewAs) {
-      var v = staffById(S.viewAs), secs = (v && v.sections) || [];
-      /* ไปหน้าแรกที่คนนั้นเห็นจริง */
-      location.hash = secs.indexOf('tasks') !== -1 ? '#/me' : (secs.indexOf('crm') !== -1 ? '#/leads' : (secs.indexOf('hr') !== -1 ? '#/people' : '#/me'));
-      render();
-    } else render();
-  });
-
   /* ---------- สมาชิกระบบ (HR) — ตารางแบบ Excel (โบว์ · 29 ก.ย. 69) ----------
      เพิ่มทีละ 1/5/10 แถว · พิมพ์ไล่ หรือก็อปจาก Excel มาวาง · กดบันทึกครั้งเดียว */
   var pgrid = null, peopleCanHr = false;
@@ -6864,7 +6844,7 @@
     }
   }
   function refreshMe() {
-    return api('/me').then(function (j) { S.me = j.me; S.staff = j.staff || []; S.kpis = j.kpis || []; return j; });
+    return api('/me').then(function (j) { S.me = j.me; S.viewAsBy = j.viewAsBy || null; S.staff = j.staff || []; S.kpis = j.kpis || []; return j; });
   }
   function boot() {
     wireLightbox();
@@ -6877,7 +6857,7 @@
     return fetch(API + '/me', { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
-        S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || []; S.tourShown = x.j.tourShown || 0;
+        S.me = x.j.me; S.viewAsBy = x.j.viewAsBy || null; S.staff = x.j.staff || []; S.kpis = x.j.kpis || []; S.tourShown = x.j.tourShown || 0;
         if (!location.hash) location.hash = (!canSee('tasks') && !canSee('crm') && canSee('hr')) ? '#/people' : (!canSee('tasks') && canSee('crm')) ? '#/leads'
           : (S.me.role === 'owner' ? '#/all' : '#/me');
         Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {

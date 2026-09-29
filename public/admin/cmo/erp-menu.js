@@ -348,6 +348,24 @@
     },
 
     /* ผูก event เปิด/ปิด accordion หลังใส่ HTML ลง DOM แล้ว */
+    /* ชิปชื่อบนแถบหัว — หัวหน้ากดที่ชื่อแล้วเลือกดูระบบในมุมของคนอื่นได้ทุกหน้า ไม่ต้องล็อกอินใหม่ (นนท์ 29 ก.ย. 69)
+       by = หัวหน้าตัวจริงตอนกำลังดูแทนคนอื่น (มาจาก /api/t/me viewAsBy) · สลับที่เซิร์ฟเวอร์ (คุกกี้) ทุกหน้าเลยเห็นเหมือนคนนั้นจริง */
+    userChip: function (me, by) {
+      if (!me) return '';
+      var ini = String(me.name || '').replace(/\(.*?\)/g, ' ').trim().split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+      if (!(by || me.role === 'owner')) {
+        return '<span class="erp-user"><i>' + esc(ini) + '</i><b>' + esc(me.name) + '</b>' +
+          '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
+      }
+      setTimeout(fillViewAs, 0);
+      return '<span class="erp-user erp-vas' + (by ? ' on' : '') + '" title="กดที่ชื่อเพื่อดูระบบในมุมของคนอื่น (อ่านอย่างเดียว)"><i>' + esc(ini) + '</i>' +
+        (by ? '<small>ดูในมุมของ</small>' : '') +
+        '<select data-vas aria-label="ดูระบบในมุมของ">' +
+          '<option value="">' + esc(by ? by.name + ' — กลับเป็นตัวเอง' : me.name) + '</option>' +
+          (by ? '<option value="' + esc(me.id) + '" selected>' + esc(me.name) + '</option>' : '') +
+        '</select>' +
+        '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
+    },
     wire: function (root) {
       (root || document).querySelectorAll('.erp-gh').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -365,6 +383,41 @@
   };
 
 }(typeof window !== 'undefined' ? window : this));
+
+/* ตัวเลือก "ดูในมุมของ" — เติมรายชื่อจาก /api/t/login (รายชื่อเดียวกับหน้าเข้าสู่ระบบ) แล้วสลับที่เซิร์ฟเวอร์ */
+var vasList = null;
+function fillViewAs() {
+  var sels = document.querySelectorAll('select[data-vas]');
+  if (!sels.length) return;
+  if (!vasList) vasList = fetch('/api/t/login', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { return j.staff || []; }).catch(function () { return []; });
+  vasList.then(function (list) {
+    Array.prototype.forEach.call(sels, function (sel) {
+      if (sel.getAttribute('data-filled')) return;
+      sel.setAttribute('data-filled', '1');
+      var cur = sel.value;
+      list.forEach(function (x) {
+        if (x.role === 'owner' || x.id === cur) return;
+        var o = document.createElement('option');
+        o.value = x.id; o.textContent = x.name;
+        sel.appendChild(o);
+      });
+    });
+  });
+}
+if (typeof document !== 'undefined') document.addEventListener('change', function (ev) {
+  var sel = ev.target;
+  if (!sel || !sel.matches || !sel.matches('select[data-vas]')) return;
+  sel.disabled = true;
+  var pre = location.pathname.indexOf('/admin/') === 0 ? '/admin' : '';
+  fetch('/api/t/viewas', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ staffId: sel.value }) })
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'สลับไม่สำเร็จ'); return j; }); })
+    .then(function (j) {
+      /* ไปหน้าแรกของคนนั้น (ระบบพาไปหน้าที่เขาเห็นจริง) · กลับเป็นตัวเอง = อยู่หน้าเดิม */
+      if (j.viewAs) location.href = pre + '/tasks/';
+      else location.reload();
+    })
+    .catch(function (e) { sel.disabled = false; alert(e.message); });
+});
 
 /* ปุ่มแจ้งเตือนเด้งบนมือถือ (assets/push.js) — ติดทุกหน้าที่ใช้เมนูนี้ (นนท์ 27 ก.ย. 69) */
 (function () {

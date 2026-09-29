@@ -287,6 +287,7 @@ async function handleApi(request, env, url, ctx) {
   if (!who) return json({ error: "กรุณาเข้าสู่ระบบ", auth: false }, 401);
   /* บัญชีชั่วคราวรออนุมัติ — ยังไม่ให้เห็นข้อมูลปฏิทิน/รูป/KPI */
   if (who.pending) return json({ error: "บัญชีนี้รอหัวหน้าอนุมัติ", pending: true }, 403);
+  if (who._viewAsBy && request.method !== "GET") return json({ error: "กำลังดูในมุมของ " + who.name + " — อ่านอย่างเดียว" }, 403);
   if (path === "/kpi" && !canSee(who, "kpi")) return json({ error: "ไม่มีสิทธิ์ดูข้อมูล KPI" }, 403);
 
   // ---- รูปแนบ ----

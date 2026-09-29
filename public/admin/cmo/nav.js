@@ -89,8 +89,9 @@
       (me ? '<a class="erp-bell" id="erpBell" href="../tasks/#/inbox" title="แจ้งเตือน — คนแท็กถึงคุณ / งานส่งตรวจ">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
             '<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg></a>' : '') +
-      (me ? '<span class="erp-user"><i>' + esc(initials(me.name)) + '</i><b>' + esc(me.name) + '</b>' +
-            '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>' : '') +
+      (me ? (global.ERP_MENU && global.ERP_MENU.userChip ? global.ERP_MENU.userChip(me, me.viewAsBy) :
+            '<span class="erp-user"><i>' + esc(initials(me.name)) + '</i><b>' + esc(me.name) + '</b>' +
+            '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>') : '') +
       '<div class="erp-seg" aria-label="ธีมของระบบ">' +
         '<button type="button" data-theme-pick="light" title="โหมดสว่าง" aria-label="โหมดสว่าง">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -181,6 +182,7 @@
       .then(function (j) {
         var me = j && j.me ? j.me : null;
         if (me && j.sections) { me.sections = j.sections; }
+        if (me) me.viewAsBy = j.viewAsBy || null;
         buildSidebar(here, me);
         buildPager(here);
         syncToggle();
