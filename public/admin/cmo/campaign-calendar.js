@@ -2235,7 +2235,17 @@
   /* ดึงใหม่เองทุก 45 วิ และตอนกลับมาที่แท็บ — แก้ในตารางโพสต์/งานแล้วปฏิทินเห็นตาม (นนท์ 29 ก.ย. 69)
      ข้ามถ้าเปิดฟอร์มแก้ เลือกหลายรายการ หรือการ์ดค้างอยู่ */
   var liveBusy = false, liveHid = 0;
+  /* แท็บที่เปิดค้างก่อน deploy → เจอเวอร์ชันใหม่แล้วโหลดหน้าใหม่เอง (ตอนไม่ได้เปิดฟอร์มแก้) */
+  var MY_VER = (function () { var sc = document.querySelector('script[src*="campaign-calendar.js?v="]'); var m = sc && sc.getAttribute("src").match(/v=(\d+)/); return m ? m[1] : ""; })();
+  function checkNewVersion() {
+    if (!MY_VER || document.hidden || editingId || $("ccDrawer").classList.contains("open")) return;
+    fetch(location.pathname + "?vc=" + Date.now(), { cache: "no-store", credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (h) { var m = h.match(/campaign-calendar\.js\?v=(\d+)/); if (m && m[1] !== MY_VER) location.reload(); })
+      .catch(function () {});
+  }
   async function liveTick() {
+    checkNewVersion();
     if (liveBusy || document.hidden || !online || editingId || $("ccDrawer").classList.contains("open") || sel.length || pinned) return;
     liveBusy = true;
     try { await loadAll(); render(); } catch (e) {} finally { liveBusy = false; }

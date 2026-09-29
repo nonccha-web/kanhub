@@ -6135,7 +6135,20 @@
     if (typeof SEL === 'object' && Object.keys(SEL).length) return true;
     return false;
   }
+  /* แท็บที่เปิดค้างไว้ก่อน deploy ยังรันโค้ดเก่า (นนท์เจอ 29 ก.ย. 69: แก้แล้วแต่จอยังเหมือนเดิม)
+     → เทียบเลขเวอร์ชัน tasks.js กับหน้า index ล่าสุด ถ้าใหม่กว่าให้โหลดหน้าใหม่เองตอนไม่ได้พิมพ์อะไรอยู่ */
+  var MY_VER = (function () { var sc = document.querySelector('script[src*="tasks.js?v="]'); var m = sc && sc.getAttribute('src').match(/v=(\d+)/); return m ? m[1] : ''; })();
+  function checkNewVersion() {
+    if (!MY_VER || document.hidden) return;
+    fetch(location.pathname + '?vc=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (h) {
+        var m = h.match(/tasks\.js\?v=(\d+)/);
+        if (m && m[1] !== MY_VER && !busyTyping()) location.reload();
+      }).catch(function () {});
+  }
   function liveRefresh() {
+    checkNewVersion();
     if (document.hidden || !S.me || !S.route || !LIVE_ROUTES[S.route.name] || busyTyping()) return;
     S.campaigns = null; S.tasks = null;
     var y = window.scrollY;
