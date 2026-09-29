@@ -4989,11 +4989,13 @@
     /* ตัวกรอง "เฉพาะโพสต์ของกิจกรรมนี้" มาจากลิงก์ในปฏิทินเท่านั้น — ไม่ค้างไปถึงตอนกดเมนูตารางโพสต์
        (เดิมค้างใน P.campaign กดเมนูแล้วเห็นแค่โพสต์ของโปรฯ เดียว เหมือนเป็นตารางคนละตัว — นนท์ 29 ก.ย. 69) */
     var campNow = q.campaign || '';
-    if (campNow && !P.campaign) { P.view = 'list'; P.range = 'all'; P.page = ''; P.status = ''; }
+    /* เข้าจากปฏิทินการตลาด = เปิดเป็นปฏิทิน ที่เดือนที่มีโพสต์ของโปรฯ นั้น (นนท์ 29 ก.ย. 69) */
+    if (campNow && !P.campaign) { P.view = 'cal'; P.month = null; P.range = 'all'; P.page = ''; P.status = ''; P.day = ''; }
     if (!campNow && P.campaign && !q.view) {
       try { var _v = localStorage.getItem('kan-posts-view'); P.view = ['cal', 'list'].indexOf(_v) !== -1 ? _v : 'cal'; } catch (e) { P.view = 'cal'; }
       P.range = 'month';
       P.month = null;
+      P.day = '';
     }
     P.campaign = campNow;
     if (q.view) P.view = q.view;
@@ -5017,6 +5019,11 @@
             d = postRangeDates();
           }
           all = all.filter(function (x) { return x.date >= d[0] && x.date <= d[1]; });
+          /* เปิดวันที่มีโพสต์ให้เลย เห็นรายละเอียดโพสต์ใต้ปฏิทินทันที */
+          if (!P.day && all.length) {
+            var t1 = ymd(new Date()), ds1 = all.map(function (x) { return x.date; }).sort();
+            P.day = ds1.filter(function (x) { return x >= t1; })[0] || ds1[0];
+          }
         }
       }
       var posts = P.page ? all.filter(function (x) { return x.pageId === P.page; }) : all;
