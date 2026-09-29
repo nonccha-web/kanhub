@@ -3,7 +3,7 @@
 //  kan-hub.com / www      → เว็บการตลาด (ซ่อน /admin และ /api ไม่ให้เข้าตรง)
 //  *.workers.dev          → เข้าได้ทั้งคู่ (ไว้เทสต์)
 
-import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake, handleSaleLead } from "./worker-tasks.js";
+import { handleTaskApi, ensureTaskSchema, authFor, canSee, loadFlows, handleTicketIntake, handleSaleLead, campaignPurge } from "./worker-tasks.js";
 import { handleMcp } from "./worker-mcp.js";
 import { runScheduled, handleLarkApi, handleLarkEvent } from "./worker-lark.js";
 import { runDueBlasts, ensureBlastSchema } from "./worker-blast.js";
@@ -465,15 +465,15 @@ async function handleApi(request, env, url, ctx) {
     const now = new Date().toISOString();
 
     if (act === "delete") {
-      const st = [];
+      /* ลบกิจกรรม = ลบงาน/งานป้าย/โพสต์ที่ผูกไว้ด้วย (นนท์ 29 ก.ย. 69) */
+      const pg = await campaignPurge(db, rows.map((r) => r.id), who.id);
+      const st = pg.stmts.slice();
       for (const r of rows) {
         st.push(db.prepare("DELETE FROM attachments WHERE campaign_id = ?").bind(r.id),
-          db.prepare("UPDATE posts SET campaign_id = NULL WHERE campaign_id = ?").bind(r.id),
-          db.prepare("UPDATE tasks SET campaign_id = NULL WHERE campaign_id = ?").bind(r.id),
           db.prepare("DELETE FROM campaigns WHERE id = ?").bind(r.id));
       }
       await db.batch(st);
-      return json({ ok: true, changed: rows.length });
+      return json({ ok: true, changed: rows.length, tasks: pg.tasks, posts: pg.posts });
     }
 
     const names = (Array.isArray(body.names) ? body.names : []).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 20);
@@ -561,14 +561,14 @@ async function handleApi(request, env, url, ctx) {
     }
 
     if (method === "DELETE") {
-      await db.batch([
+      /* ลบกิจกรรม = งาน งานป้าย และแถวในตารางโพสต์ที่สร้างผูกไว้หายตามหมด (นนท์ 29 ก.ย. 69)
+         เดิมแค่ปลดลิงก์ ของค้างอยู่ในตารางโพสต์/งานป้าย · สภาพก่อนลบอยู่ในหน้าประวัติ ย้อนคืนได้ */
+      const pg = await campaignPurge(db, [id], who.id);
+      await db.batch(pg.stmts.concat([
         db.prepare("DELETE FROM attachments WHERE campaign_id = ?").bind(id),
-        /* โพสต์และงานที่เคยผูกไว้ไม่ถูกลบตาม — แค่ปลดลิงก์ */
-        db.prepare("UPDATE posts SET campaign_id = NULL WHERE campaign_id = ?").bind(id),
-        db.prepare("UPDATE tasks SET campaign_id = NULL WHERE campaign_id = ?").bind(id),
         db.prepare("DELETE FROM campaigns WHERE id = ?").bind(id),
-      ]);
-      return json({ ok: true });
+      ]));
+      return json({ ok: true, tasks: pg.tasks, posts: pg.posts });
     }
 
     if (method === "POST" && url.searchParams.get("action") === "attach") {
@@ -658,6 +658,11 @@ async function serveAdmin(request, env, url) {
   if (!canSee(me, need)) {
     if (!wantsHtml) return new Response("ไม่มีสิทธิ์", { status: 403, headers: { "cache-control": "no-store" } });
     /* ฝ่ายขายที่ดูแต่ลีด — พาไปหน้าลีดเลย ไม่ต้องเจอหน้า "ไม่มีสิทธิ์" */
+    /* HR ที่เห็นแต่หน้าสมาชิกระบบ — พาไปหน้านั้นเลย */
+    if (canSee(me, "hr") && !canSee(me, "tasks") && !canSee(me, "crm")) {
+      const pre0 = new URL(request.url).pathname.indexOf("/admin") === 0 ? "/admin" : "";
+      return new Response(null, { status: 302, headers: { location: pre0 + "/tasks/#/people", "cache-control": "no-store" } });
+    }
     if (canSee(me, "crm") && !canSee(me, "tasks")) {
       const pre = new URL(request.url).pathname.indexOf("/admin") === 0 ? "/admin" : "";
       return new Response(null, { status: 302, headers: { location: pre + "/tasks/#/leads", "cache-control": "no-store" } });

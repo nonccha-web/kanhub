@@ -278,8 +278,9 @@
     var n = (g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1);
     var fkeys = Object.keys(this.filters);
     this.barL.innerHTML =
-      '<button type="button" class="xl-btn" data-add="1">+ แถว</button>' +
-      '<button type="button" class="xl-btn" data-add="10">+ 10 แถว</button>' +
+      (this.opt.addSteps || [1, 10]).map(function (k) {
+        return '<button type="button" class="xl-btn" data-add="' + k + '">' + (k === 1 ? '+ แถว' : '+ ' + k + ' แถว') + '</button>';
+      }).join('') +
       '<span class="xl-info">' + this.view.length + ' แถว' +
         (n > 1 ? ' · เลือก ' + n + ' ช่อง' : '') + '</span>' +
       (fkeys.length ? '<button type="button" class="xl-btn warn" data-clearf="1">ล้างตัวกรอง (' + fkeys.length + ')</button>' : '') +
@@ -687,6 +688,8 @@
       ? this.opt.parsePaste(cd.getData('text/html'), cd.getData('text/plain'))
       : null;
     if (!grid) grid = String(cd.getData('text/plain') || '').split(/\r\n|\r|\n/).map(function (l) { return l.split('\t'); });
+    /* Excel ใส่บรรทัดว่างปิดท้ายเสมอ — ตัดทิ้ง ไม่งั้นนับเกินไป 1 แถว */
+    while (grid && grid.length > 1 && grid[grid.length - 1].join('') === '') grid.pop();
     if (!grid || !grid.length) return;
     this.pasteGrid(grid);
   };

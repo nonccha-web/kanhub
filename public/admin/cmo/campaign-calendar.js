@@ -156,6 +156,46 @@
   var PAGE_OF = { "Kan Store ชุมพร": "pg_kst1", "Kan Store สุราษฎร์": "pg_kst3", "Kan Fashion": "pg_fashion", "Kan Hub": "pg_hub" };
   var SIGN_OWNER = "s_julalak";
   function dayBefore(startISO) { var d = parseISO(startISO); d.setDate(d.getDate() - 1); var t = todayISO(); var r = iso(d.getFullYear(), d.getMonth(), d.getDate()); return r < t ? t : r; }
+  /* วันโพสต์ LINE ของกิจกรรม: วันก่อนเริ่ม "ทุกรอบ" — ทำซ้ำรายสัปดาห์/รายเดือน หรือหลายช่วง ได้โพสต์ครบทุกรอบ
+     (นนท์ 29 ก.ย. 69: กิจกรรม weekly ที่ต้องมีโพสต์ โพสต์ต้องขึ้นเป็น weekly ตาม) · รอบที่ผ่านไปแล้วข้าม · สูงสุด 60 รอบ */
+  var AUTO_NOTE = "สร้างจากปฏิทินการตลาด";
+  function lineDates(it) {
+    var t = todayISO(), seen = {}, out = [];
+    var runs = isMonthPlan(it) ? [[it.start]] : occ(it);
+    runs.forEach(function (r) {
+      var d = parseISO(r[0]); d.setDate(d.getDate() - 1);
+      var x = iso(d.getFullYear(), d.getMonth(), d.getDate());
+      if (x < t) { if (r[0] >= t) x = t; else return; }   /* รอบนี้ยังไม่เริ่มแต่เลยวันก่อนแล้ว = โพสต์วันนี้ */
+      if (!seen[x] && out.length < 60) { seen[x] = 1; out.push(x); }
+    });
+    if (!out.length) out.push(dayBefore(it.start));
+    return out;
+  }
+  function linePagesOf(it) {
+    var brs = (it.branches || []).filter(function (b) { return PAGE_OF[b]; });
+    if (!brs.length) brs = ["Kan Store สุราษฎร์"];
+    return brs;
+  }
+  function linePost(it, date, b) {
+    return { date: date, time: "10.00", pageId: PAGE_OF[b], kind: "promo", status: "plan", channels: ["Line OA"],
+             topic: "แจ้งโปรฯ " + it.name + " (LINE)", campaignId: it.id, note: AUTO_NOTE };
+  }
+  /* แก้วัน/รอบ/สาขาของกิจกรรมแล้ว โพสต์ LINE ที่ระบบสร้างให้ต้องขยับตาม:
+     รอบใหม่ → เพิ่มแถว · รอบที่หายไป (ยังไม่โพสต์ และยังไม่ถึงวัน) → ลบแถว · โพสต์ที่ทำไปแล้วไม่แตะ */
+  async function syncLinePosts(it) {
+    if (!it || !it.id) return null;
+    var r = await api("/t/posts?campaign=" + encodeURIComponent(it.id));
+    var auto = (r.posts || []).filter(function (p) { return p.note === AUTO_NOTE && (p.channels || []).indexOf("Line OA") !== -1; });
+    if (!auto.length) return null;
+    var t = todayISO(), want = {}, have = {}, add = [], del = [];
+    lineDates(it).forEach(function (d) { linePagesOf(it).forEach(function (b) { want[d + "|" + PAGE_OF[b]] = b; }); });
+    auto.forEach(function (p) { have[p.date + "|" + p.pageId] = p; });
+    Object.keys(want).forEach(function (k) { if (!have[k]) add.push(linePost(it, k.split("|")[0], want[k])); });
+    auto.forEach(function (p) { if (!want[p.date + "|" + p.pageId] && p.status === "plan" && p.date >= t) del.push(p.id); });
+    if (add.length) await api("/t/posts", { method: "POST", body: JSON.stringify({ posts: add }) });
+    for (var i = 0; i < del.length; i++) await api("/t/posts/" + encodeURIComponent(del[i]), { method: "DELETE" });
+    return add.length || del.length ? { add: add.length, del: del.length } : null;
+  }
   async function makeMedia(kind, it, btn) {
     var brs = (it.branches || []).filter(function (b) { return PAGE_OF[b]; });
     if (!brs.length) brs = ["Kan Store สุราษฎร์"];
@@ -163,12 +203,10 @@
     try {
       var when = dayBefore(it.start);
       if (kind === "line") {
-        var posts = brs.map(function (b) {
-          return { date: when, time: "10.00", pageId: PAGE_OF[b], kind: "promo", status: "plan", channels: ["Line OA"],
-                   topic: "แจ้งโปรฯ " + it.name + " (LINE)", campaignId: it.id, note: "สร้างจากปฏิทินการตลาด" };
-        });
+        var dates = lineDates(it), posts = [];
+        dates.forEach(function (d) { brs.forEach(function (b) { posts.push(linePost(it, d, b)); }); });
         await api("/t/posts", { method: "POST", body: JSON.stringify({ posts: posts }) });
-        toast("สร้างโพสต์ LINE " + posts.length + " แถว (" + brs.join(", ") + ") ในตารางโพสต์แล้ว");
+        toast("สร้างโพสต์ LINE " + posts.length + " แถว (" + brs.join(", ") + (dates.length > 1 ? " · " + dates.length + " รอบ" : "") + ") ในตารางโพสต์แล้ว");
       } else {
         var due = new Date(parseISO(when)); due.setHours(18, 0, 0, 0);
         var tasks = brs.map(function (b) {
@@ -817,6 +855,16 @@
     return true;
   }
   function clearSel() { sel = []; bulkAct = ""; lastSel = null; }
+  /* นับของที่ผูกกับกิจกรรม (งานป้าย งานอื่น โพสต์) ไว้เตือนก่อนลบ */
+  function linkedOf(ids) {
+    var sg = 0, ot = 0, po = 0;
+    ids.forEach(function (id) { var st = STATUS[id]; if (!st) return; sg += (st.signs || []).length; ot += (st.others || []).length; po += (st.posts && st.posts.total) || 0; });
+    var parts = [];
+    if (sg) parts.push("งานป้าย " + sg);
+    if (ot) parts.push("งานอื่น " + ot);
+    if (po) parts.push("โพสต์ " + po);
+    return parts.join(" · ");
+  }
   function selNames() { return sel.map(function (id) { var it = byId(id); return it ? it.name : ""; }).filter(Boolean); }
 
   var BULK_ACTS = [["shift", "เลื่อนวัน"], ["dates", "ตั้งวันใหม่"], ["owner", "ผู้รับผิดชอบ"], ["status", "สถานะ"],
@@ -864,7 +912,7 @@
     }).join("") + "</div>";
     if (bulkAct === "delete") return '<label>ลบ ' + n + ' รายการนี้ออกจากปฏิทิน?</label><div class="cc-bnames">' + selNames().map(esc).join(" · ") + "</div>" +
       '<div class="cc-brow"><button type="button" class="cc-btn danger" data-bgo="1">ยืนยันลบ ' + n + " รายการ</button>" +
-      '<span class="cc-hint" style="margin:0">โพสต์และงานที่ผูกไว้ไม่ถูกลบ แค่ปลดลิงก์</span></div>';
+      '<span class="cc-hint" style="margin:0">' + (linkedOf(sel) ? "งาน/ป้าย/โพสต์ที่ผูกไว้ถูกลบตามด้วย (" + esc(linkedOf(sel)) + ")" : "ไม่มีงานหรือโพสต์ผูกไว้") + "</span></div>";
     return "";
   }
   function renderBulkBar() {
@@ -2120,6 +2168,7 @@
         var hadAcc = !!accTaskId, res;
         if (editingId) {
           res = await api("/campaigns/" + editingId, { method:"PUT", body: JSON.stringify(data) });
+          try { var synced = await syncLinePosts(Object.assign({}, data, { id: editingId })); if (synced) res.synced = synced; } catch (e2) { /* ไม่ให้การบันทึกกิจกรรมล้มเพราะโพสต์ */ }
         } else {
           var created = res = await api("/campaigns", { method:"POST", body: JSON.stringify(data) });
           for (var i = 0; i < pendingFiles.length; i++) {
@@ -2141,7 +2190,7 @@
       closeDrawer();
       render();
       toast(!online ? "บันทึกในเครื่องนี้ (ยังไม่ขึ้นเซิร์ฟเวอร์)"
-        : (res && res.accTaskId && !hadAcc ? "บันทึกแล้ว · สร้างงาน “ตั้งค่า" + (data.acc.type === "coupon" ? "คูปอง" : "โปรโมชั่น") + "ในระบบ” ให้ฝ่ายบัญชีแล้ว" : "บันทึกแล้ว"));
+        : (res && res.accTaskId && !hadAcc ? "บันทึกแล้ว · สร้างงาน “ตั้งค่า" + (data.acc.type === "coupon" ? "คูปอง" : "โปรโมชั่น") + "ในระบบ” ให้ฝ่ายบัญชีแล้ว" : "บันทึกแล้ว") + (res && res.synced ? " · โพสต์ LINE ขยับตาม (เพิ่ม " + res.synced.add + " ลบ " + res.synced.del + ")" : ""));
     } catch (e) {
       $("ccErr").textContent = "บันทึกไม่สำเร็จ: " + e.message;
     } finally {
@@ -2152,15 +2201,30 @@
   async function removeItem() {
     var it = byId(editingId);
     if (!it) return;
-    if (!confirm('ลบ "' + it.name + '" ออกจากปฏิทิน?')) return;
+    var lk = linkedOf([it.id]);
+    if (!confirm('ลบ "' + it.name + '" ออกจากปฏิทิน?' + (lk ? "\n\nของที่ผูกไว้จะถูกลบตามด้วย: " + lk + "\n(ย้อนคืนได้จากหน้าประวัติการแก้ไข)" : ""))) return;
     try {
-      if (online) { await api("/campaigns/" + editingId, { method:"DELETE" }); await loadAll(); }
+      if (online) { var dr = await api("/campaigns/" + editingId, { method:"DELETE" }); await loadAll(); if (dr && (dr.tasks || dr.posts)) setTimeout(function () { toast("ลบแล้ว · งาน " + (dr.tasks || 0) + " · โพสต์ " + (dr.posts || 0) + " หายตามแล้ว"); }, 50); }
       else { items = items.filter(function (x) { return x.id !== editingId; }); cacheLocal(); }
       closeDrawer();
       render();
       toast("ลบแล้ว");
     } catch (e) { toast("ลบไม่สำเร็จ: " + e.message); }
   }
+
+  /* ดึงใหม่เองทุก 45 วิ และตอนกลับมาที่แท็บ — แก้ในตารางโพสต์/งานแล้วปฏิทินเห็นตาม (นนท์ 29 ก.ย. 69)
+     ข้ามถ้าเปิดฟอร์มแก้ เลือกหลายรายการ หรือการ์ดค้างอยู่ */
+  var liveBusy = false, liveHid = 0;
+  async function liveTick() {
+    if (liveBusy || document.hidden || !online || editingId || $("ccDrawer").classList.contains("open") || sel.length || pinned) return;
+    liveBusy = true;
+    try { await loadAll(); render(); } catch (e) {} finally { liveBusy = false; }
+  }
+  setInterval(liveTick, 45000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { liveHid = Date.now(); return; }
+    if (Date.now() - liveHid > 5000) liveTick();
+  });
 
   function toast(msg) {
     var el = $("ccToast");

@@ -306,6 +306,9 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN tour_shown INTEGER NOT NULL DEFAULT 0",
   /* บัญชีชั่วคราว "รออนุมัติ" — เข้าได้แค่ฟอร์มขอเข้าระบบ (นนท์ 28 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN pending INTEGER NOT NULL DEFAULT 0",
+  /* ชื่อจริงแยกช่อง — หน้าสมาชิกระบบ (HR) · name ยังเป็นชื่อบนปุ่มล็อกอิน "ชื่อผู้ใช้ (ชื่อ นามสกุล)" */
+  "ALTER TABLE staff ADD COLUMN first_name TEXT",
+  "ALTER TABLE staff ADD COLUMN last_name TEXT",
   "CREATE TABLE IF NOT EXISTS join_requests (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, " +
     "sections TEXT NOT NULL DEFAULT '', want_user TEXT NOT NULL, pw_salt TEXT NOT NULL, pw_hash TEXT NOT NULL, " +
     "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT)",
@@ -372,7 +375,8 @@ const KPI_SEED = [
      kpi   = KPI 2570 + KPI Dashboard
    หัวหน้า (owner) เห็นทุกหมวดเสมอ ปิดไม่ได้ */
 /* crm = หน้าลีดอย่างเดียว (ต้น/ตาล ฝ่ายขาย — นนท์ 21 ก.ย. 69) */
-const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast"];
+/* hr = หน้า "สมาชิกระบบ" — เพิ่มคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ HR · 29 ก.ย. 69) ให้ได้เฉพาะหัวหน้า */
+const SECTION_KEYS = ["tasks", "docs", "sales", "kpi", "crm", "blast", "hr"];
 const DEFAULT_SECTIONS = ["tasks", "docs"];
 function sectionsOf(row) {
   if (!row) return [];
@@ -618,6 +622,47 @@ async function seedPostsOnce(db, env) {
 /* ---------- schema bootstrap (ครั้งเดียวต่อ isolate) ---------- */
 let schemaReady = null;
 export function ensureTaskSchema(db, env) { return ensureSchema(db, env); }
+
+/* ลบกิจกรรมในปฏิทิน = ลบทุกอย่างที่สร้างผูกกับมันด้วย (นนท์ 29 ก.ย. 69)
+   งาน (รวมงานป้าย + งานย่อยทุกชั้น + งานตั้งค่าโปรฯ ของบัญชี) และแถวในตารางโพสต์
+   เก็บสภาพก่อนลบไว้ในประวัติการแก้ไขทุกชิ้น — ย้อนคืนได้จากหน้าประวัติ
+   คืนค่า statements ให้ผู้เรียกรวม batch เดียวกับการลบกิจกรรม */
+export async function campaignPurge(db, campaignIds, byId) {
+  const ph = campaignIds.map(() => "?").join(",");
+  const roots = ((await db.prepare("SELECT id FROM tasks WHERE campaign_id IN (" + ph + ")").bind(...campaignIds).all()).results || []).map((r) => r.id);
+  const all = roots.slice();
+  let frontier = roots.slice();
+  for (let depth = 0; frontier.length && depth < 5; depth++) {
+    const kids = ((await db.prepare("SELECT id FROM tasks WHERE parent_id IN (" + frontier.map(() => "?").join(",") + ")")
+      .bind(...frontier).all()).results || []).map((r) => r.id).filter((x) => all.indexOf(x) === -1);
+    kids.forEach((x) => all.push(x));
+    frontier = kids;
+  }
+  const posts = (await db.prepare("SELECT * FROM posts WHERE campaign_id IN (" + ph + ")").bind(...campaignIds).all()).results || [];
+  const now = nowIso();
+  const stmts = [];
+  for (const tid of roots) {
+    const snap = await snapTask(db, tid);
+    if (!snap) continue;
+    /* เก็บงานย่อยไว้ใน __kids เหมือนลบงานปกติ — กดย้อนคืนแล้วได้ครบทั้งชุด */
+    const kidIds = ((await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(tid).all()).results || []).map((r) => r.id);
+    snap.__kids = [];
+    for (const k of kidIds) { const ks = await snapTask(db, k); if (ks) snap.__kids.push(ks); }
+    await logChange(db, { by: byId, entity: "task", entityId: tid, action: "delete", title: snap.title, before: snap, summary: "ลบตามกิจกรรมในปฏิทิน" + (kidIds.length ? " + งานย่อย " + kidIds.length : ""), at: now });
+  }
+  for (const tid of all) {
+    stmts.push(db.prepare("DELETE FROM task_files WHERE task_id = ?").bind(tid));
+    stmts.push(db.prepare("DELETE FROM task_updates WHERE task_id = ?").bind(tid));
+    stmts.push(db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(tid));
+    stmts.push(db.prepare("DELETE FROM task_mentions WHERE task_id = ?").bind(tid));
+    stmts.push(db.prepare("DELETE FROM tasks WHERE id = ?").bind(tid));
+  }
+  for (const row of posts) {
+    await logChange(db, { by: byId, entity: "post", entityId: row.id, action: "delete", title: row.topic || row.post_date, before: row, summary: "ลบตามกิจกรรมในปฏิทิน", at: now });
+    stmts.push(db.prepare("DELETE FROM posts WHERE id = ?").bind(row.id));
+  }
+  return { stmts, tasks: all.length, posts: posts.length };
+}
 async function ensureSchema(db, env) {
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -1118,6 +1163,88 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   if (me.pending) {
     if (!(path === "/me" && method === "GET") && path !== "/join") return json({ error: "บัญชีนี้รอหัวหน้าอนุมัติ — กรอกฟอร์มขอเข้าระบบก่อนนะคะ", pending: true }, 403);
   }
+  /* ---- สมาชิกระบบ (HR) — ตารางแบบ Excel: เพิ่มหลายคนทีเดียว / แก้สิทธิ์ / ตั้งรหัส (29 ก.ย. 69) ----
+     สิทธิ์ hr หรือหัวหน้า · HR แตะบัญชีหัวหน้าไม่ได้ และให้สิทธิ์ hr กับใครไม่ได้ */
+  if (path === "/people" && method === "GET") {
+    if (!canSee(me, "hr")) return json({ error: "ไม่มีสิทธิ์จัดการสมาชิก" }, 403);
+    const rs = (await db.prepare("SELECT id,name,aliases,role,active,pending,sections,first_name,last_name,require_pw,pw_hash,created_at FROM staff ORDER BY role = 'owner' DESC, active DESC, created_at").all()).results || [];
+    return json({ people: rs.map((r) => {
+      const inParen = (String(r.name || "").match(/\(([^)]*)\)/) || [])[1] || "";
+      const label = String(r.name || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/)[0] || r.name;
+      const rest = inParen || String(r.name || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/).slice(1).join(" ");
+      return {
+        id: r.id, owner: r.role === "owner", active: !!r.active, pending: !!r.pending,
+        username: label, firstName: r.first_name || rest.split(/\s+/)[0] || "", lastName: r.last_name || rest.split(/\s+/).slice(1).join(" "),
+        sections: sectionsOf(r), hasPassword: !!r.pw_hash, needsPassword: r.role === "owner" || !!r.require_pw, createdAt: r.created_at,
+      };
+    }), canGrantHr: isOwner });
+  }
+  if (path === "/people" && method === "POST") {
+    if (!canSee(me, "hr")) return json({ error: "ไม่มีสิทธิ์จัดการสมาชิก" }, 403);
+    const body = await readBody(request);
+    const rows = Array.isArray(body.rows) ? body.rows.slice(0, 200) : [];
+    if (!rows.length) return json({ error: "ไม่มีรายการให้บันทึก" }, 400);
+    const all = (await db.prepare("SELECT id,name,role,active,sections,first_name,last_name,require_pw FROM staff").all()).results || [];
+    const lbl = (n) => String(n || "").replace(/\(.*?\)/g, " ").trim().split(/\s+/)[0].toLowerCase();
+    const errors = [], stmts = [], done = [], now = nowIso();
+    const seen = {};
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {}, line = "แถวที่ " + (i + 1) + ": ";
+      const first = String(r.firstName || "").trim().slice(0, 60), last = String(r.lastName || "").trim().slice(0, 60);
+      const user = String(r.username || "").trim().replace(/\s+/g, "").slice(0, 30);
+      const pw = r.password == null ? "" : String(r.password);
+      let secs = cleanSections(Array.isArray(r.sections) ? r.sections : String(r.sections || ""));
+      const cur = r.id ? all.find((x) => x.id === r.id) : null;
+      if (r.id && !cur) { errors.push(line + "ไม่พบบัญชีนี้"); continue; }
+      if (cur && cur.role === "owner") { errors.push(line + "บัญชีหัวหน้าแก้ที่หน้า ทีม + สิทธิ์ เท่านั้น"); continue; }
+      /* HR ให้สิทธิ์ hr ไม่ได้ · ถ้าเดิมมีอยู่ (หัวหน้าให้ไว้) คงไว้ตามเดิม */
+      if (!isOwner) {
+        const had = cur ? String(cur.sections || "").split(",").indexOf("hr") !== -1 : false;
+        secs = secs.split(",").filter((k) => k && (k !== "hr" || had)).join(",");
+      }
+      if (!first || !last) { errors.push(line + "ใส่ชื่อและนามสกุล"); continue; }
+      if (user.length < 2 || /[()@,]/.test(user)) { errors.push(line + "ชื่อผู้ใช้ต้องยาว 2–30 ตัว ไม่มีเว้นวรรค และห้ามมี ( ) @ ,"); continue; }
+      if (!secs) { errors.push(line + "เลือกสิทธิ์อย่างน้อย 1 อย่าง"); continue; }
+      if (!cur && pw.length < 6) { errors.push(line + "คนใหม่ต้องตั้งรหัสผ่านอย่างน้อย 6 ตัว"); continue; }
+      if (pw && pw.length < 6) { errors.push(line + "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว"); continue; }
+      const key = user.toLowerCase();
+      if (seen[key]) { errors.push(line + "ชื่อผู้ใช้ " + user + " ซ้ำกับแถวอื่นในตาราง"); continue; }
+      seen[key] = 1;
+      if (all.some((x) => x.active && x.id !== (cur && cur.id) && lbl(x.name) === key)) { errors.push(line + "ชื่อผู้ใช้ " + user + " มีคนใช้แล้ว"); continue; }
+      const name = user + " (" + first + " " + last + ")";
+      const active = r.active === false ? 0 : 1;
+      if (cur) {
+        const sets = ["name = ?", "first_name = ?", "last_name = ?", "sections = ?", "active = ?", "pending = 0"];
+        const vals = [name, first, last, secs, active];
+        if (pw) { const salt = randHex(16); sets.push("pw_salt = ?", "pw_hash = ?", "require_pw = 1"); vals.push(salt, await pbkdf2Hex(pw, salt)); }
+        stmts.push(db.prepare("UPDATE staff SET " + sets.join(", ") + " WHERE id = ?").bind(...vals, cur.id));
+        if (pw) stmts.push(db.prepare("DELETE FROM task_logins WHERE staff_id = ?").bind(cur.id));
+        done.push({ id: cur.id, name, action: "update", before: { name: cur.name, sections: cur.sections, active: !!cur.active }, after: { name, sections: secs, active: !!active, password: pw ? "ตั้งใหม่" : undefined } });
+      } else {
+        const id = newId("s_"), salt = randHex(8), psalt = randHex(16);
+        stmts.push(db.prepare("INSERT INTO staff (id,name,aliases,role,pin_salt,pin_hash,active,created_at,sections,require_pw,pending,pw_salt,pw_hash,first_name,last_name) VALUES (?,?,?,'member',?,?,?,?,?,1,0,?,?,?,?)")
+          .bind(id, name, [user, first].join(","), salt, await sha256Hex(salt + ":" + randHex(16)), active, now, secs, psalt, await pbkdf2Hex(pw, psalt), first, last));
+        done.push({ id, name, action: "create", after: { name, sections: secs, active: !!active } });
+      }
+    }
+    if (errors.length) return json({ error: "ยังบันทึกไม่ได้ — แก้ " + errors.length + " แถวก่อน", errors }, 400);
+    if (stmts.length) await db.batch(stmts);
+    for (const d of done) await logChange(db, { by: me.id, entity: "staff", entityId: d.id, action: d.action, title: d.name, before: d.before, after: d.after, at: now });
+    /* HR แก้/เพิ่มคน → หัวหน้าได้แจ้งเตือน */
+    if (!isOwner && done.length) {
+      try {
+        await ensurePushSchema(db);
+        const owners = (await db.prepare("SELECT id FROM staff WHERE role = 'owner' AND active = 1").all()).results || [];
+        const created = done.filter((d) => d.action === "create").length, updated = done.length - created;
+        const msg = (created ? "เพิ่ม " + created + " คน" : "") + (created && updated ? " · " : "") + (updated ? "แก้ " + updated + " คน" : "");
+        if (owners.length) await db.batch(owners.map((o) => db.prepare(
+          "INSERT OR IGNORE INTO push_outbox (staff_id, kind, ref, title, body, url, created_at) VALUES (?, 'join', ?, ?, ?, '/tasks/#/people', ?)"
+        ).bind(o.id, "p:" + now + ":" + me.id, "สมาชิกระบบ: " + String(me.name || "").split(" ")[0] + " " + msg, done.map((d) => d.name).join(", ").slice(0, 150), now)));
+      } catch (e) { /* แจ้งเตือนพังไม่ควรทำให้บันทึกไม่ได้ */ }
+    }
+    return json({ ok: true, saved: done.map((d) => ({ id: d.id, name: d.name, action: d.action })) });
+  }
+
   if (path === "/join" && method === "GET") {
     const r = await db.prepare("SELECT id,first_name,last_name,sections,want_user,status,created_at FROM join_requests WHERE staff_id = ? ORDER BY created_at DESC LIMIT 1").bind(me.id).first();
     return json({ request: r || null, pending: !!me.pending });
@@ -1205,7 +1332,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     /* คนที่เปิดปฏิทินการตลาดได้ (หมวดเอกสาร) แต่ไม่มีหน้างานทีม — กด "เปิดหน้าเต็ม" ของรายการในปฏิทินแล้วต้องเห็นได้
        (นนท์ 28 ก.ย. 69) · อ่านอย่างเดียว เฉพาะงาน/โพสต์ที่ผูกกับรายการนั้น ไม่ได้รายการงานทั้งระบบ */
     const calRead = method === "GET" && canSee(me, "docs") && /^\/(campaigns$|campaigns\/[A-Za-z0-9_-]{1,40}\/related$|pages$)/.test(path);
-    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push)/.test(path);
+    const allowed = calRead || /^\/(leads|me$|me\/|logout|notifications|staff$|files\/|push|people)/.test(path);
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
 

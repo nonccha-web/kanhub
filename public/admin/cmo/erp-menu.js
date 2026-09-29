@@ -51,6 +51,10 @@
         { icon: 'shieldcheck', label: 'ตั้งค่าเพจ + SMS',   tasks: '#/blastsetup' }
       ]},
 
+      /* สมาชิกระบบ (HR) — เพิ่มคนทีละหลายคน ตั้งชื่อผู้ใช้/รหัส/สิทธิ์ (โบว์ · 29 ก.ย. 69) */
+      { direct: true, icon: 'users', label: 'สมาชิกระบบ', sec: 'hr', note: 'เพิ่มคน · ชื่อผู้ใช้/รหัส · สิทธิ์',
+        items: [{ icon: 'users', label: 'สมาชิกระบบ', tasks: '#/people', sec: 'hr' }] },
+
       /* ฝ่ายขายที่เห็นเฉพาะ CRM — เมนูเดี่ยว ไม่ต้องกางกลุ่มงานทีม */
       { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ · ไล่ปิดการขาย',
         items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm' }] },

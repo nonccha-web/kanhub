@@ -203,9 +203,11 @@
   /* สีจริงมากับรายการ (ผูกกับหมวดย่อยในปฏิทิน) — ตารางนี้ไว้สำรองเท่านั้น */
   var CAMP_COLOR = { content: '#8B5CF6', campaign: '#F28DB8', promo: '#1E9BF0' };
   var CAL_URL = '../cmo/campaign-calendar.html';
+  /* แคชรายการปฏิทินไว้แค่ 30 วิ — แก้/ลบกิจกรรมในหน้าปฏิทินแล้ว ฝั่งนี้ต้องเห็นตาม (นนท์ 29 ก.ย. 69) */
+  var campaignsAt = 0;
   function loadCampaigns() {
-    if (S.campaigns) return Promise.resolve(S.campaigns);
-    return api('/campaigns').then(function (j) { S.campaigns = j.campaigns || []; return S.campaigns; })
+    if (S.campaigns && Date.now() - campaignsAt < 30000) return Promise.resolve(S.campaigns);
+    return api('/campaigns').then(function (j) { S.campaigns = j.campaigns || []; campaignsAt = Date.now(); return S.campaigns; })
       .catch(function () { S.campaigns = []; return S.campaigns; });
   }
   function campaignById(id) {
@@ -280,6 +282,9 @@
     return !!d && d < new Date();
   }
   function isToday(t) { var d = dueOf(t); return !!d && sameDay(d, new Date()); }
+  /* งานเก่าที่เลยกำหนดมาแล้ว (ครบกำหนดก่อนวันนี้) — แยกจากงานของวันนี้ที่แค่เลยเวลา (นนท์ 29 ก.ย. 69) */
+  function isOverdue(t) { return isLate(t) && !isToday(t); }
+  function daysOver(t) { var d = dueOf(t); return d ? Math.max(1, Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000)) : 0; }
   function fmtTime(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   function fmtDate(d, withYear) {
     return d.getDate() + ' ' + MON_TH[d.getMonth()] + (withYear ? ' ' + String(d.getFullYear() + 543).slice(-2) : '');
@@ -584,7 +589,7 @@
   }
 
   /* ---------- sidebar / header ---------- */
-  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup' };
+  var ROUTE_KEY = { routine: '#/routine', history: '#/history', tickets: '#/tickets', review: '#/review', leads: '#/leads', lead: '#/leads', me: '#/all', all: '#/all', new: '#/all', kpi: '#/kpi', team: '#/team', task: '#/all', inbox: '#/inbox', posts: '#/posts', report: '#/report', campaign: '#/all', signage: '#/signage', blast: '#/blast', richmenu: '#/richmenu', lineusers: '#/lineusers', blastsetup: '#/blastsetup', people: '#/people' };
   /* สิทธิ์ที่ใช้จริงตอนนี้ — หัวหน้ากด "ดูในมุมของ…" ได้ เพื่อเช็คว่าน้องเห็นอะไรบ้าง
      เป็นแค่การพรีวิวฝั่งหน้าเว็บ ตัวจริงยังกันที่เซิร์ฟเวอร์เหมือนเดิม */
   function effRights() {
@@ -615,7 +620,8 @@
     ['sales', 'ยอดขาย + การตลาด (ตัวเลขยอดขายทั้งหมด)'],
     ['kpi',   'KPI 2570 + KPI Dashboard'],
     ['crm',   'ลีด (CRM) — ฝ่ายขายที่ดูแค่ลีด ให้ติ๊กอันนี้อันเดียว'],
-    ['blast', 'บรอดแคสต์ LINE OA + SMS — ยิงถึงลูกค้าจริง เปิดให้เฉพาะคนที่ดูแลเพจ']
+    ['blast', 'บรอดแคสต์ LINE OA + SMS — ยิงถึงลูกค้าจริง เปิดให้เฉพาะคนที่ดูแลเพจ'],
+    ['hr',    'สมาชิกระบบ (HR) — เพิ่มคน ตั้งชื่อผู้ใช้/รหัสผ่าน/สิทธิ์ ให้คนอื่นได้']
   ];
   var SECTION_SHORT = { tasks: 'งานทีม', docs: 'เอกสาร', sales: 'ยอดขาย', kpi: 'KPI', crm: 'ลีด', blast: 'บรอดแคสต์' };
   function renderSidebar() {
@@ -644,9 +650,15 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>' +
       (S.notif.unread ? '<i>' + (S.notif.unread > 9 ? '9+' : S.notif.unread) + '</i>' : '') + '</a>' +
-      (S.viewAs && staffById(S.viewAs)
+      (S.viewAs && staffById(S.viewAs) && S.me.role !== 'owner'
         ? '<span class="asview">ดูในมุมของ <b>' + esc(shortName(staffById(S.viewAs))) + '</b>' +
           '<button type="button" data-viewas-off>เลิกดู</button></span>' : '') +
+      /* หัวหน้าสลับดูหน้าจอในมุมของใครก็ได้ ไม่ต้องล็อกอินใหม่ (นนท์ 29 ก.ย. 69) — อ่านอย่างเดียว */
+      (S.me.role === 'owner' ? '<label class="hdr-viewas' + (S.viewAs ? ' on' : '') + '" title="ดูหน้าจอในมุมของคนอื่น (อ่านอย่างเดียว)"><span>ดูในมุมของ</span>' +
+        '<select id="hdrViewAs"><option value="">ตัวเอง</option>' +
+        S.staff.filter(function (x) { return x.active && x.id !== S.me.id && !x.pending; }).map(function (x) {
+          return '<option value="' + esc(x.id) + '"' + (S.viewAs === x.id ? ' selected' : '') + '>' + esc(shortName(x)) + '</option>';
+        }).join('') + '</select>' + (S.viewAs ? '<button type="button" data-viewas-off title="กลับเป็นมุมของตัวเอง">เลิกดู</button>' : '') + '</label>' : '') +
       '<span class="erp-user"><i>' + esc(initials(S.me.name)) + '</i><b>' + esc(S.me.name) + '</b>' +
       '<button type="button" data-logout title="ออกจากระบบ">ออก</button></span>';
     tb.textContent = shortName(S.me);
@@ -707,6 +719,8 @@
     var secs = (me0 && me0.sections) || [];
     var crmOnly = secs.indexOf('crm') !== -1 && secs.indexOf('tasks') === -1;
     if (crmOnly) { location.hash = '#/leads'; return boot(); }
+    /* HR ที่เห็นแต่หน้าสมาชิกระบบ */
+    if (secs.indexOf('hr') !== -1 && secs.indexOf('tasks') === -1) { location.hash = '#/people'; return boot(); }
     /* ถูกเด้งมาจากหน้าอื่นเพราะยังไม่ได้ล็อกอิน — พากลับไปหน้านั้น */
     var next = nextParam();
     if (next) { location.href = next; return; }
@@ -801,9 +815,12 @@
        ปุ่มติ๊กเสร็จ/ตรวจผ่านของงานเดี่ยวย้ายไปอยู่ในเมนู ⋯ ท้ายแถว */
     var sel = !!SEL[t.id];
     var canMenu = canEditRow(t) || canTick(t) || canAssign();
-    return '<a class="trow ' + esc(es) + (sel ? ' selected' : '') + '" href="#/task/' + esc(t.id) + '">' +
+    var ovd = isOverdue(t);
+    return '<a class="trow ' + esc(es) + (ovd ? ' overdue' : (late ? ' latetoday' : '')) + (sel ? ' selected' : '') + '" href="#/task/' + esc(t.id) + '">' +
       selCircle(t, st, mark, sel) +
-      '<span class="main"><span class="tline"><span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
+      '<span class="main"><span class="tline">' + (ovd ? '<i class="ovd-bang" title="เลยกำหนด">!</i>' : '') +
+      '<span class="t">' + (t.priority ? '★ ' : '') + esc(t.title) + '</span>' +
+      (ovd ? '<span class="ovd-days">เลย ' + daysOver(t) + ' วัน</span>' : (late && !t.repeat ? '<span class="ovd-days soft">เลยเวลาแล้ว</span>' : '')) +
       (canEditRow(t) ? '<i class="tpen" role="button" tabindex="0" data-tedit="' + esc(t.id) + '" title="แก้ชื่องาน" aria-label="แก้ชื่องาน">✎</i>' : '') + '</span>' +
       '<span class="m">' +
       (canAssign() ? '<span class="edt" role="button" tabindex="0" data-aedit="' + esc(t.id) + '" title="เปลี่ยนคนรับ">' + avatars(t.assignees) + '</span>' : avatars(t.assignees)) +
@@ -847,7 +864,8 @@
   function gsel() { return '<span class="gsel" role="checkbox" aria-checked="false" tabindex="0" data-gsel title="เลือกทั้งกลุ่ม" aria-label="เลือกทั้งกลุ่ม"></span>'; }
   function groupList(title, list, cls) {
     if (!list.length) return '';
-    return '<div class="group"><div class="group-h' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3><span>' + list.length + '</span>' + gsel() + '</div>' +
+    return '<div class="group' + (cls === 'late' ? ' overdue' : '') + '"><div class="group-h' + (cls ? ' ' + cls : '') + '">' +
+      (cls === 'late' ? '<i class="ovd-ic" aria-hidden="true">!</i>' : '') + '<h3>' + esc(title) + '</h3><span>' + list.length + '</span>' + gsel() + '</div>' +
       '<div class="tlist">' + list.map(taskRow).join('') + '</div></div>';
   }
   /* ---------- บอร์ด (ไปป์ไลน์แบบ monday) ----------
@@ -1215,7 +1233,9 @@
       if (effStatus(t) === 'review') { b.review.push(t); return; }
       /* งานประจำที่เลยเวลาของวันนี้แล้วยังไม่อัปเดต ขึ้นกลุ่ม "เลยกำหนด" เหมือนงานอื่น
          ตัวเลขบนการ์ดกับกลุ่มข้างล่างจะได้ตรงกัน */
-      if (isLate(t)) { b.late.push(t); return; }
+      if (isOverdue(t)) { b.late.push(t); return; }
+      /* งานของวันนี้ (รวมที่เลยเวลาแล้ว) อยู่กลุ่ม "วันนี้" แยกจากงานเก่าที่เลยกำหนด */
+      if (isToday(t) && (!t.repeat || isLate(t))) { b.today.push(t); return; }
       if (t.repeat) { b.repeat.push(t); return; }
       if (!t.dueAt) { b.nodate.push(t); return; }
       var d = new Date(t.dueAt);
@@ -1266,7 +1286,7 @@
         h += '<div class="sec"><div class="empty"><b>' + (S.viewAs ? 'ยังไม่มีงานที่มอบหมายให้ ' + esc(shortName(whoS)) : 'ยังไม่มีงานที่มอบหมายให้คุณ') + '</b>เมื่อหัวหน้าสั่งงาน รายการจะขึ้นที่นี่</div></div>';
       } else {
         h += groupList('ส่งแล้ว รอหัวหน้าตรวจ', b.review) +
-          groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
+          groupList('เลยกำหนด — งานเก่าที่ยังไม่เสร็จ', b.late, 'late') + groupList('งานของวันนี้', b.today, 'today') + groupList('ภายใน 7 วัน', b.week) +
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat);
         if (b.done.length) {
           h += '<div class="group"><div class="group-h"><h3>เสร็จแล้ว</h3><span>' + b.done.length + '</span>' + (S.showDone ? gsel() : '') +
@@ -2231,7 +2251,7 @@
       function passFilters(t) {
         if (F.status === 'open' && effStatus(t) === 'done') return false;
         if (F.status === 'done' && effStatus(t) !== 'done') return false;
-        if (F.status === 'late' && !isLate(t)) return false;
+        if (F.status === 'late' && !isOverdue(t)) return false;
         if (F.who && t.assignees.indexOf(F.who) === -1) return false;
         if (F.kpi === 'none' && t.kpiId) return false;
         if (F.kpi && F.kpi !== 'none' && t.kpiId !== F.kpi) return false;
@@ -2256,7 +2276,7 @@
       var mineView = F.who === meId0;
       var scopeList = mineView ? r[0].filter(function (t) { return t.assignees.indexOf(meId0) !== -1; }) : all;
       var openS = scopeList.filter(function (t) { return effStatus(t) !== 'done'; });
-      var lateS = openS.filter(isLate), todayS = openS.filter(function (t) { return isToday(t) && !isLate(t); });
+      var lateS = openS.filter(isOverdue), todayS = openS.filter(function (t) { return isToday(t); });
       var doneWeekS = scopeList.filter(function (t) { return t.status === 'done' && new Date(t.doneAt || t.updatedAt) > weekAgo; });
       var whoS = staffById(meId0) || S.me;
       var h = (S.viewAs ? '<div class="postbar warn">กำลังดูในมุมของ <b>' + esc(whoS.name) + '</b> — อ่านอย่างเดียว ' +
@@ -2371,7 +2391,7 @@
       } else {
         var b = bucketize(list);
         h += groupList('รอตรวจ', b.review) +
-          groupList('เลยกำหนด', b.late, 'late') + groupList('วันนี้', b.today) + groupList('ภายใน 7 วัน', b.week) +
+          groupList('เลยกำหนด — งานเก่าที่ยังไม่เสร็จ', b.late, 'late') + groupList('งานของวันนี้', b.today, 'today') + groupList('ภายใน 7 วัน', b.week) +
           groupList('ถัดไป', b.later) + groupList('ยังไม่กำหนดวัน', b.nodate) + groupList('งานประจำ', b.repeat) + groupList('เสร็จแล้ว', b.done);
       }
       view.innerHTML = h;
@@ -4972,11 +4992,21 @@
     var q = S.route.query || {};
     if (q.range) P.range = q.range;
     if (q.page) P.page = q.page;
+    /* ตัวกรอง "เฉพาะโพสต์ของกิจกรรมนี้" มาจากลิงก์ในปฏิทินเท่านั้น — ไม่ค้างไปถึงตอนกดเมนูตารางโพสต์
+       (เดิมค้างใน P.campaign กดเมนูแล้วเห็นแค่โพสต์ของโปรฯ เดียว เหมือนเป็นตารางคนละตัว — นนท์ 29 ก.ย. 69) */
+    var campNow = q.campaign || '';
+    if (campNow && !P.campaign) { P.view = 'list'; P.range = 'all'; P.page = ''; P.status = ''; }
+    if (!campNow && P.campaign && !q.view) {
+      try { var _v = localStorage.getItem('kan-posts-view'); P.view = ['cal', 'list'].indexOf(_v) !== -1 ? _v : 'cal'; } catch (e) { P.view = 'cal'; }
+      P.range = 'month';
+    }
+    P.campaign = campNow;
     if (q.view) P.view = q.view;
-    if (q.campaign !== undefined) P.campaign = q.campaign;
     var d = postRangeDates();
-    /* ดึงทั้งช่วงโดยไม่กรองเพจที่เซิร์ฟเวอร์ เพื่อให้นับแยกรายเพจได้ในคราวเดียว */
-    var qs = '?' + (d[0] ? 'from=' + d[0] + '&to=' + d[1] : '');
+    /* ดึงทั้งช่วงโดยไม่กรองเพจที่เซิร์ฟเวอร์ เพื่อให้นับแยกรายเพจได้ในคราวเดียว
+       ดูเฉพาะโปรฯ = ดึงทุกวันของโปรฯ นั้น (โพสต์ LINE มักอยู่วันก่อนเริ่ม อาจคนละเดือน) */
+    var qs = '?' + (P.campaign ? 'campaign=' + encodeURIComponent(P.campaign) + (P.view === 'cal' && d[0] ? '&from=' + d[0] + '&to=' + d[1] : '')
+      : (d[0] ? 'from=' + d[0] + '&to=' + d[1] : ''));
     Promise.all([loadPages(), api('/posts' + qs), loadCampaigns()]).then(function (r) {
       var activePages = {};
       (S.pages || []).forEach(function (pg) { activePages[pg.id] = 1; });
@@ -6101,6 +6131,184 @@
   }
 
   /* ---------- ทีม ---------- */
+  /* ข้อมูลสดขึ้น: กลับมาที่แท็บ หรือทุก 45 วิ บนหน้าที่อ่านอย่างเดียว ดึงใหม่เองโดยไม่ต้องกดรีเฟรช
+     ข้ามถ้ากำลังพิมพ์/เปิดหน้าต่างอยู่ ที่พิมพ์ค้างจะได้ไม่หาย (นนท์ 29 ก.ย. 69: ปฏิทิน ↔ ตารางโพสต์ ต้อง sync) */
+  var LIVE_ROUTES = { me: 1, all: 1, posts: 1, campaign: 1, signage: 1, board: 1 };
+  function busyTyping() {
+    var a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return true;
+    if (document.querySelector('.modal-bg, .okdlg, .xl-edit, .xl-listpop, .dlg-bg, [role=dialog]')) return true;
+    if (typeof SEL === 'object' && Object.keys(SEL).length) return true;
+    return false;
+  }
+  function liveRefresh() {
+    if (document.hidden || !S.me || !S.route || !LIVE_ROUTES[S.route.name] || busyTyping()) return;
+    S.campaigns = null; S.tasks = null;
+    var y = window.scrollY;
+    render();
+    setTimeout(function () { window.scrollTo(0, y); }, 400);
+  }
+  var liveHiddenAt = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { liveHiddenAt = Date.now(); return; }
+    if (Date.now() - liveHiddenAt > 5000) liveRefresh();
+  });
+  setInterval(liveRefresh, 45000);
+
+  /* สลับมุมมองจากแถบบน — ใช้กลไก view-as เดิม (เหมือนเลือกในหน้าทีม) */
+  document.addEventListener('change', function (ev) {
+    if (!ev.target || ev.target.id !== 'hdrViewAs') return;
+    S.viewAs = ev.target.value || null;
+    S.tasks = null;
+    renderSidebar(); renderHeaderUser();
+    if (S.viewAs) {
+      var v = staffById(S.viewAs), secs = (v && v.sections) || [];
+      /* ไปหน้าแรกที่คนนั้นเห็นจริง */
+      location.hash = secs.indexOf('tasks') !== -1 ? '#/me' : (secs.indexOf('crm') !== -1 ? '#/leads' : (secs.indexOf('hr') !== -1 ? '#/people' : '#/me'));
+      render();
+    } else render();
+  });
+
+  /* ---------- สมาชิกระบบ (HR) — ตารางแบบ Excel (โบว์ · 29 ก.ย. 69) ----------
+     เพิ่มทีละ 1/5/10 แถว · พิมพ์ไล่ หรือก็อปจาก Excel มาวาง · กดบันทึกครั้งเดียว */
+  var pgrid = null, peopleCanHr = false;
+  function peopleSecs() {
+    return JOIN_SECTIONS.map(function (x) { return { v: x[0], label: x[1] }; })
+      .concat(peopleCanHr ? [{ v: 'hr', label: 'สมาชิกระบบ (HR)' }] : []);
+  }
+  function secFromToken(tok) {
+    var t = String(tok || '').trim().toLowerCase();
+    if (!t) return null;
+    var list = peopleSecs(), hit = list.filter(function (x) { return x.v === t || x.label.toLowerCase() === t; })[0];
+    if (hit) return hit.v;
+    var syn = [['tasks', /งาน/], ['docs', /เอกสาร|ปฏิทิน|doc/], ['sales', /ยอด|ขาย|sale/], ['kpi', /kpi|เคพีไอ/],
+               ['crm', /ลีด|crm|lead/], ['blast', /บรอด|broad|blast|line|ไลน์/], ['hr', /hr|สมาชิก|บุคคล/]];
+    for (var i = 0; i < syn.length; i++) if (syn[i][1].test(t) && list.some(function (x) { return x.v === syn[i][0]; })) return syn[i][0];
+    return null;
+  }
+  function personBlank(r) {
+    return !r.id && !String(r.firstName || '').trim() && !String(r.lastName || '').trim() && !String(r.username || '').trim() &&
+      !String(r.password || '') && !(r.sections || []).length;
+  }
+  function personMissing(r) {
+    var m = [];
+    if (!String(r.firstName || '').trim()) m.push('ชื่อ');
+    if (!String(r.lastName || '').trim()) m.push('นามสกุล');
+    if (String(r.username || '').trim().length < 2) m.push('ชื่อผู้ใช้');
+    if (!r.id && String(r.password || '').length < 6) m.push('รหัสผ่าน (อย่างน้อย 6 ตัว)');
+    else if (r.password && String(r.password).length < 6) m.push('รหัสผ่านอย่างน้อย 6 ตัว');
+    if (!(r.sections || []).length) m.push('สิทธิ์');
+    return m;
+  }
+  function personSig(r) { return JSON.stringify([r.firstName, r.lastName, r.username, r.password || '', (r.sections || []).slice().sort(), !!r.active]); }
+  function peopleChanged() {
+    return (pgrid ? pgrid.rows : []).filter(function (r) { return !personBlank(r) && (!r.id || personSig(r) !== r._sig); });
+  }
+  function renderPeople() {
+    var view = $('#view');
+    view.className = 'page people';
+    view.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    api('/people').then(function (j) {
+      peopleCanHr = !!j.canGrantHr;
+      var owners = (j.people || []).filter(function (p) { return p.owner; });
+      var rows = (j.people || []).filter(function (p) { return !p.owner && !p.pending; }).map(function (p) {
+        var r = { id: p.id, firstName: p.firstName, lastName: p.lastName, username: p.username, password: '',
+                  sections: (p.sections || []).slice(), active: p.active, hasPassword: p.hasPassword, needsPassword: p.needsPassword };
+        r._sig = personSig(r);
+        return r;
+      });
+      view.innerHTML = '<div class="top"><div><span class="kicker">สมาชิกระบบ</span><h1>ใครใช้ระบบนี้บ้าง</h1>' +
+        '<p>กด <b>+ แถว / + 5 แถว / + 10 แถว</b> ใต้หัวข้อนี้ แล้วพิมพ์ไล่ทีละช่องได้เหมือน Excel หรือก็อปจาก Excel มาวางทั้งก้อน (เรียงคอลัมน์ ชื่อ · นามสกุล · ชื่อผู้ใช้ · รหัสผ่าน · สิทธิ์) · ' +
+        '<b>ชื่อผู้ใช้</b> คือชื่อที่ขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ · คนเดิมเว้นช่องรหัสผ่านว่าง = ใช้แบบเดิม · แก้เสร็จกด <b>บันทึก</b> ครั้งเดียว</p></div></div>' +
+        (owners.length ? '<p class="hint">หัวหน้า (แก้ในหน้า ทีม + สิทธิ์): ' + owners.map(function (o) { return esc(o.username); }).join(', ') + '</p>' : '') +
+        '<div class="sec"><div class="sec-b tight"><div id="peopleHost"></div></div></div><div id="peopleBar"></div>';
+      pgrid = global.KAN_GRID.create($('#peopleHost'), {
+        id: 'people',
+        rows: rows,
+        freeze: 1,
+        blankRows: 3,
+        addSteps: [1, 5, 10],   /* โบว์ขอ: กดเพิ่มทีละ 1 / 5 / 10 คน */
+        isBlank: personBlank,
+        blankRow: function () { return { id: null, firstName: '', lastName: '', username: '', password: '', sections: [], active: true }; },
+        cloneRow: function (src) { return { id: null, firstName: '', lastName: '', username: '', password: '', sections: (src.sections || []).slice(), active: true }; },
+        tone: function (r) { return (!personBlank(r) && (!r.id || personSig(r) !== r._sig) && personMissing(r).length) ? 'miss' : ''; },
+        canDelete: function (r) { return !r.id; },
+        onChange: function (rs) { (rs || []).forEach(function (r) { if (pgrid) pgrid.markRow(r); }); renderPeopleBar(); },
+        onRemove: function () { renderPeopleBar(); },
+        onToast: function (m) { toast(m); },
+        columns: [
+          { key: 'firstName', label: 'ชื่อ *', width: 140, parse: function (x) { return String(x).trim().slice(0, 60); } },
+          { key: 'lastName', label: 'นามสกุล *', width: 160, parse: function (x) { return String(x).trim().slice(0, 60); } },
+          { key: 'username', label: 'ชื่อผู้ใช้ *', width: 140, parse: function (x) { x = String(x).trim().replace(/\s+/g, ''); return /[()@,]/.test(x) ? null : x.slice(0, 30); } },
+          { key: 'password', label: 'รหัสผ่าน', width: 170,
+            text: function (r) { return r.password ? r.password : (r.id ? (r.needsPassword ? '(ใช้รหัสเดิม)' : '(กดชื่อเข้า ไม่มีรหัส)') : ''); },
+            edit: function (r) { return r.password || ''; },
+            parse: function (x) { x = String(x).trim(); return /^\(.*\)$/.test(x) ? '' : x.slice(0, 100); },
+            copy: function (r) { return r.password || ''; } },
+          { key: 'sections', label: 'สิทธิ์ *', width: 330, type: 'multi',
+            options: function () { return peopleSecs(); },
+            get: function (r) { return r.sections || []; },
+            text: function (r) { return (r.sections || []).map(function (k) { var o = peopleSecs().filter(function (x) { return x.v === k; })[0]; return o ? o.label : (k === 'hr' ? 'สมาชิกระบบ (HR)' : k); }).join(', '); },
+            parse: function (x) {
+              x = String(x).trim();
+              if (!x) return [];
+              if (/ทั้งหมด|^all$/i.test(x)) return peopleSecs().filter(function (o) { return o.v !== 'hr'; }).map(function (o) { return o.v; });
+              var out = [];
+              x.split(/[,\/·|;\n]+/).forEach(function (t) { var k = secFromToken(t); if (k && out.indexOf(k) === -1) out.push(k); });
+              return out.length ? out : null;
+            },
+            filterValues: function (r) { return (r.sections || []).length ? r.sections : ['(ยังไม่เลือก)']; } },
+          { key: 'active', label: 'สถานะ', width: 110, type: 'pick',
+            options: function () { return [{ v: '1', label: 'ใช้งาน' }, { v: '0', label: 'ปิดใช้งาน' }]; },
+            get: function (r) { return r.active === false ? '0' : '1'; },
+            set: function (r, v) { r.active = v !== '0'; },
+            text: function (r) { return r.active === false ? 'ปิดใช้งาน' : 'ใช้งาน'; },
+            parse: function (x) { x = String(x).trim(); if (!x) return '1'; return /ปิด|ออก|no|0|inactive/i.test(x) ? '0' : '1'; } }
+        ]
+      });
+      renderPeopleBar();
+    }).catch(function (e) { view.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  function renderPeopleBar(errs) {
+    var host = $('#peopleBar');
+    if (!host) return;
+    var list = peopleChanged(), bad = list.filter(function (r) { return personMissing(r).length; });
+    var nNew = list.filter(function (r) { return !r.id; }).length, nEdit = list.length - nNew;
+    host.innerHTML = '<div class="draft-bar people-bar">' +
+      (list.length
+        ? '<span><b>' + (nNew ? 'เพิ่ม ' + nNew + ' คน' : '') + (nNew && nEdit ? ' · ' : '') + (nEdit ? 'แก้ ' + nEdit + ' คน' : '') + '</b>' +
+          (bad.length ? ' · <span class="bad">กรอกไม่ครบ ' + bad.length + ' แถว (ขีดแดง)</span>' : ' · พร้อมบันทึก') + '</span>'
+        : '<span class="hint" style="margin:0">ยังไม่มีอะไรเปลี่ยน — พิมพ์ในแถวว่างได้เลย · Tab ไปช่องถัดไป · Enter ลงแถวใหม่</span>') +
+      '<button type="button" class="btn" id="peopleSave"' + (list.length && !bad.length ? '' : ' disabled') + '>บันทึก</button></div>' +
+      (errs && errs.length ? '<div class="err">' + errs.map(esc).join('<br>') + '</div>' : '');
+  }
+  document.addEventListener('click', function (ev) {
+    var b;
+    if (ev.target.closest('#peopleSave') && pgrid) {
+      var list = peopleChanged();
+      if (!list.length) return;
+      ev.target.closest('#peopleSave').disabled = true;
+      api('/people', 'POST', { rows: list.map(function (r) {
+        return { id: r.id || undefined, firstName: r.firstName, lastName: r.lastName, username: r.username,
+                 password: r.password || undefined, sections: r.sections, active: r.active !== false };
+      }) }).then(function (j) {
+        var added = (j.saved || []).filter(function (x) { return x.action === 'create'; }), edited = (j.saved || []).length - added.length;
+        var pw = {};
+        list.forEach(function (r) { if (r.password) pw[String(r.username).toLowerCase()] = r.password; });
+        okDialog({ title: 'บันทึกแล้ว ' + (j.saved || []).length + ' คน',
+          lines: (j.saved || []).map(function (x) {
+            var u = String(x.name).replace(/\s*\(.*$/, '');
+            return (x.action === 'create' ? 'เพิ่ม ' : 'แก้ ') + x.name + (pw[u.toLowerCase()] ? ' · ชื่อผู้ใช้ ' + u + ' · รหัส ' + pw[u.toLowerCase()] : '');
+          }),
+          note: (added.length ? 'ส่งชื่อผู้ใช้กับรหัสผ่านให้แต่ละคน เข้าได้ที่ https://admin.kan-hub.com · ' : '') + 'รหัสผ่านจะไม่แสดงอีกหลังปิดหน้าต่างนี้',
+          onClose: function () { return api('/me').then(function (m) { S.staff = m.staff || S.staff; renderPeople(); }); } });
+      }).catch(function (e) {
+        renderPeopleBar([e.message]);
+      });
+      return;
+    }
+  });
+
   /* ---------- ขอเข้าใช้ระบบ (นนท์ 28 ก.ย. 69) — บัญชีชั่วคราวกรอก หัวหน้าอนุมัติในหน้าทีม ---------- */
   var JOIN_SECTIONS = [
     ['tasks', 'งานทีม', 'งานทั้งหมด งานป้าย ตารางโพสต์ ปฏิทินการตลาด'],
@@ -6484,7 +6692,7 @@
           .catch(function (e) { b.disabled = false; toast(e.message, true); });
         return;
       }
-      if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; renderSidebar(); renderHeaderUser(); renderTeam(); return; }
+      if (ev.target.closest('[data-viewas-off]')) { S.viewAs = null; S.tasks = null; renderSidebar(); renderHeaderUser(); render(); return; }
       if ((b = ev.target.closest('[data-copy]'))) {
         var txt = b.getAttribute('data-copy');
         var done = function () { toast('ก็อป URL แล้ว เอาไปวางใน Claude / ChatGPT ได้เลย'); };
@@ -6601,7 +6809,11 @@
     /* บัญชีชั่วคราวรออนุมัติ — เห็นแค่ฟอร์มขอเข้าระบบ */
     if (S.me && S.me.pending) { renderSidebar(); renderHeaderUser(); return renderJoin(); }
     /* คนที่มีเฉพาะหมวดลีด ให้อยู่แต่หน้าลีด (กันซ้ำกับด่านฝั่งเซิร์ฟเวอร์) */
-    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead'].indexOf(S.route.name) === -1) {
+    if (S.me && !S.me.pending && !canSee('tasks') && !canSee('crm') && canSee('hr') && S.route.name !== 'people') {
+      location.hash = '#/people';
+      S.route = parseRoute();
+    }
+    if (S.me && !canSee('tasks') && canSee('crm') && ['leads', 'lead', 'people'].indexOf(S.route.name) === -1) {
       location.hash = '#/leads';
       S.route = parseRoute();
     }
@@ -6644,6 +6856,7 @@
         return global.KAN_BLAST.render(S.route);
       case 'inbox': return renderInbox();
       case 'posts': return renderPosts();
+      case 'people': return canSee('hr') ? renderPeople() : denyView('สมาชิกระบบ');
       case 'team': return S.me.role === 'owner' || S.me.sections ? renderTeam() : denyView('ทีม + สิทธิ์');
       /* งานของฉันรวมอยู่ในหน้างานทั้งหมดแล้ว (นนท์ 19 ก.ย. 69) — #/me = งานทั้งหมดที่กรองเป็นของฉัน */
       case 'me': F.who = S.viewAs || S.me.id; F.status = 'open'; return renderAll();
@@ -6665,7 +6878,7 @@
       .then(function (x) {
         if (!x.ok) { S.me = null; renderSidebar(); renderLogin(); return; }
         S.me = x.j.me; S.staff = x.j.staff || []; S.kpis = x.j.kpis || []; S.tourShown = x.j.tourShown || 0;
-        if (!location.hash) location.hash = (!canSee('tasks') && canSee('crm')) ? '#/leads'
+        if (!location.hash) location.hash = (!canSee('tasks') && !canSee('crm') && canSee('hr')) ? '#/people' : (!canSee('tasks') && canSee('crm')) ? '#/leads'
           : (S.me.role === 'owner' ? '#/all' : '#/me');
         Promise.all([loadCampaigns(), loadFlows()]).then(render).then(function () {
           var T = global.KAN_TOUR;
@@ -6958,6 +7171,8 @@
       var pk = b.getAttribute('data-p');
       /* กำลังพิมพ์ในตารางอยู่แล้วสลับตัวกรอง — ต้องยิงที่ค้างให้เสร็จก่อน ไม่งั้นที่พิมพ์หาย */
       if (typeof gridFlush === 'function') gridFlush();
+      /* ล้างตัวกรองโปรฯ = กลับไปตารางโพสต์ตัวเต็ม (ตัวเดียวกับเมนูซ้าย) */
+      if (pk === 'campaign' && !b.getAttribute('data-v')) { location.hash = '#/posts'; return; }
       P[pk] = b.getAttribute('data-v');
       if (pk === 'view') {
         P.day = '';
