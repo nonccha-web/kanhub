@@ -320,6 +320,8 @@ const ALTERS = [
   /* เบอร์โทร (เก็บเป็นข้อมูลอย่างเดียว) + สิทธิ์รายเมนู JSON {feature: edit|view|none} — 29 ก.ย. 69 */
   "ALTER TABLE staff ADD COLUMN phone TEXT",
   "ALTER TABLE staff ADD COLUMN perms TEXT",
+  /* รหัสพนักงานจากทะเบียน HR (นำเข้า 30 ก.ย. 69) — เก็บไว้อ้างอิง ไม่ส่งออกหน้าเข้าสู่ระบบ */
+  "ALTER TABLE staff ADD COLUMN emp_code TEXT",
   "CREATE TABLE IF NOT EXISTS join_requests (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, " +
     "sections TEXT NOT NULL DEFAULT '', want_user TEXT NOT NULL, pw_salt TEXT NOT NULL, pw_hash TEXT NOT NULL, " +
     "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT, decided_by TEXT)",

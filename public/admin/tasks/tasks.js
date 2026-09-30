@@ -639,7 +639,8 @@
     var eff = effRights();
     var h = global.ERP_MENU.render({ ctx: 'tasks', active: 'tasks:' + (ROUTE_KEY[S.route.name] || '#/me'),
       salesBase: '../mkt/index.html', cmoBase: '../cmo/', tasksBase: '',
-      sections: eff.sections, perms: eff.perms, owner: eff.owner,
+      /* ยังไม่ล็อกอิน = ไม่โชว์เมนูไหนเลย (perms ว่าง) */
+      sections: eff.sections, perms: S.me ? eff.perms : {}, owner: eff.owner,
       badges: S.notif.unread ? { mentions: S.notif.unread } : {} });
     h += '<div class="erp-foot">' +
       '<button type="button" class="erp-theme" data-theme-toggle><span id="theme-icon"></span> <span id="theme-label"></span></button>' +
@@ -729,8 +730,37 @@
     if (next) { location.href = next; return; }
     /* เปิดระบบมาเปล่า ๆ = ไปปฏิทินการตลาดก่อน (นนท์: "เปิดมาปุ๊ปควรเจอหน้านี้เลย" 18 ก.ย. 69)
        ถ้ามี #/… ติดมา (กดจากลิงก์แจ้งเตือน) ไปหน้านั้นตามเดิม */
-    if (!location.hash || location.hash === '#' || location.hash === '#/') { location.href = '../cmo/campaign-calendar.html'; return; }
+    if (!location.hash || location.hash === '#' || location.hash === '#/') {
+      /* คนที่ไม่มีสิทธิ์ปฏิทิน (เช่น เห็นแค่แจ้งปัญหา) → หน้าแรกที่เขาเข้าได้ ไม่งั้นเจอหน้า "ไม่มีสิทธิ์" ทันทีหลังล็อกอิน */
+      var pm = (me0 && me0.perms) || {};
+      var canCal = (me0 && me0.role === 'owner') || (pm.cal ? pm.cal !== 'none' : secs.indexOf('docs') !== -1);
+      if (canCal) { location.href = '../cmo/campaign-calendar.html'; return; }
+      location.hash = '#/me';
+    }
     return boot();
+  }
+  /* ---------- หน้าเข้าสู่ระบบ ----------
+     คนเยอะแล้ว (นนท์ 30 ก.ย. 69) → เปลี่ยนจากการ์ดชื่อทุกคน เป็นช่องพิมพ์ชื่อผู้ใช้ แล้วมีรายชื่อเด้งให้เลือก
+     ค้นได้ทั้งชื่อผู้ใช้ ชื่อเล่น ชื่อจริง นามสกุล · จำชื่อล่าสุดที่เข้าในเครื่องนี้ไว้ให้กดเข้าไว */
+  var loginQ = '', loginHi = 0;
+  function loginNorm(x) { return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function loginMatches(q) {
+    q = loginNorm(q);
+    if (!q || !loginStaff) return [];
+    var scored = [];
+    loginStaff.forEach(function (x) {
+      var hay = [loginLabel(x), x.name].concat(String(x.aliases || '').split(',')).map(loginNorm).filter(Boolean);
+      var best = -1;
+      hay.forEach(function (h, k) {
+        if (h === q) best = Math.max(best, 100 - k);
+        else if (h.indexOf(q) === 0) best = Math.max(best, 60 - k);
+        else if (h.split(/[\s()]+/).some(function (w) { return w.indexOf(q) === 0; })) best = Math.max(best, 40 - k);
+        else if (q.length >= 3 && h.indexOf(q) !== -1) best = Math.max(best, 20 - k);   /* กลางคำนับเมื่อพิมพ์ ≥ 3 ตัว ไม่งั้นรายชื่อรก */
+      });
+      if (best >= 0) scored.push({ x: x, s: best });
+    });
+    scored.sort(function (a, b) { return b.s - a.s || loginLabel(a.x).localeCompare(loginLabel(b.x), 'th'); });
+    return scored.slice(0, 8).map(function (o) { return o.x; });
   }
   function renderLogin(err) {
     renderHeaderUser();
@@ -738,26 +768,27 @@
     view.className = 'login';
     var picked = loginPick ? (loginStaff || []).filter(function (x) { return x.id === loginPick; })[0] : null;
     if (!picked) loginPick = null;
+    var last = null;
+    try { var lid = localStorage.getItem('kan-last-login'); last = lid && loginStaff ? loginStaff.filter(function (x) { return x.id === lid; })[0] : null; } catch (e) {}
 
     var h = '<div class="login-card"><h1>KAN Admin — งานทีม</h1>' +
-      '<p>' + (picked ? (picked.role === 'owner' ? 'บัญชีหัวหน้า ใส่รหัสผ่านก่อนเข้า' : 'ใส่รหัสผ่านก่อนเข้า') : 'กดชื่อตัวเองเพื่อเข้าระบบ') + '</p>' +
+      '<p>' + (picked ? (picked.needsPassword ? 'ใส่รหัสผ่านแล้วกดเข้าสู่ระบบ' : 'กดเข้าสู่ระบบได้เลย') : 'พิมพ์ชื่อผู้ใช้หรือชื่อเล่นของคุณ แล้วเลือกจากรายชื่อ') + '</p>' +
       (err ? '<div class="err" style="margin:14px 0 0"><p>' + esc(err) + '</p></div>' : '');
 
     if (!loginStaff) {
-      h += '<div class="who-grid"><p class="hint">กำลังโหลดรายชื่อ…</p></div>';
+      h += '<p class="hint" style="margin-top:18px">กำลังโหลด…</p>';
     } else if (picked) {
       h += '<div class="who-picked">' + avatar(picked, 'lg') + '<div><b>' + esc(loginLabel(picked)) + '</b><small>' + esc(picked.name) + (picked.role === 'owner' ? ' · หัวหน้า' : '') + '</small></div></div>' +
         '<form id="loginForm">' +
-        '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" autofocus required></div>' +
+        (picked.needsPassword ? '<div class="field"><label class="label">รหัสผ่าน</label><input class="input" name="password" type="password" autocomplete="current-password" autofocus required></div>' : '') +
         '<button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button>' +
-        '<button type="button" class="btn-text" id="loginBack">← เลือกชื่ออื่น</button></form>';
+        '<button type="button" class="btn-text" id="loginBack">← ไม่ใช่ฉัน เลือกชื่ออื่น</button></form>';
     } else {
-      h += '<div class="who-grid">' + loginStaff.map(function (x) {
-        return '<button type="button" class="who-btn' + (x.needsPassword ? ' owner' : '') + '" data-login="' + esc(x.id) + '">' +
-          avatar(x, 'lg') + '<b>' + esc(loginLabel(x)) + '</b>' +
-          '<small>' + (x.needsPassword ? (x.role === 'owner' ? 'หัวหน้า · ใส่รหัสผ่าน' : 'ใส่รหัสผ่าน') : (loginLabel(x) === x.name ? 'สมาชิก' : esc(x.name))) + '</small></button>';
-      }).join('') + '</div>' +
-        '<p class="foot">ไม่ต้องใส่รหัส กดชื่อแล้วเข้าได้เลย · ไม่มีชื่อคุณในนี้ ให้หัวหน้าเพิ่มในหน้า "ทีม + สิทธิ์"</p>';
+      h += '<div class="lg-find"><label class="label" for="loginQ">ชื่อผู้ใช้</label>' +
+        '<input class="input" id="loginQ" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="เช่น แตง, Tang, จุฑามาศ" value="' + esc(loginQ) + '">' +
+        '<div class="lg-list" id="loginList" role="listbox"></div></div>' +
+        (last ? '<button type="button" class="lg-last" data-login="' + esc(last.id) + '">' + avatar(last, 'sm') + '<span>เข้าในชื่อ <b>' + esc(loginLabel(last)) + '</b> อีกครั้ง</span></button>' : '') +
+        '<p class="foot">ไม่เจอชื่อตัวเอง ให้ HR หรือหัวหน้าเพิ่มในหน้า "สมาชิกระบบ"</p>';
     }
     h += '<div class="login-by">Powered by <b>M Creation</b></div></div>';
     view.innerHTML = h;
@@ -767,37 +798,56 @@
         loginStaff = j.staff || [];
         if (!S.me) renderLogin(err);
       }).catch(function () {
-        var g = $('.who-grid'); if (g) g.innerHTML = '<p class="hint">โหลดรายชื่อไม่ได้ ลองรีเฟรชหน้า</p>';
+        var c = $('.login-card .hint'); if (c) c.textContent = 'โหลดรายชื่อไม่ได้ ลองรีเฟรชหน้า';
       });
       return;
     }
 
     function submit(staffId, password) {
-      $$('.who-btn').forEach(function (b) { b.disabled = true; });
       var lb = $('#loginBtn'); if (lb) lb.disabled = true;
       var body = { staffId: staffId };
       if (password != null) body.password = password;
       return fetch(API + '/login', {
         method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เข้าไม่ได้'); return j; }); })
-        .then(function (j) { return afterLogin(j && j.me); })
+      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) { if (j.needPassword) { var x0 = loginStaff.filter(function (s) { return s.id === staffId; })[0]; if (x0) x0.needsPassword = true; } throw new Error(j.error || 'เข้าไม่ได้'); } return j; }); })
+        .then(function (j) { try { localStorage.setItem('kan-last-login', staffId); } catch (e) {} loginQ = ''; view.onclick = null; return afterLogin(j && j.me); })
         .catch(function (e) { renderLogin(e.message); });
     }
-
-    $$('[data-login]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var x = loginStaff.filter(function (s) { return s.id === b.getAttribute('data-login'); })[0];
-        if (!x) return;
-        if (x.needsPassword) { loginPick = x.id; renderLogin(); return; }
-        submit(x.id);
+    function pick(id) { loginPick = id; renderLogin(); }
+    function paintList() {
+      var box = $('#loginList');
+      if (!box) return;
+      var m = loginMatches(loginQ);
+      if (loginHi >= m.length) loginHi = 0;
+      box.innerHTML = !loginNorm(loginQ) ? '' : (m.length ? m.map(function (x, k) {
+        return '<button type="button" class="lg-opt' + (k === loginHi ? ' on' : '') + '" data-login="' + esc(x.id) + '" role="option">' + avatar(x, 'sm') +
+          '<span><b>' + esc(loginLabel(x)) + '</b><small>' + esc(x.name) + (x.role === 'owner' ? ' · หัวหน้า' : '') + '</small></span>' +
+          (x.needsPassword ? '<i>ใส่รหัส</i>' : '') + '</button>';
+      }).join('') : '<p class="lg-none">ไม่พบชื่อ "' + esc(loginQ) + '"</p>');
+      box.classList.toggle('open', !!loginNorm(loginQ));
+    }
+    var q = $('#loginQ');
+    if (q) {
+      paintList();
+      q.addEventListener('input', function () { loginQ = q.value; loginHi = 0; paintList(); });
+      q.addEventListener('keydown', function (ev) {
+        var m = loginMatches(loginQ);
+        if (ev.key === 'ArrowDown') { ev.preventDefault(); loginHi = Math.min(m.length - 1, loginHi + 1); paintList(); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); loginHi = Math.max(0, loginHi - 1); paintList(); }
+        else if (ev.key === 'Enter' && m.length) { ev.preventDefault(); pick(m[loginHi].id); }
       });
-    });
+      try { q.focus(); } catch (e) {}
+    }
+    view.onclick = function (ev) {
+      var b = ev.target.closest('[data-login]');
+      if (b) pick(b.getAttribute('data-login'));
+    };
     var back = $('#loginBack');
-    if (back) back.addEventListener('click', function () { loginPick = null; renderLogin(); });
+    if (back) back.addEventListener('click', function () { loginPick = null; loginQ = ''; renderLogin(); });
     var form = $('#loginForm');
     if (form) {
-      form.addEventListener('submit', function (ev) { ev.preventDefault(); submit(loginPick, this.password.value); });
-      try { form.password.focus(); } catch (e) {}
+      form.addEventListener('submit', function (ev) { ev.preventDefault(); submit(loginPick, form.password ? form.password.value : null); });
+      try { (form.password || $('#loginBtn')).focus(); } catch (e) {}
     }
   }
 
