@@ -1357,8 +1357,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       if (!first || !last) { errors.push(line + "ใส่ชื่อและนามสกุล"); continue; }
       if (user.length < 2 || /[()@,]/.test(user)) { errors.push(line + "ชื่อผู้ใช้ต้องยาว 2–30 ตัว ไม่มีเว้นวรรค และห้ามมี ( ) @ ,"); continue; }
       if (!secs && !(perms && FEATURES.some((f) => f.k !== "tickets" && perms[f.k] !== "none"))) { errors.push(line + "เลือกสิทธิ์อย่างน้อย 1 เมนู"); continue; }
-      if (!cur && pw.length < 6) { errors.push(line + "คนใหม่ต้องตั้งรหัสผ่านอย่างน้อย 6 ตัว"); continue; }
-      if (pw && pw.length < 6) { errors.push(line + "รหัสผ่านต้องยาวอย่างน้อย 6 ตัว"); continue; }
+      if (!cur && pw.length < 4) { errors.push(line + "คนใหม่ต้องตั้งรหัสผ่านอย่างน้อย 4 ตัว"); continue; }
+      if (pw && pw.length < 4) { errors.push(line + "รหัสผ่านต้องยาวอย่างน้อย 4 ตัว"); continue; }
       const key = user.toLowerCase();
       if (seen[key]) { errors.push(line + "ชื่อผู้ใช้ " + user + " ซ้ำกับแถวอื่นในตาราง"); continue; }
       seen[key] = 1;

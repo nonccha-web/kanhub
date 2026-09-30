@@ -6267,8 +6267,8 @@
     if (!String(r.firstName || '').trim()) m.push('ชื่อ');
     if (!String(r.lastName || '').trim()) m.push('นามสกุล');
     if (String(r.username || '').trim().length < 2) m.push('ชื่อผู้ใช้');
-    if (!r.id && String(r.password || '').length < 6) m.push('รหัสผ่าน (อย่างน้อย 6 ตัว)');
-    else if (r.password && String(r.password).length < 6) m.push('รหัสผ่านอย่างน้อย 6 ตัว');
+    if (!r.id && String(r.password || '').length < 4) m.push('รหัสผ่าน (อย่างน้อย 4 ตัว)');
+    else if (r.password && String(r.password).length < 4) m.push('รหัสผ่านอย่างน้อย 4 ตัว');
     if (!(r.sections || []).length) m.push('สิทธิ์');
     return m;
   }
@@ -6454,7 +6454,7 @@
         fld('lastName', 'นามสกุล *', f.lastName, 'autocomplete="off"') +
         fld('phone', 'เบอร์โทร', f.phone, 'inputmode="tel" autocomplete="off" placeholder="08x-xxx-xxxx"', 'เก็บไว้เป็นข้อมูลติดต่อ') +
         fld('username', 'ชื่อผู้ใช้ *', f.username, 'autocomplete="off" placeholder="เช่น Bow"', 'ขึ้นเป็นปุ่มในหน้าเข้าสู่ระบบ · ห้ามเว้นวรรค') +
-        '<label class="pp-f"><span>' + (isNew ? 'รหัสผ่าน *' : 'รหัสผ่านใหม่') + '</span><span class="pp-pw"><input name="password" value="' + esc(f.password || '') + '" autocomplete="new-password" placeholder="' + (isNew ? 'อย่างน้อย 6 ตัว' : 'เว้นว่าง = ใช้รหัสเดิม') + '">' +
+        '<label class="pp-f"><span>' + (isNew ? 'รหัสผ่าน *' : 'รหัสผ่านใหม่') + '</span><span class="pp-pw"><input name="password" value="' + esc(f.password || '') + '" autocomplete="new-password" placeholder="' + (isNew ? 'อย่างน้อย 4 ตัว' : 'เว้นว่าง = ใช้รหัสเดิม') + '">' +
           '<button type="button" class="btn-ghost sm" data-pp="genpw">สุ่มรหัส</button></span></label>' +
         (isNew ? '' : '<label class="pp-f pp-active"><span>สถานะ</span><span><input type="checkbox" name="active"' + (f.active !== false ? ' checked' : '') + '> ใช้งานอยู่</span></label>') +
       '</div>' +
@@ -6496,8 +6496,8 @@
     if (!String(f.firstName).trim()) miss.push('ชื่อ');
     if (!String(f.lastName).trim()) miss.push('นามสกุล');
     if (String(f.username).trim().length < 2) miss.push('ชื่อผู้ใช้');
-    if (!f.id && String(f.password).length < 6) miss.push('รหัสผ่าน (อย่างน้อย 6 ตัว)');
-    if (f.id && f.password && String(f.password).length < 6) miss.push('รหัสผ่านอย่างน้อย 6 ตัว');
+    if (!f.id && String(f.password).length < 4) miss.push('รหัสผ่าน (อย่างน้อย 4 ตัว)');
+    if (f.id && f.password && String(f.password).length < 4) miss.push('รหัสผ่านอย่างน้อย 4 ตัว');
     if (!ppFeats().some(function (x) { return x.k !== 'tickets' && f.perms[x.k] && f.perms[x.k] !== 'none'; })) miss.push('ติ๊กเมนูอย่างน้อย 1 อย่าง');
     if (miss.length) { err.textContent = 'ยังขาด: ' + miss.join(' · '); return; }
     var btn = $('#ppForm [data-pp="save"]'); btn.disabled = true;
