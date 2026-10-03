@@ -346,7 +346,35 @@ const ALTERS = [
   "ALTER TABLE tasks ADD COLUMN sign_qty INTEGER",
   "ALTER TABLE tasks ADD COLUMN sign_branch TEXT",
   "ALTER TABLE tasks ADD COLUMN stage TEXT",
+  /* สาขาของงาน + สาขาที่บัญชีเห็น (นนท์ 3 ต.ค. 69 — พลอยเห็นเฉพาะงานชุมพร) */
+  "ALTER TABLE tasks ADD COLUMN branch TEXT",
+  "ALTER TABLE staff ADD COLUMN branch_scope TEXT",
 ];
+
+export const TASK_BRANCHES = ["Kan Hub", "Kan Store สุราษฎร์", "Kan Store ชุมพร", "Kan Fashion", "อื่นๆ"];
+/* คำสั้นไว้จับงานเก่าที่ไม่มีช่องสาขา — ดูจากสาขาของงานป้าย (พิมพ์เอง) กับสาขาในปฏิทินที่ผูกไว้
+   สั้นไว้ก่อน: D1 รับ LIKE ภาษาไทยได้ไม่เกิน ~50 ไบต์ */
+const BRANCH_WORD = { "Kan Hub": "Hub", "Kan Store สุราษฎร์": "สุราษฎร์", "Kan Store ชุมพร": "ชุมพร", "Kan Fashion": "Fashion", "อื่นๆ": "อื่นๆ" };
+function branchScopeOf(row) {
+  if (!row || row.role === "owner") return null;
+  return TASK_BRANCHES.indexOf(row.branch_scope) !== -1 ? row.branch_scope : null;
+}
+/* งานที่บัญชีผูกสาขาเห็นได้: สาขาตรง (หรือไม่ได้ตั้งแต่ป้าย/ปฏิทินเป็นสาขานั้น) · งานย่อยของงานแบบนั้น · งานที่มอบให้ตัวเอง */
+function branchWhere(scope, meId) {
+  const w = "%" + BRANCH_WORD[scope] + "%";
+  const one = (a) => "(" + a + ".branch = ? OR ((" + a + ".branch IS NULL OR " + a + ".branch = '') AND (" +
+    a + ".sign_branch LIKE ? OR " + a + ".campaign_id IN (SELECT id FROM campaigns WHERE branches LIKE ?))))";
+  return {
+    sql: "(" + one("t") + " OR t.id IN (SELECT task_id FROM task_assignees WHERE staff_id = ?) OR t.parent_id IN (SELECT p.id FROM tasks p WHERE " + one("p") + "))",
+    binds: [scope, w, w, meId, scope, w, w],
+  };
+}
+async function taskVisible(db, me, taskId) {
+  const scope = branchScopeOf(me);
+  if (!scope || !taskId) return true;
+  const bw = branchWhere(scope, me.id);
+  return !!(await db.prepare("SELECT t.id FROM tasks t WHERE t.id = ? AND " + bw.sql).bind(taskId, ...bw.binds).first());
+}
 
 const MAX_PIN_FAILS = 5;
 const LOCK_MINUTES = 10;
@@ -841,7 +869,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -853,12 +881,12 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   if (row.role === "owner") {
     const va = getCookie(request, VIEWAS_COOKIE);
     if (va && va !== row.id && /^[A-Za-z0-9_-]{1,40}$/.test(va)) {
-      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending FROM staff WHERE id = ?").bind(va).first();
+      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(va).first();
       if (t && t.active && !t.pending && t.role !== "owner") { t._viewAsBy = { id: row.id, name: row.name }; return t; }
     }
   }
@@ -874,6 +902,7 @@ function publicStaff(r) {
     canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
     hoursPerDay: r.hours_per_day == null ? null : Number(r.hours_per_day),
+    branchScope: branchScopeOf(r),
   };
 }
 
@@ -1044,6 +1073,7 @@ function rowToTask(r) {
     signH: r.sign_h == null ? null : Number(r.sign_h),
     signQty: r.sign_qty == null ? null : Number(r.sign_qty),
     signBranch: r.sign_branch || null,
+    branch: r.branch || null,
     stage: r.stage || null,
     priority: r.priority || 0,
     createdBy: r.created_by,
@@ -1103,6 +1133,7 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
   const signW = num(input.signW, 100), signH = num(input.signH, 100);
   const signQty = input.signQty == null || input.signQty === "" ? null : Math.max(1, Math.min(9999, Math.round(Number(input.signQty) || 1)));
   const signBranch = input.signBranch ? String(input.signBranch).trim().slice(0, 80) : null;
+  const branch = TASK_BRANCHES.indexOf(input.branch) !== -1 ? input.branch : null;
   let hours = null;
   if (input.hours != null && input.hours !== "") {
     const h = Number(input.hours);
@@ -1115,7 +1146,7 @@ function cleanTask(input, kpiIds, staffIds, campaignIds) {
     : [];
   const parentId = input.parentId ? String(input.parentId).slice(0, 40) : null;
   const campaignId = input.campaignId && campaignIds && campaignIds.has(input.campaignId) ? input.campaignId : null;
-  return { value: { title, detail, kpiId, status, dueAt, repeat, repeatDays, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch } };
+  return { value: { title, detail, kpiId, status, dueAt, repeat, repeatDays, priority, assignees, parentId, campaignId, taskType, taskKind, support, hours, signW, signH, signQty, signBranch, branch } };
 }
 
 async function loadIdSets(db) {
@@ -1488,6 +1519,13 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     if (!allowed) return json({ error: "บัญชีนี้เห็นได้เฉพาะหน้าลีด (CRM)" }, 403);
   }
 
+  /* บัญชีที่ผูกสาขา — เห็นเฉพาะงานของสาขานั้น จึงปิด API ที่ดึงข้อมูลทั้งระบบ (โพสต์ ประวัติ รายงาน งานป้าย ฯลฯ) */
+  const myScope = branchScopeOf(me);
+  if (myScope) {
+    const ok = /^\/(me$|me\/|logout|notifications|push|tickets|files\/|updates\/|flows$|campaigns$|tasks$|tasks\/(?!bulk$)[A-Za-z0-9_-]{1,40}(\/updates|\/review|\/postpone-request)?$)/.test(path);
+    if (!ok) return json({ error: "บัญชีนี้เห็นเฉพาะงานสาขา " + myScope }, 403);
+  }
+
   /* แจ้งเตือนเด้งบนเครื่อง (Web Push) — โค้ดอยู่ worker-push.js */
   if (path === "/push" || path.indexOf("/push/") === 0) return handlePushApi(request, env, path, method, me, ctx);
 
@@ -1500,7 +1538,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   }
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,perms,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,perms,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,branch_scope FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -1989,8 +2027,9 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     let rows = [];
     try {
       const res = await db.prepare(
-        "SELECT id,name,kind,start_date,end_date,status,color FROM campaigns ORDER BY start_date DESC LIMIT 400"
-      ).all();
+        "SELECT id,name,kind,start_date,end_date,status,color FROM campaigns " +
+        (myScope ? "WHERE branches LIKE ? " : "") + "ORDER BY start_date DESC LIMIT 400"
+      ).bind(...(myScope ? ["%" + BRANCH_WORD[myScope] + "%"] : [])).all();
       rows = res.results || [];
     } catch (e) { rows = []; }
     return json({ campaigns: rows.map((r) => ({
@@ -2361,6 +2400,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้เพื่ออัปเดตงานแทนเติ้ล */
     if (body.canUpdateOthers != null) { sets.push("can_update_others = ?"); vals.push(body.canUpdateOthers ? 1 : 0); }
     if (body.canReschedule != null) { sets.push("can_reschedule = ?"); vals.push(body.canReschedule ? 1 : 0); }
+    if (body.branchScope !== undefined) { sets.push("branch_scope = ?"); vals.push(TASK_BRANCHES.indexOf(body.branchScope) !== -1 ? body.branchScope : null); }
     /* วันทำงานรายคน "0,1,2,..." (0 = อาทิตย์) — พิซซ่าหยุดพฤหัส เติ้ลหยุดเสาร์อาทิตย์ */
     if (body.workDays != null) {
       const wd = String(body.workDays).split(",").map((x) => Number(String(x).trim()))
@@ -2453,6 +2493,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     /* หน้ารายการโชว์เฉพาะงานหลัก งานย่อยไปโผล่ในหน้ารายละเอียดของพ่อแม่แทน
        เว้นแต่ขอ sub=1 (เช่นหน้า "งานของฉัน" ที่ต้องเห็นงานย่อยที่มอบให้ตัวเอง) */
     if (url.searchParams.get("sub") !== "1") where.push("t.parent_id IS NULL");
+    if (myScope) { const bw = branchWhere(myScope, me.id); where.push(bw.sql); binds.push(...bw.binds); }
     const sql = TASK_SELECT + (where.length ? "WHERE " + where.join(" AND ") : "") + TASK_ORDER;
     const res = await db.prepare(sql).bind(...binds).all();
     return json({ tasks: (res.results || []).map(rowToTask) });
@@ -2472,14 +2513,18 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const parsed = cleanTask(input, sets.kpiIds, sets.staffIds, sets.campaignIds);
       if (parsed.error) return json({ error: parsed.error }, 400);
       const v = parsed.value;
+      if (myScope) {
+        if (v.parentId && !(await taskVisible(db, me, v.parentId))) return json({ error: "ไม่พบงานหลักนี้" }, 404);
+        if (!v.branch && !v.parentId) v.branch = myScope;
+      }
       const id = newId("t_");
       ids.push(id);
       stmts.push(db.prepare(
-        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,repeat_days,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch) " +
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO tasks (id,title,detail,kpi_id,status,due_at,repeat,repeat_days,priority,created_by,created_at,updated_at,done_at,parent_id,campaign_id,task_type,task_kind,hours,support,due_original,sign_w,sign_h,sign_qty,sign_branch,branch) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).bind(id, v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, me.id, now, now,
              v.status === "done" ? now : null, v.parentId, v.campaignId, v.taskType, v.taskKind, v.hours, v.support, v.dueAt,
-             v.signW, v.signH, v.signQty, v.signBranch));
+             v.signW, v.signH, v.signQty, v.signBranch, v.branch));
       if (!v.parentId) signMains.push(id);   /* ensureSignStages เช็คเองว่าประเภทนี้มี flow ไหม */
       for (const sid of v.assignees) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO task_assignees (task_id, staff_id) VALUES (?,?)").bind(id, sid));
@@ -2770,7 +2815,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const id = taskMatch[1];
     const sub = taskMatch[2] || "";
     const row = await db.prepare(TASK_SELECT + "WHERE t.id = ?").bind(id).first();
-    if (!row) return json({ error: "ไม่พบงานนี้" }, 404);
+    if (!row || !(await taskVisible(db, me, id))) return json({ error: "ไม่พบงานนี้" }, 404);
     const task = rowToTask(row);
     const mine = task.assignees.indexOf(me.id) !== -1;
 
@@ -2840,6 +2885,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
           signH: body.signH !== undefined ? body.signH : task.signH,
           signQty: body.signQty !== undefined ? body.signQty : task.signQty,
           signBranch: body.signBranch !== undefined ? body.signBranch : task.signBranch,
+          branch: body.branch !== undefined ? body.branch : task.branch,
         };
         const parsed = cleanTask(merged, sets.kpiIds, sets.staffIds, sets.campaignIds);
         if (parsed.error) return json({ error: parsed.error }, 400);
@@ -2849,11 +2895,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
         const moved = !!(task.dueAt && v.dueAt && new Date(task.dueAt).getTime() !== new Date(v.dueAt).getTime());
         const stmts = [
           db.prepare(
-            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,repeat_days=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=? WHERE id=?"
+            "UPDATE tasks SET title=?,detail=?,kpi_id=?,status=?,due_at=?,repeat=?,repeat_days=?,priority=?,updated_at=?,done_at=?,campaign_id=?,task_type=?,task_kind=?,hours=?,support=?,due_original=?,postpones=?,sign_w=?,sign_h=?,sign_qty=?,sign_branch=?,branch=? WHERE id=?"
           ).bind(v.title, v.detail, v.kpiId, v.status, v.dueAt, v.repeat, v.repeatDays, v.priority, now,
                  v.status === "done" ? (task.doneAt || now) : null, v.campaignId, v.taskType,
                  v.taskKind, v.hours, v.support, task.dueOriginal || v.dueAt, moved ? (task.postpones || 0) + 1 : (task.postpones || 0),
-                 v.signW, v.signH, v.signQty, v.signBranch, id),
+                 v.signW, v.signH, v.signQty, v.signBranch, v.branch, id),
           db.prepare("DELETE FROM task_assignees WHERE task_id = ?").bind(id),
         ];
         if (moved) {
@@ -3177,8 +3223,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* --- รูปแนบ --- */
   const fileMatch = path.match(/^\/files\/([A-Za-z0-9_-]{1,40})$/);
   if (fileMatch && method === "GET") {
-    const row = await db.prepare("SELECT mime, data, file_name, kind, url FROM task_files WHERE id = ?").bind(fileMatch[1]).first();
-    if (!row) return new Response("ไม่พบไฟล์", { status: 404 });
+    const row = await db.prepare("SELECT mime, data, file_name, kind, url, task_id FROM task_files WHERE id = ?").bind(fileMatch[1]).first();
+    if (!row || !(await taskVisible(db, me, row.task_id))) return new Response("ไม่พบไฟล์", { status: 404 });
     if (row.kind === "link") return Response.redirect(row.url, 302);
     const binary = atob(row.data);
     const bin = new Uint8Array(binary.length);

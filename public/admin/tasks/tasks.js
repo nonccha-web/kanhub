@@ -877,7 +877,7 @@
       (canEditRow(t) ? '<i class="tpen" role="button" tabindex="0" data-tedit="' + esc(t.id) + '" title="แก้ชื่องาน" aria-label="แก้ชื่องาน">✎</i>' : '') + '</span>' +
       '<span class="m">' +
       (canAssign() ? '<span class="edt" role="button" tabindex="0" data-aedit="' + esc(t.id) + '" title="เปลี่ยนคนรับ">' + avatars(t.assignees) + '</span>' : avatars(t.assignees)) +
-      typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + cycle +
+      typeChip(t.taskType) + kpiChip(t.kpiId) + campaignChip(t.campaignId, false, true) + branchPill(t.branch) + cycle +
       (es === 'doing' ? '<span class="pill doing">กำลังทำ</span>' : '') +
       (es === 'review' ? '<span class="pill review">รอตรวจ</span>' : '') +
       (es === 'blocked' ? '<span class="pill blocked">ติดปัญหา</span>' : '') +
@@ -2338,7 +2338,8 @@
         '<h1>' + (mineView ? (S.viewAs ? esc(whoS.name) : 'สวัสดี ' + esc(shortName(S.me))) : 'ภาพรวมงาน') + '</h1>' +
         '<p>' + (mineView
           ? (openS.length ? 'มีงานค้าง ' + openS.length + ' รายการ' + (lateS.length ? ' · เลยกำหนด ' + lateS.length : '') + (todayS.length ? ' · ครบกำหนดวันนี้ ' + todayS.length : '') : 'ไม่มีงานค้าง เยี่ยม')
-          : 'ทุกงานที่สั่งไว้ แยกดูตามคน ตาม KPI หรือตามกำหนดส่ง — กดที่งานเพื่อดูรายละเอียดและรูปที่ทีมอัปเดต') + '</p></div>' +
+          : 'ทุกงานที่สั่งไว้ แยกดูตามคน ตาม KPI หรือตามกำหนดส่ง — กดที่งานเพื่อดูรายละเอียดและรูปที่ทีมอัปเดต') + '</p>' +
+        (S.me.branchScope ? '<p><span class="pill kind">' + esc(S.me.branchScope) + '</span> บัญชีนี้เห็นเฉพาะงานของสาขา ' + esc(S.me.branchScope) + ' และงานที่มอบให้ตัวเอง</p>' : '') + '</div>' +
         '<div class="top-r">' + (amOwner() ? '<a class="btn-ghost" href="#/kpi">KPI 2570</a>' : '') + (readOnly() ? '' : '<a class="btn" href="#/new">+ สั่งงาน</a>') + '</div></div>';
       h += '<div class="cards">' +
         '<article class="hot" data-go="open"><span class="l">' + (mineView ? 'งานค้างของฉัน' : 'งานค้างทั้งทีม') + '</span><b>' + openS.length + '</b><small>รวมงานประจำ</small></article>' +
@@ -2625,10 +2626,13 @@
   var SUPPORT_V = '__support__';
   var drafts = [];
   var dgrid = null;
+  var TASK_BRANCHES = ['Kan Hub', 'Kan Store สุราษฎร์', 'Kan Store ชุมพร', 'Kan Fashion', 'อื่นๆ'];
+  function branchPill(b) { return b ? '<span class="pill kind">' + esc(b) + '</span>' : ''; }
 
   function blankDraft(last) {
     return { title: '', taskType: '', taskKind: 'ondemand', assignees: [], date: '', time: '', hours: '',
              detail: '', repeat: '', kpiId: '', support: 0, signW: '', signH: '', signQty: '', signBranch: '',
+             branch: (last && last.branch) || (S.me && S.me.branchScope) || '',
              campaignId: (last && last.campaignId) || (S.route.query || {}).campaign || '' };
   }
   function draftBlank(r) {
@@ -2816,6 +2820,19 @@
       { key: 'signBranch', label: 'สาขา', width: 110,
         parse: function (s2) { return String(s2).trim().slice(0, 80); } },
 
+      { key: 'branch', label: 'สาขาของงาน', width: 150, type: 'pick',
+        options: function () {
+          return [{ v: '', label: '— ไม่ระบุ —' }].concat(TASK_BRANCHES.map(function (b) { return { v: b, label: b }; }));
+        },
+        text: function (r) { return r.branch || ''; },
+        parse: function (s) {
+          s = String(s).trim().toLowerCase();
+          if (!s || s.indexOf('ไม่ระบุ') !== -1) return '';
+          var hit = TASK_BRANCHES.filter(function (b) { return b.toLowerCase() === s; })[0] ||
+                    TASK_BRANCHES.filter(function (b) { return b.toLowerCase().indexOf(s) !== -1; })[0];
+          return hit || null;
+        } },
+
       { key: 'campaignId', label: 'ปฏิทินการตลาด', width: 170, type: 'pick',
         options: function () {
           return [{ v: '', label: '— ไม่ผูก —' }].concat((S.campaigns || []).map(function (c) {
@@ -2869,7 +2886,7 @@
                  assignees: (src.assignees || []).slice(), date: src.date, time: src.time,
                  hours: src.hours, detail: src.detail, repeat: src.repeat,
                  kpiId: src.kpiId, support: src.support, campaignId: src.campaignId,
-                 signW: src.signW, signH: src.signH, signQty: src.signQty, signBranch: src.signBranch };
+                 signW: src.signW, signH: src.signH, signQty: src.signQty, signBranch: src.signBranch, branch: src.branch };
       },
       /* ขีดแดงหน้าแถวที่กรอกไม่ครบ — เห็นตั้งแต่ยังไม่กดบันทึก */
       tone: function (r) { return (!draftBlank(r) && draftMissing(r).length) ? 'miss' : ''; },
@@ -2917,6 +2934,7 @@
       hours: '',
       support: 0,
       signW: '', signH: '', signQty: '', signBranch: '',
+      branch: (S.me && S.me.branchScope) || '',
       assignees: t.assignees || [],
       date: ok ? ymd(d) : '',
       time: ok ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '',
@@ -2954,7 +2972,8 @@
                hours: r.hours === '' ? null : r.hours, priority: 0,
                campaignId: r.campaignId || null,
                signW: r.signW === '' ? null : r.signW, signH: r.signH === '' ? null : r.signH,
-               signQty: r.signQty === '' ? null : r.signQty, signBranch: r.signBranch || null };
+               signQty: r.signQty === '' ? null : r.signQty, signBranch: r.signBranch || null,
+               branch: r.branch || null };
     });
     api('/tasks', 'POST', { tasks: payload }).then(function (j) {
       var n = (j.ids || []).length;
@@ -4513,6 +4532,7 @@
         (parent ? '<a href="#/task/' + esc(parent.id) + '">' + esc(parent.title) + '</a><span>›</span><span class="pill repeat">งานย่อย</span><span>›</span>' : '') +
         (t.kpiId ? '<a href="#/all?kpi=' + esc(t.kpiId) + '">' + esc((kpiById(t.kpiId) || {}).code || '') + '</a><span>›</span>' : '') +
         (t.campaignId && campaignById(t.campaignId) ? campaignChip(t.campaignId) + '<span>›</span>' : '') +
+        (t.branch ? branchPill(t.branch) + '<span>›</span>' : '') +
         '<span class="pill ' + (late ? 'late' : esc(es)) + '">' + (late ? 'เลยกำหนด' : STATUS_TH[es]) + '</span>' +
         (t.repeat ? '<span class="pill ' + (es === 'done' ? 'done' : 'repeat') + '">' +
           (t.repeat === 'daily'
@@ -4552,6 +4572,8 @@
           '<div class="field"><label class="label">สูง (ม.)</label><input class="input" type="number" step="0.01" min="0" max="100" name="signH" value="' + (t.signH == null ? '' : esc(String(t.signH))) + '"></div>' +
           '<div class="field"><label class="label">จำนวนใบ</label><input class="input" type="number" step="1" min="1" max="9999" name="signQty" value="' + (t.signQty == null ? '' : esc(String(t.signQty))) + '"></div>' +
           '<div class="field" style="grid-column:1/-1"><label class="label">สาขา</label><input class="input" name="signBranch" value="' + esc(t.signBranch || '') + '" placeholder="สุราษฎร์ธานี / ชุมพร / ภูเก็ต / KAN Fashion"></div></div>' +
+          '<div class="field"><label class="label">สาขาของงาน <small>คนที่ผูกสาขาไว้จะเห็นเฉพาะงานของสาขาตัวเอง</small></label><select class="select" name="branch">' +
+          '<option value="">— ไม่ระบุ —</option>' + TASK_BRANCHES.map(function (b) { return '<option' + (t.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') + '</select></div>' +
           '<div class="grid3"><div class="field"><label class="label">กำหนดส่ง</label><input class="input" type="datetime-local" name="dueAt" value="' + esc(toLocalInput(t.dueAt)) + '"></div>' +
           '<div class="field"><label class="label">ความถี่</label><select class="select" name="repeat">' + REPEAT_OPTS.map(function (p) { return '<option value="' + p[0] + '"' + (t.repeat === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="label">KPI <small>ทุกงานต้องมีคำตอบ</small></label><select class="select" name="kpiId">' +
@@ -4960,6 +4982,7 @@
           signH: f.signH.value === '' ? null : Number(f.signH.value),
           signQty: f.signQty.value === '' ? null : Number(f.signQty.value),
           signBranch: f.signBranch.value || null,
+          branch: f.branch.value || null,
           campaignId: f.campaignId.value || null,
           assignees: $$('.chip.on[data-as]', $('#editAs')).map(function (b) { return b.getAttribute('data-as'); })
         }).then(function () {
@@ -6816,7 +6839,10 @@
             '<button type="button" class="chip plain' + (s.canReschedule ? ' on' : '') + '"' +
             (owner ? ' data-resch-staff="' + esc(s.id) + '" data-to="' + (s.canReschedule ? '0' : '1') + '"' : ' disabled') +
             ' title="เลื่อนกำหนดส่งของงานได้เอง ไม่ต้องขออนุมัติ">แก้วันกำหนดส่งได้</button>' +
-            '<span class="wdays">' + esc(workDaysLabel(s)) + '</span></div>') + '</div>' +
+            '<span class="wdays">' + esc(workDaysLabel(s)) + '</span>' +
+            '<select class="select sm" style="width:auto;height:28px;padding:0 8px;font-size:12.5px"' + (owner ? ' data-scope-staff="' + esc(s.id) + '"' : ' disabled') + ' title="เห็นงานเฉพาะสาขานี้ + งานที่มอบให้ตัวเอง">' +
+            '<option value="">เห็นงานทุกสาขา</option>' + TASK_BRANCHES.map(function (b) { return '<option value="' + esc(b) + '"' + (s.branchScope === b ? ' selected' : '') + '>เฉพาะ ' + esc(b) + '</option>'; }).join('') +
+            '</select></div>') + '</div>' +
           (owner ? '<div class="acts"><button type="button" class="btn-ghost sm" data-edit-staff="' + esc(s.id) + '">แก้ไข</button>' +
             '<button type="button" class="btn-ghost sm" data-days-staff="' + esc(s.id) + '">วันทำงาน</button>' +
             (s.role === 'owner' && s.id !== S.me.id ? '<button type="button" class="btn-ghost sm" data-pw-staff="' + esc(s.id) + '">ตั้งรหัสผ่านให้</button>' : '') +
@@ -6997,6 +7023,20 @@
          ไม่ใช่แค่เมนูเปลี่ยน · ออกจากโหมดค่อยกลับมาหน้าทีม */
       if (S.viewAs) location.hash = '#/me'; else render();
     });
+    if (!view._scopeWired) view.addEventListener('change', function (ev) {
+      var sel = ev.target.closest('[data-scope-staff]');
+      if (!sel) return;
+      var sid = sel.getAttribute('data-scope-staff'), val = sel.value;
+      sel.disabled = true;
+      api('/staff/' + sid, 'PUT', { branchScope: val || null })
+        .then(refreshMe)
+        .then(function () {
+          okDialog({ title: 'ตั้งสาขาแล้ว', lines: [shortName(staffById(sid)) + ': ' + (val ? 'เห็นเฉพาะงาน ' + val + ' + งานที่มอบให้ตัวเอง' : 'เห็นงานทุกสาขา')] });
+          renderTeam();
+        })
+        .catch(function (e) { sel.disabled = false; toast(e.message, true); });
+    });
+    view._scopeWired = true;
     view.addEventListener('click', function (ev) {
       var b;
       /* สิทธิ์ติ๊กงานแทนคนอื่น */
