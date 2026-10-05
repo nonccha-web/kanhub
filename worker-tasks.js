@@ -1522,7 +1522,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* บัญชีที่ผูกสาขา — เห็นเฉพาะงานของสาขานั้น จึงปิด API ที่ดึงข้อมูลทั้งระบบ (โพสต์ ประวัติ รายงาน งานป้าย ฯลฯ) */
   const myScope = branchScopeOf(me);
   if (myScope) {
-    const ok = /^\/(me$|me\/|logout|notifications|push|tickets|files\/|updates\/|flows$|campaigns$|tasks$|tasks\/(?!bulk$)[A-Za-z0-9_-]{1,40}(\/updates|\/review|\/postpone-request)?$)/.test(path);
+    const ok = /^\/(me$|me\/|logout|notifications|push|tickets|files\/|updates\/|flows$|campaigns$|signage$|tasks$|tasks\/(?!bulk$)[A-Za-z0-9_-]{1,40}(\/updates|\/review|\/postpone-request)?$)/.test(path);
     if (!ok) return json({ error: "บัญชีนี้เห็นเฉพาะงานสาขา " + myScope }, 403);
   }
 
@@ -1970,7 +1970,9 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
   /* ---- หน้างานป้าย: งานหลัก + 6 ขั้น + รูปของแต่ละขั้น ในคำขอเดียว ---- */
   if (path === "/signage" && method === "GET") {
-    const mains = await db.prepare(TASK_SELECT + "WHERE t.task_type = 'signage' AND t.parent_id IS NULL" + TASK_ORDER).all();
+    const sbw = myScope ? branchWhere(myScope, me.id) : null;
+    const mains = await db.prepare(TASK_SELECT + "WHERE t.task_type = 'signage' AND t.parent_id IS NULL" + (sbw ? " AND " + sbw.sql : "") + TASK_ORDER)
+      .bind(...(sbw ? sbw.binds : [])).all();
     const list = (mains.results || []).map(rowToTask);
     const ids = list.map((t) => t.id);
     let stages = [];
@@ -1981,7 +1983,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
         /* ไม่ยัด id เป็น ?,?,? — D1 รับตัวแปรได้ 100 ตัว งานป้ายเกินร้อยแล้วหน้าพัง (18 ก.ย. 69) */
         "FROM tasks t WHERE t.stage IS NOT NULL AND t.parent_id IN (SELECT id FROM tasks WHERE task_type = 'signage' AND parent_id IS NULL)";
       const sr = await db.prepare(q).all();
-      stages = (sr.results || []).map((r) => ({
+      const keep = new Set(ids);
+      stages = (sr.results || []).filter((r) => keep.has(r.parent_id)).map((r) => ({
         id: r.id, parentId: r.parent_id, stage: r.stage, status: r.status, dueAt: r.due_at,
         doneAt: r.done_at, submittedAt: r.submitted_at, nPic: r.n_pic || 0, picId: r.pic_id || null,
       }));
