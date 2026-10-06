@@ -14,6 +14,8 @@
   หน้าโปรโมชั่นสำหรับลูกค้า — ใส่ในริชเมนู LINE OA (นนท์ 28 ก.ย. 69)
   ข้อมูลมาจากปฏิทินการตลาดหลังบ้านผ่าน /api/promos (ไม่ต้องล็อกอิน · ส่งออกเฉพาะข้อมูลที่ลูกค้าควรเห็น)
   ลูกค้าเห็นล่วงหน้าแค่ 1 วัน · แยกสาขาด้วย ?b=surat | chumphon | fashion | hub
+  ลิงก์ริชเมนูรายสาขา (นนท์ 6 ต.ค. 69): /promo/surat/ · /promo/chumphon/ · /promo/fashion/ · /promo/hub/
+    → worker.js เสิร์ฟไฟล์นี้ไฟล์เดียว · ล็อกสาขาตาม path ซ่อนแถบเลือกสาขา · เปลี่ยนโลโก้/สีตามสาขา (Kan Fashion = ชมพู)
 -->
 <style>
   :root{ --ink:#1A1917; --soft:#4A4843; --mut:#8A877E; --line:#E6E3DC; --paper:#fff; --ground:#F6F4EF;
@@ -25,6 +27,9 @@
   .hero{ background:var(--brand); color:#fff; padding:22px 18px 20px; padding-top:calc(22px + env(safe-area-inset-top)); }
   .hero-in{ max-width:560px; margin:0 auto; display:flex; align-items:center; gap:14px; }
   .hero img{ width:48px; height:48px; border-radius:12px; background:#fff; object-fit:contain; padding:4px; flex:none; }
+  .hero img.icon{ width:56px; height:56px; padding:3px; border-radius:16px; }
+  .one .tabs{ display:none; }
+  .one .hero-k{ letter-spacing:.06em; }
   .hero-k{ font-size:12px; font-weight:700; letter-spacing:.24em; opacity:.85; }
   .hero h1{ margin:0; font-size:27px; line-height:1.15; font-weight:800; letter-spacing:.01em; }
   .hero p{ margin:3px 0 0; font-size:13.5px; opacity:.9; }
@@ -67,8 +72,8 @@
 </head>
 <body>
 <header class="hero"><div class="hero-in">
-  <img src="/img/logo-kanhub.png" alt="KAN">
-  <div><div class="hero-k">PROMOTION</div><h1>โปรโมชั่นวันนี้</h1><p id="today">&nbsp;</p></div>
+  <img id="logo" src="/img/logo-kanhub.png" alt="KAN">
+  <div><div class="hero-k" id="kick">PROMOTION</div><h1>โปรโมชั่นวันนี้</h1><p id="today">&nbsp;</p></div>
 </div></header>
 <nav class="tabs" aria-label="เลือกสาขา"><div class="tabs-in" id="tabs"></div></nav>
 <main class="wrap" id="list"><div class="skel"></div><div class="skel"></div></main>
@@ -79,11 +84,14 @@
   "use strict";
   var BR = [
     { k: "", th: "ทุกสาขา" },
-    { k: "surat", th: "Kan Store สุราษฎร์", v: "Kan Store สุราษฎร์" },
-    { k: "chumphon", th: "Kan Store ชุมพร", v: "Kan Store ชุมพร" },
-    { k: "fashion", th: "Kan Fashion", v: "Kan Fashion" },
-    { k: "hub", th: "Kan Hub", v: "Kan Hub" }
+    { k: "surat", th: "Kan Store สุราษฎร์", v: "Kan Store สุราษฎร์", logo: "/img/promo/logo-store.png", c: "#E10501", ci: "#B00400" },
+    { k: "chumphon", th: "Kan Store ชุมพร", v: "Kan Store ชุมพร", logo: "/img/promo/logo-store.png", c: "#E10501", ci: "#B00400" },
+    { k: "fashion", th: "Kan Fashion", v: "Kan Fashion", logo: "/img/promo/logo-fashion.png", c: "#C30976", ci: "#9C065E" },
+    { k: "hub", th: "Kan Hub", v: "Kan Hub", logo: "/img/promo/logo-store.png", c: "#E10501", ci: "#B00400" }
   ];
+  /* ลิงก์รายสาขา /promo/<สาขา>/ = ล็อกสาขานั้น ลูกค้าเห็นเฉพาะโปรของสาขาตัวเอง */
+  var pm = location.pathname.match(/^\/promo\/([a-z]+)\/?$/);
+  var lock = pm && BR.filter(function (x) { return x.k && x.k === pm[1]; })[0];
   var MS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   var DW = ["อา.","จ.","อ.","พ.","พฤ.","ศ.","ส."];
   var data = null, cur = "";
@@ -132,6 +140,7 @@
     $("list").innerHTML = h + '<div class="foot">Powered by M Creation</div>';
   }
   function setBranch(k) {
+    if (lock) return;
     cur = k;
     try { localStorage.setItem("kan-promo-b", k); } catch (e) {}
     var u = new URL(location.href);
@@ -148,7 +157,16 @@
   });
   /* สาขาจากลิงก์ริชเมนู (?b=) มาก่อน ไม่มีค่อยใช้ที่ลูกค้าเลือกไว้ครั้งก่อน */
   var q = new URLSearchParams(location.search).get("b");
-  if (q !== null && BR.some(function (x) { return x.k === q; })) cur = q;
+  if (lock) {
+    cur = lock.k;
+    document.body.classList.add("one");
+    document.documentElement.style.setProperty("--brand", lock.c);
+    document.documentElement.style.setProperty("--brand-ink", lock.ci);
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", lock.c);
+    var lg = $("logo"); lg.src = lock.logo; lg.alt = lock.th; lg.className = "icon";
+    $("kick").textContent = lock.th.toUpperCase();
+    document.title = "โปรโมชั่น — " + lock.th;
+  } else if (q !== null && BR.some(function (x) { return x.k === q; })) cur = q;
   else { try { var sv = localStorage.getItem("kan-promo-b"); if (sv && BR.some(function (x) { return x.k === sv; })) cur = sv; } catch (e) {} }
   fetch("/api/promos", { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) {
     data = j;

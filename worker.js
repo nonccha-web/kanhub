@@ -857,6 +857,10 @@ export default {
 
     // ที่เหลือ (รวม workers.dev + localhost ตอน dev) — /admin ต้องผ่านด่านสิทธิ์เหมือนกัน
     if (url.pathname.indexOf("/admin") === 0) return await serveAdmin(request, env, url);
+    /* ลิงก์โปรโมชั่นรายสาขาในริชเมนู LINE (นนท์ 6 ต.ค. 69) — ไฟล์เดียวกับ /promo/ หน้าเว็บอ่านสาขาจาก path เอง */
+    if (/^\/promo\/(surat|chumphon|fashion|hub)\/?$/.test(url.pathname)) {
+      return env.ASSETS.fetch(new Request(new URL("/promo/", url), request));
+    }
     /* รูปอัลบั้มหน้าขาย (/grade-b/img/*) ไม่เปลี่ยนแล้ว — ให้มือถือเก็บไว้ 7 วัน เปิดลิงก์ซ้ำไม่ต้องถามเซิร์ฟเวอร์ทีละรูป */
     if (/^\/grade-b\/img\//.test(url.pathname)) {
       const res = await env.ASSETS.fetch(request);
