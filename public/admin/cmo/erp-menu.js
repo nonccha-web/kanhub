@@ -60,6 +60,9 @@
     { id: 'kanchat', label: 'Kan Chat', groups: [
       { direct: true, icon: 'message', label: 'กล่องแชท', sec: 'chat', note: 'LINE ทุกเพจ · ตอบในที่เดียว',
         items: [{ icon: 'message', label: 'กล่องแชท', tasks: '#/chat', f: 'chat' }] },
+      /* Kan Bot (นนท์ 10 ต.ค. 69) — prompt ย้ายมาจาก Dabby · ตอบแทนแอดมิน + ขอเบอร์เข้า CRM */
+      { direct: true, icon: 'zap', label: 'แชทบอท', sec: 'chat', note: 'Kan Bot ตอบแทนแอดมิน · ขอเบอร์เข้า CRM',
+        items: [{ icon: 'zap', label: 'แชทบอท', tasks: '#/bot', f: 'chat' }] },
       /* CRM ย้ายมาอยู่ Kan Chat (นนท์ 29 ก.ย. 69) — ลีดจากแอด/เพจ/แชท · ทีมขายไล่ปิด */
       { direct: true, icon: 'users', label: 'ลีด (CRM)', sec: 'crm', note: 'ลีดจากแอด/เพจ/แชท · ไล่ปิดการขาย',
         items: [{ icon: 'users', label: 'ลีด (CRM)', tasks: '#/leads', sec: 'crm', f: 'leads' }] },

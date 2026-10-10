@@ -74,58 +74,44 @@
       var drafts = bs.filter(function (b) { return b.status === 'draft'; });
 
       var v = view();
-      v.className = 'page';
-      var h = '<div class="top"><div><span class="kicker">Kan Chat</span><h1>บรอดแคสต์ LINE</h1>' +
-        '<p>ส่งข้อความถึงคนที่แอดเพจ LINE ของเรา เลือกได้ว่าจะยิงเพจไหน ทุกคนหรือเฉพาะกลุ่ม · ส่ง SMS แยกที่เมนู <a href="#/sms">ส่ง SMS</a></p></div>' +
-        '<div class="top-r"><a class="btn-ghost" href="#/richmenu">ริชเมนู</a>' +
-        '<button type="button" class="btn" id="blNew">+ สร้างบรอดแคสต์</button></div></div>';
+      v.className = 'page bl-mc';
+      var sent = bs.filter(function (b) { return b.status === 'sent'; });
+      var qLimit = chs.reduce(function (a, c) { return a + (c.quotaLimit || 0); }, 0);
+      var qUsed = chs.reduce(function (a, c) { return a + (c.quotaUsed || 0); }, 0);
+      var LINE_IC = '<span class="bl-mc-ch"><svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5 1.1-.4 5.9-3.5 8-5.9C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8z"/></svg></span>';
+      var pages = function (b) { return b.channels.map(chanById).filter(Boolean).map(function (c) { return chDot(c, 1) + esc(c.name); }).join(' · ') || '<span class="bl-mut">ยังไม่ได้เลือกเพจ</span>'; };
+      var pct = function (a, b) { return b ? ' <span class="bl-mut">(' + (a / b * 100).toFixed(2) + '%)</span>' : ''; };
+      var h = '<div class="bl-mc-top"><h1>บรอดแคสต์ LINE</h1>' +
+        '<div class="bl-mc-r"><a class="bl-mc-out" href="#/richmenu">ริชเมนู</a><a class="bl-mc-out" href="#/lineusers">ผู้ติดตาม ' + num(reach) + ' คน</a>' +
+        '<button type="button" class="bl-mc-blue" id="blNew">สร้างบรอดแคสต์</button></div></div>';
       h += modeBar();
+      h += '<div class="bl-mc-quota"><span>ส่งไปเดือนนี้ <b>' + num(msgs) + '</b> ข้อความ · ' + sentThisMonth.length + ' ครั้ง</span>' +
+        (qLimit ? '<span>โควตารวมทุกเพจ <i class="bl-mc-bar"><i style="width:' + Math.min(100, Math.round(qUsed / qLimit * 100)) + '%"></i></i> <b>' + num(qUsed) + '</b> / ' + num(qLimit) + '</span>'
+          : '<span class="bl-mut">ยังไม่ได้ดึงโควตาจาก LINE</span>') +
+        '<span>' + chs.map(function (c) { return chDot(c, 1) + esc(c.name) + (c.hasToken ? '' : ' <small class="bl-warn">ยังไม่ต่อ</small>'); }).join(' &nbsp; ') + '</span></div>';
 
-      h += '<div class="cards">' +
-        '<article><span class="l">เพจที่ยิงได้</span><b>' + chs.filter(function (c) { return c.active; }).length + '</b><small>จากทั้งหมด ' + chs.length + ' เพจ</small></article>' +
-        '<article><span class="l">คนที่ส่งถึงได้</span><b>' + num(reach) + '</b><small>ผู้ติดตามที่ยังไม่บล็อกเพจ</small></article>' +
-        '<article' + (msgs ? ' class="warn"' : '') + '><span class="l">ส่งไปเดือนนี้</span><b>' + num(msgs) + '</b><small>' + sentThisMonth.length + ' ครั้ง</small></article>' +
-        '<article><span class="l">รอส่งตามเวลา</span><b>' + queued.length + '</b><small>' + (drafts.length ? 'ร่างค้างอีก ' + drafts.length + ' ใบ' : 'ไม่มีร่างค้าง') + '</small></article></div>';
+      h += '<h2 class="bl-mc-h">ร่าง <small>' + drafts.length + '</small></h2><div class="bl-mc-card"><div class="bl-mc-tw"><table class="bl-mc-t"><thead><tr><th class="w0"></th><th>ช่องทาง</th><th>ชื่อ</th><th>เพจ</th><th>ผู้รับ</th><th>แก้ล่าสุด</th></tr></thead><tbody>' +
+        (drafts.length ? drafts.map(function (b) {
+          return '<tr data-go="' + esc(b.id) + '"><td class="w0">⋮</td><td>' + LINE_IC + '</td><td class="nm">' + esc(b.title) + (b.taskId ? ' <i class="bl-tag">จากงาน</i>' : '') + '</td>' +
+            '<td>' + pages(b) + '</td><td class="bl-mut">' + esc(audienceLabel(b.audience || { kind: 'all' })) + '</td><td>' + esc(X.fmtAgo(b.updatedAt)) + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="bl-mc-empty">ไม่มีร่างค้าง — กด “สร้างบรอดแคสต์” หรือเปิดจากงานประเภท LINE OA</td></tr>') + '</tbody></table></div></div>';
 
-      /* ---- เพจ ---- */
-      h += '<div class="sec"><div class="sec-h"><h2>เพจ LINE OA</h2><p>โควตา = จำนวนข้อความที่แพ็กเกจเดือนนี้ยังส่งได้</p></div><div class="sec-b tight">' +
-        '<div class="bl-chgrid">' + chs.map(function (c) {
-          var pctUsed = c.quotaLimit ? Math.min(100, Math.round(c.quotaUsed / c.quotaLimit * 100)) : 0;
-          return '<div class="bl-ch' + (c.active ? '' : ' off') + '">' +
-            '<div class="bl-ch-h">' + chDot(c) + '<b>' + esc(c.name) + '</b><span>' + esc(c.basicId || '') + '</span></div>' +
-            '<div class="bl-ch-n"><b>' + num(c.reach) + '</b> คนที่ส่งถึงได้' +
-              (c.followers > c.reach ? ' <small>· บล็อก ' + num(c.followers - c.reach) + '</small>' : '') + '</div>' +
-            (c.quotaLimit
-              ? '<div class="bl-quota"><i style="width:' + pctUsed + '%"></i></div>' +
-                '<small class="bl-ch-q">เหลือ ' + num(c.quotaLeft) + ' จาก ' + num(c.quotaLimit) + ' ข้อความ</small>'
-              : '<small class="bl-ch-q">ยังไม่ได้ตั้งโควตา</small>') +
-            '<div class="bl-ch-f">' + (c.hasToken
-              ? '<span class="bl-ok">ต่อ LINE แล้ว ••••' + esc(c.tokenTail) + '</span>'
-              : '<span class="bl-warn">ยังไม่ได้ใส่ token</span>') +
-              '<a class="btn-text" href="#/linesetup">ตั้งค่า</a></div></div>';
-        }).join('') + '</div></div></div>';
+      h += '<h2 class="bl-mc-h">ตั้งเวลาไว้ <small>' + queued.length + '</small></h2><div class="bl-mc-card"><div class="bl-mc-tw"><table class="bl-mc-t"><thead><tr><th class="w0"></th><th>ช่องทาง</th><th>ชื่อ</th><th>เพจ</th><th>ผู้รับ</th><th>จะส่ง</th></tr></thead><tbody>' +
+        (queued.length ? queued.map(function (b) {
+          return '<tr data-go="' + esc(b.id) + '"><td class="w0">⋮</td><td>' + LINE_IC + '</td><td class="nm">' + esc(b.title) + '</td><td>' + pages(b) + '</td>' +
+            '<td class="bl-mut">' + esc(audienceLabel(b.audience || { kind: 'all' })) + '</td><td><span class="bl-mc-pill">' + esc(X.fmtFull(b.scheduledAt)) + '</span></td></tr>';
+        }).join('') : '<tr><td colspan="6" class="bl-mc-empty">ยังไม่มีบรอดแคสต์ที่รอส่งตามเวลา</td></tr>') + '</tbody></table></div></div>';
 
-      /* ---- ใบบรอดแคสต์ ---- */
-      h += '<div class="sec"><div class="sec-h"><h2>ใบบรอดแคสต์</h2><p>' + bs.length + ' ใบ</p></div>';
-      if (!bs.length) {
-        h += '<div class="sec-b"><div class="empty">ยังไม่มีใบบรอดแคสต์ — กด “+ สร้างบรอดแคสต์” หรือเปิดจากงานประเภท LINE OA ได้เลย</div></div>';
-      } else {
-        h += '<div class="sec-b tight"><div class="tlist">' + bs.map(function (b) {
-          var cs = b.channels.map(chanById).filter(Boolean);
-          return '<a class="bl-row" href="#/blast/' + esc(b.id) + '">' +
-            '<span class="bl-row-m">' + statusPill(b) + '</span>' +
-            '<span class="bl-row-t"><b>' + esc(b.title) + '</b>' +
-              '<small>' + cs.map(function (c) { return chDot(c, 1) + esc(c.name); }).join(' · ') +
-              (b.smsOn ? ' <i class="bl-tag">SMS</i>' : '') +
-              (b.taskId ? ' <i class="bl-tag">จากงาน</i>' : '') + '</small></span>' +
-            '<span class="bl-row-n">' + (b.status === 'sent'
-              ? '<b>' + num(b.nSent) + '</b><small>ถึงมือผู้รับ' + (b.nFail ? ' · ไม่ถึง ' + num(b.nFail) : '') + '</small>'
-              : '<small>' + (b.status === 'scheduled' ? 'รอถึงเวลา' : 'ยังไม่ได้ส่ง') + '</small>') + '</span>' +
-            '<span class="bl-row-d">' + esc(X.fmtAgo(b.sentAt || b.scheduledAt || b.updatedAt)) + '</span></a>';
-        }).join('') + '</div></div>';
-      }
-      h += '</div>';
+      h += '<h2 class="bl-mc-h">ประวัติ <small>' + sent.length + '</small></h2><div class="bl-mc-card"><div class="bl-mc-tw"><table class="bl-mc-t"><thead><tr><th class="w0"></th><th>ช่องทาง</th><th>ชื่อ</th><th>เริ่มส่ง</th><th class="r">ส่ง</th><th class="r">ส่งถึง (%)</th><th class="r">ไม่ถึง</th><th class="r">เปิดอ่าน / คลิก</th></tr></thead><tbody>' +
+        (sent.length ? sent.map(function (b) {
+          var tgt = b.nTarget || ((b.nSent || 0) + (b.nFail || 0));
+          return '<tr data-go="' + esc(b.id) + '"><td class="w0">⋮</td><td>' + LINE_IC + '</td><td class="nm">' + esc(b.title) + '<small>' + pages(b) + '</small></td>' +
+            '<td>' + esc(X.fmtFull(b.sentAt)) + '</td><td class="r">' + num(tgt) + '</td><td class="r">' + num(b.nSent) + pct(b.nSent || 0, tgt) + '</td>' +
+            '<td class="r">' + (b.nFail ? '<span class="bl-warn">' + num(b.nFail) + '</span>' : '0') + '</td><td class="r bl-mut" title="LINE ส่งสถิติเปิดอ่าน/คลิกให้หลังส่ง 1–2 วัน เมื่อต่อ token จริงแล้ว">รอสถิติ LINE</td></tr>';
+        }).join('') : '<tr><td colspan="8" class="bl-mc-empty">ยังไม่เคยส่ง</td></tr>') + '</tbody></table></div></div>';
+      h += '<p class="bl-mc-pw">Powered by M Creation</p>';
       v.innerHTML = h;
+      $$('.bl-mc-t tr[data-go]').forEach(function (tr) { tr.addEventListener('click', function () { location.hash = '#/blast/' + tr.getAttribute('data-go'); }); });
       var nb = $('#blNew');
       if (nb) nb.addEventListener('click', function () { createBlast({}); });
     }).catch(function (e) { fail(e); view().innerHTML = '<div class="err"><b>โหลดไม่สำเร็จ</b><p>' + esc(e.message) + '</p></div>'; });
@@ -188,19 +174,36 @@
     var v = view();
     v.className = 'page';
 
-    var h = '<div class="bl-crumbs"><a href="#/blast">บรอดแคสต์</a><span>›</span>' +
-      (E.task ? '<a href="#/task/' + esc(E.task.id) + '">' + esc(E.task.title) + '</a><span>›</span>' : '') +
-      statusPill(b) + '</div>';
+    var CLOCK = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>';
+    var h = '<div class="bl-mc-head">' +
+      '<div class="bl-mc-crumbs"><a href="#/blast">บรอดแคสต์</a><span>›</span>' +
+        (E.task ? '<a href="#/task/' + esc(E.task.id) + '">' + esc(E.task.title) + '</a><span>›</span>' : '<span>' + (b.status === 'scheduled' ? 'ตั้งเวลาไว้' : 'ร่าง') + '</span><span>›</span>') +
+        '<input class="bl-mc-title" id="blTitle" value="' + esc(b.title) + '" placeholder="ชื่อบรอดแคสต์" aria-label="ชื่อบรอดแคสต์"></div>' +
+      '<div class="bl-mc-r"><span class="bl-mut bl-mc-saved">✓ บันทึกอัตโนมัติ</span>' +
+        '<button type="button" class="bl-mc-out" id="blTest">ส่งทดสอบถึงตัวเอง</button>' +
+        '<button type="button" class="bl-mc-blue" id="blSend">ส่งเลย</button>' +
+        '<button type="button" class="bl-mc-blue sq" id="blSched" title="ตั้งเวลาส่ง" aria-label="ตั้งเวลาส่ง">' + CLOCK + '</button>' +
+        '<button type="button" class="bl-mc-kebab" id="blDel" title="ลบบรอดแคสต์นี้">ลบ</button></div></div>';
+    h += modeBar(b.status === 'scheduled' ? '· ตั้งเวลาไว้ ' + esc(X.fmtFull(b.scheduledAt)) + ' <button type="button" class="btn-text" id="blCancel">ยกเลิกเวลาที่ตั้งไว้</button>' : '');
 
-    h += '<div class="bl-head"><input class="bl-title" id="blTitle" value="' + esc(b.title) + '" placeholder="ชื่อใบบรอดแคสต์ (ไว้ให้ทีมหาเจอทีหลัง)">' +
-      '<div class="bl-head-r"><button type="button" class="btn-ghost sm danger" id="blDel">ลบใบนี้</button></div></div>';
-    h += modeBar();
+    /* ---- กล่อง "ข้อความ": แผงส่งข้อความ (ซ้าย) + มือถือ (ขวา) ---- */
+    h += '<div class="bl-mc-acc" data-open="1"><div class="bl-mc-acch"><button type="button" class="bl-mc-tg" data-acc="1">ข้อความ</button>' +
+      '<span class="bl-mut">LINE ส่งได้สูงสุด 5 ก้อนต่อครั้ง</span></div>' +
+      '<div class="bl-mc-content"><div class="bl-mc-panel"><div class="bl-mc-ph">ส่งข้อความ</div><div class="bl-mc-pb">' +
+        '<div id="msgList">' + (b.messages.length ? b.messages.map(msgBlock).join('') :
+          '<div class="empty">ใช้ปุ่มด้านล่างเพื่อเพิ่มข้อความและรูป</div>') + '</div>' +
+        '<p class="bl-mc-addh">เพิ่มบล็อก:</p><div class="bl-mc-blocks">' +
+        '<button type="button" class="bl-mc-block" data-add="text"><b>ข้อความ</b><small>ข้อความล้วน ไม่เกิน 2,000 ตัวอักษร</small></button>' +
+        '<button type="button" class="bl-mc-block" data-add="image"><b>รูปภาพ</b><small>แบนเนอร์ 1 รูป' + (E.taskFiles.length ? ' · มีรูปในงานนี้ ' + E.taskFiles.length + ' รูป' : '') + '</small></button>' +
+        '<button type="button" class="bl-mc-block" data-add="card"><b>การ์ดมีปุ่ม</b><small>รูป + หัวข้อ + รายละเอียด + ปุ่มลิงก์</small></button></div>' +
+      '</div></div><div class="bl-mc-prev"><div class="bl-phone" id="blPhone"></div></div></div></div>';
 
-    h += '<div class="bl-wrap"><div class="bl-main">';
-
-    /* ---- ขั้น 1: เพจ ---- */
-    h += '<div class="sec"><div class="sec-h"><h2><i class="bl-step">1</i>เลือกเพจที่จะส่ง</h2>' +
-      '<p>ติ๊กได้หลายเพจ ระบบยิงให้ทีละเพจแล้วรายงานผลแยกกัน</p></div><div class="sec-b">' +
+    /* ---- กล่อง "กลุ่มผู้รับ": เพจ + เงื่อนไข (กลาง) + จำนวนคน (ขวา) ---- */
+    h += '<div class="bl-mc-acc" data-open="1"><div class="bl-mc-acch"><button type="button" class="bl-mc-tg" data-acc="1">กลุ่มผู้รับ</button>' +
+      '<span><b id="blCountHead">…</b> คนจะได้รับบรอดแคสต์นี้</span></div>' +
+      '<div class="bl-mc-ta"><div class="bl-mc-desc">เลือกเพจที่จะส่ง แล้วเลือกว่าส่งถึงทุกคนหรือกรองเป็นกลุ่ม' +
+        '<p class="bl-mut">ระดับบัตร แต้ม ยอดซื้อ จาก Odoo จะเลือกได้เมื่อต่อข้อมูลสมาชิก Odoo แล้ว</p></div>' +
+      '<div class="bl-mc-mid"><div class="bl-mc-sub">ส่งผ่านเพจ</div>' +
       '<div class="bl-pick-all"><button type="button" class="btn-text" data-chall="1">เลือกทั้งหมด</button>' +
       '<button type="button" class="btn-text" data-chall="0">ล้างที่เลือก</button></div>' +
       '<div class="bl-chpick">' + chs.map(function (c) {
@@ -210,11 +213,8 @@
           '<span class="bl-chbox-t"><b>' + esc(c.name) + '</b><small>' + esc(c.basicId || '') + ' · ' + num(c.reach) + ' คน</small></span>' +
           (c.quotaLimit && c.quotaLeft < c.reach ? '<span class="bl-chbox-w">โควตาเหลือ ' + num(c.quotaLeft) + '</span>' : '') +
           '</button>';
-      }).join('') + '</div></div></div>';
-
-    /* ---- ขั้น 2: คนรับ ---- */
-    h += '<div class="sec"><div class="sec-h"><h2><i class="bl-step">2</i>ใครได้รับ</h2>' +
-      '<p>' + esc(audienceLabel(a)) + '</p></div><div class="sec-b">' +
+      }).join('') + '</div>';
+    h += '<div class="bl-mc-sub">ส่งถึงใคร <small>' + esc(audienceLabel(a)) + '</small></div>' +
       '<div class="bl-seg">' +
       ['all|ทุกคนที่แอดเพจ|ยิงทีเดียวถึงทุกคน',
        'filter|กรองกลุ่ม|แท็ก · สาขา · เคยซื้อ · เพิ่งแอด',
@@ -250,37 +250,10 @@
         '<span class="hint" id="pickN">' + num((a.ids || []).length) + ' คนที่เลือกไว้</span></div>' +
         '<div id="pickList" class="bl-picklist"><div class="loading">กำลังโหลดรายชื่อ…</div></div></div>';
     }
-    h += '</div></div>';
-
-    /* ---- ขั้น 3: ข้อความ ---- */
-    h += '<div class="sec"><div class="sec-h"><h2><i class="bl-step">3</i>ข้อความ</h2>' +
-      '<p>LINE ส่งได้สูงสุด 5 ก้อนต่อครั้ง</p></div><div class="sec-b">' +
-      '<div id="msgList">' + (b.messages.length ? b.messages.map(msgBlock).join('') :
-        '<div class="empty">ยังไม่มีข้อความ — เพิ่มข้อความ รูป หรือการ์ดมีปุ่มด้านล่าง</div>') + '</div>' +
-      '<div class="acts bl-addrow">' +
-      '<button type="button" class="btn-ghost sm" data-add="text">+ ข้อความ</button>' +
-      '<button type="button" class="btn-ghost sm" data-add="image">+ รูป</button>' +
-      '<button type="button" class="btn-ghost sm" data-add="card">+ การ์ดมีปุ่ม</button>' +
-      (E.taskFiles.length ? '<span class="hint">รูปในงานนี้มี ' + E.taskFiles.length + ' รูป เลือกใช้ได้เลย</span>' : '') +
-      '</div></div></div>';
-
-    h += '</div>';   /* /bl-main */
-
-    /* ---- คอลัมน์ขวา ---- */
-    h += '<div class="bl-side"><div class="bl-sticky">' +
-      '<div class="sec"><div class="sec-h"><h2>พรีวิว</h2><p>หน้าตาในแชท</p></div>' +
-      '<div class="sec-b bl-phone-wrap"><div class="bl-phone" id="blPhone"></div></div></div>' +
-      '<div class="sec"><div class="sec-h"><h2>จะถึงกี่คน</h2></div><div class="sec-b tight">' +
-      '<div id="blCount"><div class="loading">กำลังนับ…</div></div></div></div>' +
-      '<div class="bl-sendbox">' +
-      '<button type="button" class="btn-ghost" id="blTest">ส่งทดสอบถึงตัวเอง</button>' +
-      '<button type="button" class="btn-ghost" id="blSched">ตั้งเวลาส่ง</button>' +
-      '<button type="button" class="btn" id="blSend">ส่งเลย</button>' +
-      (b.status === 'scheduled' ? '<button type="button" class="btn-text" id="blCancel">ยกเลิกเวลาที่ตั้งไว้</button>' : '') +
-      '</div></div></div>';
-
-    h += '</div>';
+    h += '</div><div class="bl-mc-reach"><div id="blCount"><div class="loading">กำลังนับ…</div></div></div></div></div>';
+    h += '<p class="bl-mc-pw">Powered by M Creation</p>';
     v.innerHTML = h;
+    v.className = 'page bl-mc';
     wireComposer();
     drawPhone();
     recount();
@@ -389,6 +362,7 @@
             if (E.b.smsOn) h += '<div class="bl-cnttot"><span>รวม SMS</span><b>' + num(j.sms) + ' เบอร์</b></div>';
           }
           host.innerHTML = h;
+          var hh = $('#blCountHead'); if (hh) hh.textContent = num(total);
         }).catch(function () { host.innerHTML = '<div class="empty">นับไม่ได้ ลองใหม่อีกครั้ง</div>'; });
     }, 260);
   }
@@ -418,6 +392,7 @@
     v.addEventListener('click', function (ev) {
       var t = ev.target, el;
 
+      if ((el = t.closest('[data-acc]'))) { var acc = el.closest('.bl-mc-acc'); acc.setAttribute('data-open', acc.getAttribute('data-open') === '1' ? '0' : '1'); return; }
       if ((el = t.closest('[data-ch]'))) {
         var cid = el.getAttribute('data-ch');
         var i = E.b.channels.indexOf(cid);

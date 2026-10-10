@@ -377,3 +377,14 @@ node ~/kanhub-web/scripts/restore-files.js ~/kanhub-backups/kan-files-2026-09-10
   แล้วให้ Worker cron เขียนขึ้น R2 ทุกคืน หรือทำ GitHub Action รายวันโดยใส่ `CLOUDFLARE_API_TOKEN` เป็น secret
 - ย้ายรูปออกจาก D1 ไปเก็บที่ R2 จะทำให้ backup เล็กลงมากและ import กลับได้ตรง ๆ
 - ฐานทดสอบ (staging) แยกจากของจริง
+
+## Kan Bot แชทบอท + บรอดแคสต์หน้าตาแบบ ManyChat (10 ต.ค. 69)
+
+- **หน้า `#/bot`** (เมนู Kan Chat › แชทบอท · สิทธิ์ตามเมนูแชท) — 3 ช่องแบบ Dabby: ตั้งค่ารายเพจ | prompt (เก็บเวอร์ชัน ย้อนได้) | แชทจำลอง
+- **โค้ด:** `worker-bot.js` (API `/api/t/bot/*` + `botMaybeReply`) · `bot-prompt-seed.js` (prompt ตั้งต้นจาก Dabby V3 ใส่ให้เพจ Kan Hub ครั้งแรก) · `public/admin/tasks/bot.js|css`
+- **GPT:** เรียกผ่าน OpenRouter (secret `OPENROUTER_API_KEY`) หรือ OpenAI ตรง (`OPENAI_API_KEY`) · ค่าเริ่มต้น `openai/gpt-6-luna` · ตารางราคาอยู่ใน `BOT_MODELS`
+- **ตอนลูกค้าทัก** (webhook ข้อความตัวหนังสือ) → เพจเปิดบอท + แชทยังไม่โดนแอดมินรับ → เรียก GPT → แยกบับเบิลด้วย `[SPLIT]` · `[IMAGE]url` = รูป → ส่งด้วย reply token
+- **แอดมินพิมพ์ในแชท = `chat_convos.bot_off = 1`** บอทหยุดแชทนั้น · ปุ่ม "ให้บอทกลับมาตอบ" ในการ์ดขวาของกล่องแชท
+- **ได้เบอร์** → เก็บใน `chat_convos.phone` + สร้างลีด `created_by = 'bot'` (ครั้งเดียวต่อแชท) + แจ้งเตือนทีม
+- **ค่าใช้จ่าย** บันทึกทุกครั้งใน `bot_runs` (แยกของจริง/แชทจำลอง) หน้า `#/bot` สรุปเป็นบาทรายเดือน
+- **บรอดแคสต์ `#/blast`** เปลี่ยนหน้าตาเป็นแบบ ManyChat: รายการ ร่าง/ตั้งเวลาไว้/ประวัติ · หน้าเขียนมีแถบบน (ส่งทดสอบ · ส่งเลย · นาฬิกาตั้งเวลา) + กล่องพับ "ข้อความ" และ "กลุ่มผู้รับ" — หลังบ้านเดิมทั้งหมด

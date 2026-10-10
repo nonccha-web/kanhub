@@ -6,6 +6,7 @@
    เพจที่ยังไม่ได้ใส่ token = โหมดจำลอง: บันทึกครบทุกอย่าง แต่ไม่มีข้อความออกไปหาลูกค้าจริง
    รูปเก็บใน R2 (binding CHAT_MEDIA) ถ้ามี · ยังไม่เปิด R2 = เก็บใน D1 ตาราง chat_media ไปก่อน
    ============================================================ */
+import { botMaybeReply } from "./worker-bot.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
@@ -43,6 +44,8 @@ const CHAT_SCHEMA = [
 const CHAT_MIGRATIONS = [
   /* เพจไหนเข้ากล่องแชท (บรอดแคสต์ใช้ตารางเพจเดียวกัน) */
   "ALTER TABLE line_channels ADD COLUMN chat INTEGER NOT NULL DEFAULT 0",
+  /* Kan Bot หยุดตอบแชทนี้ (แอดมินคนจริงรับไปแล้ว) — นนท์ 10 ต.ค. 69 */
+  "ALTER TABLE chat_convos ADD COLUMN bot_off INTEGER NOT NULL DEFAULT 0",
 ];
 
 let chatReady = false;
@@ -105,7 +108,7 @@ async function lineProfile(ch, userId) {
   } catch (e) { return null; }
 }
 /* reply token ใช้ได้ครั้งเดียวและอายุสั้น — ตอบภายใน 50 วิหลังลูกค้าทักใช้ reply (ฟรี) เกินกว่านั้นใช้ push (นับโควตา) */
-async function lineSend(ch, convo, messages) {
+export async function lineSend(ch, convo, messages) {
   if (!ch.token) return { via: "mock", ok: true };
   const fresh = convo.reply_token && convo.reply_token_at && (Date.now() - Date.parse(convo.reply_token_at) < 50000);
   const body = fresh ? { replyToken: convo.reply_token, messages } : { to: convo.line_user_id, messages };
@@ -226,6 +229,8 @@ export async function handleLineWebhook(request, env, ctx, chId) {
       }
       await recordInbound(env, db, ch, c, m, ctx);
       await db.prepare("UPDATE line_users SET last_active = ? WHERE id = ?").bind(at, uid + ":" + ch.id).run().catch(() => {});
+      /* Kan Bot ตอบข้อความตัวหนังสือ (เพจที่เปิดบอทไว้ และแอดมินยังไม่ได้รับแชทนี้) */
+      if (msg.type === "text") await botMaybeReply(env, db, ch, c.id);
     }
   })();
   /* LINE รอคำตอบไม่นาน — ตอบ 200 ทันที งานที่เหลือทำต่อเบื้องหลัง */
@@ -239,7 +244,7 @@ function convoOut(r) {
     id: r.id, channelId: r.channel_id, name: r.display_name, picture: r.picture_url, status: r.status, assignee: r.assignee || null,
     lastAt: r.last_msg_at, lastText: r.last_msg_text, lastFrom: r.last_from, unread: r.unread || 0, waitingSince: r.waiting_since,
     tags: r.tags ? r.tags.split(",").filter(Boolean) : [], note: r.note || "", phone: r.phone || "", leadId: r.lead_id || null,
-    firstAt: r.first_contact_at, closedAt: r.closed_at, blocked: !!r.blocked, mock: !!r.mock,
+    firstAt: r.first_contact_at, closedAt: r.closed_at, blocked: !!r.blocked, mock: !!r.mock, botOff: !!r.bot_off,
   };
 }
 function msgOut(r) {
@@ -328,7 +333,7 @@ export async function handleChatApi(env, db, request, url, path, method, me, lvl
       if (res.ok) {
         /* ตอบแล้ว = รอลูกค้า · ยังไม่มีคนรับเคส → คนตอบรับไปเลย */
         stmts.push(db.prepare("UPDATE chat_convos SET status = 'waiting', last_msg_at = ?, last_msg_text = ?, last_from = 'staff', waiting_since = NULL, unread = 0, " +
-          "assignee = COALESCE(assignee, ?), reply_token = CASE WHEN ? THEN '' ELSE reply_token END, updated_at = ? WHERE id = ?")
+          "assignee = COALESCE(assignee, ?), reply_token = CASE WHEN ? THEN '' ELSE reply_token END, bot_off = 1, updated_at = ? WHERE id = ?")
           .bind(now, preview(rows[rows.length - 1].kind, rows[rows.length - 1].text), me.id, res.usedReply ? 1 : 0, now, c.id));
       }
       await db.batch(stmts);
@@ -347,6 +352,7 @@ export async function handleChatApi(env, db, request, url, path, method, me, lvl
       }
       if (body.tags !== undefined) { sets.push("tags = ?"); vals.push((Array.isArray(body.tags) ? body.tags : String(body.tags).split(",")).map((x) => String(x).trim().slice(0, 30)).filter(Boolean).slice(0, 12).join(",")); }
       if (body.note !== undefined) { sets.push("note = ?"); vals.push(String(body.note).slice(0, 2000)); }
+      if (body.botOff !== undefined) { sets.push("bot_off = ?"); vals.push(body.botOff ? 1 : 0); }
       if (body.phone !== undefined) { sets.push("phone = ?"); vals.push(String(body.phone).replace(/[^0-9+\- ]/g, "").slice(0, 20)); }
       if (body.name !== undefined && String(body.name).trim()) { sets.push("display_name = ?"); vals.push(String(body.name).trim().slice(0, 80)); }
       await db.prepare("UPDATE chat_convos SET " + sets.join(", ") + " WHERE id = ?").bind(...vals, c.id).run();
@@ -509,7 +515,8 @@ export async function handleChatApi(env, db, request, url, path, method, me, lvl
     if (!c) return json({ error: "จำลองได้เฉพาะแชทจำลอง" }, 400);
     const ch = await db.prepare("SELECT * FROM line_channels WHERE id = ?").bind(c.channel_id).first();
     await recordInbound(env, db, ch || {}, c, { kind: "text", text: String(body.text || "สวัสดีค่ะ").slice(0, 1000), mock: true, at: now });
-    return json({ ok: true });
+    const bot = await botMaybeReply(env, db, ch || {}, c.id);
+    return json({ ok: true, bot });
   }
   return json({ error: "ไม่รู้จักคำสั่ง" }, 404);
 }

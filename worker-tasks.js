@@ -4,6 +4,7 @@ import STOCK_PRICES from "./src/lib/stock-prices.json";
 import { handleBlastApi } from "./worker-blast.js";
 import { handleChatApi } from "./worker-chat.js";
 import { handleSmsApi } from "./worker-sms.js";
+import { handleBotApi } from "./worker-bot.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
@@ -3340,6 +3341,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
   /* ---- แชทรวม LINE (/chat/*) — โค้ดอยู่ worker-chat.js ---- */
   if (path.indexOf("/chat/") === 0) return handleChatApi(env, db, request, url, path, method, me, permsOf(me).chat, isOwner);
+  /* ---- Kan Bot แชทบอท (/bot/*) — โค้ดอยู่ worker-bot.js · สิทธิ์ตามเมนูแชท ---- */
+  if (path.indexOf("/bot/") === 0) return handleBotApi(env, db, request, url, path, method, me, permsOf(me).chat, isOwner);
   /* ---- ส่ง SMS (/sms/*) — แยกจากบรอดแคสต์ LINE · โค้ดอยู่ worker-sms.js ---- */
   if (path.indexOf("/sms/") === 0) return handleSmsApi(env, db, request, url, path, method, me, permsOf(me).sms, isOwner);
 

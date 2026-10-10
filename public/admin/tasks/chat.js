@@ -129,8 +129,8 @@
     else if (m.kind === 'text' || m.kind === 'location') body = esc(m.text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>');
     else body = '<span class="ch-sys">[' + esc(m.kind) + ']</span>';
     return sep + '<div class="ch-msg ' + m.dir + (m.kind === 'image' || m.kind === 'sticker' ? ' media' : '') + (m.status === 'fail' ? ' fail' : '') + '"><div class="ch-bub">' + body + '</div>' +
-      '<div class="ch-meta">' + (m.dir === 'out' ? esc(staffName(m.staffId)) + ' · ' : '') + hm(m.at) +
-      (m.dir === 'out' && m.via === 'push' ? ' · push' : '') + (m.dir === 'out' && m.via === 'mock' ? ' · จำลอง' : '') +
+      '<div class="ch-meta">' + (m.dir === 'out' ? (m.via === 'bot' ? '<span class="ch-botb">Kan Bot</span>' : esc(staffName(m.staffId)) + ' · ') : '') + hm(m.at) +
+      (m.dir === 'out' && m.via === 'push' ? ' · push' : '') + (m.dir === 'out' && (m.via === 'mock' || (m.via === 'bot' && m.mock)) ? ' · จำลอง' : '') +
       (m.status === 'fail' ? ' · <b class="bad">ส่งไม่สำเร็จ ' + esc(m.error || '') + '</b>' : '') + '</div></div>';
   }
   function paintRoom() {
@@ -180,6 +180,9 @@
         '<label class="ch-f"><span>แท็ก <small>คั่นด้วย ,</small></span><input id="chTags" value="' + esc(cv.tags.join(', ')) + '" placeholder="เช่น สนใจเฟอร์, VIP"' + ro + '></label>' +
         '<label class="ch-f"><span>โน้ตของทีม <small>ลูกค้าไม่เห็น</small></span><textarea id="chNote" rows="4"' + ro + '>' + esc(cv.note) + '</textarea></label>' +
         (C.canEdit ? '<button type="button" class="btn-ghost sm" data-chsave="1">บันทึกข้อมูลลูกค้า</button>' : '') + '</div>' +
+      '<div class="ch-card"><b>Kan Bot</b><p class="hint">' + (cv.botOff ? 'บอทหยุดตอบแชทนี้แล้ว (แอดมินรับต่อ)' : 'บอทตอบแชทนี้ได้ ถ้าเพจเปิดบอทไว้ · แอดมินพิมพ์เมื่อไรบอทหยุดเอง') + '</p>' +
+        (C.canEdit ? '<button type="button" class="btn-ghost sm" data-chbot="' + (cv.botOff ? '0' : '1') + '">' + (cv.botOff ? 'ให้บอทกลับมาตอบ' : 'หยุดบอทในแชทนี้') + '</button>' : '') +
+        ' <a class="btn-text" href="#/bot/' + esc(cv.channelId) + '">ตั้งค่าบอท</a></div>' +
       '<div class="ch-card">' + (cv.leadId ? '<a class="btn-ghost sm" href="#/lead/' + esc(cv.leadId) + '">เปิดในลีด (CRM) →</a>'
         : (C.canEdit ? '<button type="button" class="btn-ghost sm" data-chlead="1">ส่งเข้าลีด (CRM)</button><p class="hint">สร้างลีดจากแชทนี้ ให้ฝ่ายขายไล่ปิดต่อ</p>' : '')) + '</div>' +
       (cv.mock && X.isOwner() ? '<div class="ch-card"><b>ทดสอบ</b><p class="hint">จำลองว่าลูกค้าพิมพ์เข้ามา</p><div class="ch-sim"><input id="chSim" placeholder="ข้อความลูกค้า"><button type="button" class="btn-ghost sm" data-chmock="in">ส่ง</button></div></div>' : '');
@@ -254,6 +257,11 @@
     if (b.hasAttribute('data-chsave')) {
       api('/chat/convos/' + C.open.id, 'PUT', { phone: $('#chPhone').value, tags: $('#chTags').value, note: $('#chNote').value })
         .then(function () { toast('บันทึกข้อมูลลูกค้าแล้ว'); return loadMsgs(true); }).catch(fail);
+      return;
+    }
+    if (b.hasAttribute('data-chbot')) {
+      var off = b.getAttribute('data-chbot') === '1';
+      api('/chat/convos/' + C.open.id, 'PUT', { botOff: off }).then(function () { C.open.botOff = off; toast(off ? 'หยุดบอทในแชทนี้แล้ว' : 'บอทกลับมาตอบแชทนี้แล้ว'); paintSide(); }).catch(fail);
       return;
     }
     if (b.hasAttribute('data-chlead')) {
