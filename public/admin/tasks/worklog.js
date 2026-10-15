@@ -92,6 +92,26 @@
     'บันทึกแม่แบบแล้ว ({n} แถว)': 'Template saved ({n} rows)', 'เติมแม่แบบลงวันที่ {d} เลยไหม?': 'Fill the template into {d} now?',
     '{d} มีอยู่แล้ว {n} แถว — เติมแม่แบบต่อท้ายอีกไหม?': '{d} already has {n} rows — add the template below them anyway?',
     'เติมจากแม่แบบแล้ว {n} แถว': 'Filled {n} rows from the template',
+    /* หลายแม่แบบ + ติ๊กเลือก */
+    'ตั้งแม่แบบได้หลายชุด เช่น งานประจำ · วันเปิดร้าน แล้วกด “เติมจากแม่แบบ” เลือกติ๊กชุดที่ต้องการ':
+      'Keep several templates, e.g. Daily routine · Shop opening day, then tap “Fill from template” and tick the ones you want',
+    '+ แม่แบบใหม่': '+ New template', 'ชื่อแม่แบบ': 'Template name', 'เช่น งานประจำ, วันเปิดร้าน': 'e.g. Daily routine, Shop opening day',
+    'แม่แบบหลัก': 'Main template', 'ลบแม่แบบนี้': 'Delete this template', 'ตั้งชื่อแม่แบบก่อน': 'Give the template a name first',
+    'แทนที่แถวในแม่แบบนี้ด้วยแถวของ {d}?': 'Replace this template’s rows with the rows from {d}?',
+    'ลบแม่แบบ “{s}”? (แถวที่เติมลงวันต่าง ๆ ไปแล้วไม่หาย)': 'Delete the template “{s}”? (Rows already filled into days stay.)',
+    'ลบแม่แบบแล้ว': 'Template deleted', 'บันทึกแม่แบบ “{s}” แล้ว ({n} แถว)': 'Saved “{s}” ({n} rows)',
+    'และอีก {n} แถว': 'and {n} more', 'เลือกแม่แบบที่จะเติมลง {d}': 'Choose the templates to fill into {d}',
+    'วันนี้มีอยู่แล้ว {n} แถว — แถวจากแม่แบบจะต่อท้าย': 'this day already has {n} rows — template rows go below them',
+    '{n} แถว': '{n} rows', 'แก้ / เพิ่มแม่แบบ': 'Edit / add templates', 'เติม {n} แถว': 'Fill {n} rows', 'ติ๊กเลือกแม่แบบก่อน': 'Tick a template first',
+    'คัดลอกลง {d}': 'Copy into {d}', 'วันนี้มีอยู่แล้ว {n} แถว — แถวที่คัดลอกจะต่อท้าย': 'this day already has {n} rows — copied rows go below them',
+    'คัดลอกจากวันที่': 'Copy from date', 'เลือกทั้งหมด': 'Select all', 'ไม่เลือกเลย': 'Select none',
+    'ยกไป {d} แล้ว': 'Already carried to {d}', 'ยังไม่เสร็จ — ระบบยกไปวันถัดไปให้เอง': 'Not finished — it carries over to the next day automatically',
+    'วันนั้นไม่มีบันทึก — เลือกวันอื่น': 'No entries that day — pick another date',
+    'ไม่เจอบันทึกของวันก่อนหน้า — เลือกวันที่จะคัดลอก': 'No earlier day found — pick a date to copy from',
+    'คัดลอก {n} แถว': 'Copy {n} rows', 'ติ๊กเลือกแถวก่อน': 'Tick rows first', 'เติมจากแม่แบบ {s}': 'filled from template {s}',
+    'ยังไม่ได้เลือกแถวที่จะคัดลอก': 'No rows selected to copy', 'ไม่พบแม่แบบนี้': 'Template not found',
+    'มีแม่แบบได้ไม่เกิน {n} ชุด': 'You can have up to {n} templates', 'ยังไม่ได้เลือกแม่แบบ': 'No template selected',
+    'แม่แบบที่เลือกยังไม่มีแถว': 'The selected templates have no rows',
     /* ประวัติ */
     '(ว่าง)': '(empty)', '{n} รูป': '{n} photos', 'สร้างแถว': 'Created row', 'แก้ไข': 'Edited', 'ลบ': 'Deleted',
     'ระบบ': 'System', 'ยกงานค้างมาจาก {d}': 'carried over the unfinished row from {d}', 'ยังไม่มีประวัติ': 'No history yet',
@@ -125,6 +145,8 @@
   function T(th, vars) {
     var s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN_TEXT, th) ? EN_TEXT[th] : th;
     if (vars) s = s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? String(vars[k]) : m; });
+    /* อังกฤษ: 1 rows → 1 row · 1 photos → 1 photo */
+    if (LANG === 'en' && vars && String(vars.n) === '1') s = s.replace(/\b1 (rows|photos|templates|days)\b/g, function (m, w) { return '1 ' + w.slice(0, -1); });
     return s;
   }
   function stTh(k) { return LANG === 'en' ? (STATUS_EN[k] || k) : (STATUS_TH[k] || k); }
@@ -616,14 +638,70 @@
     save1(r, { status: st }).then(function () { paint(); });
   }
   function haveOn(d) { return W.data.rows.filter(function (r) { return r.staffId === meId() && r.date === d; }).length; }
-  /* คัดลอกวันก่อน — ก๊อปเฉพาะแถวที่ "เสร็จแล้ว" ของวันล่าสุดที่มีบันทึก (ที่ค้างอยู่ระบบยกมาให้เองแล้ว) */
-  function copyDay(d) {
+  /* คัดลอกวันก่อน — ติ๊กเลือกแถวได้ (นนท์ขอ 15 ต.ค. 69) · ค่าเริ่มต้น = วันล่าสุดที่มีบันทึก เปลี่ยนวันต้นทางได้
+     แถวที่ยังไม่เสร็จติ๊กไม่ได้ — ระบบยกไปวันทำงานถัดไปให้เองอยู่แล้ว ก๊อปด้วยจะได้สองแถว */
+  function copyDay(d, from) {
+    var q = '/worklog/copy-source?to=' + d + (from ? '&from=' + from : '');
+    api(q).then(function (j) { copySheet(d, j.from, j.rows || []); }).catch(function (e) {
+      if (e.data && e.data.notFound) { copySheet(d, '', []); return; }
+      fail(e);
+    });
+  }
+  function copySheet(d, from, rows) {
     var have = haveOn(d);
-    if (have && !confirm(T('{d} มีอยู่แล้ว {n} แถว — คัดลอกแถวของวันก่อนมาต่อท้ายอีกไหม?', { d: thShort(d), n: have }))) return;
-    api('/worklog/copy', 'POST', { to: d }).then(function (j) {
-      toast(T('คัดลอกมาแล้ว {n} แถว', { n: j.count }));
-      render(W.route);
-    }).catch(fail);
+    var nOk = rows.filter(function (r) { return r.copyable; }).length;
+    var body = '<p class="wl-note">' + esc(T('คัดลอกลง {d}', { d: DAY_EN[wd(d)] + ' ' + thShort(d) })) +
+      (have ? ' · ' + esc(T('วันนี้มีอยู่แล้ว {n} แถว — แถวที่คัดลอกจะต่อท้าย', { n: have })) : '') + '</p>' +
+      '<label class="wl-field wl-cfrom"><span>' + T('คัดลอกจากวันที่') + '</span>' +
+        '<input class="input" type="date" data-c="from" value="' + esc(from) + '" max="' + addDays(d, -1) + '"></label>' +
+      (rows.length ? '<div class="wl-pickall">' + (nOk ? '<button type="button" class="btn-ghost sm" data-c="all">' + T('เลือกทั้งหมด') + '</button>' +
+          '<button type="button" class="btn-ghost sm" data-c="none">' + T('ไม่เลือกเลย') + '</button>' : '') + '</div>' +
+        '<div class="wl-picklist">' + rows.map(function (r) {
+          var first = String(r.work || '').trim();
+          var why = r.copyable ? '' : (r.carriedToDate ? T('ยกไป {d} แล้ว', { d: thShort(r.carriedToDate) }) : T('ยังไม่เสร็จ — ระบบยกไปวันถัดไปให้เอง'));
+          return '<label class="wl-pick' + (r.copyable ? '' : ' off') + '"><input type="checkbox" data-rid="' + esc(r.id) + '"' + (r.copyable ? ' checked' : ' disabled') + '>' +
+            '<div><div class="wl-phead">' + (r.slot ? '<span class="wl-chip">' + esc(r.slot) + '</span>' : '') +
+            '<span class="wl-pill ' + r.status + '">' + esc(stTh(r.status)) + '</span></div>' +
+            '<div class="wl-ptxt">' + esc(first || T('(ยังไม่ได้พิมพ์งาน)')) + '</div>' +
+            (why ? '<small class="wl-mut">' + esc(why) + '</small>' : '') + '</div></label>';
+        }).join('') + '</div>'
+        : '<p class="wl-mempty">' + T(from ? 'วันนั้นไม่มีบันทึก — เลือกวันอื่น' : 'ไม่เจอบันทึกของวันก่อนหน้า — เลือกวันที่จะคัดลอก') + '</p>');
+    var host = openSheet(T('คัดลอกวันก่อน'), body, '<button type="button" class="btn wl-fsave" data-c="go"></button>');
+    var btn = host.querySelector('[data-c="go"]');
+    function picked() { return Array.prototype.filter.call(host.querySelectorAll('input[data-rid]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return c.getAttribute('data-rid'); }); }
+    function upd() {
+      var n = picked().length;
+      btn.disabled = !n;
+      btn.textContent = n ? T('คัดลอก {n} แถว', { n: n }) : T('ติ๊กเลือกแถวก่อน');
+    }
+    upd();
+    host.addEventListener('change', function (ev) {
+      if (ev.target.getAttribute('data-c') === 'from') {
+        var v = ev.target.value;
+        if (isDate(v) && v < d) { closeSheet(true); copyDay(d, v); }
+        return;
+      }
+      upd();
+    });
+    host.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-c]');
+      if (!b || b.tagName === 'INPUT') return;
+      var k = b.getAttribute('data-c');
+      if (k === 'all' || k === 'none') {
+        Array.prototype.forEach.call(host.querySelectorAll('input[data-rid]:not(:disabled)'), function (c) { c.checked = k === 'all'; });
+        upd();
+        return;
+      }
+      if (k !== 'go') return;
+      var ids = picked();
+      if (!ids.length) return;
+      btn.disabled = true;
+      api('/worklog/copy', 'POST', { to: d, from: from, ids: ids }).then(function (r) {
+        closeSheet(true);
+        toast(T('คัดลอกมาแล้ว {n} แถว', { n: r.count }));
+        render(W.route);
+      }).catch(function (e) { btn.disabled = false; fail(e); });
+    });
   }
 
   /* ============================================================
@@ -890,7 +968,9 @@
   }
 
   /* ============================================================
-     แม่แบบประจำวัน — แถวที่ทำทุกวัน (เช็คสื่อ · ตอบแชท · พัก …) ตั้งไว้ครั้งเดียว กด "เติมจากแม่แบบ" ได้ทั้งชุด
+     แม่แบบประจำวัน — ตั้งได้หลายชุด (นนท์ขอ 15 ต.ค. 69) เช่น "งานประจำ" · "วันเปิดร้าน"
+     หน้าต่าง "แม่แบบของฉัน": ปุ่มชื่อแม่แบบด้านบน (สลับชุด) + "แม่แบบใหม่" · ด้านล่างแก้ชื่อ/แถวของชุดที่เลือก
+     "เติมจากแม่แบบ" = ติ๊กเลือกชุด (ได้หลายชุด) แล้วเติมลงวันนั้นตามลำดับในรายการ
      ============================================================ */
   function tplRowHtml(t) {
     return '<div class="wl-trow">' +
@@ -908,30 +988,66 @@
       return { slot: el.querySelector('.wl-tslot').value.trim(), work: el.querySelector('.wl-twork').value.replace(/\s+$/, ''), status: el.querySelector('.wl-tst').value };
     }).filter(function (x) { return x.slot || x.work.replace(/^-\s*$/, ''); });
   }
-  function openTemplate(fillDate) {
-    api('/worklog/template').then(function (j) {
-      var rows = j.rows || [];
-      var start = JSON.stringify(rows.map(function (x) { return { slot: x.slot, work: x.work, status: x.status }; }));
-      /* วันที่จะดึงแถวมาเป็นแม่แบบ = วันที่ดูอยู่ (มือถือ) หรือวันล่าสุดที่มีแถวของฉันในสัปดาห์นี้ */
-      var src = W.o.phone ? W.o.day : (W.data.rows.filter(function (r) { return r.staffId === meId(); }).map(function (r) { return r.date; }).sort().pop() || '');
-      var body = '<p class="wl-note">' + T('แถวที่ทำทุกวัน ตั้งไว้ครั้งเดียว แล้วกด “เติมจากแม่แบบ” ในวันไหนก็ได้ ระบบใส่ให้ทั้งชุด') + '</p>' +
-        (src && haveOn(src) ? '<button type="button" class="btn-ghost wl-tfrom" data-t="from">' + esc(T('ใช้แถวของ {d} เป็นแม่แบบ', { d: thShort(src) })) + '</button>' : '') +
-        '<datalist id="wlTplSlots">' + ((W.data && W.data.slots) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
-        '<div class="wl-tlist">' + rows.map(tplRowHtml).join('') + '</div>' +
-        '<button type="button" class="btn-ghost wl-tadd" data-t="add">' + T('+ เพิ่มแถวแม่แบบ') + '</button>';
-      var host = openSheet(T('แม่แบบของฉัน'), body, '<button type="button" class="btn wl-fsave" data-t="save">' + T('บันทึกแม่แบบ') + '</button>', {
-        wide: true,
-        canClose: function () { return JSON.stringify(readTpl(host)) === start || confirm(T('ทิ้งแม่แบบที่แก้ไว้?')); },
-      });
-      var list = host.querySelector('.wl-tlist');
-      if (!rows.length) list.innerHTML = tplRowHtml({ slot: ((W.data && W.data.slots) || [])[0] || '', work: '- ', status: 'done' });
-      start = JSON.stringify(readTpl(host));   /* แถวตั้งต้นที่ใส่ให้ไม่นับเป็น "แก้แล้ว" — ปิดเฉย ๆ ต้องไม่ถามว่าทิ้งไหม */
+  /* วันที่จะดึงแถวมาเป็นแม่แบบ = วันที่ดูอยู่ (มือถือ) หรือวันล่าสุดที่มีแถวของฉันในสัปดาห์นี้ */
+  function tplSourceDay() {
+    return W.o.phone ? W.o.day : (W.data.rows.filter(function (r) { return r.staffId === meId(); }).map(function (r) { return r.date; }).sort().pop() || '');
+  }
+  function openTemplate(fillDate, wantId) {
+    api('/worklog/templates').then(function (j) {
+      var TS = { sets: j.sets || [], cur: null, start: '' };
+      var src = tplSourceDay();
+      var host = openSheet(T('แม่แบบของฉัน'), '<div class="wl-tm"></div>',
+        '<button type="button" class="btn wl-fsave" data-t="save">' + T('บันทึกแม่แบบ') + '</button>', {
+          wide: true,
+          canClose: function () { return !dirty() || confirm(T('ทิ้งแม่แบบที่แก้ไว้?')); },
+        });
+      var box = host.querySelector('.wl-tm');
+      function snap() {
+        var n = box.querySelector('.wl-tname');
+        return JSON.stringify([n ? n.value.trim() : '', readTpl(host)]);
+      }
+      function dirty() { return snap() !== TS.start; }
+      function curSet() { return TS.sets.filter(function (x) { return x.id === TS.cur; })[0] || null; }
+      /* วาดชุดที่เลือก · TS.cur = id ของชุด หรือ 'new' = แม่แบบใหม่ที่ยังไม่บันทึก */
+      function draw() {
+        var set = curSet();
+        var isNew = TS.cur === 'new';
+        var rows = set ? set.rows : [];
+        var name = set ? set.name : (TS.sets.length ? '' : T('แม่แบบหลัก'));
+        box.innerHTML = '<p class="wl-note">' + T('ตั้งแม่แบบได้หลายชุด เช่น งานประจำ · วันเปิดร้าน แล้วกด “เติมจากแม่แบบ” เลือกติ๊กชุดที่ต้องการ') + '</p>' +
+          '<div class="wl-tsets" role="tablist">' + TS.sets.map(function (x) {
+            return '<button type="button" role="tab" class="wl-tset' + (x.id === TS.cur ? ' on' : '') + '" aria-selected="' + (x.id === TS.cur) + '" data-t="pick" data-sid="' + esc(x.id) + '">' +
+              esc(T(x.name)) + ' <small>' + x.rows.length + '</small></button>';
+          }).join('') +
+          (TS.sets.length < (j.maxSets || 20) ? '<button type="button" class="wl-tset add' + (isNew ? ' on' : '') + '" data-t="new">' + T('+ แม่แบบใหม่') + '</button>' : '') + '</div>' +
+          '<label class="wl-field"><span>' + T('ชื่อแม่แบบ') + '</span><input class="input wl-tname" maxlength="60" value="' + esc(name) + '" placeholder="' + T('เช่น งานประจำ, วันเปิดร้าน') + '"></label>' +
+          (src && haveOn(src) ? '<button type="button" class="btn-ghost wl-tfrom" data-t="from">' + esc(T('ใช้แถวของ {d} เป็นแม่แบบ', { d: thShort(src) })) + '</button>' : '') +
+          '<datalist id="wlTplSlots">' + ((W.data && W.data.slots) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+          '<div class="wl-tlist">' + rows.map(tplRowHtml).join('') + '</div>' +
+          '<div class="wl-tfoot"><button type="button" class="btn-ghost wl-tadd" data-t="add">' + T('+ เพิ่มแถวแม่แบบ') + '</button>' +
+          (set ? '<button type="button" class="wl-fdel" data-t="delset">' + T('ลบแม่แบบนี้') + '</button>' : '') + '</div>';
+        if (!rows.length) box.querySelector('.wl-tlist').innerHTML = tplRowHtml({ slot: isNew && TS.sets.length ? '' : (((W.data && W.data.slots) || [])[0] || ''), work: '- ', status: 'done' });
+        Array.prototype.forEach.call(box.querySelectorAll('.wl-twork'), function (t) { if (X.listEdit) X.listEdit(t); });
+        TS.start = snap();   /* แถวตั้งต้นที่ใส่ให้ไม่นับเป็น "แก้แล้ว" — ปิดเฉย ๆ ต้องไม่ถามว่าทิ้งไหม */
+        if (isNew && TS.sets.length) box.querySelector('.wl-tname').focus();
+      }
+      function go(id) {
+        if (id === TS.cur) return;
+        if (dirty() && !confirm(T('ทิ้งแม่แบบที่แก้ไว้?'))) return;
+        TS.cur = id;
+        draw();
+      }
+      TS.cur = (wantId && TS.sets.some(function (x) { return x.id === wantId; })) ? wantId : (TS.sets.length ? TS.sets[0].id : 'new');
+      draw();
       host.addEventListener('click', function (ev) {
         var b = ev.target.closest('[data-t]');
         if (!b) return;
-        var k = b.getAttribute('data-t'), row = b.closest('.wl-trow');
-        if (k === 'add') {
+        var k = b.getAttribute('data-t'), row = b.closest('.wl-trow'), list = box.querySelector('.wl-tlist');
+        if (k === 'pick') go(b.getAttribute('data-sid'));
+        else if (k === 'new') go('new');
+        else if (k === 'add') {
           list.insertAdjacentHTML('beforeend', tplRowHtml({ slot: '', work: '- ', status: 'done' }));
+          if (X.listEdit) X.listEdit(list.lastElementChild.querySelector('.wl-twork'));
           list.lastElementChild.querySelector('.wl-tslot').focus();
         } else if (k === 'rm' && row) row.remove();
         else if (k === 'up' && row && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
@@ -939,33 +1055,91 @@
         else if (k === 'from') {
           var mine = W.data.rows.filter(function (r) { return r.staffId === meId() && r.date === src; })
             .sort(function (a, c) { return slotKey(a.slot) - slotKey(c.slot) || (a.sort || 0) - (c.sort || 0); });
-          if (readTpl(host).length && !confirm(T('แทนที่แม่แบบเดิมด้วยแถวของ {d}?', { d: thShort(src) }))) return;
+          /* ถามเฉพาะตอนมีแถวที่คนพิมพ์ไว้จริง — แถวตั้งต้นว่าง ๆ ของแม่แบบใหม่ไม่นับ */
+          var untouched = JSON.parse(snap())[1].length === JSON.parse(TS.start)[1].length && !(curSet() && curSet().rows.length) && snap() === TS.start;
+          if (!untouched && readTpl(host).length && !confirm(T('แทนที่แถวในแม่แบบนี้ด้วยแถวของ {d}?', { d: thShort(src) }))) return;
           list.innerHTML = mine.map(function (r) { return tplRowHtml({ slot: r.slot, work: r.work, status: r.status === 'blocked' ? 'doing' : r.status }); }).join('');
+          Array.prototype.forEach.call(list.querySelectorAll('.wl-twork'), function (t) { if (X.listEdit) X.listEdit(t); });
+        } else if (k === 'delset') {
+          var set = curSet();
+          if (!set || !confirm(T('ลบแม่แบบ “{s}”? (แถวที่เติมลงวันต่าง ๆ ไปแล้วไม่หาย)', { s: set.name }))) return;
+          api('/worklog/templates/' + encodeURIComponent(set.id), 'DELETE').then(function (r2) {
+            TS.sets = r2.sets || [];
+            TS.cur = TS.sets.length ? TS.sets[0].id : 'new';
+            TS.start = '';
+            draw();
+            toast(T('ลบแม่แบบแล้ว'));
+          }).catch(fail);
         } else if (k === 'save') {
+          var name = box.querySelector('.wl-tname').value.trim();
+          if (!name) { toast(T('ตั้งชื่อแม่แบบก่อน'), true); box.querySelector('.wl-tname').focus(); return; }
           var data = readTpl(host);
+          var isNew = TS.cur === 'new';
           b.disabled = true;
-          api('/worklog/template', 'PUT', { rows: data }).then(function () {
-            start = JSON.stringify(data);
-            closeSheet(true);
-            toast(T('บันทึกแม่แบบแล้ว ({n} แถว)', { n: data.length }));
-            if (fillDate && data.length && confirm(T('เติมแม่แบบลงวันที่ {d} เลยไหม?', { d: thShort(fillDate) }))) fillTemplate(fillDate);
+          (isNew ? api('/worklog/templates', 'POST', { name: name, rows: data })
+                 : api('/worklog/templates/' + encodeURIComponent(TS.cur), 'PUT', { name: name, rows: data })).then(function (r2) {
+            b.disabled = false;
+            TS.sets = r2.sets || [];
+            if (isNew) TS.cur = r2.id;
+            draw();
+            toast(T('บันทึกแม่แบบ “{s}” แล้ว ({n} แถว)', { s: name, n: data.length }));
+            if (fillDate && data.length && confirm(T('เติมแม่แบบลงวันที่ {d} เลยไหม?', { d: thShort(fillDate) }))) {
+              closeSheet(true);
+              fillTemplate(fillDate, TS.cur);
+            }
           }).catch(function (e) { b.disabled = false; fail(e); });
         }
       });
-      Array.prototype.forEach.call(host.querySelectorAll('.wl-twork'), function (t) { if (X.listEdit) X.listEdit(t); });
       host.addEventListener('focusin', function (ev) { if (ev.target.classList.contains('wl-twork') && X.listEdit) X.listEdit(ev.target); });
     }).catch(fail);
   }
-  function fillTemplate(d) {
-    var have = haveOn(d);
-    if (have && !confirm(T('{d} มีอยู่แล้ว {n} แถว — เติมแม่แบบต่อท้ายอีกไหม?', { d: thShort(d), n: have }))) return;
-    api('/worklog/template/fill', 'POST', { date: d }).then(function (j) {
-      toast(T('เติมจากแม่แบบแล้ว {n} แถว', { n: j.count }));
-      render(W.route);
-    }).catch(function (e) {
-      if (/แม่แบบ/.test(e.message || '')) { toast(T('ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน')); openTemplate(d); return; }
-      fail(e);
-    });
+
+  /* ---------- เติมจากแม่แบบ: ติ๊กเลือกชุด ---------- */
+  function previewRows(rows) {
+    return rows.slice(0, 3).map(function (r) {
+      var first = String(r.work || '').split('\n')[0];
+      return '<span>' + (r.slot ? '<b>' + esc(r.slot) + '</b> ' : '') + esc(first) + '</span>';
+    }).join('') + (rows.length > 3 ? '<span class="wl-mut">' + esc(T('และอีก {n} แถว', { n: rows.length - 3 })) + '</span>' : '');
+  }
+  function fillTemplate(d, preId) {
+    api('/worklog/templates').then(function (j) {
+      var sets = (j.sets || []).filter(function (x) { return x.rows.length; });
+      if (!sets.length) { toast(T('ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน')); openTemplate(d); return; }
+      var have = haveOn(d);
+      var body = '<p class="wl-note">' + esc(T('เลือกแม่แบบที่จะเติมลง {d}', { d: DAY_EN[wd(d)] + ' ' + thShort(d) })) +
+        (have ? ' · ' + esc(T('วันนี้มีอยู่แล้ว {n} แถว — แถวจากแม่แบบจะต่อท้าย', { n: have })) : '') + '</p>' +
+        '<div class="wl-picklist">' + sets.map(function (x) {
+          var on = preId ? x.id === preId : sets.length === 1;
+          return '<label class="wl-pick"><input type="checkbox" data-sid="' + esc(x.id) + '"' + (on ? ' checked' : '') + '>' +
+            '<div><b>' + esc(T(x.name)) + '</b> <small>' + esc(T('{n} แถว', { n: x.rows.length })) + '</small>' +
+            '<div class="wl-pprev">' + previewRows(x.rows) + '</div></div></label>';
+        }).join('') + '</div>' +
+        '<button type="button" class="wl-fhist wl-pedit" data-p="edit">' + T('แก้ / เพิ่มแม่แบบ') + '</button>';
+      var host = openSheet(T('เติมจากแม่แบบ'), body, '<button type="button" class="btn wl-fsave" data-p="go"></button>');
+      var btn = host.querySelector('[data-p="go"]');
+      function picked() { return Array.prototype.filter.call(host.querySelectorAll('input[data-sid]'), function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-sid'); }); }
+      function upd() {
+        var ids = picked(), n = 0;
+        sets.forEach(function (x) { if (ids.indexOf(x.id) !== -1) n += x.rows.length; });
+        btn.disabled = !ids.length;
+        btn.textContent = ids.length ? T('เติม {n} แถว', { n: n }) : T('ติ๊กเลือกแม่แบบก่อน');
+      }
+      upd();
+      host.addEventListener('change', upd);
+      host.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-p]');
+        if (!b) return;
+        if (b.getAttribute('data-p') === 'edit') { closeSheet(true); openTemplate(d); return; }
+        var ids = picked();
+        if (!ids.length) return;
+        btn.disabled = true;
+        api('/worklog/template/fill', 'POST', { date: d, sets: ids }).then(function (r) {
+          closeSheet(true);
+          toast(T('เติมจากแม่แบบแล้ว {n} แถว', { n: r.count }));
+          render(W.route);
+        }).catch(function (e) { btn.disabled = false; fail(e); });
+      });
+    }).catch(fail);
   }
 
   /* ============================================================
@@ -991,6 +1165,7 @@
     if ((m = s.match(/^แนบรูป (\d+) รูป$/))) return T('แนบรูป {n} รูป', { n: m[1] });
     if ((m = s.match(/^ลบรูป (.+)$/))) return T('ลบรูป {s}', { s: m[1] });
     if ((m = s.match(/^คัดลอกจาก (.+)$/))) return T('คัดลอกจาก {s}', { s: m[1] });
+    if ((m = s.match(/^เติมจากแม่แบบ (.+)$/))) return T('เติมจากแม่แบบ {s}', { s: m[1] });
     return T(s);
   }
   function openHistory(id) {
