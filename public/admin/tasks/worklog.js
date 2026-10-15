@@ -29,11 +29,129 @@
   /* ลำดับช่องที่กด Tab ไล่ไปในแถวเดียวกัน */
   var FIELDS = ['slot', 'work', 'reason'];
 
+  /* ============================================================
+     ภาษา ไทย / English (นนท์ขอ 15 ต.ค. 69) — สวิตช์ "ไทย | EN" มุมบนของหน้า · จำไว้ต่อเครื่อง (localStorage kan-wl-lang)
+     T('ข้อความไทย', {n: 3}) — คีย์คือข้อความไทยเอง (มี {n} {d} เป็นช่องแทนค่า) → โหมดไทยคืนข้อความเดิมเป๊ะ
+     โหมด EN หาใน EN_TEXT ไม่เจอ = ใช้ไทยไปก่อน (ไม่มีวันขึ้นช่องว่าง)
+     ข้อความ error จากเซิร์ฟเวอร์เป็นไทยตายตัว → แปลฝั่งหน้าเว็บด้วยตารางเดียวกัน (ตัวเลขในข้อความแทนด้วย {n})
+     สิ่งที่คนพิมพ์ (Work / reason) กับชื่อคน ไม่แปล
+     ============================================================ */
+  var LANG_KEY = 'kan-wl-lang';
+  var LANG = (function () { try { return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'th'; } catch (e) { return 'th'; } })();
+  function setLang(l) {
+    LANG = l === 'en' ? 'en' : 'th';
+    try { localStorage.setItem(LANG_KEY, LANG); } catch (e) {}
+  }
+  var EN_TEXT = {
+    /* หัวหน้า / แถบ */
+    'งานทีม': 'Team work', 'บันทึกงานรายวัน': 'Work Log', 'กำลังโหลด…': 'Loading…',
+    'เปิดบันทึกงานไม่ได้': 'Could not open the work log', 'กลับไปบันทึกของฉัน': 'Back to my log',
+    'บันทึกของทั้งทีม — ดูอย่างเดียว แต่ละคนแก้ได้เฉพาะของตัวเอง': 'Whole team’s log — view only. Everyone can edit only their own rows.',
+    'คลิกช่องแล้วพิมพ์ได้เลย · Enter หรือคลิกที่อื่น = บันทึก · Esc = ยกเลิก · ช่อง Work ขึ้นบรรทัดใหม่ด้วย Enter, บันทึกด้วย Ctrl+Enter':
+      'Click a cell and type · Enter or click elsewhere = save · Esc = cancel · In Work, Enter adds a line and Ctrl+Enter saves',
+    'ค้นหา': 'Search', 'แม่แบบของฉัน': 'My template', 'ของฉัน': 'Mine', 'ทั้งทีม': 'Whole team',
+    '‹ สัปดาห์ก่อน': '‹ Previous week', 'สัปดาห์ถัดไป ›': 'Next week ›', 'สัปดาห์ก่อน': 'Previous week', 'สัปดาห์ถัดไป': 'Next week', 'สัปดาห์นี้': 'This week',
+    'คน': 'Person', 'ทุกคน': 'Everyone', 'สาขา': 'Branch', 'ทุกสาขา': 'All branches', 'ไม่ระบุสาขา': 'No branch', 'ทั้งหมด': 'All',
+    /* ตาราง */
+    'ชื่อ': 'Name', 'แนบรูปงาน': 'Photos', 'จัดการ': 'Actions',
+    'ไม่มีบันทึกในสัปดาห์นี้': 'No entries this week', ' ตามตัวกรองที่เลือก': ' for the selected filters',
+    'วันนี้': 'Today', '+ เพิ่มแถว': '+ Add row', 'คัดลอกวันก่อน': 'Copy previous day', 'เติมจากแม่แบบ': 'Fill from template',
+    '↪ ยกมาจาก {d}': '↪ Carried from {d}', 'ยกไป {d} →': 'Carried to {d} →',
+    'เวลา': 'Time', 'พิมพ์งาน…': 'Type work…', 'ประวัติการแก้ไข': 'Edit history', 'ลบแถวนี้': 'Delete this row',
+    'ลบรูปนี้': 'Delete this photo', 'แนบรูป (ย่อให้อัตโนมัติ)': 'Attach photos (shrunk automatically)', '+ รูป': '+ Photo',
+    'ติดอะไร / จะเสร็จเมื่อไหร่ (ต้องใส่)': 'What is blocking it / when will it be done (required)',
+    'เช่น ทำไมช้า / จะเสร็จเมื่อไหร่': 'e.g. why it is late / when it will be done',
+    'Enter = ขึ้นบรรทัด · Ctrl+Enter = บันทึก · Esc = ยกเลิก': 'Enter = new line · Ctrl+Enter = save · Esc = cancel',
+    'Enter = บันทึก · Shift+Enter = ขึ้นบรรทัด · Esc = ยกเลิก': 'Enter = save · Shift+Enter = new line · Esc = cancel',
+    'ยังไม่ได้เปลี่ยนเป็น “ติดปัญหา” — ต้องใส่ reason ก่อน': 'Not changed to “Blocked” — a reason is required first',
+    '“ติดปัญหา” ต้องใส่ reason — พิมพ์แล้วกด Enter': '“Blocked” needs a reason — type it and press Enter',
+    'ลบแถวนี้?': 'Delete this row?', 'ลบแล้ว': 'Deleted',
+    /* มือถือ */
+    'วันก่อน': 'Previous day', 'วันถัดไป': 'Next day', 'เลือกวันที่': 'Pick a date', 'กลับไปวันนี้': 'Back to today', 'ตัวกรอง': 'Filters',
+    'ไม่มีบันทึกของวันนี้': 'No entries for this day', ' ตามตัวกรอง': ' for these filters', 'ยังไม่มีบันทึกของวันนี้': 'Nothing logged for this day yet',
+    'กด “คัดลอกวันก่อน” “เติมจากแม่แบบ” หรือ “เพิ่มแถว” ด้านล่าง': 'Tap “Copy previous day”, “Fill from template” or “Add row” below',
+    'แก้แถวนี้': 'Edit this row', 'ไม่ระบุเวลา': 'No time', '(ยังไม่ได้พิมพ์งาน)': '(no work typed yet)', 'แก้ไข ›': 'Edit ›', 'ประวัติ': 'History',
+    '“ติดปัญหา” ต้องใส่ reason ก่อนบันทึก': '“Blocked” needs a reason before saving',
+    '{d} มีอยู่แล้ว {n} แถว — คัดลอกแถวของวันก่อนมาต่อท้ายอีกไหม?': '{d} already has {n} rows — copy the previous day’s rows below them anyway?',
+    'คัดลอกมาแล้ว {n} แถว': 'Copied {n} rows',
+    /* ฟอร์ม */
+    'แก้ไขแถว': 'Edit row', 'เพิ่มแถว': 'Add row', 'ปิด': 'Close', 'วันที่ (M/D/Y)': 'Date (M/D/Y)', 'อื่นๆ (พิมพ์เอง)': 'Other (type it)',
+    'เช่น 09.00-10.00': 'e.g. 09.00-10.00', 'หนึ่งบรรทัดต่องาน — กด Enter ขึ้นบรรทัดใหม่ได้ “- ” ให้เอง': 'One task per line — Enter starts a new “- ” line',
+    'ต้องใส่ เพราะเลือก “ติดปัญหา”': 'Required because Process is “Blocked”',
+    'ถ่ายรูป': 'Take photo', 'เลือกจากคลังรูป': 'Choose from gallery', 'บันทึก': 'Save', 'เอารูปนี้ออก': 'Remove this photo',
+    'หนึ่งแถวแนบรูปได้ไม่เกิน {n} รูป': 'Up to {n} photos per row', 'กำลังย่อรูป…': 'Shrinking photos…', 'ทิ้งสิ่งที่แก้ไว้?': 'Discard your changes?',
+    'พิมพ์งานก่อนนะ': 'Type the work first', 'เลือกวันที่ก่อน': 'Pick a date first', '“ติดปัญหา” ต้องใส่ reason': '“Blocked” needs a reason',
+    'กำลังบันทึก…': 'Saving…', 'บันทึกแล้ว': 'Saved',
+    'กำลังย่อและอัปโหลด {n} รูป…': 'Shrinking and uploading {n} photos…', 'แนบรูปแล้ว': 'Photos attached', 'ลบรูปนี้?': 'Delete this photo?', 'ลบรูปแล้ว': 'Photo deleted',
+    /* แม่แบบ */
+    'เวลา เช่น 10.00-10.30': 'Time, e.g. 10.00-10.30', '- งาน /': '- task /', 'เลื่อนขึ้น': 'Move up', 'เลื่อนลง': 'Move down',
+    'แถวที่ทำทุกวัน ตั้งไว้ครั้งเดียว แล้วกด “เติมจากแม่แบบ” ในวันไหนก็ได้ ระบบใส่ให้ทั้งชุด':
+      'Rows you do every day. Set them once, then tap “Fill from template” on any day to add the whole set.',
+    'ใช้แถวของ {d} เป็นแม่แบบ': 'Use the rows from {d} as the template', '+ เพิ่มแถวแม่แบบ': '+ Add template row', 'บันทึกแม่แบบ': 'Save template',
+    'ทิ้งแม่แบบที่แก้ไว้?': 'Discard your template changes?', 'แทนที่แม่แบบเดิมด้วยแถวของ {d}?': 'Replace the current template with the rows from {d}?',
+    'บันทึกแม่แบบแล้ว ({n} แถว)': 'Template saved ({n} rows)', 'เติมแม่แบบลงวันที่ {d} เลยไหม?': 'Fill the template into {d} now?',
+    '{d} มีอยู่แล้ว {n} แถว — เติมแม่แบบต่อท้ายอีกไหม?': '{d} already has {n} rows — add the template below them anyway?',
+    'เติมจากแม่แบบแล้ว {n} แถว': 'Filled {n} rows from the template',
+    /* ประวัติ */
+    '(ว่าง)': '(empty)', '{n} รูป': '{n} photos', 'สร้างแถว': 'Created row', 'แก้ไข': 'Edited', 'ลบ': 'Deleted',
+    'ระบบ': 'System', 'ยกงานค้างมาจาก {d}': 'carried over the unfinished row from {d}', 'ยังไม่มีประวัติ': 'No history yet',
+    'แนบรูป {n} รูป': 'added {n} photos', 'ลบรูป {s}': 'deleted photo {s}', 'คัดลอกจาก {s}': 'copied from {s}',
+    /* ค้นหา */
+    'ค้นหาบันทึก': 'Search the log', 'ค้นในช่อง Work และ reason · ไม่ใส่ช่วงวันที่ = 90 วันล่าสุด': 'Searches Work and reason · no date range = last 90 days',
+    'กลับไปบันทึกงาน': 'Back to the work log', 'พิมพ์คำที่จะค้น เช่น โรงพิมพ์, ป้าย, 11.11': 'Type a word, e.g. printer, sign, 11.11', 'คำค้น': 'Search words',
+    'ตั้งแต่': 'From', 'ถึง': 'To', 'กำลังค้นหา…': 'Searching…', 'พิมพ์คำแล้วกดค้นหา': 'Type a word and press Search',
+    'เจอ {n} แถว': '{n} rows found', ' — แสดง 200 แถวแรก ลองจำกัดช่วงวันที่ให้แคบลง': ' — showing the first 200; try a narrower date range',
+    'ค้นหาไม่สำเร็จ': 'Search failed',
+    /* ข้อความจากเซิร์ฟเวอร์ (worker-worklog.js / worker-tasks.js) */
+    'Process ไม่ถูกต้อง': 'Invalid Process value', 'ค้นได้ครั้งละไม่เกิน {n} ปี': 'You can search up to {n} year at a time',
+    'ช่วงวันที่ไม่ถูกต้อง': 'Invalid date range', 'ช่อง Work ยาวเกิน {n} ตัวอักษร': 'Work is longer than {n} characters',
+    'ช่อง reason ยาวเกิน {n} ตัวอักษร': 'reason is longer than {n} characters', 'ดูของทุกคนได้เฉพาะหัวหน้า': 'Only leads can see everyone’s log',
+    'ดูได้ครั้งละไม่เกิน {n} วัน': 'You can view up to {n} days at a time', 'พิมพ์คำที่จะค้นก่อน': 'Type something to search for first',
+    'ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน': 'No template yet — set up your daily rows first', 'ยังไม่ได้เลือกรูป': 'No photo selected',
+    'ลบได้เฉพาะรูปในบันทึกของตัวเอง': 'You can only delete photos in your own log', 'วันต้นทางต้องอยู่ก่อนวันปลายทาง': 'The source day must be before the target day',
+    'วันที่ห่างจากวันนี้เกินไป': 'That date is too far from today', 'วันที่ไม่ถูกต้อง': 'Invalid date', 'วันนั้นไม่มีแถวที่ก๊อปได้': 'That day has no rows to copy',
+    'แก้ได้เฉพาะบันทึกของตัวเอง': 'You can only edit your own log', 'แถวที่ {n}: {s}': 'Row {n}: {s}',
+    'แม่แบบตั้งเป็น “ติดปัญหา” ไม่ได้': 'A template row can’t be “Blocked”', 'แนบได้ครั้งละไม่เกิน {n} รูป': 'Up to {n} photos per upload',
+    'แนบได้เฉพาะรูปภาพ': 'Only images can be attached', 'แม่แบบมีได้ไม่เกิน {n} แถว': 'A template can have up to {n} rows',
+    'ไม่พบ endpoint นี้': 'Not found', 'ไม่พบรูป': 'Photo not found', 'ไม่พบแถวนี้': 'Row not found',
+    'ไม่มีสิทธิ์ดูบันทึกของคนนี้': 'You don’t have access to this person’s log', 'ไม่มีสิทธิ์เข้าเมนูบันทึกงานรายวัน': 'You don’t have access to the Work Log',
+    'ไม่เจอบันทึกของวันก่อนหน้า (ย้อนดู {n} วัน)': 'No earlier day found (looked back {n} days)',
+    'เลือก “ติดปัญหา” ต้องใส่ reason ด้วยว่าติดอะไร / จะเสร็จเมื่อไหร่': '“Blocked” needs a reason: what is blocking it / when it will be done',
+    'ไฟล์ไม่ถูกต้อง': 'Invalid file', 'กรุณาเข้าสู่ระบบ': 'Please log in', 'สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว': 'Your access to this menu is view only',
+  };
+  var STATUS_EN = { done: 'Done', doing: 'In progress', review: 'Review', blocked: 'Blocked' };
+  var MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var FIELD_EN = { work_date: 'Date', slot: 'Time', work: 'Work', status: 'Process', reason: 'reason', __files: 'Photos' };
+  function T(th, vars) {
+    var s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN_TEXT, th) ? EN_TEXT[th] : th;
+    if (vars) s = s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? String(vars[k]) : m; });
+    return s;
+  }
+  function stTh(k) { return LANG === 'en' ? (STATUS_EN[k] || k) : (STATUS_TH[k] || k); }
+  /* ข้อความไทยจากเซิร์ฟเวอร์ → อังกฤษ: ตรงตัวก่อน · ไม่เจอ ลองแทนตัวเลขด้วย {n} · "แถวที่ N: …" แปลข้างในต่อ · "ไฟล์ … ใหญ่เกิน" */
+  function tServer(msg) {
+    msg = String(msg == null ? '' : msg);
+    if (LANG !== 'en') return msg;
+    if (EN_TEXT[msg]) return EN_TEXT[msg];
+    var m = msg.match(/^แถวที่ (\d+): (.*)$/);
+    if (m) return T('แถวที่ {n}: {s}', { n: m[1], s: tServer(m[2]) });
+    if (/^ไฟล์ .* ใหญ่เกิน/.test(msg)) return 'File is too large — for big files or videos, upload to Drive and paste a link';
+    var nums = [];
+    var key = msg.replace(/\d+(?:\.\d+)?/g, function (x) { nums.push(x); return '{n}'; });
+    if (nums.length === 1 && EN_TEXT[key]) return T(key, { n: nums[0] });
+    return msg;
+  }
+  function langSeg() {
+    return '<div class="seg wl-seg wl-lang" role="group" aria-label="Language / ภาษา">' +
+      '<button type="button" data-wl-lang="th"' + (LANG === 'th' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>ไทย</button>' +
+      '<button type="button" data-wl-lang="en"' + (LANG === 'en' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>EN</button></div>';
+  }
+
   function $(s, r) { return (r || document).querySelector(s); }
   function esc(s) { return X.esc(s); }
   function api(p, m, b) { return X.api(p, m, b); }
   function toast(m, bad) { X.toast(m, bad); }
-  function fail(e) { toast(e && e.message ? e.message : String(e), true); }
+  function fail(e) { toast(tServer(e && e.message ? e.message : String(e)), true); }
 
   /* ---------- วันที่ (สตริง YYYY-MM-DD คิดแบบ UTC ล้วน กันเขตเวลาเพี้ยน) ---------- */
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -44,11 +162,11 @@
   /* สัปดาห์เริ่มวันจันทร์ ตามชีต (ปฏิทินการตลาดเริ่มอาทิตย์ — คนละหน้า ไม่เกี่ยวกัน) */
   function mondayOf(d) { return addDays(d, -((wd(d) + 6) % 7)); }
   function mdy(d) { var p = d.split('-'); return Number(p[1]) + '/' + Number(p[2]) + '/' + p[0]; }
-  function thShort(d) { var p = d.split('-'); return Number(p[2]) + ' ' + MON_TH[Number(p[1]) - 1]; }
+  function thShort(d) { var p = d.split('-'); return Number(p[2]) + ' ' + (LANG === 'en' ? MON_EN : MON_TH)[Number(p[1]) - 1]; }
   function thRange(a, b) {
     var pa = a.split('-'), pb = b.split('-');
-    var y = ' ' + (Number(pb[0]) + 543);
-    if (pa[1] === pb[1]) return Number(pa[2]) + '–' + Number(pb[2]) + ' ' + MON_TH[Number(pb[1]) - 1] + y;
+    var y = ' ' + (Number(pb[0]) + (LANG === 'en' ? 0 : 543));
+    if (pa[1] === pb[1]) return Number(pa[2]) + '–' + Number(pb[2]) + ' ' + (LANG === 'en' ? MON_EN : MON_TH)[Number(pb[1]) - 1] + y;
     return thShort(a) + ' – ' + thShort(b) + y;
   }
 
@@ -90,7 +208,7 @@
     W.o = o;
     W.route = route;
     if (o.search) return renderSearch(o, v, key);
-    if (!W.data || key !== W.key) v.innerHTML = '<div class="loading">กำลังโหลด…</div>';
+    if (!W.data || key !== W.key) v.innerHTML = '<div class="loading">' + T('กำลังโหลด…') + '</div>';
     W.key = key;
     var q = '/worklog?from=' + (o.phone ? o.day : o.from) + '&to=' + (o.phone ? o.day : addDays(o.from, 6)) + '&staff=' + encodeURIComponent(o.staff) +
       (o.branch ? '&branch=' + encodeURIComponent(o.branch) : '') + (o.status ? '&status=' + o.status : '');
@@ -99,8 +217,8 @@
       W.data = j;
       paint();
     }).catch(function (e) {
-      v.innerHTML = '<div class="err"><b>เปิดบันทึกงานไม่ได้</b><p>' + esc(e.message || e) + '</p></div>' +
-        (o.all ? '<a class="btn-ghost" href="#/log">กลับไปบันทึกของฉัน</a>' : '');
+      v.innerHTML = '<div class="err"><b>' + T('เปิดบันทึกงานไม่ได้') + '</b><p>' + esc(tServer(e.message || e)) + '</p></div>' +
+        (o.all ? '<a class="btn-ghost" href="#/log">' + T('กลับไปบันทึกของฉัน') + '</a>' : '');
     });
   }
 
@@ -111,24 +229,24 @@
     var to = addDays(o.from, 6);
     var today = j.today || localToday();
     var ro = X.readOnly();
-    var h = '<div class="top wl-top"><div><span class="kicker">งานทีม</span>' +
-      '<h1>บันทึกงานรายวัน <span class="en">Work Log</span></h1>' +
-      '<p>' + (o.all ? 'บันทึกของทั้งทีม — ดูอย่างเดียว แต่ละคนแก้ได้เฉพาะของตัวเอง'
-        : 'คลิกช่องแล้วพิมพ์ได้เลย · Enter หรือคลิกที่อื่น = บันทึก · Esc = ยกเลิก · ช่อง Work ขึ้นบรรทัดใหม่ด้วย Enter, บันทึกด้วย Ctrl+Enter') + '</p></div>' +
-      '<div class="top-r">' +
+    var h = '<div class="top wl-top"><div><span class="kicker">' + T('งานทีม') + '</span>' +
+      '<h1>' + (LANG === 'en' ? '<span class="en">Work Log</span>' : 'บันทึกงานรายวัน <span class="en">Work Log</span>') + '</h1>' +
+      '<p>' + (o.all ? T('บันทึกของทั้งทีม — ดูอย่างเดียว แต่ละคนแก้ได้เฉพาะของตัวเอง')
+        : T('คลิกช่องแล้วพิมพ์ได้เลย · Enter หรือคลิกที่อื่น = บันทึก · Esc = ยกเลิก · ช่อง Work ขึ้นบรรทัดใหม่ด้วย Enter, บันทึกด้วย Ctrl+Enter')) + '</p></div>' +
+      '<div class="top-r">' + langSeg() +
       segHtml(o) +
-      '<a class="btn-ghost" href="#/log/search">ค้นหา</a>' +
-      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">แม่แบบของฉัน</button>' : '') +
+      '<a class="btn-ghost" href="#/log/search">' + T('ค้นหา') + '</a>' +
+      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">' + T('แม่แบบของฉัน') + '</button>' : '') +
       (!o.all && !ro ? '<button type="button" class="btn" data-wl="add">+ Add row</button>' : '') +
       '</div></div>';
 
     /* แถบสัปดาห์ + ตัวกรองของหัวหน้า */
     var thisWeek = mondayOf(today);
     h += '<div class="wl-bar"><div class="wl-week">' +
-      '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: addDays(o.from, -7) })) + '" aria-label="สัปดาห์ก่อน">‹ สัปดาห์ก่อน</a>' +
+      '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: addDays(o.from, -7) })) + '" aria-label="' + T('สัปดาห์ก่อน') + '">' + T('‹ สัปดาห์ก่อน') + '</a>' +
       '<b>' + esc(thRange(o.from, to)) + '</b>' +
-      '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: addDays(o.from, 7) })) + '" aria-label="สัปดาห์ถัดไป">สัปดาห์ถัดไป ›</a>' +
-      (o.from !== thisWeek ? '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: thisWeek })) + '">สัปดาห์นี้</a>' : '') +
+      '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: addDays(o.from, 7) })) + '" aria-label="' + T('สัปดาห์ถัดไป') + '">' + T('สัปดาห์ถัดไป ›') + '</a>' +
+      (o.from !== thisWeek ? '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: thisWeek })) + '">' + T('สัปดาห์นี้') + '</a>' : '') +
       '</div>';
     if (o.all) h += filtersHtml(o);
     h += '</div>';
@@ -146,11 +264,11 @@
     h += '<div class="wl-wrap"><table class="wl-tab' + (o.all ? ' all' : '') + '"><colgroup>' +
       '<col class="c-date"><col class="c-day">' + (o.all ? '<col class="c-who">' : '') +
       '<col class="c-time"><col class="c-work"><col class="c-proc"><col class="c-reason"><col class="c-pic"><col class="c-act">' +
-      '</colgroup><thead><tr><th>M/D/Y</th><th>Day</th>' + (o.all ? '<th>ชื่อ</th>' : '') +
-      '<th>Time</th><th>Work</th><th>Process</th><th>reason</th><th>แนบรูปงาน</th><th aria-label="จัดการ"></th></tr></thead>';
+      '</colgroup><thead><tr><th>M/D/Y</th><th>Day</th>' + (o.all ? '<th>' + T('ชื่อ') + '</th>' : '') +
+      '<th>Time</th><th>Work</th><th>Process</th><th>reason</th><th>' + T('แนบรูปงาน') + '</th><th aria-label="' + T('จัดการ') + '"></th></tr></thead>';
     if (!days.length) {
-      h += '<tbody><tr><td colspan="' + cols + '" class="wl-empty">ไม่มีบันทึกในสัปดาห์นี้' +
-        (o.staff !== 'all' || o.branch || o.status ? ' ตามตัวกรองที่เลือก' : '') + '</td></tr></tbody>';
+      h += '<tbody><tr><td colspan="' + cols + '" class="wl-empty">' + T('ไม่มีบันทึกในสัปดาห์นี้') +
+        (o.staff !== 'all' || o.branch || o.status ? T(' ตามตัวกรองที่เลือก') : '') + '</td></tr></tbody>';
     }
     days.forEach(function (d) {
       var list = (byDay[d] || []).slice().sort(function (a, b) {
@@ -159,7 +277,7 @@
       });
       var cls = 'wl-day' + (d === today ? ' today' : '') + (wd(d) === 0 || wd(d) === 6 ? ' wkend' : '');
       var span = Math.max(1, list.length) + (!o.all && !ro ? 1 : 0);
-      var head = '<td class="wl-date" rowspan="' + span + '">' + mdy(d) + (d === today ? '<small>วันนี้</small>' : '') + '</td>' +
+      var head = '<td class="wl-date" rowspan="' + span + '">' + mdy(d) + (d === today ? '<small>' + T('วันนี้') + '</small>' : '') + '</td>' +
         '<td class="wl-dname" rowspan="' + span + '">' + DAY_EN[wd(d)] + '</td>';
       h += '<tbody class="' + cls + '" data-date="' + d + '">';
       if (!list.length) {
@@ -168,9 +286,9 @@
       /* มุมมองทั้งทีม: ชื่อขึ้นแถวแรกของแต่ละคนในวันนั้น แถวต่อ ๆ ไปเว้นว่าง (อ่านง่ายแบบเซลล์รวม) */
       list.forEach(function (r, k) { h += rowHtml(r, k === 0 ? head : '', o, k === 0 || list[k - 1].staffId !== r.staffId); });
       if (!o.all && !ro) {
-        h += '<tr class="wl-addrow"><td colspan="' + (cols - 2) + '"><button type="button" class="wl-add" data-wl="add" data-date="' + d + '">+ เพิ่มแถว</button>' +
-          '<button type="button" class="wl-add" data-wl="copy" data-date="' + d + '">คัดลอกวันก่อน</button>' +
-          '<button type="button" class="wl-add" data-wl="fill" data-date="' + d + '">เติมจากแม่แบบ</button></td></tr>';
+        h += '<tr class="wl-addrow"><td colspan="' + (cols - 2) + '"><button type="button" class="wl-add" data-wl="add" data-date="' + d + '">' + T('+ เพิ่มแถว') + '</button>' +
+          '<button type="button" class="wl-add" data-wl="copy" data-date="' + d + '">' + T('คัดลอกวันก่อน') + '</button>' +
+          '<button type="button" class="wl-add" data-wl="fill" data-date="' + d + '">' + T('เติมจากแม่แบบ') + '</button></td></tr>';
       }
       h += '</tbody>';
     });
@@ -180,21 +298,21 @@
   }
   function segHtml(o) {
     if (!W.data.isLead) return '';
-    return '<div class="seg wl-seg"><a href="' + hashFor({ all: false, phone: o.phone, day: o.day, from: o.from }) + '"' + (o.all ? '' : ' class="on"') + '>ของฉัน</a>' +
-      '<a href="' + hashFor({ all: true, phone: o.phone, day: o.day, from: o.from, staff: 'all' }) + '"' + (o.all ? ' class="on"' : '') + '>ทั้งทีม</a></div>';
+    return '<div class="seg wl-seg"><a href="' + hashFor({ all: false, phone: o.phone, day: o.day, from: o.from }) + '"' + (o.all ? '' : ' class="on"') + '>' + T('ของฉัน') + '</a>' +
+      '<a href="' + hashFor({ all: true, phone: o.phone, day: o.day, from: o.from, staff: 'all' }) + '"' + (o.all ? ' class="on"' : '') + '>' + T('ทั้งทีม') + '</a></div>';
   }
   function filtersHtml(o) {
     var j = W.data;
     return '<div class="wl-filters">' +
-      '<label>คน<select class="select" data-wlf="staff"><option value="all">ทุกคน</option>' +
+      '<label>' + T('คน') + '<select class="select" data-wlf="staff"><option value="all">' + T('ทุกคน') + '</option>' +
         j.staff.filter(function (s) { return s.active; }).map(function (s) {
           return '<option value="' + esc(s.id) + '"' + (o.staff === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>';
         }).join('') + '</select></label>' +
-      '<label>สาขา<select class="select" data-wlf="branch"><option value="">ทุกสาขา</option>' +
+      '<label>' + T('สาขา') + '<select class="select" data-wlf="branch"><option value="">' + T('ทุกสาขา') + '</option>' +
         (j.branches || []).map(function (b) { return '<option' + (o.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
-        '<option value="none"' + (o.branch === 'none' ? ' selected' : '') + '>ไม่ระบุสาขา</option></select></label>' +
-      '<label>Process<select class="select" data-wlf="status"><option value="">ทั้งหมด</option>' +
-        STATUS.map(function (s) { return '<option value="' + s.k + '"' + (o.status === s.k ? ' selected' : '') + '>' + s.th + '</option>'; }).join('') +
+        '<option value="none"' + (o.branch === 'none' ? ' selected' : '') + '>' + T('ไม่ระบุสาขา') + '</option></select></label>' +
+      '<label>Process<select class="select" data-wlf="status"><option value="">' + T('ทั้งหมด') + '</option>' +
+        STATUS.map(function (s) { return '<option value="' + s.k + '"' + (o.status === s.k ? ' selected' : '') + '>' + stTh(s.k) + '</option>'; }).join('') +
         '</select></label></div>';
   }
   /* "10.00-10.30" → นาทีเริ่ม (อ่านไม่ออก = ท้ายวัน) — ชุดเดียวกับฝั่งเซิร์ฟเวอร์ */
@@ -207,24 +325,24 @@
     var e = mine ? ' wl-ed' : '';
     var work = String(r.work || '');
     var tags = '';
-    if (r.carriedFromDate) tags += '<span class="wl-tag">↪ ยกมาจาก ' + esc(thShort(r.carriedFromDate)) + '</span>';
-    if (r.carriedToDate) tags += '<span class="wl-tag mut">ยกไป ' + esc(thShort(r.carriedToDate)) + ' →</span>';
-    return '<tr class="wl-row' + (r.draft ? ' draft' : '') + '" data-id="' + esc(r.id) + '">' + head +
+    if (r.carriedFromDate) tags += '<span class="wl-tag">' + esc(T('↪ ยกมาจาก {d}', { d: thShort(r.carriedFromDate) })) + '</span>';
+    if (r.carriedToDate) tags += '<span class="wl-tag mut">' + esc(T('ยกไป {d} →', { d: thShort(r.carriedToDate) })) + '</span>';
+    return '<tr class="wl-row' + (r.draft ? ' wl-draft' : '') + '" data-id="' + esc(r.id) + '">' + head +
       (o.all ? '<td class="wl-who' + (firstOfPerson ? '' : ' cont') + '" title="' + esc(staffFull(r.staffId)) + '">' + (firstOfPerson ? esc(staffName(r.staffId)) : '') + '</td>' : '') +
-      '<td class="wl-c' + e + '" data-f="slot">' + (r.slot ? esc(r.slot) : (mine ? '<span class="wl-ph">เวลา</span>' : '')) + '</td>' +
+      '<td class="wl-c' + e + '" data-f="slot">' + (r.slot ? esc(r.slot) : (mine ? '<span class="wl-ph">' + T('เวลา') + '</span>' : '')) + '</td>' +
       '<td class="wl-c wl-work' + e + '" data-f="work">' + (tags ? '<div class="wl-tags">' + tags + '</div>' : '') +
-        (work.trim() ? '<div class="wl-txt">' + esc(work) + '</div>' : (mine ? '<span class="wl-ph">พิมพ์งาน…</span>' : '')) + '</td>' +
+        (work.trim() ? '<div class="wl-txt">' + esc(work) + '</div>' : (mine ? '<span class="wl-ph">' + T('พิมพ์งาน…') + '</span>' : '')) + '</td>' +
       '<td class="wl-proc">' + pill(r, mine && !r.draft) + '</td>' +
       '<td class="wl-c wl-reason' + e + (r.status === 'blocked' && !r.reason ? ' need' : '') + '" data-f="reason">' +
         (r.reason ? '<div class="wl-txt">' + esc(r.reason) + '</div>' : '') + '</td>' +
       '<td class="wl-pics">' + pics(r, mine && !r.draft) + '</td>' +
-      '<td class="wl-act">' + (r.draft ? '' : '<button type="button" class="wl-x wl-h" data-wl="hist" title="ประวัติการแก้ไข" aria-label="ประวัติการแก้ไข">' + ICON_CLOCK + '</button>') +
-        (mine && !r.draft ? '<button type="button" class="wl-x" data-wl="del" title="ลบแถวนี้" aria-label="ลบแถวนี้">×</button>' : '') + '</td>' +
+      '<td class="wl-act">' + (r.draft ? '' : '<button type="button" class="wl-x wl-h" data-wl="hist" title="' + T('ประวัติการแก้ไข') + '" aria-label="' + T('ประวัติการแก้ไข') + '">' + ICON_CLOCK + '</button>') +
+        (mine && !r.draft ? '<button type="button" class="wl-x" data-wl="del" title="' + T('ลบแถวนี้') + '" aria-label="' + T('ลบแถวนี้') + '">×</button>' : '') + '</td>' +
       '</tr>';
   }
   function pill(r, can) {
     var st = r.status || 'done';
-    var inner = esc(STATUS_TH[st] || st) + (can ? '<i aria-hidden="true">▾</i>' : '');
+    var inner = esc(stTh(st)) + (can ? '<i aria-hidden="true">▾</i>' : '');
     return can
       ? '<button type="button" class="wl-pill ' + st + '" data-wl="proc" aria-haspopup="listbox">' + inner + '</button>'
       : '<span class="wl-pill ' + st + '">' + inner + '</span>';
@@ -234,13 +352,13 @@
   function pics(r, can) {
     var list = r.files || [];
     if (!list.length && !can) return '';
-    return '<div class="wl-thumbs' + (list.length ? '' : ' empty') + '">' + list.map(function (f) {
+    return '<div class="wl-thumbs' + (list.length ? '' : ' wl-nopic') + '">' + list.map(function (f) {
       var full = X.API + '/worklog/files/' + encodeURIComponent(f.id);
       return '<span class="wl-tw"><span class="att img wl-thumb" role="button" tabindex="0" data-src="' + esc(full) + '" title="' + esc(f.name) + '" ' +
         'style="background-image:url(\'' + esc(full + (f.thumb ? '?thumb=1' : '')) + '\')"></span>' +
-        (can ? '<button type="button" class="wl-tx" data-wl="picdel" data-fid="' + esc(f.id) + '" aria-label="ลบรูปนี้" title="ลบรูปนี้">×</button>' : '') + '</span>';
+        (can ? '<button type="button" class="wl-tx" data-wl="picdel" data-fid="' + esc(f.id) + '" aria-label="' + T('ลบรูปนี้') + '" title="' + T('ลบรูปนี้') + '">×</button>' : '') + '</span>';
     }).join('') +
-      (can && list.length < MAX_PICS ? '<label class="wl-addpic" title="แนบรูป (ย่อให้อัตโนมัติ)"><input type="file" accept="image/*" multiple data-wl-pic hidden>+ รูป</label>' : '') +
+      (can && list.length < MAX_PICS ? '<label class="wl-addpic" title="' + T('แนบรูป (ย่อให้อัตโนมัติ)') + '"><input type="file" accept="image/*" multiple data-wl-pic hidden>' + T('+ รูป') + '</label>' : '') +
       '</div>';
   }
 
@@ -273,9 +391,9 @@
         '<datalist id="wlSlots">' + ((W.data && W.data.slots) || []).map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist>';
     } else {
       td.innerHTML = '<textarea class="wl-in" rows="' + (field === 'work' ? 3 : 2) + '"' +
-        (field === 'reason' ? ' placeholder="' + (W.edit.pendingStatus === 'blocked' || r.status === 'blocked' ? 'ติดอะไร / จะเสร็จเมื่อไหร่ (ต้องใส่)' : 'เช่น ทำไมช้า / จะเสร็จเมื่อไหร่') + '"' : '') +
+        (field === 'reason' ? ' placeholder="' + (W.edit.pendingStatus === 'blocked' || r.status === 'blocked' ? T('ติดอะไร / จะเสร็จเมื่อไหร่ (ต้องใส่)') : T('เช่น ทำไมช้า / จะเสร็จเมื่อไหร่')) + '"' : '') +
         '>' + esc(cur) + '</textarea>' +
-        '<small class="wl-hint">' + (field === 'work' ? 'Enter = ขึ้นบรรทัด · Ctrl+Enter = บันทึก · Esc = ยกเลิก' : 'Enter = บันทึก · Shift+Enter = ขึ้นบรรทัด · Esc = ยกเลิก') + '</small>';
+        '<small class="wl-hint">' + (field === 'work' ? T('Enter = ขึ้นบรรทัด · Ctrl+Enter = บันทึก · Esc = ยกเลิก') : T('Enter = บันทึก · Shift+Enter = ขึ้นบรรทัด · Esc = ยกเลิก')) + '</small>';
     }
     var inp = td.querySelector('.wl-in');
     if (inp.tagName === 'TEXTAREA') autoSize(inp);
@@ -315,7 +433,7 @@
     if (ed.pendingStatus) body.status = ed.pendingStatus;
     if (val === (r[ed.field] || '') && !ed.pendingStatus) { paint(); if (next) openEditor(r.id, next); return Promise.resolve(); }
     if (ed.pendingStatus === 'blocked' && ed.field === 'reason' && !val.trim()) {
-      toast('ยังไม่ได้เปลี่ยนเป็น “ติดปัญหา” — ต้องใส่ reason ก่อน', true);
+      toast(T('ยังไม่ได้เปลี่ยนเป็น “ติดปัญหา” — ต้องใส่ reason ก่อน'), true);
       paint();
       return Promise.resolve();
     }
@@ -377,7 +495,7 @@
     m.setAttribute('role', 'listbox');
     m.innerHTML = STATUS.map(function (s) {
       return '<button type="button" role="option" class="' + (s.k === r.status ? 'on' : '') + '" data-st="' + s.k + '">' +
-        '<span class="wl-pill ' + s.k + '">' + s.th + '</span></button>';
+        '<span class="wl-pill ' + s.k + '">' + stTh(s.k) + '</span></button>';
     }).join('');
     document.body.appendChild(m);
     var b = btn.getBoundingClientRect();
@@ -398,7 +516,7 @@
       closeEditor(true).then(function () {
         W.edit = { id: id, field: 'reason', value: '', pendingStatus: 'blocked' };
         openEditor(id, 'reason', true);
-        toast('“ติดปัญหา” ต้องใส่ reason — พิมพ์แล้วกด Enter');
+        toast(T('“ติดปัญหา” ต้องใส่ reason — พิมพ์แล้วกด Enter'));
       });
       return;
     }
@@ -411,12 +529,12 @@
     var r = rowById(id);
     if (!r) return;
     var first = String(r.work || '').split('\n')[0].slice(0, 60);
-    if (!confirm('ลบแถวนี้?\n' + (r.slot ? r.slot + '  ' : '') + first)) return;
+    if (!confirm(T('ลบแถวนี้?') + '\n' + (r.slot ? r.slot + '  ' : '') + first)) return;
     api('/worklog/' + encodeURIComponent(id), 'DELETE').then(function () {
       W.data.rows = W.data.rows.filter(function (x) { return x.id !== id; });
       if (fromForm) closeForm(true);
       paint();
-      toast('ลบแล้ว');
+      toast(T('ลบแล้ว'));
     }).catch(fail);
   }
 
@@ -428,19 +546,19 @@
     var j = W.data, o = W.o, d = o.day;
     var today = j.today || localToday();
     var ro = X.readOnly();
-    var h = '<div class="wl-mtop"><div><span class="kicker">งานทีม</span><h1>บันทึกงานรายวัน</h1></div>' + segHtml(o) + '</div>' +
-      '<div class="wl-mtools"><a class="btn-ghost" href="#/log/search">ค้นหา</a>' +
-      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">แม่แบบของฉัน</button>' : '') + '</div>';
+    var h = '<div class="wl-mtop"><div><span class="kicker">' + T('งานทีม') + '</span><h1>' + T('บันทึกงานรายวัน') + '</h1></div>' + segHtml(o) + '</div>' +
+      '<div class="wl-mtools"><a class="btn-ghost" href="#/log/search">' + T('ค้นหา') + '</a>' +
+      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">' + T('แม่แบบของฉัน') + '</button>' : '') + langSeg() + '</div>';
     h += '<div class="wl-mday">' +
-      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, -1)) + '" aria-label="วันก่อน">‹</a>' +
-      '<label class="wl-mdate"><span><b>' + DAY_EN[wd(d)] + '</b> ' + esc(thShort(d)) + ' ' + (Number(d.slice(0, 4)) + 543) +
-        (d === today ? ' <em>วันนี้</em>' : '') + '</span>' +
-        '<input type="date" data-wl-day value="' + d + '" aria-label="เลือกวันที่"></label>' +
-      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, 1)) + '" aria-label="วันถัดไป">›</a></div>';
-    if (d !== today) h += '<a class="wl-mtoday" href="' + hashFor(o, today) + '">กลับไปวันนี้</a>';
+      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, -1)) + '" aria-label="' + T('วันก่อน') + '">‹</a>' +
+      '<label class="wl-mdate"><span><b>' + DAY_EN[wd(d)] + '</b> ' + esc(thShort(d)) + ' ' + (Number(d.slice(0, 4)) + (LANG === 'en' ? 0 : 543)) +
+        (d === today ? ' <em>' + T('วันนี้') + '</em>' : '') + '</span>' +
+        '<input type="date" data-wl-day value="' + d + '" aria-label="' + T('เลือกวันที่') + '"></label>' +
+      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, 1)) + '" aria-label="' + T('วันถัดไป') + '">›</a></div>';
+    if (d !== today) h += '<a class="wl-mtoday" href="' + hashFor(o, today) + '">' + T('กลับไปวันนี้') + '</a>';
     if (o.all) {
       var nf = (o.staff !== 'all' ? 1 : 0) + (o.branch ? 1 : 0) + (o.status ? 1 : 0);
-      h += '<details class="wl-mfilter"' + (nf ? ' open' : '') + '><summary>ตัวกรอง' + (nf ? ' (' + nf + ')' : '') + '</summary>' + filtersHtml(o) + '</details>';
+      h += '<details class="wl-mfilter"' + (nf ? ' open' : '') + '><summary>' + T('ตัวกรอง') + (nf ? ' (' + nf + ')' : '') + '</summary>' + filtersHtml(o) + '</details>';
     }
     var rows = j.rows.slice().sort(function (a, b) {
       return (a.staffId === b.staffId ? 0 : (staffFull(a.staffId).localeCompare(staffFull(b.staffId)) || (a.staffId < b.staffId ? -1 : 1))) ||
@@ -448,8 +566,8 @@
     });
     h += '<div class="wl-cards">';
     if (!rows.length) {
-      h += '<div class="wl-mempty">' + (o.all ? 'ไม่มีบันทึกของวันนี้' + (o.staff !== 'all' || o.branch || o.status ? ' ตามตัวกรอง' : '')
-        : 'ยังไม่มีบันทึกของวันนี้' + (!ro ? '<small>กด “คัดลอกวันก่อน” “เติมจากแม่แบบ” หรือ “เพิ่มแถว” ด้านล่าง</small>' : '')) + '</div>';
+      h += '<div class="wl-mempty">' + (o.all ? T('ไม่มีบันทึกของวันนี้') + (o.staff !== 'all' || o.branch || o.status ? T(' ตามตัวกรอง') : '')
+        : T('ยังไม่มีบันทึกของวันนี้') + (!ro ? '<small>' + T('กด “คัดลอกวันก่อน” “เติมจากแม่แบบ” หรือ “เพิ่มแถว” ด้านล่าง') + '</small>' : '')) + '</div>';
     }
     rows.forEach(function (r, k) {
       if (o.all && (k === 0 || rows[k - 1].staffId !== r.staffId)) h += '<h3 class="wl-mwho">' + esc(staffFull(r.staffId)) + '</h3>';
@@ -457,30 +575,30 @@
     });
     h += '</div>';
     if (!o.all && !ro) {
-      h += '<div class="wl-mbar"><button type="button" class="btn-ghost" data-wl="copy" data-date="' + d + '">คัดลอกวันก่อน</button>' +
-        '<button type="button" class="btn-ghost" data-wl="fill" data-date="' + d + '">เติมจากแม่แบบ</button>' +
-        '<button type="button" class="btn" data-wl="add" data-date="' + d + '">+ เพิ่มแถว</button></div>';
+      h += '<div class="wl-mbar"><button type="button" class="btn-ghost" data-wl="copy" data-date="' + d + '">' + T('คัดลอกวันก่อน') + '</button>' +
+        '<button type="button" class="btn-ghost" data-wl="fill" data-date="' + d + '">' + T('เติมจากแม่แบบ') + '</button>' +
+        '<button type="button" class="btn" data-wl="add" data-date="' + d + '">' + T('+ เพิ่มแถว') + '</button></div>';
     }
     $('#view').innerHTML = h;
   }
   function cardHtml(r) {
     var mine = canEditRow(r);
     var tags = '';
-    if (r.carriedFromDate) tags += '<span class="wl-tag">↪ ยกมาจาก ' + esc(thShort(r.carriedFromDate)) + '</span>';
-    if (r.carriedToDate) tags += '<span class="wl-tag mut">ยกไป ' + esc(thShort(r.carriedToDate)) + ' →</span>';
+    if (r.carriedFromDate) tags += '<span class="wl-tag">' + esc(T('↪ ยกมาจาก {d}', { d: thShort(r.carriedFromDate) })) + '</span>';
+    if (r.carriedToDate) tags += '<span class="wl-tag mut">' + esc(T('ยกไป {d} →', { d: thShort(r.carriedToDate) })) + '</span>';
     var picking = W.pick === r.id;
-    return '<article class="wl-card' + (mine ? ' mine' : '') + '" data-id="' + esc(r.id) + '"' + (mine ? ' tabindex="0" aria-label="แก้แถวนี้"' : '') + '>' +
-      '<div class="wl-chead"><span class="wl-chip">' + esc(r.slot || 'ไม่ระบุเวลา') + '</span>' + tags + '</div>' +
-      (String(r.work || '').trim() ? '<div class="wl-cwork">' + esc(r.work) + '</div>' : '<div class="wl-cwork wl-ph">(ยังไม่ได้พิมพ์งาน)</div>') +
+    return '<article class="wl-card' + (mine ? ' mine' : '') + '" data-id="' + esc(r.id) + '"' + (mine ? ' tabindex="0" aria-label="' + T('แก้แถวนี้') + '"' : '') + '>' +
+      '<div class="wl-chead"><span class="wl-chip">' + esc(r.slot || T('ไม่ระบุเวลา')) + '</span>' + tags + '</div>' +
+      (String(r.work || '').trim() ? '<div class="wl-cwork">' + esc(r.work) + '</div>' : '<div class="wl-cwork wl-ph">' + T('(ยังไม่ได้พิมพ์งาน)') + '</div>') +
       (r.reason ? '<div class="wl-creason"><b>reason</b> ' + esc(r.reason) + '</div>' : '') +
       (r.files && r.files.length ? pics(r) : '') +
       '<div class="wl-cfoot">' + (mine
-        ? '<button type="button" class="wl-pill big ' + r.status + '" data-wl="mpick" aria-expanded="' + picking + '">' + esc(STATUS_TH[r.status] || r.status) + '<i aria-hidden="true">▾</i></button>'
-        : '<span class="wl-pill big ' + r.status + '">' + esc(STATUS_TH[r.status] || r.status) + '</span>') +
-        (mine ? '<span class="wl-cedit" aria-hidden="true">แก้ไข ›</span>'
-          : '<button type="button" class="wl-chist" data-wl="hist">' + ICON_CLOCK + ' ประวัติ</button>') + '</div>' +
+        ? '<button type="button" class="wl-pill big ' + r.status + '" data-wl="mpick" aria-expanded="' + picking + '">' + esc(stTh(r.status)) + '<i aria-hidden="true">▾</i></button>'
+        : '<span class="wl-pill big ' + r.status + '">' + esc(stTh(r.status)) + '</span>') +
+        (mine ? '<span class="wl-cedit" aria-hidden="true">' + T('แก้ไข ›') + '</span>'
+          : '<button type="button" class="wl-chist" data-wl="hist">' + ICON_CLOCK + ' ' + T('ประวัติ') + '</button>') + '</div>' +
       (picking ? '<div class="wl-picks" role="listbox">' + STATUS.map(function (s2) {
-        return '<button type="button" role="option" class="wl-pill big ' + s2.k + (s2.k === r.status ? ' on' : '') + '" data-wl="mset" data-st="' + s2.k + '">' + s2.th + '</button>';
+        return '<button type="button" role="option" class="wl-pill big ' + s2.k + (s2.k === r.status ? ' on' : '') + '" data-wl="mset" data-st="' + s2.k + '">' + stTh(s2.k) + '</button>';
       }).join('') + '</div>' : '') +
       '</article>';
   }
@@ -492,7 +610,7 @@
     if (st === 'blocked' && !String(r.reason || '').trim()) {
       paint();
       openForm(r, null, { status: 'blocked', focus: 'reason' });
-      toast('“ติดปัญหา” ต้องใส่ reason ก่อนบันทึก');
+      toast(T('“ติดปัญหา” ต้องใส่ reason ก่อนบันทึก'));
       return;
     }
     save1(r, { status: st }).then(function () { paint(); });
@@ -501,9 +619,9 @@
   /* คัดลอกวันก่อน — ก๊อปเฉพาะแถวที่ "เสร็จแล้ว" ของวันล่าสุดที่มีบันทึก (ที่ค้างอยู่ระบบยกมาให้เองแล้ว) */
   function copyDay(d) {
     var have = haveOn(d);
-    if (have && !confirm(thShort(d) + ' มีอยู่แล้ว ' + have + ' แถว — คัดลอกแถวของวันก่อนมาต่อท้ายอีกไหม?')) return;
+    if (have && !confirm(T('{d} มีอยู่แล้ว {n} แถว — คัดลอกแถวของวันก่อนมาต่อท้ายอีกไหม?', { d: thShort(d), n: have }))) return;
     api('/worklog/copy', 'POST', { to: d }).then(function (j) {
-      toast('คัดลอกมาแล้ว ' + j.count + ' แถว');
+      toast(T('คัดลอกมาแล้ว {n} แถว', { n: j.count }));
       render(W.route);
     }).catch(fail);
   }
@@ -526,31 +644,31 @@
     host.className = 'wl-sheet';
     host.setAttribute('role', 'dialog');
     host.setAttribute('aria-modal', 'true');
-    host.setAttribute('aria-label', row ? 'แก้ไขแถว' : 'เพิ่มแถว');
+    host.setAttribute('aria-label', row ? T('แก้ไขแถว') : T('เพิ่มแถว'));
     host.innerHTML = '<form class="wl-form" novalidate>' +
-      '<header class="wl-fhead"><button type="button" class="wl-fx" data-f-close aria-label="ปิด">✕</button>' +
-        '<b>' + (row ? 'แก้ไขแถว' : 'เพิ่มแถว') + '</b><span></span></header>' +
+      '<header class="wl-fhead"><button type="button" class="wl-fx" data-f-close aria-label="' + T('ปิด') + '">✕</button>' +
+        '<b>' + (row ? T('แก้ไขแถว') : T('เพิ่มแถว')) + '</b><span></span></header>' +
       '<div class="wl-fbody">' +
-      '<div class="wl-frow2"><label class="wl-field"><span>วันที่ (M/D/Y)</span><input class="input" type="date" name="date" value="' + esc(v.date) + '" required></label>' +
+      '<div class="wl-frow2"><label class="wl-field"><span>' + T('วันที่ (M/D/Y)') + '</span><input class="input" type="date" name="date" value="' + esc(v.date) + '" required></label>' +
         '<div class="wl-field"><span>Day</span><output class="wl-fday" name="day">' + DAY_EN[wd(v.date)] + '</output></div></div>' +
       '<label class="wl-field"><span>Time</span><select class="select" name="slotSel">' +
         slots.map(function (x) { return '<option' + (x === v.slot ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') +
-        '<option value="__other"' + (custom || !v.slot && !slots.length ? ' selected' : '') + '>อื่นๆ (พิมพ์เอง)</option></select>' +
-        '<input class="input wl-fother" name="slotOther" placeholder="เช่น 09.00-10.00" maxlength="40" value="' + esc(custom ? v.slot : '') + '"' + (custom ? '' : ' hidden') + '></label>' +
-      '<label class="wl-field"><span>Work <small>หนึ่งบรรทัดต่องาน — กด Enter ขึ้นบรรทัดใหม่ได้ “- ” ให้เอง</small></span>' +
+        '<option value="__other"' + (custom || !v.slot && !slots.length ? ' selected' : '') + '>' + T('อื่นๆ (พิมพ์เอง)') + '</option></select>' +
+        '<input class="input wl-fother" name="slotOther" placeholder="' + T('เช่น 09.00-10.00') + '" maxlength="40" value="' + esc(custom ? v.slot : '') + '"' + (custom ? '' : ' hidden') + '></label>' +
+      '<label class="wl-field"><span>Work <small>' + T('หนึ่งบรรทัดต่องาน — กด Enter ขึ้นบรรทัดใหม่ได้ “- ” ให้เอง') + '</small></span>' +
         '<textarea class="textarea" name="work" rows="5">' + esc(v.work) + '</textarea></label>' +
       '<div class="wl-field"><span>Process</span><div class="wl-fst" role="radiogroup">' + STATUS.map(function (s2) {
-        return '<button type="button" role="radio" aria-checked="' + (s2.k === v.status) + '" class="wl-pill big ' + s2.k + (s2.k === v.status ? ' on' : '') + '" data-f-st="' + s2.k + '">' + s2.th + '</button>';
+        return '<button type="button" role="radio" aria-checked="' + (s2.k === v.status) + '" class="wl-pill big ' + s2.k + (s2.k === v.status ? ' on' : '') + '" data-f-st="' + s2.k + '">' + stTh(s2.k) + '</button>';
       }).join('') + '</div></div>' +
-      '<label class="wl-field"><span>reason <small class="wl-freq"' + (v.status === 'blocked' ? '' : ' hidden') + '>ต้องใส่ เพราะเลือก “ติดปัญหา”</small></span>' +
-        '<textarea class="textarea" name="reason" rows="2" placeholder="เช่น ทำไมช้า / จะเสร็จเมื่อไหร่">' + esc(v.reason) + '</textarea></label>' +
-      '<div class="wl-field"><span>แนบรูปงาน</span><div class="wl-fpics"></div>' +
-        '<div class="wl-fpicbtns"><label class="btn-ghost"><input type="file" accept="image/*" capture="environment" data-f-file hidden>ถ่ายรูป</label>' +
-        '<label class="btn-ghost"><input type="file" accept="image/*" multiple data-f-file hidden>เลือกจากคลังรูป</label></div></div>' +
-      (row ? '<div class="wl-flinks"><button type="button" class="wl-fdel" data-f-del>ลบแถวนี้</button>' +
-        '<button type="button" class="wl-fhist" data-f-hist>' + ICON_CLOCK + ' ประวัติการแก้ไข</button></div>' : '') +
+      '<label class="wl-field"><span>reason <small class="wl-freq"' + (v.status === 'blocked' ? '' : ' hidden') + '>' + T('ต้องใส่ เพราะเลือก “ติดปัญหา”') + '</small></span>' +
+        '<textarea class="textarea" name="reason" rows="2" placeholder="' + T('เช่น ทำไมช้า / จะเสร็จเมื่อไหร่') + '">' + esc(v.reason) + '</textarea></label>' +
+      '<div class="wl-field"><span>' + T('แนบรูปงาน') + '</span><div class="wl-fpics"></div>' +
+        '<div class="wl-fpicbtns"><label class="btn-ghost"><input type="file" accept="image/*" capture="environment" data-f-file hidden>' + T('ถ่ายรูป') + '</label>' +
+        '<label class="btn-ghost"><input type="file" accept="image/*" multiple data-f-file hidden>' + T('เลือกจากคลังรูป') + '</label></div></div>' +
+      (row ? '<div class="wl-flinks"><button type="button" class="wl-fdel" data-f-del>' + T('ลบแถวนี้') + '</button>' +
+        '<button type="button" class="wl-fhist" data-f-hist>' + ICON_CLOCK + ' ' + T('ประวัติการแก้ไข') + '</button></div>' : '') +
       '</div>' +
-      '<footer class="wl-ffoot"><button type="submit" class="btn wl-fsave">บันทึก</button></footer>' +
+      '<footer class="wl-ffoot"><button type="submit" class="btn wl-fsave">' + T('บันทึก') + '</button></footer>' +
       '</form>';
     document.body.appendChild(host);
     document.documentElement.classList.add('wl-lock');
@@ -622,10 +740,10 @@
     var h = existingPics().map(function (f) {
       var u = X.API + '/worklog/files/' + encodeURIComponent(f.id);
       return '<span class="wl-fpic"><img src="' + esc(u + (f.thumb ? '?thumb=1' : '')) + '" alt="">' +
-        '<button type="button" data-f-rm="' + esc(f.id) + '" aria-label="เอารูปนี้ออก">✕</button></span>';
+        '<button type="button" data-f-rm="' + esc(f.id) + '" aria-label="' + T('เอารูปนี้ออก') + '">✕</button></span>';
     }).concat(F.pending.map(function (p, i) {
       return '<span class="wl-fpic new"><img src="' + p.thumbDataUrl + '" alt="">' +
-        '<button type="button" data-f-rm="new:' + i + '" aria-label="เอารูปนี้ออก">✕</button></span>';
+        '<button type="button" data-f-rm="new:' + i + '" aria-label="' + T('เอารูปนี้ออก') + '">✕</button></span>';
     })).join('');
     box.innerHTML = h;
     box.hidden = !h;
@@ -633,23 +751,23 @@
   function addPics(list) {
     var files = Array.prototype.slice.call(list || []).filter(function (f) { return /^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name); });
     var room = MAX_PICS - existingPics().length - F.pending.length;
-    if (files.length > room) { toast('หนึ่งแถวแนบรูปได้ไม่เกิน ' + MAX_PICS + ' รูป', true); files = files.slice(0, Math.max(0, room)); }
+    if (files.length > room) { toast(T('หนึ่งแถวแนบรูปได้ไม่เกิน {n} รูป', { n: MAX_PICS }), true); files = files.slice(0, Math.max(0, room)); }
     if (!files.length) return;
     var btn = F.host.querySelector('.wl-fsave');
-    btn.disabled = true; btn.textContent = 'กำลังย่อรูป…';
+    btn.disabled = true; btn.textContent = T('กำลังย่อรูป…');
     files.reduce(function (p, file) {
       return p.then(function () {
         return shrinkPhoto(file).then(function (ph) { if (F) F.pending.push(ph); }).catch(function (e) { fail(e); });
       });
     }, Promise.resolve()).then(function () {
       if (!F) return;
-      btn.disabled = false; btn.textContent = 'บันทึก';
+      btn.disabled = false; btn.textContent = T('บันทึก');
       drawPics();
     });
   }
   function closeForm(force) {
     if (!F) return true;
-    if (!force && !F.busy && snapshot() !== F.start && !confirm('ทิ้งสิ่งที่แก้ไว้?')) return false;
+    if (!force && !F.busy && snapshot() !== F.start && !confirm(T('ทิ้งสิ่งที่แก้ไว้?'))) return false;
     F.host.remove();
     document.documentElement.classList.remove('wl-lock');
     F = null;
@@ -659,12 +777,12 @@
     if (!F || F.busy) return;
     var f = F.host.querySelector('form');
     var work = f.work.value.replace(/\s+$/, '');
-    if (/^-?\s*$/.test(work)) { toast('พิมพ์งานก่อนนะ', true); f.work.focus(); return; }
-    if (!isDate(f.date.value)) { toast('เลือกวันที่ก่อน', true); f.date.focus(); return; }
-    if (F.status === 'blocked' && !f.reason.value.trim()) { toast('“ติดปัญหา” ต้องใส่ reason', true); f.reason.focus(); return; }
+    if (/^-?\s*$/.test(work)) { toast(T('พิมพ์งานก่อนนะ'), true); f.work.focus(); return; }
+    if (!isDate(f.date.value)) { toast(T('เลือกวันที่ก่อน'), true); f.date.focus(); return; }
+    if (F.status === 'blocked' && !f.reason.value.trim()) { toast(T('“ติดปัญหา” ต้องใส่ reason'), true); f.reason.focus(); return; }
     var body = { date: f.date.value, slot: slotOf(f), work: work, status: F.status, reason: f.reason.value.trim() };
     var btn = F.host.querySelector('.wl-fsave');
-    F.busy = true; btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+    F.busy = true; btn.disabled = true; btn.textContent = T('กำลังบันทึก…');
     var cur = F;
     var step = cur.row ? api('/worklog/' + encodeURIComponent(cur.row.id), 'PUT', body) : api('/worklog', 'POST', body);
     step.then(function (j) {
@@ -682,11 +800,11 @@
     }).then(function () {
       cur.busy = false;
       closeForm(true);
-      toast('บันทึกแล้ว');
+      toast(T('บันทึกแล้ว'));
       render(W.route);
     }).catch(function (e) {
       cur.busy = false;
-      if (F === cur) { btn.disabled = false; btn.textContent = 'บันทึก'; drawPics(); F.start = null; }
+      if (F === cur) { btn.disabled = false; btn.textContent = T('บันทึก'); drawPics(); F.start = null; }
       fail(e);
     });
   }
@@ -717,23 +835,23 @@
     if (!r) return;
     var files = onlyImages(fileList);
     var room = MAX_PICS - (r.files || []).length;
-    if (files.length > room) { toast('หนึ่งแถวแนบรูปได้ไม่เกิน ' + MAX_PICS + ' รูป', true); files = files.slice(0, Math.max(0, room)); }
+    if (files.length > room) { toast(T('หนึ่งแถวแนบรูปได้ไม่เกิน {n} รูป', { n: MAX_PICS }), true); files = files.slice(0, Math.max(0, room)); }
     if (!files.length) return;
-    toast('กำลังย่อและอัปโหลด ' + files.length + ' รูป…');
+    toast(T('กำลังย่อและอัปโหลด {n} รูป…', { n: files.length }));
     var out = [];
     files.reduce(function (p, f) { return p.then(function () { return shrinkPhoto(f).then(function (ph) { out.push(ph); }); }); }, Promise.resolve())
       .then(function () { return uploadPhotos(id, out); })
       .then(function () { return api('/worklog/' + encodeURIComponent(id)); })
-      .then(function (j) { putRow(j.row); paint(); toast('แนบรูปแล้ว'); })
+      .then(function (j) { putRow(j.row); paint(); toast(T('แนบรูปแล้ว')); })
       .catch(function (e) { fail(e); render(W.route); });
   }
   function delPic(rowId, fid) {
-    if (!confirm('ลบรูปนี้?')) return;
+    if (!confirm(T('ลบรูปนี้?'))) return;
     api('/worklog/files/' + encodeURIComponent(fid), 'DELETE').then(function () {
       var r = rowById(rowId);
       if (r) r.files = (r.files || []).filter(function (f) { return f.id !== fid; });
       paint();
-      toast('ลบรูปแล้ว');
+      toast(T('ลบรูปแล้ว'));
     }).catch(fail);
   }
 
@@ -750,7 +868,7 @@
     host.setAttribute('aria-modal', 'true');
     host.setAttribute('aria-label', title);
     host.innerHTML = '<div class="wl-form">' +
-      '<header class="wl-fhead"><button type="button" class="wl-fx" data-s-close aria-label="ปิด">✕</button><b>' + esc(title) + '</b><span></span></header>' +
+      '<header class="wl-fhead"><button type="button" class="wl-fx" data-s-close aria-label="' + T('ปิด') + '">✕</button><b>' + esc(title) + '</b><span></span></header>' +
       '<div class="wl-fbody">' + body + '</div>' + (foot ? '<footer class="wl-ffoot">' + foot + '</footer>' : '') + '</div>';
     document.body.appendChild(host);
     document.documentElement.classList.add('wl-lock');
@@ -776,14 +894,14 @@
      ============================================================ */
   function tplRowHtml(t) {
     return '<div class="wl-trow">' +
-      '<input class="input wl-tslot" list="wlTplSlots" value="' + esc(t.slot || '') + '" placeholder="เวลา เช่น 10.00-10.30" maxlength="40" aria-label="Time">' +
-      '<textarea class="textarea wl-twork" rows="2" placeholder="- งาน /" aria-label="Work">' + esc(t.work || '') + '</textarea>' +
+      '<input class="input wl-tslot" list="wlTplSlots" value="' + esc(t.slot || '') + '" placeholder="' + T('เวลา เช่น 10.00-10.30') + '" maxlength="40" aria-label="Time">' +
+      '<textarea class="textarea wl-twork" rows="2" placeholder="' + T('- งาน /') + '" aria-label="Work">' + esc(t.work || '') + '</textarea>' +
       '<select class="select wl-tst" aria-label="Process">' + STATUS.filter(function (x) { return x.k !== 'blocked'; }).map(function (x) {
-        return '<option value="' + x.k + '"' + (x.k === (t.status || 'done') ? ' selected' : '') + '>' + x.th + '</option>';
+        return '<option value="' + x.k + '"' + (x.k === (t.status || 'done') ? ' selected' : '') + '>' + stTh(x.k) + '</option>';
       }).join('') + '</select>' +
-      '<div class="wl-tbtns"><button type="button" class="wl-tb" data-t="up" aria-label="เลื่อนขึ้น">↑</button>' +
-      '<button type="button" class="wl-tb" data-t="down" aria-label="เลื่อนลง">↓</button>' +
-      '<button type="button" class="wl-tb del" data-t="rm" aria-label="ลบแถวนี้">×</button></div></div>';
+      '<div class="wl-tbtns"><button type="button" class="wl-tb" data-t="up" aria-label="' + T('เลื่อนขึ้น') + '">↑</button>' +
+      '<button type="button" class="wl-tb" data-t="down" aria-label="' + T('เลื่อนลง') + '">↓</button>' +
+      '<button type="button" class="wl-tb del" data-t="rm" aria-label="' + T('ลบแถวนี้') + '">×</button></div></div>';
   }
   function readTpl(host) {
     return Array.prototype.map.call(host.querySelectorAll('.wl-trow'), function (el) {
@@ -796,17 +914,18 @@
       var start = JSON.stringify(rows.map(function (x) { return { slot: x.slot, work: x.work, status: x.status }; }));
       /* วันที่จะดึงแถวมาเป็นแม่แบบ = วันที่ดูอยู่ (มือถือ) หรือวันล่าสุดที่มีแถวของฉันในสัปดาห์นี้ */
       var src = W.o.phone ? W.o.day : (W.data.rows.filter(function (r) { return r.staffId === meId(); }).map(function (r) { return r.date; }).sort().pop() || '');
-      var body = '<p class="wl-note">แถวที่ทำทุกวัน ตั้งไว้ครั้งเดียว แล้วกด “เติมจากแม่แบบ” ในวันไหนก็ได้ ระบบใส่ให้ทั้งชุด</p>' +
-        (src && haveOn(src) ? '<button type="button" class="btn-ghost wl-tfrom" data-t="from">ใช้แถวของ ' + esc(thShort(src)) + ' เป็นแม่แบบ</button>' : '') +
+      var body = '<p class="wl-note">' + T('แถวที่ทำทุกวัน ตั้งไว้ครั้งเดียว แล้วกด “เติมจากแม่แบบ” ในวันไหนก็ได้ ระบบใส่ให้ทั้งชุด') + '</p>' +
+        (src && haveOn(src) ? '<button type="button" class="btn-ghost wl-tfrom" data-t="from">' + esc(T('ใช้แถวของ {d} เป็นแม่แบบ', { d: thShort(src) })) + '</button>' : '') +
         '<datalist id="wlTplSlots">' + ((W.data && W.data.slots) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
         '<div class="wl-tlist">' + rows.map(tplRowHtml).join('') + '</div>' +
-        '<button type="button" class="btn-ghost wl-tadd" data-t="add">+ เพิ่มแถวแม่แบบ</button>';
-      var host = openSheet('แม่แบบของฉัน', body, '<button type="button" class="btn wl-fsave" data-t="save">บันทึกแม่แบบ</button>', {
+        '<button type="button" class="btn-ghost wl-tadd" data-t="add">' + T('+ เพิ่มแถวแม่แบบ') + '</button>';
+      var host = openSheet(T('แม่แบบของฉัน'), body, '<button type="button" class="btn wl-fsave" data-t="save">' + T('บันทึกแม่แบบ') + '</button>', {
         wide: true,
-        canClose: function () { return JSON.stringify(readTpl(host)) === start || confirm('ทิ้งแม่แบบที่แก้ไว้?'); },
+        canClose: function () { return JSON.stringify(readTpl(host)) === start || confirm(T('ทิ้งแม่แบบที่แก้ไว้?')); },
       });
       var list = host.querySelector('.wl-tlist');
       if (!rows.length) list.innerHTML = tplRowHtml({ slot: ((W.data && W.data.slots) || [])[0] || '', work: '- ', status: 'done' });
+      start = JSON.stringify(readTpl(host));   /* แถวตั้งต้นที่ใส่ให้ไม่นับเป็น "แก้แล้ว" — ปิดเฉย ๆ ต้องไม่ถามว่าทิ้งไหม */
       host.addEventListener('click', function (ev) {
         var b = ev.target.closest('[data-t]');
         if (!b) return;
@@ -820,7 +939,7 @@
         else if (k === 'from') {
           var mine = W.data.rows.filter(function (r) { return r.staffId === meId() && r.date === src; })
             .sort(function (a, c) { return slotKey(a.slot) - slotKey(c.slot) || (a.sort || 0) - (c.sort || 0); });
-          if (readTpl(host).length && !confirm('แทนที่แม่แบบเดิมด้วยแถวของ ' + thShort(src) + '?')) return;
+          if (readTpl(host).length && !confirm(T('แทนที่แม่แบบเดิมด้วยแถวของ {d}?', { d: thShort(src) }))) return;
           list.innerHTML = mine.map(function (r) { return tplRowHtml({ slot: r.slot, work: r.work, status: r.status === 'blocked' ? 'doing' : r.status }); }).join('');
         } else if (k === 'save') {
           var data = readTpl(host);
@@ -828,8 +947,8 @@
           api('/worklog/template', 'PUT', { rows: data }).then(function () {
             start = JSON.stringify(data);
             closeSheet(true);
-            toast('บันทึกแม่แบบแล้ว (' + data.length + ' แถว)');
-            if (fillDate && data.length && confirm('เติมแม่แบบลงวันที่ ' + thShort(fillDate) + ' เลยไหม?')) fillTemplate(fillDate);
+            toast(T('บันทึกแม่แบบแล้ว ({n} แถว)', { n: data.length }));
+            if (fillDate && data.length && confirm(T('เติมแม่แบบลงวันที่ {d} เลยไหม?', { d: thShort(fillDate) }))) fillTemplate(fillDate);
           }).catch(function (e) { b.disabled = false; fail(e); });
         }
       });
@@ -839,12 +958,12 @@
   }
   function fillTemplate(d) {
     var have = haveOn(d);
-    if (have && !confirm(thShort(d) + ' มีอยู่แล้ว ' + have + ' แถว — เติมแม่แบบต่อท้ายอีกไหม?')) return;
+    if (have && !confirm(T('{d} มีอยู่แล้ว {n} แถว — เติมแม่แบบต่อท้ายอีกไหม?', { d: thShort(d), n: have }))) return;
     api('/worklog/template/fill', 'POST', { date: d }).then(function (j) {
-      toast('เติมจากแม่แบบแล้ว ' + j.count + ' แถว');
+      toast(T('เติมจากแม่แบบแล้ว {n} แถว', { n: j.count }));
       render(W.route);
     }).catch(function (e) {
-      if (/แม่แบบ/.test(e.message || '')) { toast('ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน'); openTemplate(d); return; }
+      if (/แม่แบบ/.test(e.message || '')) { toast(T('ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน')); openTemplate(d); return; }
       fail(e);
     });
   }
@@ -855,16 +974,25 @@
   function fmtWhen(iso) {
     var d = new Date(iso);
     if (isNaN(d)) return '';
-    return d.getDate() + ' ' + MON_TH[d.getMonth()] + ' ' + String(d.getFullYear() + 543).slice(-2) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    return d.getDate() + ' ' + (LANG === 'en' ? MON_EN : MON_TH)[d.getMonth()] + ' ' + String(d.getFullYear() + (LANG === 'en' ? 0 : 543)).slice(-2) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
   function histVal(k, v) {
-    if (v === '' || v == null) return '<i class="wl-mut">(ว่าง)</i>';
-    if (k === 'status') return '<span class="wl-pill ' + esc(v) + '">' + esc(STATUS_TH[v] || v) + '</span>';
+    if (v === '' || v == null) return '<i class="wl-mut">' + T('(ว่าง)') + '</i>';
+    if (k === 'status') return '<span class="wl-pill ' + esc(v) + '">' + esc(stTh(v)) + '</span>';
     if (k === 'work_date' && isDate(v)) return esc(DAY_EN[wd(v)] + ' ' + mdy(v));
-    if (k === '__files') return esc(v) + ' รูป';
+    if (k === '__files') return esc(T('{n} รูป', { n: v }));
     return '<span class="wl-hv">' + esc(v) + '</span>';
   }
   var HIST_ACT = { create: 'สร้างแถว', update: 'แก้ไข', delete: 'ลบ' };
+  /* สรุปจากเซิร์ฟเวอร์เป็นไทย ("แนบรูป 2 รูป" · "ลบรูป x.jpg" · "คัดลอกจาก 2026-10-14" · "เติมจากแม่แบบ") */
+  function histSummary(s) {
+    if (LANG !== 'en') return s;
+    var m;
+    if ((m = s.match(/^แนบรูป (\d+) รูป$/))) return T('แนบรูป {n} รูป', { n: m[1] });
+    if ((m = s.match(/^ลบรูป (.+)$/))) return T('ลบรูป {s}', { s: m[1] });
+    if ((m = s.match(/^คัดลอกจาก (.+)$/))) return T('คัดลอกจาก {s}', { s: m[1] });
+    return T(s);
+  }
   function openHistory(id) {
     var r = rowById(id);
     api('/worklog/' + encodeURIComponent(id) + '/history').then(function (j) {
@@ -872,18 +1000,18 @@
       var h = items.map(function (it) {
         var who = X.staffById(it.by);
         var showSum = it.action !== 'update' || !it.fields.length || /รูป/.test(it.summary);
-        return '<li class="wl-hi"><div class="wl-hh"><b>' + esc(who ? who.name : it.by) + '</b> · ' + esc(HIST_ACT[it.action] || it.action) +
-          (showSum && it.summary && it.summary !== 'สร้าง' ? ' — ' + esc(it.summary) : '') +
+        return '<li class="wl-hi"><div class="wl-hh"><b>' + esc(who ? who.name : it.by) + '</b> · ' + esc(T(HIST_ACT[it.action] || it.action)) +
+          (showSum && it.summary && it.summary !== 'สร้าง' ? ' — ' + esc(histSummary(it.summary)) : '') +
           '<time>' + esc(fmtWhen(it.at)) + '</time></div>' +
           (it.fields.length ? '<table class="wl-hf">' + it.fields.map(function (f) {
-            return '<tr><th>' + esc(f.th) + '</th><td>' + histVal(f.k, f.from) + '</td><td class="wl-harr">→</td><td>' + histVal(f.k, f.to) + '</td></tr>';
+            return '<tr><th>' + esc(LANG === 'en' ? (FIELD_EN[f.k] || f.k) : f.th) + '</th><td>' + histVal(f.k, f.from) + '</td><td class="wl-harr">→</td><td>' + histVal(f.k, f.to) + '</td></tr>';
           }).join('') + '</table>' : '') + '</li>';
       }).join('');
       /* แถวที่ระบบยกมาเอง ไม่มีคนสร้าง — บอกที่มาไว้ล่างสุด (= เหตุการณ์แรก) */
-      if (j.source === 'carry') h += '<li class="wl-hi"><div class="wl-hh"><b>ระบบ</b> · ยกงานค้างมาจาก ' + esc(r && r.carriedFromDate ? thShort(r.carriedFromDate) : 'วันก่อน') + '</div></li>';
-      if (!h) h = '<li class="wl-hi wl-mut">ยังไม่มีประวัติ</li>';
+      if (j.source === 'carry') h += '<li class="wl-hi"><div class="wl-hh"><b>' + T('ระบบ') + '</b> · ' + esc(T('ยกงานค้างมาจาก {d}', { d: r && r.carriedFromDate ? thShort(r.carriedFromDate) : T('วันก่อน') })) + '</div></li>';
+      if (!h) h = '<li class="wl-hi wl-mut">' + T('ยังไม่มีประวัติ') + '</li>';
       var title = r ? ((r.slot ? r.slot + ' · ' : '') + thShort(r.date)) : '';
-      openSheet('ประวัติการแก้ไข', (title ? '<p class="wl-note">' + esc(title) + (r && r.staffId !== meId() ? ' · ' + esc(staffFull(r.staffId)) : '') + '</p>' : '') +
+      openSheet(T('ประวัติการแก้ไข'), (title ? '<p class="wl-note">' + esc(title) + (r && r.staffId !== meId() ? ' · ' + esc(staffFull(r.staffId)) : '') + '</p>' : '') +
         '<ol class="wl-hlist">' + h + '</ol>', '');
     }).catch(fail);
   }
@@ -897,19 +1025,19 @@
     var isLead = W.data ? W.data.isLead : false;
     var form = function (res) {
       var lead = res ? res.isLead : isLead;
-      return '<div class="top wl-top"><div><span class="kicker">บันทึกงานรายวัน</span><h1>ค้นหาบันทึก <span class="en">Search</span></h1>' +
-        '<p>ค้นในช่อง Work และ reason · ไม่ใส่ช่วงวันที่ = 90 วันล่าสุด</p></div>' +
-        '<div class="top-r"><a class="btn-ghost" href="#/log">กลับไปบันทึกงาน</a></div></div>' +
-        '<form class="wl-sform" data-wl-search><input class="input" name="q" type="search" value="' + esc(o.q) + '" placeholder="พิมพ์คำที่จะค้น เช่น โรงพิมพ์, ป้าย, 11.11" maxlength="100" aria-label="คำค้น">' +
-        '<label>ตั้งแต่<input class="input" type="date" name="f" value="' + esc(from) + '"></label>' +
-        '<label>ถึง<input class="input" type="date" name="t" value="' + esc(to) + '"></label>' +
-        (lead ? '<label>คน<select class="select" name="s"><option value="">ทั้งทีม</option>' +
+      return '<div class="top wl-top"><div><span class="kicker">' + T('บันทึกงานรายวัน') + '</span><h1>' + (LANG === 'en' ? '<span class="en">Search</span>' : 'ค้นหาบันทึก <span class="en">Search</span>') + '</h1>' +
+        '<p>' + T('ค้นในช่อง Work และ reason · ไม่ใส่ช่วงวันที่ = 90 วันล่าสุด') + '</p></div>' +
+        '<div class="top-r">' + langSeg() + '<a class="btn-ghost" href="#/log">' + T('กลับไปบันทึกงาน') + '</a></div></div>' +
+        '<form class="wl-sform" data-wl-search><input class="input" name="q" type="search" value="' + esc(o.q) + '" placeholder="' + T('พิมพ์คำที่จะค้น เช่น โรงพิมพ์, ป้าย, 11.11') + '" maxlength="100" aria-label="' + T('คำค้น') + '">' +
+        '<label>' + T('ตั้งแต่') + '<input class="input" type="date" name="f" value="' + esc(from) + '"></label>' +
+        '<label>' + T('ถึง') + '<input class="input" type="date" name="t" value="' + esc(to) + '"></label>' +
+        (lead ? '<label>' + T('คน') + '<select class="select" name="s"><option value="">' + T('ทั้งทีม') + '</option>' +
           ((res && res.staff) || (W.data && W.data.staff) || []).filter(function (x) { return x.active; }).map(function (x) {
             return '<option value="' + esc(x.id) + '"' + (o.staff === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>';
           }).join('') + '</select></label>' : '') +
-        '<button type="submit" class="btn">ค้นหา</button></form>';
+        '<button type="submit" class="btn">' + T('ค้นหา') + '</button></form>';
     };
-    v.innerHTML = form(null) + (o.q ? '<div class="loading">กำลังค้นหา…</div>' : '<p class="wl-note">พิมพ์คำแล้วกดค้นหา</p>');
+    v.innerHTML = form(null) + (o.q ? '<div class="loading">' + T('กำลังค้นหา…') + '</div>' : '<p class="wl-note">' + T('พิมพ์คำแล้วกดค้นหา') + '</p>');
     if (!o.q) { W.key = key; return Promise.resolve(); }
     W.key = key;
     var staffQ = o.staff ? '&staff=' + encodeURIComponent(o.staff) : '';
@@ -920,7 +1048,7 @@
       var res = out[0], base = out[1];
       if (!W.data) W.data = base;
       var rows = res.rows || [];
-      var h = form(base) + '<p class="wl-scount">เจอ ' + rows.length + (res.more ? '+ ' : ' ') + 'แถว' + (res.more ? ' — แสดง 200 แถวแรก ลองจำกัดช่วงวันที่ให้แคบลง' : '') + '</p>';
+      var h = form(base) + '<p class="wl-scount">' + T('เจอ {n} แถว', { n: rows.length + (res.more ? '+' : '') }) + (res.more ? T(' — แสดง 200 แถวแรก ลองจำกัดช่วงวันที่ให้แคบลง') : '') + '</p>';
       var last = '';
       h += '<div class="wl-sres">';
       rows.forEach(function (r) {
@@ -929,14 +1057,14 @@
         var href = mine ? '#/log?d=' + r.date : '#/log/all?d=' + r.date + '&s=' + encodeURIComponent(r.staffId);
         h += '<a class="wl-sitem" href="' + href + '"><span class="wl-chip">' + esc(r.slot || '—') + '</span>' +
           (base.isLead ? '<b class="wl-swho">' + esc(staffFull(r.staffId)) + '</b>' : '') +
-          '<span class="wl-pill ' + r.status + '">' + esc(STATUS_TH[r.status] || r.status) + '</span>' +
+          '<span class="wl-pill ' + r.status + '">' + esc(stTh(r.status)) + '</span>' +
           '<div class="wl-swork">' + mark(r.work, o.q) + '</div>' +
           (r.reason ? '<div class="wl-sreason"><b>reason</b> ' + mark(r.reason, o.q) + '</div>' : '') + '</a>';
       });
       h += '</div>';
       v.innerHTML = h;
     }).catch(function (e) {
-      v.innerHTML = form(null) + '<div class="err"><b>ค้นหาไม่สำเร็จ</b><p>' + esc(e.message || e) + '</p></div>';
+      v.innerHTML = form(null) + '<div class="err"><b>' + T('ค้นหาไม่สำเร็จ') + '</b><p>' + esc(tServer(e.message || e)) + '</p></div>';
     });
   }
   /* ไฮไลต์คำที่ค้นเจอ — escape ทุกส่วนก่อนห่อ <mark> */
@@ -964,6 +1092,8 @@
       }
       closeMenu();
       if (!inPage(t)) return;
+      var lb = t.closest('[data-wl-lang]');
+      if (lb) { setLang(lb.getAttribute('data-wl-lang')); closeEditor(true).then(function () { render(W.route); }); return; }
       var act = t.closest('[data-wl]');
       if (act) {
         var a = act.getAttribute('data-wl');

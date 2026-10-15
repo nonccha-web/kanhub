@@ -62,7 +62,7 @@
 .wl-tags{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:3px; }
 .wl-tag{ font-size:11px; font-weight:600; color:var(--k-purple); }
 .wl-tag.mut{ color:var(--k-mut); }
-.wl-row.draft td{ background:var(--k-hair); }
+.wl-row.wl-draft td{ background:var(--k-hair); }
 
 /* ช่องที่แก้ได้ */
 .wl-ed{ cursor:text; }
@@ -208,9 +208,9 @@ html.wl-lock, html.wl-lock body{ overflow:hidden; }
 .wl-tw:hover .wl-tx, .wl-tx:focus-visible{ opacity:1; }
 .wl-addpic{ display:inline-grid; place-items:center; width:44px; height:44px; border:1px dashed var(--k-line); border-radius:4px; color:var(--k-mut); font-size:11.5px; cursor:pointer; }
 .wl-addpic:hover{ color:var(--k-ink); border-color:var(--k-ink); }
-.wl-thumbs.empty .wl-addpic{ opacity:0; }
-.wl-row:hover .wl-thumbs.empty .wl-addpic, .wl-thumbs.empty .wl-addpic:focus-within{ opacity:1; }
-@media (hover:none){ .wl-thumbs.empty .wl-addpic{ opacity:1; } }
+.wl-thumbs.wl-nopic .wl-addpic{ opacity:0; }
+.wl-row:hover .wl-thumbs.wl-nopic .wl-addpic, .wl-thumbs.wl-nopic .wl-addpic:focus-within{ opacity:1; }
+@media (hover:none){ .wl-thumbs.wl-nopic .wl-addpic{ opacity:1; } }
 
 /* หน้าต่างลอย: แม่แบบกว้างกว่าฟอร์ม */
 .wl-sheet.wide .wl-form{ width:min(860px, 100%); }
@@ -266,3 +266,8 @@ html.wl-lock, html.wl-lock body{ overflow:hidden; }
   .wl-sform > .input{ flex:none; font-size:16px; }
   .wl-sform label .input, .wl-sform label .select{ width:100%; font-size:16px; }
 }
+
+/* สวิตช์ภาษา ไทย | EN */
+.wl-lang{ display:inline-flex; }
+.wl-lang button{ min-width:44px; min-height:34px; padding:0 12px; font-size:13px; }
+@media (max-width:760px){ .wl-lang button{ min-height:44px; font-size:15px; } .wl-mtools{ flex-wrap:wrap; align-items:center; } .wl-mtools .wl-lang{ margin-left:auto; } }
