@@ -359,7 +359,8 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
   }
 
   /* ---------- "คัดลอกวันก่อน" — ก๊อปแถวของวันล่าสุดที่มีบันทึก (ก่อนวันปลายทาง) ----------
-     ไม่ก๊อปแถวที่ยกไปแล้ว (ระบบยกให้เองอยู่แล้ว เดี๋ยวซ้ำ) · Process เริ่มที่ "เสร็จแล้ว" · reason/รูปไม่ตามมา */
+     ก๊อปเฉพาะแถวที่ "เสร็จแล้ว" — แถวที่ยังไม่เสร็จระบบยกไปวันถัดไปให้เองอยู่แล้ว ก๊อปด้วยจะได้สองแถว
+     Process เริ่มที่ "เสร็จแล้ว" · reason/รูปไม่ตามมา */
   if (path === "/worklog/copy" && method === "POST") {
     const body = await readBody(request);
     const to = body.to || today;
@@ -372,7 +373,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       from = r && r.d;
       if (!from) return json({ error: "ไม่เจอบันทึกของวันก่อนหน้า (ย้อนดู 30 วัน)" }, 404);
     }
-    const src = (await db.prepare("SELECT * FROM worklog WHERE staff_id = ? AND work_date = ? AND carried_to IS NULL ORDER BY slot_start, sort")
+    const src = (await db.prepare("SELECT * FROM worklog WHERE staff_id = ? AND work_date = ? AND status = 'done' ORDER BY slot_start, sort")
       .bind(me.id, from).all()).results || [];
     if (!src.length) return json({ error: "วันนั้นไม่มีแถวที่ก๊อปได้" }, 404);
     return json(await insertMany(src.map((r) => ({ slot: r.slot, work: r.work, status: "done" })), to, "copy", "คัดลอกจาก " + from));

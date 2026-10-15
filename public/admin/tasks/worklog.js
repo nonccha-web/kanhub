@@ -5,12 +5,17 @@
    หน้าตาให้เหมือนชีตมากที่สุด: คอลัมน์ M/D/Y · Day · Time · Work · Process · reason · แนบรูปงาน
    ช่องวันที่ "รวมเซลล์" ทั้งวัน · เส้นหนาคั่นวัน · หัวตารางชมพู · เส้นประ · Process เป็นปุ่มสีกดเลือก
    แก้ในช่องได้เลย (คลิกช่อง → พิมพ์ → Enter/คลิกที่อื่น = บันทึก · Esc = ยกเลิก) เฉพาะแถวของตัวเอง
+   จอมือถือ (กว้าง ≤ 760px) สลับเป็น "ทีละวัน" — การ์ดต่อแถว + ฟอร์มเพิ่ม/แก้แบบเต็มจอ · ข้อมูลชุดเดียวกัน
+     ?d= บนมือถือ = วันที่ดู · บนจอใหญ่ = สัปดาห์ที่มีวันนั้น
    หลังบ้าน: /api/t/worklog*  (worker-worklog.js)
    ============================================================ */
 (function (global) {
   'use strict';
   var X = null;
-  var W = { data: null, key: '', edit: null, drafts: [], busy: false };
+  var W = { data: null, key: '', edit: null, drafts: [], busy: false, route: null };
+  var PHONE_MQ = '(max-width: 760px)';
+  function isPhone() { return !!(global.matchMedia && global.matchMedia(PHONE_MQ).matches); }
+  var MAX_PICS = 10;
 
   var STATUS = [
     { k: 'done', th: 'เสร็จแล้ว' }, { k: 'doing', th: 'กำลังทำ' },
@@ -50,10 +55,11 @@
     var q = (route && route.query) || {};
     var all = route && route.id === 'all';
     var day = isDate(q.d) ? q.d : localToday();
-    return { all: all, from: mondayOf(day), staff: all ? (q.s || 'all') : 'me', branch: all ? (q.b || '') : '', status: all ? (q.p || '') : '' };
+    return { all: all, phone: isPhone(), day: day, from: mondayOf(day), staff: all ? (q.s || 'all') : 'me', branch: all ? (q.b || '') : '', status: all ? (q.p || '') : '' };
   }
-  function hashFor(o) {
-    var q = ['d=' + o.from];
+  /* d = วันที่จะใส่ใน ?d= · ไม่ส่งมา = วันที่ดูอยู่ (มือถือ) หรือวันจันทร์ของสัปดาห์ (จอใหญ่) */
+  function hashFor(o, d) {
+    var q = ['d=' + (d || (o.phone ? o.day : o.from))];
     if (o.all) {
       if (o.staff && o.staff !== 'all') q.push('s=' + encodeURIComponent(o.staff));
       if (o.branch) q.push('b=' + encodeURIComponent(o.branch));
@@ -75,11 +81,12 @@
     var o = opts(route);
     v.className = 'page wl-page';
     var key = JSON.stringify(o);
-    if (key !== W.key) { W.edit = null; W.drafts = []; }
+    if (key !== W.key) { W.edit = null; W.drafts = []; W.pick = null; }
     W.o = o;
+    W.route = route;
     if (!W.data || key !== W.key) v.innerHTML = '<div class="loading">กำลังโหลด…</div>';
     W.key = key;
-    var q = '/worklog?from=' + o.from + '&to=' + addDays(o.from, 6) + '&staff=' + encodeURIComponent(o.staff) +
+    var q = '/worklog?from=' + (o.phone ? o.day : o.from) + '&to=' + (o.phone ? o.day : addDays(o.from, 6)) + '&staff=' + encodeURIComponent(o.staff) +
       (o.branch ? '&branch=' + encodeURIComponent(o.branch) : '') + (o.status ? '&status=' + o.status : '');
     return api(q).then(function (j) {
       if (W.key !== key) return;   /* กดเปลี่ยนสัปดาห์รัว ๆ — ทิ้งคำตอบเก่า */
@@ -93,6 +100,7 @@
 
   /* ---------- วาด ---------- */
   function paint() {
+    if (W.o.phone) return paintPhone();
     var j = W.data, o = W.o;
     var to = addDays(o.from, 6);
     var today = j.today || localToday();
@@ -102,8 +110,7 @@
       '<p>' + (o.all ? 'บันทึกของทั้งทีม — ดูอย่างเดียว แต่ละคนแก้ได้เฉพาะของตัวเอง'
         : 'คลิกช่องแล้วพิมพ์ได้เลย · Enter หรือคลิกที่อื่น = บันทึก · Esc = ยกเลิก · ช่อง Work ขึ้นบรรทัดใหม่ด้วย Enter, บันทึกด้วย Ctrl+Enter') + '</p></div>' +
       '<div class="top-r">' +
-      (j.isLead ? '<div class="seg wl-seg"><a href="' + hashFor({ all: false, from: o.from }) + '"' + (o.all ? '' : ' class="on"') + '>ของฉัน</a>' +
-        '<a href="' + hashFor({ all: true, from: o.from, staff: 'all' }) + '"' + (o.all ? ' class="on"' : '') + '>ทั้งทีม</a></div>' : '') +
+      segHtml(o) +
       (!o.all && !ro ? '<button type="button" class="btn" data-wl="add">+ Add row</button>' : '') +
       '</div></div>';
 
@@ -115,19 +122,7 @@
       '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: addDays(o.from, 7) })) + '" aria-label="สัปดาห์ถัดไป">สัปดาห์ถัดไป ›</a>' +
       (o.from !== thisWeek ? '<a class="btn-ghost sm" href="' + hashFor(Object.assign({}, o, { from: thisWeek })) + '">สัปดาห์นี้</a>' : '') +
       '</div>';
-    if (o.all) {
-      h += '<div class="wl-filters">' +
-        '<label>คน<select class="select" data-wlf="staff"><option value="all">ทุกคน</option>' +
-          j.staff.filter(function (s) { return s.active; }).map(function (s) {
-            return '<option value="' + esc(s.id) + '"' + (o.staff === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>';
-          }).join('') + '</select></label>' +
-        '<label>สาขา<select class="select" data-wlf="branch"><option value="">ทุกสาขา</option>' +
-          (j.branches || []).map(function (b) { return '<option' + (o.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
-          '<option value="none"' + (o.branch === 'none' ? ' selected' : '') + '>ไม่ระบุสาขา</option></select></label>' +
-        '<label>Process<select class="select" data-wlf="status"><option value="">ทั้งหมด</option>' +
-          STATUS.map(function (s) { return '<option value="' + s.k + '"' + (o.status === s.k ? ' selected' : '') + '>' + s.th + '</option>'; }).join('') +
-          '</select></label></div>';
-    }
+    if (o.all) h += filtersHtml(o);
     h += '</div>';
 
     /* จัดแถวเป็นรายวัน (ตารางของฉันโชว์ครบ 7 วัน วันว่างเป็นแถวบาง ๆ ให้กดเพิ่มได้) */
@@ -172,6 +167,25 @@
     h += '</table></div>';
     $('#view').innerHTML = h;
     if (W.edit) openEditor(W.edit.id, W.edit.field, true);
+  }
+  function segHtml(o) {
+    if (!W.data.isLead) return '';
+    return '<div class="seg wl-seg"><a href="' + hashFor({ all: false, phone: o.phone, day: o.day, from: o.from }) + '"' + (o.all ? '' : ' class="on"') + '>ของฉัน</a>' +
+      '<a href="' + hashFor({ all: true, phone: o.phone, day: o.day, from: o.from, staff: 'all' }) + '"' + (o.all ? ' class="on"' : '') + '>ทั้งทีม</a></div>';
+  }
+  function filtersHtml(o) {
+    var j = W.data;
+    return '<div class="wl-filters">' +
+      '<label>คน<select class="select" data-wlf="staff"><option value="all">ทุกคน</option>' +
+        j.staff.filter(function (s) { return s.active; }).map(function (s) {
+          return '<option value="' + esc(s.id) + '"' + (o.staff === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+        }).join('') + '</select></label>' +
+      '<label>สาขา<select class="select" data-wlf="branch"><option value="">ทุกสาขา</option>' +
+        (j.branches || []).map(function (b) { return '<option' + (o.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
+        '<option value="none"' + (o.branch === 'none' ? ' selected' : '') + '>ไม่ระบุสาขา</option></select></label>' +
+      '<label>Process<select class="select" data-wlf="status"><option value="">ทั้งหมด</option>' +
+        STATUS.map(function (s) { return '<option value="' + s.k + '"' + (o.status === s.k ? ' selected' : '') + '>' + s.th + '</option>'; }).join('') +
+        '</select></label></div>';
   }
   /* "10.00-10.30" → นาทีเริ่ม (อ่านไม่ออก = ท้ายวัน) — ชุดเดียวกับฝั่งเซิร์ฟเวอร์ */
   function slotKey(s) {
@@ -249,6 +263,7 @@
     }
     var inp = td.querySelector('.wl-in');
     if (inp.tagName === 'TEXTAREA') autoSize(inp);
+    if (field === 'work' && X.listEdit) X.listEdit(inp);
     inp.focus();
     var n = inp.value.length;
     try { inp.setSelectionRange(n, n); } catch (e) {}
@@ -317,6 +332,7 @@
   /* ---------- เพิ่มแถว: ร่างในเครื่องก่อน บันทึกจริงตอนพิมพ์งานเสร็จ ---------- */
   function addRow(date) {
     var o = W.o, today = (W.data && W.data.today) || localToday();
+    if (o.phone) { openForm(null, date || o.day); return; }
     if (!date) date = today >= o.from && today <= addDays(o.from, 6) ? today : o.from;
     closeEditor(true).then(function () {
       var mine = W.data.rows.filter(function (r) { return r.date === date && r.staffId === meId(); });
@@ -352,6 +368,7 @@
     m.style.left = Math.max(8, Math.min(b.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
     m.style.top = (b.bottom + 4 + m.offsetHeight > window.innerHeight ? b.top - m.offsetHeight - 4 : b.bottom + 4) + 'px';
     m.dataset.id = id;
+    W.menuAt = Date.now();
     var first = m.querySelector('.on') || m.querySelector('button');
     if (first) first.focus();
   }
@@ -374,16 +391,285 @@
     }).then(function () { paint(); });
   }
 
-  function delRow(id) {
+  function delRow(id, fromForm) {
     var r = rowById(id);
     if (!r) return;
     var first = String(r.work || '').split('\n')[0].slice(0, 60);
     if (!confirm('ลบแถวนี้?\n' + (r.slot ? r.slot + '  ' : '') + first)) return;
     api('/worklog/' + encodeURIComponent(id), 'DELETE').then(function () {
       W.data.rows = W.data.rows.filter(function (x) { return x.id !== id; });
+      if (fromForm) closeForm(true);
       paint();
       toast('ลบแล้ว');
     }).catch(fail);
+  }
+
+  /* ============================================================
+     มือถือ: ทีละวัน — การ์ดต่อแถว (ชิปเวลาชมพู · งาน · ปุ่ม Process) · reason/รูปโชว์เฉพาะตอนมี
+     ปุ่มล่าง: คัดลอกวันก่อน · เพิ่มแถว · แตะการ์ด = เปิดฟอร์มแก้
+     ============================================================ */
+  function paintPhone() {
+    var j = W.data, o = W.o, d = o.day;
+    var today = j.today || localToday();
+    var ro = X.readOnly();
+    var h = '<div class="wl-mtop"><div><span class="kicker">งานทีม</span><h1>บันทึกงานรายวัน</h1></div>' + segHtml(o) + '</div>';
+    h += '<div class="wl-mday">' +
+      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, -1)) + '" aria-label="วันก่อน">‹</a>' +
+      '<label class="wl-mdate"><span><b>' + DAY_EN[wd(d)] + '</b> ' + esc(thShort(d)) + ' ' + (Number(d.slice(0, 4)) + 543) +
+        (d === today ? ' <em>วันนี้</em>' : '') + '</span>' +
+        '<input type="date" data-wl-day value="' + d + '" aria-label="เลือกวันที่"></label>' +
+      '<a class="wl-mnav" href="' + hashFor(o, addDays(d, 1)) + '" aria-label="วันถัดไป">›</a></div>';
+    if (d !== today) h += '<a class="wl-mtoday" href="' + hashFor(o, today) + '">กลับไปวันนี้</a>';
+    if (o.all) {
+      var nf = (o.staff !== 'all' ? 1 : 0) + (o.branch ? 1 : 0) + (o.status ? 1 : 0);
+      h += '<details class="wl-mfilter"' + (nf ? ' open' : '') + '><summary>ตัวกรอง' + (nf ? ' (' + nf + ')' : '') + '</summary>' + filtersHtml(o) + '</details>';
+    }
+    var rows = j.rows.slice().sort(function (a, b) {
+      return (a.staffId === b.staffId ? 0 : (staffFull(a.staffId).localeCompare(staffFull(b.staffId)) || (a.staffId < b.staffId ? -1 : 1))) ||
+        (slotKey(a.slot) - slotKey(b.slot)) || ((a.sort || 0) - (b.sort || 0));
+    });
+    h += '<div class="wl-cards">';
+    if (!rows.length) {
+      h += '<div class="wl-mempty">' + (o.all ? 'ไม่มีบันทึกของวันนี้' + (o.staff !== 'all' || o.branch || o.status ? ' ตามตัวกรอง' : '')
+        : 'ยังไม่มีบันทึกของวันนี้' + (!ro ? '<small>กด “คัดลอกวันก่อน” หรือ “เพิ่มแถว” ด้านล่าง</small>' : '')) + '</div>';
+    }
+    rows.forEach(function (r, k) {
+      if (o.all && (k === 0 || rows[k - 1].staffId !== r.staffId)) h += '<h3 class="wl-mwho">' + esc(staffFull(r.staffId)) + '</h3>';
+      h += cardHtml(r);
+    });
+    h += '</div>';
+    if (!o.all && !ro) {
+      h += '<div class="wl-mbar"><button type="button" class="btn-ghost" data-wl="mcopy">คัดลอกวันก่อน</button>' +
+        '<button type="button" class="btn" data-wl="add" data-date="' + d + '">+ เพิ่มแถว</button></div>';
+    }
+    $('#view').innerHTML = h;
+  }
+  function cardHtml(r) {
+    var mine = canEditRow(r);
+    var tags = '';
+    if (r.carriedFromDate) tags += '<span class="wl-tag">↪ ยกมาจาก ' + esc(thShort(r.carriedFromDate)) + '</span>';
+    if (r.carriedToDate) tags += '<span class="wl-tag mut">ยกไป ' + esc(thShort(r.carriedToDate)) + ' →</span>';
+    var picking = W.pick === r.id;
+    return '<article class="wl-card' + (mine ? ' mine' : '') + '" data-id="' + esc(r.id) + '"' + (mine ? ' tabindex="0" aria-label="แก้แถวนี้"' : '') + '>' +
+      '<div class="wl-chead"><span class="wl-chip">' + esc(r.slot || 'ไม่ระบุเวลา') + '</span>' + tags + '</div>' +
+      (String(r.work || '').trim() ? '<div class="wl-cwork">' + esc(r.work) + '</div>' : '<div class="wl-cwork wl-ph">(ยังไม่ได้พิมพ์งาน)</div>') +
+      (r.reason ? '<div class="wl-creason"><b>reason</b> ' + esc(r.reason) + '</div>' : '') +
+      (r.files && r.files.length ? pics(r) : '') +
+      '<div class="wl-cfoot">' + (mine
+        ? '<button type="button" class="wl-pill big ' + r.status + '" data-wl="mpick" aria-expanded="' + picking + '">' + esc(STATUS_TH[r.status] || r.status) + '<i aria-hidden="true">▾</i></button>'
+        : '<span class="wl-pill big ' + r.status + '">' + esc(STATUS_TH[r.status] || r.status) + '</span>') +
+        (mine ? '<span class="wl-cedit" aria-hidden="true">แก้ไข ›</span>' : '') + '</div>' +
+      (picking ? '<div class="wl-picks" role="listbox">' + STATUS.map(function (s2) {
+        return '<button type="button" role="option" class="wl-pill big ' + s2.k + (s2.k === r.status ? ' on' : '') + '" data-wl="mset" data-st="' + s2.k + '">' + s2.th + '</button>';
+      }).join('') + '</div>' : '') +
+      '</article>';
+  }
+  function mSetStatus(id, st) {
+    var r = rowById(id);
+    W.pick = null;
+    if (!r) return;
+    if (st === r.status) { paint(); return; }
+    if (st === 'blocked' && !String(r.reason || '').trim()) {
+      paint();
+      openForm(r, null, { status: 'blocked', focus: 'reason' });
+      toast('“ติดปัญหา” ต้องใส่ reason ก่อนบันทึก');
+      return;
+    }
+    save1(r, { status: st }).then(function () { paint(); });
+  }
+  function mCopy() {
+    var d = W.o.day;
+    var have = W.data.rows.filter(function (r) { return r.staffId === meId(); }).length;
+    if (have && !confirm('วันนี้มีอยู่แล้ว ' + have + ' แถว — คัดลอกแถวของวันก่อนมาต่อท้ายอีกไหม?')) return;
+    api('/worklog/copy', 'POST', { to: d }).then(function (j) {
+      toast('คัดลอกมาแล้ว ' + j.count + ' แถว');
+      render(W.route);
+    }).catch(fail);
+  }
+
+  /* ============================================================
+     ฟอร์มเพิ่ม/แก้แถว (มือถือ) — เต็มจอ · ปุ่มบันทึกใหญ่ปุ่มเดียว
+     รูป: ถ่ายรูป / เลือกจากคลัง → ย่อในเครื่องก่อนส่ง (ภาพใหญ่ ~1600px + รูปย่อ 240px)
+     ============================================================ */
+  var F = null;
+  function openForm(row, date, preset) {
+    closeForm(true);
+    preset = preset || {};
+    var slots = (W.data && W.data.slots) || [];
+    var mine = W.data ? W.data.rows.filter(function (r) { return r.staffId === meId() && r.date === (row ? row.date : date); }) : [];
+    var v = row ? { date: row.date, slot: row.slot || '', work: row.work || '', status: preset.status || row.status, reason: row.reason || '' }
+      : { date: date || W.o.day, slot: nextSlot(mine), work: '- ', status: 'done', reason: '' };
+    F = { row: row, pending: [], removed: [], busy: false, start: null };
+    var custom = v.slot && slots.indexOf(v.slot) === -1;
+    var host = document.createElement('div');
+    host.className = 'wl-sheet';
+    host.setAttribute('role', 'dialog');
+    host.setAttribute('aria-modal', 'true');
+    host.setAttribute('aria-label', row ? 'แก้ไขแถว' : 'เพิ่มแถว');
+    host.innerHTML = '<form class="wl-form" novalidate>' +
+      '<header class="wl-fhead"><button type="button" class="wl-fx" data-f-close aria-label="ปิด">✕</button>' +
+        '<b>' + (row ? 'แก้ไขแถว' : 'เพิ่มแถว') + '</b><span></span></header>' +
+      '<div class="wl-fbody">' +
+      '<div class="wl-frow2"><label class="wl-field"><span>วันที่ (M/D/Y)</span><input class="input" type="date" name="date" value="' + esc(v.date) + '" required></label>' +
+        '<div class="wl-field"><span>Day</span><output class="wl-fday" name="day">' + DAY_EN[wd(v.date)] + '</output></div></div>' +
+      '<label class="wl-field"><span>Time</span><select class="select" name="slotSel">' +
+        slots.map(function (x) { return '<option' + (x === v.slot ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') +
+        '<option value="__other"' + (custom || !v.slot && !slots.length ? ' selected' : '') + '>อื่นๆ (พิมพ์เอง)</option></select>' +
+        '<input class="input wl-fother" name="slotOther" placeholder="เช่น 09.00-10.00" maxlength="40" value="' + esc(custom ? v.slot : '') + '"' + (custom ? '' : ' hidden') + '></label>' +
+      '<label class="wl-field"><span>Work <small>หนึ่งบรรทัดต่องาน — กด Enter ขึ้นบรรทัดใหม่ได้ “- ” ให้เอง</small></span>' +
+        '<textarea class="textarea" name="work" rows="5">' + esc(v.work) + '</textarea></label>' +
+      '<div class="wl-field"><span>Process</span><div class="wl-fst" role="radiogroup">' + STATUS.map(function (s2) {
+        return '<button type="button" role="radio" aria-checked="' + (s2.k === v.status) + '" class="wl-pill big ' + s2.k + (s2.k === v.status ? ' on' : '') + '" data-f-st="' + s2.k + '">' + s2.th + '</button>';
+      }).join('') + '</div></div>' +
+      '<label class="wl-field"><span>reason <small class="wl-freq"' + (v.status === 'blocked' ? '' : ' hidden') + '>ต้องใส่ เพราะเลือก “ติดปัญหา”</small></span>' +
+        '<textarea class="textarea" name="reason" rows="2" placeholder="เช่น ทำไมช้า / จะเสร็จเมื่อไหร่">' + esc(v.reason) + '</textarea></label>' +
+      '<div class="wl-field"><span>แนบรูปงาน</span><div class="wl-fpics"></div>' +
+        '<div class="wl-fpicbtns"><label class="btn-ghost"><input type="file" accept="image/*" capture="environment" data-f-file hidden>ถ่ายรูป</label>' +
+        '<label class="btn-ghost"><input type="file" accept="image/*" multiple data-f-file hidden>เลือกจากคลังรูป</label></div></div>' +
+      (row ? '<button type="button" class="wl-fdel" data-f-del>ลบแถวนี้</button>' : '') +
+      '</div>' +
+      '<footer class="wl-ffoot"><button type="submit" class="btn wl-fsave">บันทึก</button></footer>' +
+      '</form>';
+    document.body.appendChild(host);
+    document.documentElement.classList.add('wl-lock');
+    F.host = host;
+    F.status = v.status;
+    var form = host.querySelector('form');
+    if (X.listEdit) X.listEdit(form.work);
+    drawPics();
+    F.start = snapshot();
+
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); saveForm(); });
+    form.date.addEventListener('change', function () { if (isDate(form.date.value)) form.day.value = DAY_EN[wd(form.date.value)]; });
+    form.slotSel.addEventListener('change', function () {
+      var other = form.slotSel.value === '__other';
+      form.slotOther.hidden = !other;
+      if (other) form.slotOther.focus();
+    });
+    host.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t.closest('[data-f-close]')) { closeForm(false); return; }
+      var st = t.closest('[data-f-st]');
+      if (st) { setFormStatus(st.getAttribute('data-f-st')); return; }
+      if (t.closest('[data-f-del]')) { delRow(F.row.id, true); return; }
+      var rm = t.closest('[data-f-rm]');
+      if (rm) {
+        var k = rm.getAttribute('data-f-rm');
+        if (k.indexOf('new:') === 0) F.pending.splice(Number(k.slice(4)), 1);
+        else F.removed.push(k);
+        drawPics();
+        return;
+      }
+    });
+    host.addEventListener('change', function (ev) {
+      if (!ev.target.hasAttribute('data-f-file')) return;
+      addPics(ev.target.files);
+      ev.target.value = '';
+    });
+    host.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeForm(false); });
+    var focus = preset.focus === 'reason' ? form.reason : (row ? null : form.work);
+    if (focus) {
+      focus.focus();
+      var n = focus.value.length;
+      try { focus.setSelectionRange(n, n); } catch (e) {}
+    }
+  }
+  function snapshot() {
+    var f = F.host.querySelector('form');
+    return JSON.stringify([f.date.value, slotOf(f), f.work.value, F.status, f.reason.value, F.pending.length, F.removed.length]);
+  }
+  function slotOf(f) { return f.slotSel.value === '__other' ? f.slotOther.value.trim() : f.slotSel.value; }
+  function setFormStatus(k) {
+    F.status = k;
+    var host = F.host;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-f-st]'), function (b) {
+      var on = b.getAttribute('data-f-st') === k;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', on);
+    });
+    host.querySelector('.wl-freq').hidden = k !== 'blocked';
+    if (k === 'blocked' && !host.querySelector('form').reason.value.trim()) host.querySelector('form').reason.focus();
+  }
+  function existingPics() {
+    var r = F.row ? rowById(F.row.id) : null;
+    return (r && r.files ? r.files : []).filter(function (f) { return F.removed.indexOf(f.id) === -1; });
+  }
+  function drawPics() {
+    var box = F.host.querySelector('.wl-fpics');
+    var h = existingPics().map(function (f) {
+      var u = X.API + '/worklog/files/' + encodeURIComponent(f.id);
+      return '<span class="wl-fpic"><img src="' + esc(u + (f.thumb ? '?thumb=1' : '')) + '" alt="">' +
+        '<button type="button" data-f-rm="' + esc(f.id) + '" aria-label="เอารูปนี้ออก">✕</button></span>';
+    }).concat(F.pending.map(function (p, i) {
+      return '<span class="wl-fpic new"><img src="' + p.thumbDataUrl + '" alt="">' +
+        '<button type="button" data-f-rm="new:' + i + '" aria-label="เอารูปนี้ออก">✕</button></span>';
+    })).join('');
+    box.innerHTML = h;
+    box.hidden = !h;
+  }
+  function addPics(list) {
+    var files = Array.prototype.slice.call(list || []).filter(function (f) { return /^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name); });
+    var room = MAX_PICS - existingPics().length - F.pending.length;
+    if (files.length > room) { toast('หนึ่งแถวแนบรูปได้ไม่เกิน ' + MAX_PICS + ' รูป', true); files = files.slice(0, Math.max(0, room)); }
+    if (!files.length) return;
+    var btn = F.host.querySelector('.wl-fsave');
+    btn.disabled = true; btn.textContent = 'กำลังย่อรูป…';
+    files.reduce(function (p, file) {
+      return p.then(function () {
+        return Promise.all([X.resizeImage(file, 1600, 0.82), X.resizeImage(file, 240, 0.7)]).then(function (out) {
+          if (F) F.pending.push({ fileName: (file.name || 'photo').replace(/\.\w+$/, '') + '.jpg', dataUrl: out[0], thumbDataUrl: out[1] });
+        }).catch(function (e) { fail(e); });
+      });
+    }, Promise.resolve()).then(function () {
+      if (!F) return;
+      btn.disabled = false; btn.textContent = 'บันทึก';
+      drawPics();
+    });
+  }
+  function closeForm(force) {
+    if (!F) return true;
+    if (!force && !F.busy && snapshot() !== F.start && !confirm('ทิ้งสิ่งที่แก้ไว้?')) return false;
+    F.host.remove();
+    document.documentElement.classList.remove('wl-lock');
+    F = null;
+    return true;
+  }
+  function saveForm() {
+    if (!F || F.busy) return;
+    var f = F.host.querySelector('form');
+    var work = f.work.value.replace(/\s+$/, '');
+    if (/^-?\s*$/.test(work)) { toast('พิมพ์งานก่อนนะ', true); f.work.focus(); return; }
+    if (!isDate(f.date.value)) { toast('เลือกวันที่ก่อน', true); f.date.focus(); return; }
+    if (F.status === 'blocked' && !f.reason.value.trim()) { toast('“ติดปัญหา” ต้องใส่ reason', true); f.reason.focus(); return; }
+    var body = { date: f.date.value, slot: slotOf(f), work: work, status: F.status, reason: f.reason.value.trim() };
+    var btn = F.host.querySelector('.wl-fsave');
+    F.busy = true; btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+    var cur = F;
+    var step = cur.row ? api('/worklog/' + encodeURIComponent(cur.row.id), 'PUT', body) : api('/worklog', 'POST', body);
+    step.then(function (j) {
+      /* บันทึกแถวแล้ว — ถ้ารูปพังทีหลัง ฟอร์มกลายเป็น "แก้ไข" แถวนี้ กดบันทึกซ้ำจะไม่สร้างแถวซ้ำ */
+      cur.row = j.row;
+      putRow(j.row);
+      var chain = Promise.resolve();
+      cur.removed.slice().forEach(function (id) {
+        chain = chain.then(function () { return api('/worklog/files/' + encodeURIComponent(id), 'DELETE'); })
+          .then(function () { cur.removed.splice(cur.removed.indexOf(id), 1); });
+      });
+      for (var i = 0; i < cur.pending.length; i += 6) (function (part) {
+        chain = chain.then(function () { return api('/worklog/' + encodeURIComponent(j.row.id) + '/files', 'POST', { files: part }); })
+          .then(function () { cur.pending.splice(0, part.length); });
+      })(cur.pending.slice(i, i + 6));
+      return chain;
+    }).then(function () {
+      cur.busy = false;
+      closeForm(true);
+      toast('บันทึกแล้ว');
+      render(W.route);
+    }).catch(function (e) {
+      cur.busy = false;
+      if (F === cur) { btn.disabled = false; btn.textContent = 'บันทึก'; drawPics(); F.start = null; }
+      fail(e);
+    });
   }
 
   /* ---------- เหตุการณ์ (ผูกครั้งเดียวตอน init — #view ถูกเขียนทับทุกครั้งที่วาด) ---------- */
@@ -406,7 +692,14 @@
         if (a === 'add') { addRow(act.getAttribute('data-date')); return; }
         if (a === 'proc' && tr) { procMenu(act, tr.getAttribute('data-id')); return; }
         if (a === 'del' && tr) { delRow(tr.getAttribute('data-id')); return; }
+        var card = act.closest('.wl-card');
+        if (a === 'mpick' && card) { W.pick = W.pick === card.getAttribute('data-id') ? null : card.getAttribute('data-id'); paint(); return; }
+        if (a === 'mset' && card) { mSetStatus(card.getAttribute('data-id'), act.getAttribute('data-st')); return; }
+        if (a === 'mcopy') { mCopy(); return; }
       }
+      /* แตะการ์ดของตัวเอง (ไม่ใช่ปุ่ม/รูป) = เปิดฟอร์มแก้ */
+      var mc = t.closest('.wl-card.mine');
+      if (mc && !t.closest('button, .wl-thumb, a')) { openForm(rowById(mc.getAttribute('data-id'))); return; }
       var cell = t.closest('.wl-ed[data-f]');
       if (cell && !cell.classList.contains('editing')) {
         var row = cell.closest('.wl-row');
@@ -418,6 +711,10 @@
       if (W.edit && !t.closest('.editing')) closeEditor(true);
     });
     document.addEventListener('change', function (ev) {
+      if (ev.target.hasAttribute && ev.target.hasAttribute('data-wl-day') && inPage(ev.target)) {
+        if (isDate(ev.target.value)) location.hash = hashFor(W.o, ev.target.value);
+        return;
+      }
       var f = ev.target.getAttribute && ev.target.getAttribute('data-wlf');
       if (!f || !inPage(ev.target)) return;
       var o = Object.assign({}, W.o);
@@ -439,6 +736,7 @@
       }
       var t = ev.target;
       if (t.classList && t.classList.contains('wl-thumb') && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); t.click(); return; }
+      if (t.classList && t.classList.contains('wl-card') && t.classList.contains('mine') && ev.key === 'Enter') { openForm(rowById(t.getAttribute('data-id'))); return; }
       if (!W.edit || !(t.classList && t.classList.contains('wl-in'))) return;
       var f = W.edit.field;
       if (ev.key === 'Escape') { ev.preventDefault(); closeEditor(false); return; }
@@ -457,7 +755,14 @@
       }
     });
     window.addEventListener('resize', closeMenu);
-    window.addEventListener('scroll', closeMenu, { passive: true });
+    /* หมุนจอ / ย่อหน้าต่างข้ามเส้น 760px → สลับตาราง ↔ การ์ด (ข้อมูลโหลดใหม่ตามช่วงวันของมุมมองนั้น) */
+    if (global.matchMedia) {
+      var mq = global.matchMedia(PHONE_MQ);
+      var flip = function () { if (W.route && W.o && W.o.phone !== mq.matches && /^#\/log/.test(location.hash)) render(W.route); };
+      if (mq.addEventListener) mq.addEventListener('change', flip); else if (mq.addListener) mq.addListener(flip);
+    }
+    /* เลื่อนจอแล้วเมนูลอยค้างผิดที่ → ปิด · แต่เว้นช่วงแรกหลังเปิด (หน้านี้เลื่อนแบบ smooth คลิกแล้วยังเลื่อนต่ออีกนิด) */
+    window.addEventListener('scroll', function () { if (Date.now() - (W.menuAt || 0) > 400) closeMenu(); }, { passive: true });
   }
 
   global.KAN_WORKLOG = {

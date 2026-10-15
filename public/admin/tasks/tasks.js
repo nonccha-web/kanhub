@@ -7323,7 +7323,7 @@
     });
     if (global.KAN_WORKLOG) global.KAN_WORKLOG.init({
       API: API, api: api, esc: esc, toast: toast, staffById: staffById, readOnly: readOnly,
-      me: function () { return S.me; },
+      me: function () { return S.me; }, resizeImage: resizeImage, listEdit: attachListEditing,
     });
     if (global.KAN_BLAST) global.KAN_BLAST.init({
       API: API, api: api, esc: esc, toast: toast, okDialog: okDialog,
