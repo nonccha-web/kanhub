@@ -130,7 +130,9 @@
   function canApprove() { return !readOnly() && !!S.me && S.me.role === 'owner'; }
   function mineTask(t) { return S.me && t.assignees.indexOf(S.me.id) !== -1; }
   /* แก้/ลบ จากหน้ารายการ: หัวหน้าหรือคนสั่งงาน (เหมือนสิทธิ์แก้ไขในหน้ารายละเอียด) */
-  function canEditRow(t) { return !readOnly() && S.me && (S.me.role === 'owner' || t.createdBy === S.me.id); }
+  function canEditRow(t) { return !readOnly() && S.me && (isTaskAdmin() || t.createdBy === S.me.id); }
+  /* จัดการงานได้เหมือนหัวหน้า (พิซซ่า + เติ้ล · นนท์ 15 ต.ค. 69) — แก้/ลบงานทุกงาน ไฟล์ อัปเดต โพสต์ · ตรวจผ่านยังเป็นของหัวหน้า */
+  function isTaskAdmin() { return !!S.me && (S.me.role === 'owner' || !!S.me.taskAdmin); }
   function canTick(t) {
     if (readOnly()) return false;
     return canApprove(t) || mineTask(t) || (S.me && S.me.canUpdateOthers);
@@ -1533,7 +1535,7 @@
       '<div class="rvwork" data-rv-work="' + esc(t.id) + '"><span class="rvload">กำลังเปิดงานที่เขาส่งมา…</span></div>' +
       '<div class="rvacts"><a class="btn-text rvopen" href="#/task/' + esc(t.id) + '" data-rv-open="' + esc(t.id) + '">เปิดงานเต็ม ๆ</a>' +
       /* บางใบเป็นงานซ้ำที่สั่งมาสองรอบ — ลบทิ้งจากตรงนี้ได้เลย ไม่ต้องออกไปหน้างาน */
-      (S.me && (S.me.role === 'owner' || t.createdBy === S.me.id)
+      (S.me && (isTaskAdmin() || t.createdBy === S.me.id)
         ? '<button type="button" class="btn-text danger" data-rv-del="' + esc(t.id) + '">ลบงานซ้ำนี้</button>' : '') +
       '</div>';
   }
@@ -1545,7 +1547,7 @@
         (p.channels || []).map(function (ch) { return '<span class="pill">' + esc(ch) + '</span>'; }).join('') +
       '</div>' +
       '<div class="rvsub">วันนี้ยังไม่ได้ติ๊กว่าโพสต์แล้ว</div>' +
-      (S.me && S.me.role === 'owner'
+      (S.me && isTaskAdmin()
         ? '<div class="rvacts"><button type="button" class="btn-text danger" data-rv-delpost="' + esc(p.id) + '">ลบโพสต์ซ้ำนี้</button></div>' : '') +
       (p.note ? '<div class="rvdetail rich">' + richText(p.note) + '</div>' : '') +
       '<div class="rvwork open"><label class="label">วางลิงก์โพสต์ (วางแล้วนับว่าโพสต์แล้วเลย)</label>' +
@@ -4517,7 +4519,7 @@
       var filesByUpdate = {};
       files.forEach(function (f) { (filesByUpdate[f.updateId || '_'] = filesByUpdate[f.updateId || '_'] || []).push(f); });
       var es = effStatus(t), late = isLate(t);
-      var canEdit = !readOnly() && (S.me.role === 'owner' || t.createdBy === S.me.id);
+      var canEdit = !readOnly() && (isTaskAdmin() || t.createdBy === S.me.id);
       var mine = t.assignees.indexOf(S.me.id) !== -1;
       var canStatus = !readOnly() && (canEdit || mine || S.me.canUpdateOthers);
       /* งานที่ยังไม่เคยมีกำหนดส่ง — คนรับงานใส่วันเองได้ (พิซซ่าขอ)
@@ -4582,7 +4584,7 @@
           '<div class="field"><label class="label">เชื่อมกับปฏิทินการตลาด <small>คอนเทนต์ / แคมเปญ / โปรโมชั่นที่งานนี้ทำให้</small></label>' + campaignSelect('name="campaignId"', t.campaignId) + '</div>' +
           '<label class="label" style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" name="priority"' + (t.priority ? ' checked' : '') + '> งานด่วน (★)</label>' +
           '<div class="acts"><button type="submit" class="btn">บันทึกการแก้ไข</button><button type="button" class="btn-ghost" id="cancelEdit">ยกเลิก</button>' +
-          (S.me.role === 'owner' ? '<button type="button" class="btn-ghost danger" id="delBtn" style="margin-left:auto">ลบงานนี้</button>' : '') + '</div></form>' : '') +
+          (isTaskAdmin() || t.createdBy === S.me.id ? '<button type="button" class="btn-ghost danger" id="delBtn" style="margin-left:auto">ลบงานนี้</button>' : '') + '</div></form>' : '') +
         '</div></div>';
 
       /* งานป้ายหลัก: 6 ขั้นเป็น funnel — งานย่อยธรรมดาซ่อนไว้ใต้นั้น */
@@ -4659,9 +4661,9 @@
           var s = staffById(u.staffId), fl = filesByUpdate[u.id] || [];
           var what = u.kind === 'create' ? 'สร้างงาน' : (u.statusTo && u.kind !== 'create' ? 'เปลี่ยนสถานะเป็น <span class="pill ' + esc(u.statusTo) + '">' + STATUS_TH[u.statusTo] + '</span>' : (fl.length ? 'แนบไฟล์' : 'บันทึก'));
           /* ลบได้: หัวหน้าลบได้ทุกอัน · สมาชิกลบเฉพาะของตัวเอง · ยกเว้นรายการ "สร้างงาน" */
-          var canDelUp = u.kind !== 'create' && (S.me.role === 'owner' || u.staffId === S.me.id);
+          var canDelUp = u.kind !== 'create' && (isTaskAdmin() || u.staffId === S.me.id);
           /* แก้ข้อความได้เฉพาะหัวหน้า (นนท์สั่ง) · คนอื่นถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่ */
-          var canEditUp = u.kind !== 'create' && S.me.role === 'owner' && u.note;
+          var canEditUp = u.kind !== 'create' && isTaskAdmin() && u.note;
           return '<div class="tl-i" data-upd="' + esc(u.id) + '">' + avatar(s, 'lg') + '<div><div class="h"><b>' + esc(s ? shortName(s) : '?') + '</b><span>' + what + '</span><time>' + esc(fmtAgo(u.createdAt)) +
             (u.editedAt ? ' · แก้ไขแล้ว' : '') + '</time>' +
             (canEditUp ? '<button type="button" class="tl-edit" data-edit-upd="' + esc(u.id) + '" title="แก้ข้อความ">แก้</button>' : '') +
@@ -5530,7 +5532,7 @@
                  topic: src.topic, kind: src.kind, status: 'plan', url: '', note: src.note, campaignId: src.campaignId || '' };
       },
       tone: function (r) { return (!postRowBlank(r) && r.date) ? postTone(r) : ''; },
-      canDelete: function () { return S.me.role === 'owner'; },
+      canDelete: function () { return isTaskAdmin(); },
       confirmDelete: function (n) { return confirm('ลบ ' + n + ' แถวออกจากตารางโพสต์? ย้อนกลับไม่ได้'); },
       onChange: gridSchedule,
       onRemove: gridRemove,
@@ -6839,6 +6841,9 @@
             '<button type="button" class="chip plain' + (s.canReschedule ? ' on' : '') + '"' +
             (owner ? ' data-resch-staff="' + esc(s.id) + '" data-to="' + (s.canReschedule ? '0' : '1') + '"' : ' disabled') +
             ' title="เลื่อนกำหนดส่งของงานได้เอง ไม่ต้องขออนุมัติ">แก้วันกำหนดส่งได้</button>' +
+            '<button type="button" class="chip plain' + (s.taskAdmin ? ' on' : '') + '"' +
+            (owner ? ' data-tadm-staff="' + esc(s.id) + '" data-to="' + (s.taskAdmin ? '0' : '1') + '"' : ' disabled') +
+            ' title="สร้าง แก้ ลบงานทุกงาน ไฟล์ อัปเดต และโพสต์ ได้เหมือนหัวหน้า (ตรวจผ่านยังเป็นของหัวหน้า)">จัดการงานแทนหัวหน้า</button>' +
             '<span class="wdays">' + esc(workDaysLabel(s)) + '</span>' +
             '<select class="select sm" style="width:auto;height:28px;padding:0 8px;font-size:12.5px"' + (owner ? ' data-scope-staff="' + esc(s.id) + '"' : ' disabled') + ' title="เห็นงานเฉพาะสาขานี้ + งานที่มอบให้ตัวเอง">' +
             '<option value="">เห็นงานทุกสาขา</option>' + TASK_BRANCHES.map(function (b) { return '<option value="' + esc(b) + '"' + (s.branchScope === b ? ' selected' : '') + '>เฉพาะ ' + esc(b) + '</option>'; }).join('') +
@@ -7049,6 +7054,15 @@
             toast((rto ? 'เปิด' : 'ปิด') + 'สิทธิ์แก้วันกำหนดส่งให้ ' + shortName(staffById(rid2)) + ' แล้ว');
             renderTeam();
           })
+          .catch(function (e) { b.disabled = false; toast(e.message, true); });
+        return;
+      }
+      if ((b = ev.target.closest('[data-tadm-staff]'))) {
+        var tid3 = b.getAttribute('data-tadm-staff'), tto = b.getAttribute('data-to') === '1';
+        b.disabled = true;
+        api('/staff/' + tid3, 'PUT', { taskAdmin: tto })
+          .then(refreshMe)
+          .then(function () { toast((tto ? 'เปิด' : 'ปิด') + 'สิทธิ์จัดการงานแทนหัวหน้าให้ ' + shortName(staffById(tid3)) + ' แล้ว'); renderTeam(); })
           .catch(function (e) { b.disabled = false; toast(e.message, true); });
         return;
       }

@@ -307,6 +307,8 @@ const ALTERS = [
   "ALTER TABLE staff ADD COLUMN hours_per_day REAL",
   /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้ เพื่ออัปเดตงานแทนเติ้ล */
   "ALTER TABLE staff ADD COLUMN can_update_others INTEGER NOT NULL DEFAULT 0",
+  /* จัดการงานได้เหมือนหัวหน้า (สร้าง/แก้/ลบงาน ไฟล์ อัปเดต โพสต์) แต่ไม่ใช่หัวหน้า — ตรวจผ่านยังเป็นของหัวหน้า (นนท์ 15 ต.ค. 69: พิซซ่า + เติ้ล) */
+  "ALTER TABLE staff ADD COLUMN task_admin INTEGER NOT NULL DEFAULT 0",
   /* แก้กำหนดส่งได้ — เดิมมีแค่หัวหน้ากับคนสั่งงาน นนท์ขอเปิดให้พิซซ่าด้วย (15 ก.ย. 69) */
   "ALTER TABLE staff ADD COLUMN can_reschedule INTEGER NOT NULL DEFAULT 0",
   /* บัญชีที่ต้องใส่รหัสผ่านทุกครั้ง (ฝ่ายขาย/คนนอกทีมหลัก) — คนเดิมยังกดชื่อเข้าได้เหมือนเดิม */
@@ -870,7 +872,7 @@ async function currentStaff(request, db) {
   const auth = request.headers.get("authorization") || "";
   const bm = auth.match(/^Bearer\s+([A-Za-z0-9]{32,80})$/i);
   if (bm) {
-    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE api_token = ? AND active = 1")
+    const r = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,can_update_others,can_reschedule,task_admin,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE api_token = ? AND active = 1")
       .bind(bm[1]).first();
     return r || null;
   }
@@ -882,12 +884,12 @@ async function currentStaff(request, db) {
   if (!(Number(exp) > Date.now())) return null;
   const expect = await hmacHex(await sessionSecret(db), id + "." + exp);
   if (expect !== sig) return null;
-  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(id).first();
+  const row = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,task_admin,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(id).first();
   if (!row || !row.active) return null;
   if (row.role === "owner") {
     const va = getCookie(request, VIEWAS_COOKIE);
     if (va && va !== row.id && /^[A-Za-z0-9_-]{1,40}$/.test(va)) {
-      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(va).first();
+      const t = await db.prepare("SELECT id,name,aliases,role,active,sections,perms,email,username,pw_hash,can_update_others,can_reschedule,task_admin,work_days,hours_per_day,require_pw,pending,branch_scope FROM staff WHERE id = ?").bind(va).first();
       if (t && t.active && !t.pending && t.role !== "owner") { t._viewAsBy = { id: row.id, name: row.name }; return t; }
     }
   }
@@ -899,7 +901,8 @@ function publicStaff(r) {
     email: r.email || null, username: r.username || null, hasPassword: !!r.pw_hash, sections: sectionsOf(r), perms: permsOf(r),
     needsPassword: r.role === "owner" || !!r.require_pw,
     pending: !!r.pending,
-    canUpdateOthers: r.role === "owner" || !!r.can_update_others,
+    taskAdmin: r.role === "owner" || !!r.task_admin,
+    canUpdateOthers: r.role === "owner" || !!r.can_update_others || !!r.task_admin,
     canReschedule: r.role === "owner" || !!r.can_reschedule,
     workDays: r.work_days == null ? null : String(r.work_days),
     hoursPerDay: r.hours_per_day == null ? null : Number(r.hours_per_day),
@@ -1297,9 +1300,11 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   if (method !== "GET" && viewOnlyFor(me, path) && !/\/(read|seen)$/.test(path)) return json({ error: "สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว", viewOnly: true }, 403);
   const isOwner = me.role === "owner";
   /* พิซซ่าขอสิทธิ์ติ๊กงานแทนเติ้ล — หัวหน้าเปิดให้รายคนในหน้า "ทีม + สิทธิ์" */
-  const canUpdateOthers = isOwner || !!me.can_update_others;
+  /* คนดูแลงานแทนหัวหน้า — แก้/ลบงานใคร ไฟล์ อัปเดต โพสต์ ได้เหมือนหัวหน้า (ตรวจผ่านยังเป็นของหัวหน้าคนเดียว) */
+  const taskAdmin = isOwner || !!me.task_admin;
+  const canUpdateOthers = taskAdmin || !!me.can_update_others;
   /* เลื่อนกำหนดส่งได้เอง — ปกติสงวนไว้ให้หัวหน้ากับคนสั่งงาน เปิดรายคนได้ */
-  const canReschedule = isOwner || !!me.can_reschedule;
+  const canReschedule = taskAdmin || !!me.can_reschedule;
   /* ---- ขอเข้าระบบ (นนท์ 28 ก.ย. 69) ----
      บัญชีชั่วคราว (pending) กรอกฟอร์ม → หัวหน้าอนุมัติ/ปฏิเสธในหน้าทีม → อนุมัติแล้วบัญชีกลายเป็นชื่อ/รหัส/สิทธิ์ที่ขอ */
   if (me.pending) {
@@ -1539,7 +1544,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   }
 
   if (path === "/me" && method === "GET") {
-    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,perms,api_token,can_update_others,can_reschedule,work_days,hours_per_day,require_pw,branch_scope FROM staff ORDER BY role = 'owner' DESC, name").all();
+    const staff = await db.prepare("SELECT id,name,aliases,role,active,email,username,pw_hash,sections,perms,api_token,can_update_others,can_reschedule,task_admin,work_days,hours_per_day,require_pw,branch_scope FROM staff ORDER BY role = 'owner' DESC, name").all();
     const kpis = await db.prepare("SELECT * FROM kpis ORDER BY sort").all();
     /* ชิป KPI บนงานต้องเห็นทุกคน (มันคือหมวดงาน) แต่ "เป้า/น้ำหนัก" เป็นตัวเลขลับ
        คนที่ไม่มีสิทธิ์หมวด KPI จะได้แค่รหัสกับชื่อไปแสดงชิป */
@@ -1816,7 +1821,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
         id: r.id, postId: r.post_id, staffId: r.staff_id, action: r.action, pageId: r.page_id,
         date: r.post_date, time: r.post_time, topic: r.topic || "", createdAt: r.created_at,
         changes: r.changes ? JSON.parse(r.changes) : null,
-        alive: !!r.alive, canEdit: !!r.alive && (isOwner || r.post_owner === me.id),
+        alive: !!r.alive, canEdit: !!r.alive && (taskAdmin || r.post_owner === me.id),
       })),
     });
   }
@@ -1824,8 +1829,8 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   /* ลบโพสต์ที่ยังไม่ได้ใส่หัวข้อ (เผลอกด Enter รัวจนได้แถวเปล่า) */
   if (path === "/posts/blank" && (method === "GET" || method === "DELETE")) {
     const where = "(topic IS NULL OR TRIM(topic) = '') AND (url IS NULL OR url = '')" +
-      (isOwner ? "" : " AND created_by = ?");
-    const binds = isOwner ? [] : [me.id];
+      (taskAdmin ? "" : " AND created_by = ?");
+    const binds = taskAdmin ? [] : [me.id];
     if (method === "GET") {
       const c = await db.prepare("SELECT COUNT(*) AS n FROM posts WHERE " + where).bind(...binds).first();
       return json({ count: (c && c.n) || 0 });
@@ -1896,7 +1901,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const row = await db.prepare("SELECT * FROM posts WHERE id = ?").bind(postMatch[1]).first();
     if (!row) return json({ ok: true });
     /* หัวหน้าลบได้ทุกอัน · คนอื่นลบได้เฉพาะโพสต์ที่ตัวเองสร้าง (ของเก่าที่ยังไม่มีคนสร้าง = หัวหน้าเท่านั้น) */
-    if (!isOwner && row.created_by !== me.id) return json({ error: "ลบได้เฉพาะโพสต์ที่ตัวเองเพิ่มไว้" }, 403);
+    if (!taskAdmin && row.created_by !== me.id) return json({ error: "ลบได้เฉพาะโพสต์ที่ตัวเองเพิ่มไว้" }, 403);
     await logChange(db, { by: me.id, entity: "post", entityId: row.id, action: "delete", title: row.topic || row.post_date, before: row, summary: "ลบโพสต์" });
     await db.batch([
       db.prepare("DELETE FROM posts WHERE id = ?").bind(row.id),
@@ -2362,7 +2367,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
      ไม่ลบ "สร้างงาน" เพราะเป็นจุดตั้งต้นของไทม์ไลน์ */
   const updMatch = path.match(/^\/updates\/([A-Za-z0-9_-]{1,40})$/);
   if (updMatch && method === "PUT") {
-    if (!isOwner) return json({ error: "แก้ข้อความได้เฉพาะหัวหน้าทีม — ถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่" }, 403);
+    if (!taskAdmin) return json({ error: "แก้ข้อความได้เฉพาะหัวหน้าทีม — ถ้าพิมพ์ผิดให้ลบแล้วเขียนใหม่" }, 403);
     const row = await db.prepare("SELECT id, kind FROM task_updates WHERE id = ?").bind(updMatch[1]).first();
     if (!row) return json({ error: "ไม่พบรายการนี้" }, 404);
     if (row.kind === "create") return json({ error: "แก้รายการ 'สร้างงาน' ไม่ได้" }, 400);
@@ -2375,7 +2380,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   if (updMatch && method === "DELETE") {
     const row = await db.prepare("SELECT id, task_id, staff_id, kind FROM task_updates WHERE id = ?").bind(updMatch[1]).first();
     if (!row) return json({ error: "ไม่พบรายการนี้" }, 404);
-    if (!isOwner && row.staff_id !== me.id) return json({ error: "ลบได้เฉพาะที่ตัวเองบันทึกไว้" }, 403);
+    if (!taskAdmin && row.staff_id !== me.id) return json({ error: "ลบได้เฉพาะที่ตัวเองบันทึกไว้" }, 403);
     if (row.kind === "create") return json({ error: "ลบรายการ 'สร้างงาน' ไม่ได้" }, 400);
     await db.batch([
       db.prepare("DELETE FROM task_files WHERE update_id = ?").bind(row.id),
@@ -2403,6 +2408,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     if (body.sections != null) { sets.push("sections = ?", "perms = NULL"); vals.push(cleanSections(body.sections)); }
     /* ติ๊กงานของคนอื่นได้ — พิซซ่าขอไว้เพื่ออัปเดตงานแทนเติ้ล */
     if (body.canUpdateOthers != null) { sets.push("can_update_others = ?"); vals.push(body.canUpdateOthers ? 1 : 0); }
+    if (body.taskAdmin != null) { sets.push("task_admin = ?"); vals.push(body.taskAdmin ? 1 : 0); }
     if (body.canReschedule != null) { sets.push("can_reschedule = ?"); vals.push(body.canReschedule ? 1 : 0); }
     if (body.branchScope !== undefined) { sets.push("branch_scope = ?"); vals.push(TASK_BRANCHES.indexOf(body.branchScope) !== -1 ? body.branchScope : null); }
     /* วันทำงานรายคน "0,1,2,..." (0 = อาทิตย์) — พิซซ่าหยุดพฤหัส เติ้ลหยุดเสาร์อาทิตย์ */
@@ -2676,7 +2682,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const skipped = [];
     const changed = [];
     const skip = (t, why) => skipped.push({ id: t.id, title: t.title, reason: why });
-    const canApproveT = (t) => isOwner || t.createdBy === me.id;
+    const canApproveT = (t) => taskAdmin || t.createdBy === me.id;
     const mineT = (t) => t.assignees.indexOf(me.id) !== -1;
     const canTickT = (t) => canApproveT(t) || mineT(t) || canUpdateOthers;
 
@@ -2867,7 +2873,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const body = await readBody(request);
       const now = nowIso();
       const auditBefore = await snapTask(db, id);
-      if (isOwner || task.createdBy === me.id) {
+      if (taskAdmin || task.createdBy === me.id) {
         const sets = await loadIdSets(db);
         const merged = {
           title: body.title != null ? body.title : task.title,
@@ -3044,7 +3050,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
     if (!sub && method === "DELETE") {
       /* หัวหน้า หรือคนที่สร้างงานนั้นเอง (น้องเพิ่มงานย่อยเองแล้วต้องลบเองได้) */
-      if (!(isOwner || task.createdBy === me.id)) return json({ error: "ลบได้เฉพาะหัวหน้าหรือคนที่สร้างงานนี้" }, 403);
+      if (!(taskAdmin || task.createdBy === me.id)) return json({ error: "ลบได้เฉพาะหัวหน้าหรือคนที่สร้างงานนี้" }, 403);
       /* ลบงานหลัก = ลบงานย่อยของมันด้วย ไม่งั้นงานย่อยลอยหาพ่อแม่ไม่เจอ */
       const kids = await db.prepare("SELECT id FROM tasks WHERE parent_id = ?").bind(id).all();
       const ids = [id].concat((kids.results || []).map((r) => r.id));
@@ -3071,7 +3077,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
       const files = Array.isArray(body.files) ? body.files.slice(0, MAX_FILES_PER_UPDATE) : [];
       const links = Array.isArray(body.links) ? body.links.slice(0, MAX_LINKS_PER_UPDATE) : [];
       if (!note && !status && !files.length && !links.length) return json({ error: "ยังไม่ได้ใส่อะไรเลย" }, 400);
-      const canApprove = isOwner || task.createdBy === me.id;
+      const canApprove = taskAdmin || task.createdBy === me.id;
       if (status && !(canApprove || mine || canUpdateOthers)) {
         return json({ error: "เปลี่ยนสถานะได้เฉพาะคนที่รับงานหรือหัวหน้า" }, 403);
       }
@@ -3188,7 +3194,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
 
     /* ---- สร้าง 6 ขั้นให้งานป้ายที่ยังไม่มี (งานเก่าก่อนมีระบบนี้) ---- */
     if (sub === "/stages" && method === "POST") {
-      if (!(isOwner || task.createdBy === me.id || mine)) return json({ error: "ไม่มีสิทธิ์" }, 403);
+      if (!(taskAdmin || task.createdBy === me.id || mine)) return json({ error: "ไม่มีสิทธิ์" }, 403);
       if (task.parentId) return json({ error: "งานย่อยไม่มีขั้นงานของตัวเอง" }, 400);
       if (!(await flowFor(db, task.taskType)).length) return json({ error: "ประเภทนี้ยังไม่ได้ตั้งขั้นงาน — ตั้งได้ที่บอร์ด › ตั้งค่าขั้นงาน" }, 400);
       const r = await ensureSignStages(db, id, me.id, nowIso());
@@ -3250,7 +3256,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   if (fileMatch && method === "DELETE") {
     const row = await db.prepare("SELECT id, update_id FROM task_files WHERE id = ?").bind(fileMatch[1]).first();
     if (!row) return json({ error: "ไม่พบรูป" }, 404);
-    if (!isOwner) {
+    if (!taskAdmin) {
       const up = await db.prepare("SELECT staff_id FROM task_updates WHERE id = ?").bind(row.update_id || "").first();
       if (!up || up.staff_id !== me.id) return json({ error: "ลบได้เฉพาะรูปที่ตัวเองอัปโหลด" }, 403);
     }
