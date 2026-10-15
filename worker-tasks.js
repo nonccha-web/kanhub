@@ -1735,7 +1735,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const BACKUP_TABLES = [
     "staff", "kpis", "tasks", "task_assignees", "task_updates", "task_files", "task_mentions",
     "task_settings", "post_pages", "posts", "post_log", "campaigns", "attachments", "kpi_entries",
-    "worklog", "worklog_templates", "worklog_files",
+    "worklog", "worklog_templates", "worklog_template_sets", "worklog_files",
   ];
   if (path === "/backup/manifest" && method === "GET") {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);

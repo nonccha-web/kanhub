@@ -19,7 +19,8 @@ const WL_MAX_SEARCH_DAYS = 366;
 const WL_MAX_FILES_PER_ROW = 10;
 const WL_MAX_FILES_PER_CALL = 6;
 const WL_MAX_THUMB_BYTES = 60000;  /* รูปย่อไว้โชว์ในตาราง — เบราว์เซอร์ย่อให้ ~240px */
-const WL_MAX_TEMPLATE = 30;
+const WL_MAX_TEMPLATE = 30;       /* แถวต่อแม่แบบ */
+const WL_MAX_TEMPLATE_SETS = 20;  /* แม่แบบต่อคน */
 const WL_CARRY_LOOKBACK = 30;      /* ยกงานค้างย้อนหลังไม่เกินกี่วัน — กันของเก่า/ของที่นำเข้ามาไหลมาทั้งก้อน */
 const WL_DEFAULT_WORKDAYS = "1,2,3,4,5"; /* ค่าเดียวกับหน้าทีม (tasks.js) ตอนยังไม่ตั้งวันทำงาน */
 
@@ -50,7 +51,16 @@ const WORKLOG_SCHEMA = [
   "CREATE INDEX IF NOT EXISTS idx_worklog_tpl_staff ON worklog_templates(staff_id, sort)",
 ];
 /* คอลัมน์ที่เพิ่มทีหลัง — ใส่ต่อท้ายที่นี่ (ALTER TABLE … ADD COLUMN) ห้ามแก้ CREATE ด้านบนแทน */
-const WORKLOG_ALTERS = [];
+const WORKLOG_ALTERS = [
+  /* หลายแม่แบบต่อคน (นนท์ขอ 15 ต.ค. 69) — แถวแม่แบบผูกกับชุดใน worklog_template_sets
+     แถวเก่าที่ยังไม่มีชุด (set_id ว่าง) ถูกย้ายเข้าชุด "แม่แบบหลัก" ตอนเจ้าของเปิดแม่แบบครั้งแรก (tplSets) */
+  "ALTER TABLE worklog_templates ADD COLUMN set_id TEXT",
+  "CREATE TABLE IF NOT EXISTS worklog_template_sets (" +
+    "id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, name TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, " +
+    "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_worklog_tset_staff ON worklog_template_sets(staff_id, sort)",
+  "CREATE INDEX IF NOT EXISTS idx_worklog_tpl_set ON worklog_templates(set_id, sort)",
+];
 
 let worklogReady = null;
 export function ensureWorklogSchema(db) {
@@ -361,55 +371,166 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
   /* ---------- "คัดลอกวันก่อน" — ก๊อปแถวของวันล่าสุดที่มีบันทึก (ก่อนวันปลายทาง) ----------
      ก๊อปเฉพาะแถวที่ "เสร็จแล้ว" — แถวที่ยังไม่เสร็จระบบยกไปวันถัดไปให้เองอยู่แล้ว ก๊อปด้วยจะได้สองแถว
      Process เริ่มที่ "เสร็จแล้ว" · reason/รูปไม่ตามมา */
+  /* หาวันต้นทาง: ระบุมา (ต้องก่อนวันปลายทาง) หรือวันล่าสุดที่มีบันทึกย้อนไม่เกิน 30 วัน */
+  async function copyFrom(to, want) {
+    if (!isDate(to)) return { error: "วันที่ไม่ถูกต้อง", status: 400 };
+    if (want) {
+      if (!isDate(want) || want >= to) return { error: "วันต้นทางต้องอยู่ก่อนวันปลายทาง", status: 400 };
+      return { from: want };
+    }
+    const r = await db.prepare("SELECT MAX(work_date) AS d FROM worklog WHERE staff_id = ? AND work_date < ? AND work_date >= ?")
+      .bind(me.id, to, addDays(to, -30)).first();
+    if (!r || !r.d) return { error: "ไม่เจอบันทึกของวันก่อนหน้า (ย้อนดู 30 วัน)", status: 404 };
+    return { from: r.d };
+  }
+  /* แถวของวันต้นทางให้เลือกติ๊ก — ?to=วันปลายทาง &from=วันต้นทาง (ไม่ใส่ = วันล่าสุดที่มีบันทึก)
+     ส่งมาทุกแถว แต่ copyable = เฉพาะ "เสร็จแล้ว" (ที่ยังไม่เสร็จระบบยกไปให้เอง ก๊อปซ้ำจะได้สองแถว) */
+  if (path === "/worklog/copy-source" && method === "GET") {
+    const f = await copyFrom(url.searchParams.get("to") || today, url.searchParams.get("from") || "");
+    if (f.error) return json({ error: f.error, notFound: f.status === 404 }, f.status);
+    const src = (await db.prepare("SELECT * FROM worklog WHERE staff_id = ? AND work_date = ? ORDER BY slot_start, sort, created_at")
+      .bind(me.id, f.from).all()).results || [];
+    const rows = await outRows(src);
+    rows.forEach((r) => { r.copyable = r.status === "done"; });
+    return json({ from: f.from, rows });
+  }
+  /* ---------- "คัดลอกวันก่อน" — ก๊อปแถวของวันต้นทางมาต่อท้ายวันปลายทาง ----------
+     ids = แถวที่ติ๊กเลือก (ไม่ส่ง = ทุกแถวที่ "เสร็จแล้ว" แบบเดิม) · ก๊อปเฉพาะแถว "เสร็จแล้ว" ของตัวเองในวันต้นทางเท่านั้น
+     แถวที่ยังไม่เสร็จระบบยกไปวันถัดไปให้เองอยู่แล้ว ก๊อปด้วยจะได้สองแถว · Process เริ่มที่ "เสร็จแล้ว" · reason/รูปไม่ตามมา */
   if (path === "/worklog/copy" && method === "POST") {
     const body = await readBody(request);
     const to = body.to || today;
-    if (!isDate(to)) return json({ error: "วันที่ไม่ถูกต้อง" }, 400);
-    let from = body.from || null;
-    if (from && (!isDate(from) || from >= to)) return json({ error: "วันต้นทางต้องอยู่ก่อนวันปลายทาง" }, 400);
-    if (!from) {
-      const r = await db.prepare("SELECT MAX(work_date) AS d FROM worklog WHERE staff_id = ? AND work_date < ? AND work_date >= ?")
-        .bind(me.id, to, addDays(to, -30)).first();
-      from = r && r.d;
-      if (!from) return json({ error: "ไม่เจอบันทึกของวันก่อนหน้า (ย้อนดู 30 วัน)" }, 404);
-    }
-    const src = (await db.prepare("SELECT * FROM worklog WHERE staff_id = ? AND work_date = ? AND status = 'done' ORDER BY slot_start, sort")
+    const f = await copyFrom(to, body.from || "");
+    if (f.error) return json({ error: f.error }, f.status);
+    const from = f.from;
+    let src = (await db.prepare("SELECT * FROM worklog WHERE staff_id = ? AND work_date = ? AND status = 'done' ORDER BY slot_start, sort")
       .bind(me.id, from).all()).results || [];
+    if (Array.isArray(body.ids)) {
+      const want = body.ids.map(String);
+      src = src.filter((r) => want.indexOf(r.id) !== -1);
+      if (!src.length) return json({ error: "ยังไม่ได้เลือกแถวที่จะคัดลอก" }, 400);
+    }
     if (!src.length) return json({ error: "วันนั้นไม่มีแถวที่ก๊อปได้" }, 404);
-    return json(await insertMany(src.map((r) => ({ slot: r.slot, work: r.work, status: "done" })), to, "copy", "คัดลอกจาก " + from));
+    return insertJson(await insertMany(src.map((r) => ({ slot: r.slot, work: r.work, status: "done" })), to, "copy", "คัดลอกจาก " + from));
   }
 
-  /* ---------- แม่แบบประจำวันของตัวเอง ---------- */
-  if (path === "/worklog/template" && method === "GET") {
-    const r = await db.prepare("SELECT id,sort,slot,work,status FROM worklog_templates WHERE staff_id = ? ORDER BY sort").bind(me.id).all();
-    return json({ rows: (r.results || []).map((x) => ({ id: x.id, slot: x.slot, work: x.work, status: x.status })) });
+  /* ---------- แม่แบบประจำวัน — ตั้งได้หลายชุดต่อคน (ชื่อ + แถว) ---------- */
+  /* ชุดแม่แบบของตัวเอง (เรียงตาม sort) พร้อมแถว · แถวเก่าจากตอนมีแม่แบบเดียว ย้ายเข้าชุด "แม่แบบหลัก" ครั้งแรกที่เรียก */
+  async function tplSets() {
+    const orphan = await db.prepare("SELECT COUNT(*) AS n FROM worklog_templates WHERE staff_id = ? AND set_id IS NULL").bind(me.id).first();
+    if (orphan && orphan.n) {
+      const now = nowIso(), sid = newId("ts_");
+      const top = await db.prepare("SELECT COALESCE(MIN(sort), 1) - 1 AS s FROM worklog_template_sets WHERE staff_id = ?").bind(me.id).first();
+      await db.batch([
+        db.prepare("INSERT INTO worklog_template_sets (id,staff_id,name,sort,created_at,updated_at) VALUES (?,?,?,?,?,?)")
+          .bind(sid, me.id, "แม่แบบหลัก", (top && top.s) || 0, now, now),
+        db.prepare("UPDATE worklog_templates SET set_id = ? WHERE staff_id = ? AND set_id IS NULL").bind(sid, me.id),
+      ]);
+    }
+    const sets = (await db.prepare("SELECT id,name,sort FROM worklog_template_sets WHERE staff_id = ? ORDER BY sort, created_at").bind(me.id).all()).results || [];
+    const rows = (await db.prepare("SELECT id,set_id,sort,slot,work,status FROM worklog_templates WHERE staff_id = ? ORDER BY sort").bind(me.id).all()).results || [];
+    return sets.map((x) => ({
+      id: x.id, name: x.name,
+      rows: rows.filter((r) => r.set_id === x.id).map((r) => ({ id: r.id, slot: r.slot, work: r.work, status: r.status })),
+    }));
   }
-  if (path === "/worklog/template" && method === "PUT") {
-    const body = await readBody(request);
-    const list = Array.isArray(body.rows) ? body.rows : null;
-    if (!list) return json({ error: "ต้องส่ง rows มาเป็นรายการ" }, 400);
-    if (list.length > WL_MAX_TEMPLATE) return json({ error: "แม่แบบมีได้ไม่เกิน " + WL_MAX_TEMPLATE + " แถว" }, 400);
-    const now = nowIso();
-    const stmts = [db.prepare("DELETE FROM worklog_templates WHERE staff_id = ?").bind(me.id)];
+  /* ตรวจแถวแม่แบบที่ส่งมา → { stmts(สร้างแถวใหม่), error } */
+  function tplRowStmts(setId, list, now) {
+    if (!Array.isArray(list)) return { error: "ต้องส่ง rows มาเป็นรายการ" };
+    if (list.length > WL_MAX_TEMPLATE) return { error: "แม่แบบมีได้ไม่เกิน " + WL_MAX_TEMPLATE + " แถว" };
+    const stmts = [];
     for (let i = 0; i < list.length; i++) {
       const it = list[i] || {};
       const c = cleanInput({ slot: it.slot || "", work: it.work || "", status: it.status || "done", reason: "" }, true);
-      if (c.error) return json({ error: "แถวที่ " + (i + 1) + ": " + c.error }, 400);
-      if (c.value.status === "blocked") return json({ error: "แถวที่ " + (i + 1) + ": แม่แบบตั้งเป็น “ติดปัญหา” ไม่ได้" }, 400);
-      stmts.push(db.prepare("INSERT INTO worklog_templates (id,staff_id,sort,slot,work,status,updated_at) VALUES (?,?,?,?,?,?,?)")
-        .bind(newId("wt_"), me.id, i + 1, c.value.slot, c.value.work, c.value.status, now));
+      if (c.error) return { error: "แถวที่ " + (i + 1) + ": " + c.error };
+      if (c.value.status === "blocked") return { error: "แถวที่ " + (i + 1) + ": แม่แบบตั้งเป็น “ติดปัญหา” ไม่ได้" };
+      stmts.push(db.prepare("INSERT INTO worklog_templates (id,staff_id,sort,slot,work,status,updated_at,set_id) VALUES (?,?,?,?,?,?,?,?)")
+        .bind(newId("wt_"), me.id, i + 1, c.value.slot, c.value.work, c.value.status, now, setId));
     }
-    await db.batch(stmts);
-    return json({ ok: true, count: list.length });
+    return { stmts };
   }
+  function cleanSetName(v) {
+    const n = String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, 60);
+    return n || null;
+  }
+  if (path === "/worklog/templates" && method === "GET") {
+    return json({ sets: await tplSets(), maxSets: WL_MAX_TEMPLATE_SETS, maxRows: WL_MAX_TEMPLATE });
+  }
+  if (path === "/worklog/templates" && method === "POST") {
+    const body = await readBody(request);
+    const name = cleanSetName(body.name);
+    if (!name) return json({ error: "ตั้งชื่อแม่แบบก่อน" }, 400);
+    const have = await tplSets();
+    if (have.length >= WL_MAX_TEMPLATE_SETS) return json({ error: "มีแม่แบบได้ไม่เกิน " + WL_MAX_TEMPLATE_SETS + " ชุด" }, 400);
+    const now = nowIso(), sid = newId("ts_");
+    const r = tplRowStmts(sid, body.rows || [], now);
+    if (r.error) return json({ error: r.error }, 400);
+    const last = await db.prepare("SELECT COALESCE(MAX(sort), 0) AS s FROM worklog_template_sets WHERE staff_id = ?").bind(me.id).first();
+    await db.batch([db.prepare("INSERT INTO worklog_template_sets (id,staff_id,name,sort,created_at,updated_at) VALUES (?,?,?,?,?,?)")
+      .bind(sid, me.id, name, ((last && last.s) || 0) + 1, now, now)].concat(r.stmts));
+    return json({ ok: true, id: sid, sets: await tplSets() });
+  }
+  const setMatch = path.match(/^\/worklog\/templates\/([A-Za-z0-9_-]{1,40})$/);
+  if (setMatch) {
+    const set = await db.prepare("SELECT * FROM worklog_template_sets WHERE id = ? AND staff_id = ?").bind(setMatch[1], me.id).first();
+    if (!set) return json({ error: "ไม่พบแม่แบบนี้" }, 404);
+    if (method === "PUT") {
+      const body = await readBody(request);
+      const name = body.name !== undefined ? cleanSetName(body.name) : set.name;
+      if (!name) return json({ error: "ตั้งชื่อแม่แบบก่อน" }, 400);
+      const now = nowIso();
+      const stmts = [db.prepare("UPDATE worklog_template_sets SET name = ?, updated_at = ? WHERE id = ?").bind(name, now, set.id)];
+      if (body.rows !== undefined) {
+        const r = tplRowStmts(set.id, body.rows, now);
+        if (r.error) return json({ error: r.error }, 400);
+        stmts.push(db.prepare("DELETE FROM worklog_templates WHERE set_id = ? AND staff_id = ?").bind(set.id, me.id));
+        stmts.push(...r.stmts);
+      }
+      await db.batch(stmts);
+      return json({ ok: true, sets: await tplSets() });
+    }
+    if (method === "DELETE") {
+      await db.batch([
+        db.prepare("DELETE FROM worklog_templates WHERE set_id = ? AND staff_id = ?").bind(set.id, me.id),
+        db.prepare("DELETE FROM worklog_template_sets WHERE id = ?").bind(set.id),
+      ]);
+      return json({ ok: true, sets: await tplSets() });
+    }
+  }
+  /* แบบเดิม (แม่แบบเดียว) — หน้าเว็บรุ่นก่อนที่ยังค้างในเบราว์เซอร์ยังเรียกอยู่: ใช้กับชุดแรก */
+  if (path === "/worklog/template" && method === "GET") {
+    const sets = await tplSets();
+    return json({ rows: sets.length ? sets[0].rows : [] });
+  }
+  if (path === "/worklog/template" && method === "PUT") {
+    const body = await readBody(request);
+    const sets = await tplSets();
+    const now = nowIso();
+    const sid = sets.length ? sets[0].id : newId("ts_");
+    const r = tplRowStmts(sid, body.rows, now);
+    if (r.error) return json({ error: r.error }, 400);
+    const stmts = sets.length ? [db.prepare("DELETE FROM worklog_templates WHERE set_id = ? AND staff_id = ?").bind(sid, me.id)]
+      : [db.prepare("INSERT INTO worklog_template_sets (id,staff_id,name,sort,created_at,updated_at) VALUES (?,?,?,1,?,?)").bind(sid, me.id, "แม่แบบหลัก", now, now)];
+    await db.batch(stmts.concat(r.stmts));
+    return json({ ok: true, count: r.stmts.length });
+  }
+  /* เติมจากแม่แบบ — sets = ชุดที่ติ๊ก (เรียงตามลำดับที่ส่งมา) · ไม่ส่ง = ทุกชุด (แบบเดิม) */
   if (path === "/worklog/template/fill" && method === "POST") {
     const body = await readBody(request);
     const to = body.date || today;
     if (!isDate(to)) return json({ error: "วันที่ไม่ถูกต้อง" }, 400);
-    const tpl = (await db.prepare("SELECT slot,work,status FROM worklog_templates WHERE staff_id = ? ORDER BY sort").bind(me.id).all()).results || [];
-    if (!tpl.length) return json({ error: "ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน" }, 404);
-    return json(await insertMany(tpl, to, "template", "เติมจากแม่แบบ"));
+    const sets = await tplSets();
+    let pick = sets;
+    if (Array.isArray(body.sets)) {
+      const want = body.sets.map(String);
+      pick = want.map((id) => sets.filter((x) => x.id === id)[0]).filter(Boolean);
+      if (!pick.length) return json({ error: "ยังไม่ได้เลือกแม่แบบ" }, 400);
+    }
+    const tpl = [].concat.apply([], pick.map((x) => x.rows));
+    if (!tpl.length) return json({ error: sets.length ? "แม่แบบที่เลือกยังไม่มีแถว" : "ยังไม่มีแม่แบบ — ตั้งแถวประจำก่อน" }, 404);
+    return insertJson(await insertMany(tpl, to, "template", "เติมจากแม่แบบ " + pick.map((x) => x.name).join(", ")));
   }
+  function insertJson(res) { return json(res, res.error ? 400 : 200); }
 
   /* เพิ่มหลายแถวทีเดียว (ก๊อปวันก่อน / แม่แบบ) — เรียงต่อท้ายแถวที่มีอยู่แล้วของวันนั้น */
   async function insertMany(list, date, source, why) {
@@ -472,7 +593,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
 
   /* ---------- แถวเดียว: แก้ / ลบ / แนบรูป / ประวัติ ---------- */
   const rowMatch = path.match(/^\/worklog\/([A-Za-z0-9_-]{1,40})(\/files|\/history)?$/);
-  if (rowMatch && ["template", "search", "copy", "files"].indexOf(rowMatch[1]) === -1) {
+  if (rowMatch && ["template", "templates", "search", "copy", "copy-source", "files"].indexOf(rowMatch[1]) === -1) {
     const id = rowMatch[1], sub = rowMatch[2] || "";
     const row = await loadRow(id);
     if (!row || !(await canSeeStaffId(row.staff_id))) return json({ error: "ไม่พบแถวนี้" }, 404);
