@@ -27,6 +27,8 @@
         { icon: 'calendar',  label: 'ปฏิทินการตลาด',  cmo: 'campaign-calendar.html', f: 'cal' },
         /* งานของฉัน = สวิตช์ในหน้างานทั้งหมด · แจ้งเตือน = กระดิ่งมุมขวาบน (นนท์ 19 ก.ย. 69) */
         { icon: 'clipboard', label: 'งานทั้งหมด',     tasks: '#/all', f: 'all' },
+        /* บันทึกงานรายวัน แทนชีต Lark "งาน RT Marketing" (15 ต.ค. 69) — หัวหน้าสลับดูทั้งทีมในหน้าเดียวกัน */
+        { icon: 'filetext',  label: 'บันทึกงานรายวัน',  tasks: '#/log', f: 'worklog' },
         /* ตรวจงานแบบปัดการ์ด — นนท์ 20 ก.ย. 69: ของที่ค้างที่หัวหน้าอยู่กองเดียว ปัดผ่าน/ตีกลับทีละใบ */
         { icon: 'check',     label: 'ปัดตรวจงาน',      tasks: '#/review', sec: 'admin' },
         { icon: 'tag',       label: 'งานป้าย',          tasks: '#/signage', f: 'signage' },
