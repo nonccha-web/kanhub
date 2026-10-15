@@ -42,7 +42,7 @@
 .wl-tab{ width:100%; min-width:1040px; border-collapse:collapse; font-size:13.5px; color:var(--k-ink); }
 .wl-tab col.c-date{ width:92px; } .wl-tab col.c-day{ width:52px; } .wl-tab col.c-who{ width:110px; }
 .wl-tab col.c-time{ width:112px; } .wl-tab col.c-proc{ width:122px; } .wl-tab col.c-reason{ width:22%; }
-.wl-tab col.c-pic{ width:150px; } .wl-tab col.c-act{ width:34px; }
+.wl-tab col.c-pic{ width:170px; } .wl-tab col.c-act{ width:64px; }
 .wl-tab th{ background:var(--wl-head); color:var(--wl-head-ink); font-weight:600; font-size:13px;
   text-align:left; padding:8px 10px; border:1px dotted var(--wl-dot); white-space:nowrap; }
 .wl-tab td{ border:1px dotted var(--wl-dot); padding:7px 10px; vertical-align:top; line-height:1.55; }
@@ -148,9 +148,12 @@ button.wl-pill:focus-visible{ outline:2px solid var(--k-ink); outline-offset:2px
   .wl-picks{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
   .wl-picks .wl-pill.on{ box-shadow:inset 0 0 0 2px currentColor; }
 
-  .wl-mbar{ position:fixed; left:0; right:0; bottom:0; z-index:40; display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  .wl-mbar{ position:fixed; left:0; right:0; bottom:0; z-index:40; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
     padding:10px 16px calc(10px + env(safe-area-inset-bottom)); background:var(--k-paper); border-top:1px solid var(--k-line); }
-  .wl-mbar .btn, .wl-mbar .btn-ghost{ min-height:48px; font-size:15px; }
+  .wl-mbar .btn, .wl-mbar .btn-ghost{ min-height:48px; font-size:15px; padding:0 6px; line-height:1.2; text-align:center; }
+  .wl-mtools{ display:flex; gap:8px; margin-bottom:12px; }
+  .wl-mtools .btn-ghost{ min-height:44px; font-size:15px; text-decoration:none; }
+  .wl-chist{ display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 6px; border:0; background:transparent; color:var(--k-mut); font:inherit; font-size:14px; cursor:pointer; }
 }
 
 /* ฟอร์มเพิ่ม/แก้ — เต็มจอบนมือถือ · กล่องกลางจอบนจอใหญ่ */
@@ -191,3 +194,75 @@ html.wl-lock, html.wl-lock body{ overflow:hidden; }
 /* แตะการ์ดแล้วฟอร์มเด้งทับที่เดิม — ไฮไลต์แตะของมือถือจะไปค้างบนช่องในฟอร์ม · ปิดไว้ ใช้สถานะของเราเอง */
 .wl-card, .wl-sheet, .wl-sheet *{ -webkit-tap-highlight-color:transparent; }
 .wl-card.mine:active{ background:var(--k-hair); }
+
+/* ============================================================
+   Phase 4 — รูปบนจอใหญ่ · ประวัติ · แม่แบบ · ค้นหา
+   ============================================================ */
+.wl-top .top-r .btn-ghost{ text-decoration:none; }
+.wl-addrow td{ white-space:nowrap; }
+.wl-act{ white-space:nowrap; }
+.wl-x.wl-h{ display:inline-grid; place-items:center; vertical-align:middle; }
+.wl-tw{ position:relative; display:inline-block; }
+.wl-tx{ position:absolute; top:-6px; right:-6px; width:20px; height:20px; border:0; border-radius:999px; background:var(--k-ink); color:var(--k-paper);
+  font-size:13px; line-height:1; cursor:pointer; opacity:0; }
+.wl-tw:hover .wl-tx, .wl-tx:focus-visible{ opacity:1; }
+.wl-addpic{ display:inline-grid; place-items:center; width:44px; height:44px; border:1px dashed var(--k-line); border-radius:4px; color:var(--k-mut); font-size:11.5px; cursor:pointer; }
+.wl-addpic:hover{ color:var(--k-ink); border-color:var(--k-ink); }
+.wl-thumbs.empty .wl-addpic{ opacity:0; }
+.wl-row:hover .wl-thumbs.empty .wl-addpic, .wl-thumbs.empty .wl-addpic:focus-within{ opacity:1; }
+@media (hover:none){ .wl-thumbs.empty .wl-addpic{ opacity:1; } }
+
+/* หน้าต่างลอย: แม่แบบกว้างกว่าฟอร์ม */
+.wl-sheet.wide .wl-form{ width:min(860px, 100%); }
+.wl-note{ font-size:14px; color:var(--k-soft); line-height:1.55; }
+.wl-mut{ color:var(--k-mut); }
+.wl-flinks{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; }
+.wl-fhist{ display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 4px; border:0; background:transparent; color:var(--k-soft); font:inherit; font-size:15px; cursor:pointer; }
+
+/* แม่แบบ */
+.wl-tlist{ display:flex; flex-direction:column; gap:10px; }
+.wl-trow{ display:grid; grid-template-columns:150px 1fr 130px auto; gap:8px; align-items:start; padding:10px; border:1px dotted var(--wl-dot); border-radius:10px; }
+.wl-trow .input, .wl-trow .select, .wl-trow .textarea{ min-height:44px; font-size:15px; }
+.wl-tbtns{ display:flex; gap:4px; }
+.wl-tb{ width:44px; height:44px; border:1px solid var(--k-line); border-radius:8px; background:var(--k-paper); color:var(--k-ink); font-size:16px; cursor:pointer; }
+.wl-tb.del:hover{ color:var(--k-bad); border-color:var(--k-bad); }
+.wl-tadd, .wl-tfrom{ align-self:flex-start; min-height:44px; }
+
+/* ประวัติ */
+.wl-hlist{ list-style:none; display:flex; flex-direction:column; gap:0; }
+.wl-hi{ padding:12px 0; border-bottom:1px dotted var(--wl-dot); }
+.wl-hi:last-child{ border-bottom:0; }
+.wl-hh{ font-size:14.5px; line-height:1.5; }
+.wl-hh time{ display:block; font-size:12.5px; color:var(--k-mut); }
+.wl-hf{ width:100%; margin-top:8px; border-collapse:collapse; font-size:14px; }
+.wl-hf th{ width:70px; text-align:left; font-weight:600; color:var(--k-soft); vertical-align:top; padding:3px 6px 3px 0; }
+.wl-hf td{ vertical-align:top; padding:3px 4px; word-break:break-word; }
+.wl-hf .wl-harr{ width:18px; color:var(--k-mut); }
+.wl-hv{ white-space:pre-wrap; }
+
+/* ค้นหา */
+.wl-sform{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin-bottom:16px; }
+.wl-sform > .input{ flex:1 1 260px; min-height:44px; font-size:15px; }
+.wl-sform label{ display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--k-mut); }
+.wl-sform label .input, .wl-sform label .select{ min-height:44px; width:auto; }
+.wl-sform .btn{ min-height:44px; }
+.wl-scount{ font-size:13.5px; color:var(--k-mut); margin-bottom:8px; }
+.wl-sres{ display:flex; flex-direction:column; gap:8px; }
+.wl-sday{ margin:12px 0 2px; font-size:14px; font-weight:600; color:var(--k-ink); }
+.wl-sday small{ font-weight:400; color:var(--k-mut); margin-left:6px; }
+.wl-sitem{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:10px 14px; border:1px solid var(--k-line); border-radius:12px;
+  background:var(--k-paper); color:var(--k-ink); text-decoration:none; }
+.wl-sitem:hover{ border-color:var(--k-ink); }
+.wl-swho{ font-size:13.5px; }
+.wl-swork, .wl-sreason{ flex-basis:100%; font-size:15px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+.wl-sreason{ font-size:14px; color:var(--k-soft); }
+.wl-sreason b{ font-size:12px; color:var(--k-mut); }
+.wl-sitem mark{ background:var(--wl-head); color:var(--wl-head-ink); border-radius:3px; padding:0 2px; }
+.wl-sitem .wl-chip{ display:inline-flex; align-items:center; min-height:24px; padding:0 10px; border-radius:999px; background:var(--wl-head); color:var(--wl-head-ink); font-size:13px; font-weight:600; }
+@media (max-width:760px){
+  .wl-trow{ grid-template-columns:1fr; }
+  .wl-tbtns{ justify-content:flex-end; }
+  .wl-sform{ flex-direction:column; align-items:stretch; }
+  .wl-sform > .input{ flex:none; font-size:16px; }
+  .wl-sform label .input, .wl-sform label .select{ width:100%; font-size:16px; }
+}
