@@ -5,6 +5,7 @@ import { handleBlastApi } from "./worker-blast.js";
 import { handleChatApi } from "./worker-chat.js";
 import { handleSmsApi } from "./worker-sms.js";
 import { handleBotApi } from "./worker-bot.js";
+import { handleWorklogApi } from "./worker-worklog.js";
 
 // KAN — ระบบมอบหมายงานทีม (Task) · API ที่ /api/t/*
 //  - เก็บทุกอย่างใน D1 `kan-erp` (ตารางขึ้นต้น task_* / staff / kpis) — สร้างตารางให้เองครั้งแรกที่ถูกเรียก
@@ -433,6 +434,8 @@ export const FEATURES = [
   { k: "posts", sec: "tasks", g: "งานทีม", th: "ตารางโพสต์" },
   { k: "report", sec: "tasks", g: "งานทีม", th: "สรุปผลงานรายเดือน" },
   { k: "history", sec: "tasks", g: "งานทีม", th: "ประวัติการแก้ไข" },
+  /* บันทึกงานรายวัน (แทนชีต Lark "งาน RT Marketing" · 15 ต.ค. 69) — โค้ดอยู่ worker-worklog.js */
+  { k: "worklog", sec: "tasks", g: "งานทีม", th: "บันทึกงานรายวัน" },
   /* หมวด Kan Chat (29 ก.ย. 69): แชท · ลีด · บรอดแคสต์ LINE · SMS แยกสิทธิ์กัน */
   { k: "chat", sec: "chat", g: "Kan Chat", th: "แชทลูกค้า (LINE)" },
   { k: "leads", sec: "crm", g: "Kan Chat", th: "ลีด (CRM)" },
@@ -474,6 +477,7 @@ function sectionsFromPerms(p) {
 export function featureOfPath(path) {
   if (/^\/(posts|pages)(\/|$)/.test(path)) return "posts";
   if (/^\/tasks(\/|$)/.test(path)) return "tasks";
+  if (/^\/worklog(\/|$)/.test(path)) return "worklog";
   if (/^\/leads(\/|$)/.test(path)) return "leads";
   if (/^\/chat\//.test(path)) return "chat";
   if (/^\/sms\//.test(path)) return "sms";
@@ -942,7 +946,7 @@ function logStmt(db, me, action, info, changes) {
    ประวัติการแก้ไข (audit log) — เก็บสภาพก่อน/หลังของทุกการเปลี่ยนแปลง
    เพื่อให้ย้อนเวอร์ชันได้ทีหลัง · เขียนแยกจาก batch หลัก งานหลักล้มเหลวจะไม่มีประวัติค้าง
    ============================================================ */
-const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน", lead: "ลีด", ticket: "เรื่องแจ้งปัญหา" };
+const AUDIT_ENTITY_TH = { task: "งาน", post: "โพสต์", campaign: "ปฏิทินการตลาด", staff: "ทีม + สิทธิ์", flow: "ขั้นงาน", lead: "ลีด", ticket: "เรื่องแจ้งปัญหา", worklog: "บันทึกงานรายวัน" };
 const AUDIT_ACTION_TH = { create: "สร้าง", update: "แก้ไข", delete: "ลบ", revert: "ย้อนเวอร์ชัน" };
 /* สภาพของงาน 1 ชิ้น (รวมคนรับ) ไว้ทั้งเทียบและคืนค่า */
 async function snapTask(db, id) {
@@ -973,6 +977,8 @@ const FIELD_TH = {
   interest: "สนใจอะไร", branch: "สาขา", owner_id: "เซลส์ที่ดูแล", est_value: "ยอดที่คาด",
   bought_before: "เคยซื้อแล้ว", lost_reason: "เหตุผลที่ไม่สำเร็จ", next_at: "ตามครั้งถัดไป",
   handed_at: "ส่งต่อบัญชี", handed_by: "คนส่งต่อบัญชี",
+  /* บันทึกงานรายวัน */
+  work_date: "วันที่", slot: "Time", work: "Work", reason: "reason", __files: "รูปแนบ",
 };
 function diffSnap(before, after) {
   const out = [];
@@ -1729,6 +1735,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   const BACKUP_TABLES = [
     "staff", "kpis", "tasks", "task_assignees", "task_updates", "task_files", "task_mentions",
     "task_settings", "post_pages", "posts", "post_log", "campaigns", "attachments", "kpi_entries",
+    "worklog", "worklog_templates", "worklog_files",
   ];
   if (path === "/backup/manifest" && method === "GET") {
     if (!isOwner) return json({ error: "เฉพาะหัวหน้าทีม" }, 403);
@@ -1749,7 +1756,7 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 200));
     const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
     /* ตารางที่มีรูป base64 ดึงทีละน้อยกว่า ไม่งั้นก้อนใหญ่เกิน */
-    const heavy = name === "task_files" || name === "attachments";
+    const heavy = name === "task_files" || name === "attachments" || name === "worklog_files";
     const lim = heavy ? Math.min(limit, 5) : limit;
     const res = await db.prepare("SELECT * FROM " + name + " LIMIT ? OFFSET ?").bind(lim, offset).all();
     const rows = res.results || [];
@@ -3351,6 +3358,12 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
   if (path.indexOf("/bot/") === 0) return handleBotApi(env, db, request, url, path, method, me, permsOf(me).chat, isOwner);
   /* ---- ส่ง SMS (/sms/*) — แยกจากบรอดแคสต์ LINE · โค้ดอยู่ worker-sms.js ---- */
   if (path.indexOf("/sms/") === 0) return handleSmsApi(env, db, request, url, path, method, me, permsOf(me).sms, isOwner);
+
+  /* ---- บันทึกงานรายวัน (/worklog*) — โค้ดอยู่ worker-worklog.js ---- */
+  if (path === "/worklog" || path.indexOf("/worklog/") === 0) {
+    return handleWorklogApi(db, request, url, path, method, me, permsOf(me).worklog,
+      { json, newId, nowIso, logChange, diffSnap, parseDataUrl, readBody, TASK_BRANCHES });
+  }
 
   /* ---- บรอดแคสต์ LINE OA + SMS (/blast/*) — โค้ดอยู่ worker-blast.js ---- */
   if (path.indexOf("/blast/") === 0) {
