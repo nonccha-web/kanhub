@@ -2,13 +2,14 @@
 //  - แทนชีต Lark "งาน RT Marketing" — หนึ่งแถว = หนึ่งช่วงเวลาของวัน (Time · Work · Process · reason · รูป)
 //  - เจ้าของแถว = คนที่ล็อกอิน ไม่มีช่องพิมพ์ชื่อ · แก้/ลบได้เฉพาะแถวของตัวเอง
 //  - หัวหน้า (owner) กับคนดูแลงาน (task_admin) ดูของทุกคนได้ · ถ้าบัญชีผูกสาขา เห็นเฉพาะคนในสาขาเดียวกัน
-//  - Process ใช้คีย์สถานะชุดเดียวกับงาน (done/doing/review/blocked) แต่ไม่ผ่านกติกา "รอตรวจ" ของงาน
+//  - Process ใช้คีย์สถานะชุดเดียวกับงาน (todo/doing/review/done/blocked — todo มีเฉพาะบันทึกงาน) แต่ไม่ผ่านกติกา "รอตรวจ" ของงาน
 //    เพราะเป็นบันทึกว่าทำอะไรไปแล้ว ไม่ใช่งานที่สั่ง (นนท์เลือกข้อ B 15 ต.ค. 69) — กดเสร็จแล้วได้เลย
 //  - ตารางสร้างเองตอนถูกเรียกครั้งแรกเหมือนระบบงานทีม ไม่ต้องรัน migration
 //  - helper ที่ใช้ร่วมกับระบบงาน (json, logChange, parseDataUrl …) ส่งเข้ามาจาก worker-tasks.js ทาง `h`
 
-const WL_STATUSES = ["done", "doing", "review", "blocked"];
-const WL_STATUS_TH = { done: "เสร็จแล้ว", doing: "กำลังทำ", review: "รอตรวจ", blocked: "ติดปัญหา" };
+/* ลำดับตามที่ทีมเห็นในเมนู · todo = ยังไม่เริ่ม เป็นค่าเริ่มต้นของแถวใหม่ (นนท์ 16 ต.ค. 69) */
+const WL_STATUSES = ["todo", "doing", "review", "done", "blocked"];
+const WL_STATUS_TH = { todo: "ยังไม่เริ่ม", doing: "กำลังทำ", review: "รอตรวจ", done: "เสร็จแล้ว", blocked: "ติดปัญหา" };
 /* ช่วงเวลาที่ทีมใช้ในชีตจริง — เลือก "อื่นๆ" แล้วพิมพ์เองได้ ระบบเก็บเป็นข้อความ */
 const WL_SLOTS = ["10.00-10.30", "10.30-11.00", "11.00-12.00", "12.00-13.00", "13.00-19.00"];
 const WL_MAX_WORK = 4000;
@@ -150,7 +151,7 @@ function cleanInput(body, partial) {
     v.work = w.replace(/\s+$/, "");
   }
   if (!partial || body.status !== undefined) {
-    const st = body.status == null || body.status === "" ? "done" : String(body.status);
+    const st = body.status == null || body.status === "" ? "todo" : String(body.status);
     if (WL_STATUSES.indexOf(st) === -1) return { error: "Process ไม่ถูกต้อง" };
     v.status = st;
   }
@@ -441,7 +442,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     const stmts = [];
     for (let i = 0; i < list.length; i++) {
       const it = list[i] || {};
-      const c = cleanInput({ slot: it.slot || "", work: it.work || "", status: it.status || "done", reason: "" }, true);
+      const c = cleanInput({ slot: it.slot || "", work: it.work || "", status: it.status || "todo", reason: "" }, true);
       if (c.error) return { error: "แถวที่ " + (i + 1) + ": " + c.error };
       if (c.value.status === "blocked") return { error: "แถวที่ " + (i + 1) + ": แม่แบบตั้งเป็น “ติดปัญหา” ไม่ได้" };
       stmts.push(db.prepare("INSERT INTO worklog_templates (id,staff_id,sort,slot,work,status,updated_at,set_id) VALUES (?,?,?,?,?,?,?,?)")
@@ -541,7 +542,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     const stmts = list.map((x) => {
       const id = newId("wl_");
       ids.push(id);
-      const st = WL_STATUSES.indexOf(x.status) !== -1 && x.status !== "blocked" ? x.status : "done";
+      const st = WL_STATUSES.indexOf(x.status) !== -1 && x.status !== "blocked" ? x.status : "todo";
       return db.prepare(
         "INSERT INTO worklog (id,staff_id,work_date,slot,slot_start,sort,work,status,reason,source,created_at,updated_at,updated_by) " +
         "VALUES (?,?,?,?,?,?,?,?,'',?,?,?,?)"
@@ -637,7 +638,26 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       const after = await loadRow(id);
       await logChange(db, { by: me.id, entity: "worklog", entityId: id, action: "update", title: titleOf(after),
         before: snapRow(row), after: snapRow(after), at: now });
-      return json({ ok: true, row: (await outRows([after]))[0] });
+      /* กด "เสร็จแล้ว" ที่แถวต้นทาง → แถวที่ระบบยกต่อไปวันหลัง ๆ (ทั้งสาย) เป็น "เสร็จแล้ว" ตาม (นนท์ 16 ต.ค. 69)
+         งานเดียวกัน เสร็จแล้วก็ไม่ควรค้างอยู่ในวันถัดไป · แถวต้นทางไม่ถูกแตะตอนกดเสร็จที่แถวที่ยกมา
+         (วันนั้นยังไม่เสร็จจริง ๆ) · เปลี่ยนเป็นสถานะอื่นไม่ส่งต่อ — แถวล่าสุดคือสถานะปัจจุบัน */
+      const linked = [];
+      if (next.status === "done" && row.status !== "done" && row.carried_to) {
+        let cid = row.carried_to;
+        for (let hop = 0; cid && hop < 60; hop++) {
+          const c = await loadRow(cid);
+          if (!c || c.staff_id !== me.id) break;
+          if (c.status !== "done") {
+            await db.prepare("UPDATE worklog SET status = 'done', updated_at = ?, updated_by = ? WHERE id = ?").bind(now, me.id, c.id).run();
+            const ca = await loadRow(c.id);
+            await logChange(db, { by: me.id, entity: "worklog", entityId: c.id, action: "update", title: titleOf(ca),
+              before: snapRow(c), after: snapRow(ca), summary: "เสร็จแล้วตามแถวต้นทาง " + row.work_date, at: now });
+            linked.push(ca);
+          }
+          cid = c.carried_to;
+        }
+      }
+      return json({ ok: true, row: (await outRows([after]))[0], linked: linked.length ? await outRows(linked) : [] });
     }
 
     if (!sub && method === "DELETE") {
