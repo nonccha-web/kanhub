@@ -20,8 +20,8 @@
   var ICON_CLOCK = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
   var STATUS = [
-    { k: 'done', th: 'เสร็จแล้ว' }, { k: 'doing', th: 'กำลังทำ' },
-    { k: 'review', th: 'รอตรวจ' }, { k: 'blocked', th: 'ติดปัญหา' },
+    { k: 'todo', th: 'ยังไม่เริ่ม' }, { k: 'doing', th: 'กำลังทำ' }, { k: 'review', th: 'รอตรวจ' },
+    { k: 'done', th: 'เสร็จแล้ว' }, { k: 'blocked', th: 'ติดปัญหา' },
   ];
   var STATUS_TH = {}; STATUS.forEach(function (s) { STATUS_TH[s.k] = s.th; });
   var DAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -143,7 +143,7 @@
     'เลือก “ติดปัญหา” ต้องใส่ reason ด้วยว่าติดอะไร / จะเสร็จเมื่อไหร่': '“Blocked” needs a reason: what is blocking it / when it will be done',
     'ไฟล์ไม่ถูกต้อง': 'Invalid file', 'กรุณาเข้าสู่ระบบ': 'Please log in', 'สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว': 'Your access to this menu is view only',
   };
-  var STATUS_EN = { done: 'Done', doing: 'In progress', review: 'Review', blocked: 'Blocked' };
+  var STATUS_EN = { todo: 'Not started', doing: 'In process', review: 'Review', done: 'Done', blocked: 'Blocked' };
   var MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var FIELD_EN = { work_date: 'Date', slot: 'Time', work: 'Work', status: 'Process', reason: 'reason', __files: 'Photos' };
   function T(th, vars) {
@@ -490,7 +490,7 @@
   function create(r, next) {
     if (W.busy) return Promise.resolve();
     W.busy = true;
-    return api('/worklog', 'POST', { date: r.date, slot: r.slot || '', work: r.work || '', status: r.status || 'done', reason: r.reason || '' })
+    return api('/worklog', 'POST', { date: r.date, slot: r.slot || '', work: r.work || '', status: r.status || 'todo', reason: r.reason || '' })
       .then(function (j) {
         dropDraft(r.id);
         putRow(j.row);
@@ -515,7 +515,7 @@
     closeEditor(true).then(function () {
       var mine = W.data.rows.filter(function (r) { return r.date === date && r.staffId === meId(); });
       var id = 'draft' + Date.now();
-      W.drafts.push({ id: id, draft: true, date: date, staffId: meId(), slot: nextSlot(mine), work: '', status: 'done', reason: '', files: [] });
+      W.drafts.push({ id: id, draft: true, date: date, staffId: meId(), slot: nextSlot(mine), work: '', status: 'todo', reason: '', files: [] });
       paint();
       openEditor(id, 'work');
     });
@@ -740,7 +740,7 @@
     var slots = (W.data && W.data.slots) || [];
     var mine = W.data ? W.data.rows.filter(function (r) { return r.staffId === meId() && r.date === (row ? row.date : date); }) : [];
     var v = row ? { date: row.date, slot: row.slot || '', work: row.work || '', status: preset.status || row.status, reason: row.reason || '' }
-      : { date: date || W.o.day, slot: nextSlot(mine), work: '- ', status: 'done', reason: '' };
+      : { date: date || W.o.day, slot: nextSlot(mine), work: '- ', status: 'todo', reason: '' };
     F = { row: row, pending: [], removed: [], busy: false, start: null };
     var custom = v.slot && slots.indexOf(v.slot) === -1;
     var host = document.createElement('div');
@@ -1002,7 +1002,7 @@
       '<input class="input wl-tslot" list="wlTplSlots" value="' + esc(t.slot || '') + '" placeholder="' + T('เวลา เช่น 10.00-10.30') + '" maxlength="40" aria-label="Time">' +
       '<textarea class="textarea wl-twork" rows="2" placeholder="' + T('- งาน /') + '" aria-label="Work">' + esc(t.work || '') + '</textarea>' +
       '<select class="select wl-tst" aria-label="Process">' + STATUS.filter(function (x) { return x.k !== 'blocked'; }).map(function (x) {
-        return '<option value="' + x.k + '"' + (x.k === (t.status || 'done') ? ' selected' : '') + '>' + stTh(x.k) + '</option>';
+        return '<option value="' + x.k + '"' + (x.k === (t.status || 'todo') ? ' selected' : '') + '>' + stTh(x.k) + '</option>';
       }).join('') + '</select>' +
       '<div class="wl-tbtns"><button type="button" class="wl-tb" data-t="up" aria-label="' + T('เลื่อนขึ้น') + '">↑</button>' +
       '<button type="button" class="wl-tb" data-t="down" aria-label="' + T('เลื่อนลง') + '">↓</button>' +
@@ -1051,7 +1051,7 @@
           '<div class="wl-tlist">' + rows.map(tplRowHtml).join('') + '</div>' +
           '<div class="wl-tfoot"><button type="button" class="btn-ghost wl-tadd" data-t="add">' + T('+ เพิ่มแถวแม่แบบ') + '</button>' +
           (set ? '<button type="button" class="wl-fdel" data-t="delset">' + T('ลบแม่แบบนี้') + '</button>' : '') + '</div>';
-        if (!rows.length) box.querySelector('.wl-tlist').innerHTML = tplRowHtml({ slot: isNew && TS.sets.length ? '' : (((W.data && W.data.slots) || [])[0] || ''), work: '- ', status: 'done' });
+        if (!rows.length) box.querySelector('.wl-tlist').innerHTML = tplRowHtml({ slot: isNew && TS.sets.length ? '' : (((W.data && W.data.slots) || [])[0] || ''), work: '- ', status: 'todo' });
         Array.prototype.forEach.call(box.querySelectorAll('.wl-twork'), function (t) { if (X.listEdit) X.listEdit(t); });
         TS.start = snap();   /* แถวตั้งต้นที่ใส่ให้ไม่นับเป็น "แก้แล้ว" — ปิดเฉย ๆ ต้องไม่ถามว่าทิ้งไหม */
         if (isNew && TS.sets.length) box.querySelector('.wl-tname').focus();
@@ -1071,7 +1071,7 @@
         if (k === 'pick') go(b.getAttribute('data-sid'));
         else if (k === 'new') go('new');
         else if (k === 'add') {
-          list.insertAdjacentHTML('beforeend', tplRowHtml({ slot: '', work: '- ', status: 'done' }));
+          list.insertAdjacentHTML('beforeend', tplRowHtml({ slot: '', work: '- ', status: 'todo' }));
           if (X.listEdit) X.listEdit(list.lastElementChild.querySelector('.wl-twork'));
           list.lastElementChild.querySelector('.wl-tslot').focus();
         } else if (k === 'rm' && row) row.remove();
