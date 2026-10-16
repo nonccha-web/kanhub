@@ -94,6 +94,8 @@
     'เติมจากแม่แบบแล้ว {n} แถว': 'Filled {n} rows from the template',
     'ยังไม่บันทึก — พิมพ์ Work หรือ reason แล้วบันทึกเอง': 'Not saved yet — saves once Work or reason has text',
     'ทิ้งแถวที่ยังไม่บันทึก': 'Discard this unsaved row',
+    'เสร็จแล้ว — แถวที่ยกต่อไปอีก {n} วันเปลี่ยนเป็นเสร็จแล้วด้วย': 'Done — also marked Done on later days: {n} carried-over rows',
+    'เสร็จแล้วตามแถวต้นทาง {s}': 'marked Done along with the original row from {s}',
     /* หลายแม่แบบ + ติ๊กเลือก */
     'ตั้งแม่แบบได้หลายชุด เช่น งานประจำ · วันเปิดร้าน แล้วกด “เติมจากแม่แบบ” เลือกติ๊กชุดที่ต้องการ':
       'Keep several templates, e.g. Daily routine · Shop opening day, then tap “Fill from template” and tick the ones you want',
@@ -148,7 +150,7 @@
     var s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN_TEXT, th) ? EN_TEXT[th] : th;
     if (vars) s = s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? String(vars[k]) : m; });
     /* อังกฤษ: 1 rows → 1 row · 1 photos → 1 photo */
-    if (LANG === 'en' && vars && String(vars.n) === '1') s = s.replace(/\b1 (rows|photos|templates|days)\b/g, function (m, w) { return '1 ' + w.slice(0, -1); });
+    if (LANG === 'en' && vars && String(vars.n) === '1') s = s.replace(/\b1 (rows|photos|templates|days|carried-over rows)\b/g, function (m, w) { return '1 ' + w.slice(0, -1); });
     return s;
   }
   function stTh(k) { return LANG === 'en' ? (STATUS_EN[k] || k) : (STATUS_TH[k] || k); }
@@ -479,6 +481,9 @@
   function save1(r, body) {
     return api('/worklog/' + encodeURIComponent(r.id), 'PUT', body).then(function (j) {
       putRow(j.row);
+      /* แถวที่ยกต่อไปวันหลัง ๆ ที่เซิร์ฟเวอร์ปรับเป็น "เสร็จแล้ว" ตาม — อัปเดตเฉพาะที่อยู่ในหน้าจอนี้ */
+      (j.linked || []).forEach(function (x) { if (rowById(x.id)) putRow(x); });
+      if (j.linked && j.linked.length) toast(T('เสร็จแล้ว — แถวที่ยกต่อไปอีก {n} วันเปลี่ยนเป็นเสร็จแล้วด้วย', { n: j.linked.length }));
       return true;
     }).catch(function (e) { fail(e); return false; });
   }
@@ -1186,6 +1191,7 @@
     if ((m = s.match(/^ลบรูป (.+)$/))) return T('ลบรูป {s}', { s: m[1] });
     if ((m = s.match(/^คัดลอกจาก (.+)$/))) return T('คัดลอกจาก {s}', { s: m[1] });
     if ((m = s.match(/^เติมจากแม่แบบ (.+)$/))) return T('เติมจากแม่แบบ {s}', { s: m[1] });
+    if ((m = s.match(/^เสร็จแล้วตามแถวต้นทาง (.+)$/))) return T('เสร็จแล้วตามแถวต้นทาง {s}', { s: m[1] });
     return T(s);
   }
   function openHistory(id) {

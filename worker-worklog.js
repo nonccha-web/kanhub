@@ -637,7 +637,26 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       const after = await loadRow(id);
       await logChange(db, { by: me.id, entity: "worklog", entityId: id, action: "update", title: titleOf(after),
         before: snapRow(row), after: snapRow(after), at: now });
-      return json({ ok: true, row: (await outRows([after]))[0] });
+      /* กด "เสร็จแล้ว" ที่แถวต้นทาง → แถวที่ระบบยกต่อไปวันหลัง ๆ (ทั้งสาย) เป็น "เสร็จแล้ว" ตาม (นนท์ 16 ต.ค. 69)
+         งานเดียวกัน เสร็จแล้วก็ไม่ควรค้างอยู่ในวันถัดไป · แถวต้นทางไม่ถูกแตะตอนกดเสร็จที่แถวที่ยกมา
+         (วันนั้นยังไม่เสร็จจริง ๆ) · เปลี่ยนเป็นสถานะอื่นไม่ส่งต่อ — แถวล่าสุดคือสถานะปัจจุบัน */
+      const linked = [];
+      if (next.status === "done" && row.status !== "done" && row.carried_to) {
+        let cid = row.carried_to;
+        for (let hop = 0; cid && hop < 60; hop++) {
+          const c = await loadRow(cid);
+          if (!c || c.staff_id !== me.id) break;
+          if (c.status !== "done") {
+            await db.prepare("UPDATE worklog SET status = 'done', updated_at = ?, updated_by = ? WHERE id = ?").bind(now, me.id, c.id).run();
+            const ca = await loadRow(c.id);
+            await logChange(db, { by: me.id, entity: "worklog", entityId: c.id, action: "update", title: titleOf(ca),
+              before: snapRow(c), after: snapRow(ca), summary: "เสร็จแล้วตามแถวต้นทาง " + row.work_date, at: now });
+            linked.push(ca);
+          }
+          cid = c.carried_to;
+        }
+      }
+      return json({ ok: true, row: (await outRows([after]))[0], linked: linked.length ? await outRows(linked) : [] });
     }
 
     if (!sub && method === "DELETE") {
