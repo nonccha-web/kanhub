@@ -92,6 +92,8 @@
     'บันทึกแม่แบบแล้ว ({n} แถว)': 'Template saved ({n} rows)', 'เติมแม่แบบลงวันที่ {d} เลยไหม?': 'Fill the template into {d} now?',
     '{d} มีอยู่แล้ว {n} แถว — เติมแม่แบบต่อท้ายอีกไหม?': '{d} already has {n} rows — add the template below them anyway?',
     'เติมจากแม่แบบแล้ว {n} แถว': 'Filled {n} rows from the template',
+    'ยังไม่บันทึก — พิมพ์ Work หรือ reason แล้วบันทึกเอง': 'Not saved yet — saves once Work or reason has text',
+    'ทิ้งแถวที่ยังไม่บันทึก': 'Discard this unsaved row',
     /* หลายแม่แบบ + ติ๊กเลือก */
     'ตั้งแม่แบบได้หลายชุด เช่น งานประจำ · วันเปิดร้าน แล้วกด “เติมจากแม่แบบ” เลือกติ๊กชุดที่ต้องการ':
       'Keep several templates, e.g. Daily routine · Shop opening day, then tap “Fill from template” and tick the ones you want',
@@ -349,17 +351,18 @@
     var tags = '';
     if (r.carriedFromDate) tags += '<span class="wl-tag">' + esc(T('↪ ยกมาจาก {d}', { d: thShort(r.carriedFromDate) })) + '</span>';
     if (r.carriedToDate) tags += '<span class="wl-tag mut">' + esc(T('ยกไป {d} →', { d: thShort(r.carriedToDate) })) + '</span>';
+    if (r.draft) tags += '<span class="wl-tag draft">' + esc(T('ยังไม่บันทึก — พิมพ์ Work หรือ reason แล้วบันทึกเอง')) + '</span>';
     return '<tr class="wl-row' + (r.draft ? ' wl-draft' : '') + '" data-id="' + esc(r.id) + '">' + head +
       (o.all ? '<td class="wl-who' + (firstOfPerson ? '' : ' cont') + '" title="' + esc(staffFull(r.staffId)) + '">' + (firstOfPerson ? esc(staffName(r.staffId)) : '') + '</td>' : '') +
       '<td class="wl-c' + e + '" data-f="slot">' + (r.slot ? esc(r.slot) : (mine ? '<span class="wl-ph">' + T('เวลา') + '</span>' : '')) + '</td>' +
       '<td class="wl-c wl-work' + e + '" data-f="work">' + (tags ? '<div class="wl-tags">' + tags + '</div>' : '') +
         (work.trim() ? '<div class="wl-txt">' + esc(work) + '</div>' : (mine ? '<span class="wl-ph">' + T('พิมพ์งาน…') + '</span>' : '')) + '</td>' +
-      '<td class="wl-proc">' + pill(r, mine && !r.draft) + '</td>' +
+      '<td class="wl-proc">' + pill(r, mine) + '</td>' +
       '<td class="wl-c wl-reason' + e + (r.status === 'blocked' && !r.reason ? ' need' : '') + '" data-f="reason">' +
         (r.reason ? '<div class="wl-txt">' + esc(r.reason) + '</div>' : '') + '</td>' +
       '<td class="wl-pics">' + pics(r, mine && !r.draft) + '</td>' +
       '<td class="wl-act">' + (r.draft ? '' : '<button type="button" class="wl-x wl-h" data-wl="hist" title="' + T('ประวัติการแก้ไข') + '" aria-label="' + T('ประวัติการแก้ไข') + '">' + ICON_CLOCK + '</button>') +
-        (mine && !r.draft ? '<button type="button" class="wl-x" data-wl="del" title="' + T('ลบแถวนี้') + '" aria-label="' + T('ลบแถวนี้') + '">×</button>' : '') + '</td>' +
+        (mine ? '<button type="button" class="wl-x" data-wl="del" title="' + T(r.draft ? 'ทิ้งแถวที่ยังไม่บันทึก' : 'ลบแถวนี้') + '" aria-label="' + T(r.draft ? 'ทิ้งแถวที่ยังไม่บันทึก' : 'ลบแถวนี้') + '">×</button>' : '') + '</td>' +
       '</tr>';
   }
   function pill(r, can) {
@@ -437,17 +440,25 @@
     var r = rowById(ed.id);
     if (!r) { paint(); return Promise.resolve(); }
     if (!save) {
-      if (r.draft) dropDraft(r.id);
+      /* Esc บนแถวร่างที่ยังไม่มีอะไรเลย = ยกเลิกการเพิ่มแถว · ถ้าพิมพ์อะไรไว้แล้ว Esc แค่ยกเลิกช่องที่แก้อยู่ */
+      if (r.draft && !draftHasText(r)) dropDraft(r.id);
       paint();
       return Promise.resolve();
     }
     var val = ed.field === 'slot' ? String(ed.value || '').trim() : String(ed.value || '').replace(/\s+$/, '');
-    if (ed.field === 'work' && /^-?\s*$/.test(val)) val = '';
-    /* แถวร่าง (ยังไม่เคยบันทึก) — ช่องงานว่าง = ทิ้งแถว ไม่สร้างแถวเปล่าค้างในระบบ */
+    if (ed.field === 'work') val = cleanWork(val);
+    /* แถวร่าง (ยังไม่เคยบันทึก) — กรอกช่องไหนก่อนก็ได้ (นนท์ขอ 16 ต.ค. 69)
+       เก็บค่าไว้ในเครื่องก่อน บันทึกจริงเมื่อมีข้อความใน Work หรือ reason · มีแค่เวลา = ยังไม่สร้างแถวเปล่าในระบบ */
     if (r.draft) {
       r[ed.field] = val;
-      if (ed.field === 'work' && !val) { dropDraft(r.id); paint(); return Promise.resolve(); }
-      if (ed.field !== 'work' && !String(r.work || '').trim()) { paint(); openEditor(r.id, 'work'); return Promise.resolve(); }
+      if (ed.pendingStatus) r.status = ed.pendingStatus;
+      if (!draftHasText(r)) { paint(); if (next) openEditor(r.id, next); return Promise.resolve(); }
+      if (r.status === 'blocked' && !String(r.reason || '').trim()) {
+        paint();
+        openEditor(r.id, 'reason');
+        toast(T('“ติดปัญหา” ต้องใส่ reason — พิมพ์แล้วกด Enter'));
+        return Promise.resolve();
+      }
       return create(r, next);
     }
     var body = {};
@@ -483,6 +494,12 @@
       }).catch(function (e) { fail(e); paint(); })
       .then(function () { W.busy = false; });
   }
+  /* ตัดบรรทัด "- " ว่าง ๆ ท้ายช่อง Work (กด Enter แล้วได้หัวข้อใหม่ที่ไม่ได้พิมพ์ต่อ) · มีแต่ "- " = ว่าง */
+  function cleanWork(v) {
+    v = String(v || '').replace(/(\n[ \t]*[-•][ \t]*)+$/, '').replace(/\s+$/, '');
+    return /^[-•]?\s*$/.test(v) ? '' : v;
+  }
+  function draftHasText(r) { return !!(String(r.work || '').trim() || String(r.reason || '').trim()); }
   function dropDraft(id) { W.drafts = W.drafts.filter(function (x) { return x.id !== id; }); }
 
   /* ---------- เพิ่มแถว: ร่างในเครื่องก่อน บันทึกจริงตอนพิมพ์งานเสร็จ ---------- */
@@ -543,13 +560,16 @@
       return;
     }
     closeEditor(true).then(function () {
-      return save1(r, { status: st });
+      var cur = rowById(id) || r;
+      if (cur.draft) { cur.status = st; return; }   /* แถวร่าง: จำไว้ก่อน ส่งไปพร้อมตอนบันทึก */
+      return save1(cur, { status: st });
     }).then(function () { paint(); });
   }
 
   function delRow(id, fromForm) {
     var r = rowById(id);
     if (!r) return;
+    if (r.draft) { if (W.edit && W.edit.id === id) W.edit = null; dropDraft(id); paint(); return; }
     var first = String(r.work || '').split('\n')[0].slice(0, 60);
     if (!confirm(T('ลบแถวนี้?') + '\n' + (r.slot ? r.slot + '  ' : '') + first)) return;
     api('/worklog/' + encodeURIComponent(id), 'DELETE').then(function () {
@@ -854,8 +874,8 @@
   function saveForm() {
     if (!F || F.busy) return;
     var f = F.host.querySelector('form');
-    var work = f.work.value.replace(/\s+$/, '');
-    if (/^-?\s*$/.test(work)) { toast(T('พิมพ์งานก่อนนะ'), true); f.work.focus(); return; }
+    var work = cleanWork(f.work.value);
+    if (!work) { toast(T('พิมพ์งานก่อนนะ'), true); f.work.focus(); return; }
     if (!isDate(f.date.value)) { toast(T('เลือกวันที่ก่อน'), true); f.date.focus(); return; }
     if (F.status === 'blocked' && !f.reason.value.trim()) { toast(T('“ติดปัญหา” ต้องใส่ reason'), true); f.reason.focus(); return; }
     var body = { date: f.date.value, slot: slotOf(f), work: work, status: F.status, reason: f.reason.value.trim() };

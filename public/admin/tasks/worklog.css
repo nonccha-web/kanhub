@@ -305,3 +305,4 @@ html.wl-lock, html.wl-lock body{ overflow:hidden; }
 .wl-cfrom .input{ max-width:240px; }
 .wl-sheet .wl-mempty{ padding:24px 12px; text-align:center; color:var(--k-mut); border:1px dashed var(--k-line); border-radius:12px; }
 @media (max-width:760px){ .wl-tset{ min-height:44px; } .wl-pickall .btn-ghost{ min-height:44px; } .wl-cfrom .input{ max-width:none; } }
+.wl-tag.draft{ color:var(--k-warn); }

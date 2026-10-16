@@ -530,7 +530,7 @@
     if (!ta || ta._listOn) return;
     ta._listOn = true;
     ta.addEventListener('keydown', function (ev) {
-      if (ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
+      if (ev.key !== 'Enter' || ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.isComposing) return;   /* Ctrl/Cmd+Enter = บันทึก ไม่ใช่ขึ้นหัวข้อใหม่ */
       if (ta._mentionOn && document.querySelector('.mbox')) return;   /* กล่องแท็บคนกำลังเปิด ปล่อยให้มันจัดการ */
       var pos = ta.selectionStart;
       if (pos !== ta.selectionEnd) return;
