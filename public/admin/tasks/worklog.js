@@ -142,6 +142,37 @@
     'ไม่เจอบันทึกของวันก่อนหน้า (ย้อนดู {n} วัน)': 'No earlier day found (looked back {n} days)',
     'เลือก “ติดปัญหา” ต้องใส่ reason ด้วยว่าติดอะไร / จะเสร็จเมื่อไหร่': '“Blocked” needs a reason: what is blocking it / when it will be done',
     'ไฟล์ไม่ถูกต้อง': 'Invalid file', 'กรุณาเข้าสู่ระบบ': 'Please log in', 'สิทธิ์ของคุณในเมนูนี้เป็นแบบดูอย่างเดียว': 'Your access to this menu is view only',
+    /* งานทำซ้ำ */
+    'งานทำซ้ำ': 'Repeating tasks', 'ทำซ้ำ': 'Repeat', 'ให้แถวนี้ขึ้นเองตามรอบ': 'add this row automatically on a schedule',
+    'รายสัปดาห์': 'Weekly', 'รายเดือน': 'Monthly', 'วันที่': 'Day', 'ของทุกเดือน': 'of every month',
+    'สิ้นสุด': 'Ends', 'ไม่มีกำหนด': 'Never', 'ถึงวันที่': 'On date',
+    'ทุกวัน': 'Every day', 'ทุกวันจันทร์–ศุกร์': 'Every weekday (Mon–Fri)', 'ทุก {d}': 'Every {d}', ' ถึง {d}': ' until {d}',
+    'ทุกวันที่ {n} ของเดือน': 'Monthly on day {n}',
+    'แถวจะขึ้นเองล่วงหน้า 7 วัน เริ่มที่ “ยังไม่เริ่ม” · ทำไม่เสร็จก็ยกไปวันถัดไปเหมือนแถวปกติ':
+      'Rows appear automatically up to 7 days ahead, starting as “Not started”. Unfinished rows carry over like any other row.',
+    'เดือนที่ไม่มีวันนี้ ใช้วันสุดท้ายของเดือน · ตรงวันหยุด เลื่อนไปวันทำงานถัดไป':
+      'Months without this day use their last day. If it falls on a day off, it moves to the next work day.',
+    'ตรงวันหยุด เลื่อนไปวันทำงานถัดไป': 'If it falls on a day off, it moves to the next work day.',
+    'เลือกวันที่จะทำซ้ำอย่างน้อย 1 วัน': 'Pick at least one day to repeat on', 'เลือกวันสิ้นสุด': 'Pick an end date',
+    'ตั้งทำซ้ำ': 'Set up repeat', 'แก้การทำซ้ำ': 'Edit repeat', 'หยุดทำซ้ำ': 'Stop repeating',
+    'บันทึกการทำซ้ำ': 'Save repeat', 'ตั้งทำซ้ำแล้ว': 'Repeat set up', 'บันทึกการทำซ้ำแล้ว': 'Repeat saved', 'หยุดทำซ้ำแล้ว': 'Repeat stopped',
+    'หยุดทำซ้ำ? แถวล่วงหน้าที่ยังไม่มีใครแก้จะถูกลบ · แถววันนี้ วันก่อน ๆ และแถวที่แก้ไปแล้วอยู่เหมือนเดิม':
+      'Stop repeating? Upcoming rows nobody has touched are removed. Today’s, earlier and edited rows stay.',
+    'เปลี่ยนแล้วแถวล่วงหน้าที่ยังไม่มีใครแก้จะสร้างใหม่ตามค่านี้ · แถววันนี้และวันก่อน ๆ อยู่เหมือนเดิม':
+      'Saving rebuilds upcoming rows nobody has touched. Today’s and earlier rows stay as they are.',
+    'ทิ้งการทำซ้ำที่แก้ไว้?': 'Discard your repeat changes?', 'แถวนี้': 'This row',
+    'พิมพ์ Work ก่อน แล้วค่อยตั้งทำซ้ำ': 'Type the Work first, then set up the repeat',
+    'ครั้งถัดไป {d}': 'Next: {d}', 'ไม่มีรอบถัดไปแล้ว': 'No more upcoming days', 'แม่แบบ “{s}”': 'Template “{s}”', 'แก้': 'Edit', 'หยุด': 'Stop',
+    'ยังไม่มีงานทำซ้ำ': 'No repeating tasks yet',
+    'ตั้งได้จากปุ่ม 🔁 ท้ายแถว ติ๊ก “ทำซ้ำ” ตอนเพิ่มแถว หรือในแม่แบบ': 'Set one up with the 🔁 button at the end of a row, the “Repeat” box when adding a row, or in a template',
+    'ทำซ้ำทั้งแม่แบบ': 'Repeat the whole template', 'เติมแม่แบบนี้ให้เองตามรอบ ไม่ต้องกด “เติมจากแม่แบบ”': 'fill this template in by itself on a schedule — no need to tap “Fill from template”',
+    'ระบบสร้างจากงานทำซ้ำ': 'created by a repeating task',
+    'แถวนี้เป็นงานทำซ้ำอยู่แล้ว': 'This row is already a repeating task', 'พิมพ์ Work ก่อนตั้งทำซ้ำ': 'Type the Work before setting up a repeat',
+    'วันสิ้นสุดต้องไม่ก่อนวันที่ของแถวนี้': 'The end date can’t be before this row’s date', 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม': 'The end date can’t be before the start date',
+    'วันสิ้นสุดต้องไม่ก่อนวันนี้': 'The end date can’t be before today', 'มีงานทำซ้ำได้ไม่เกิน {n} รายการ': 'You can have up to {n} repeating tasks',
+    'ตั้งค่าการทำซ้ำไม่ถูกต้อง': 'Invalid repeat settings', 'เลือกว่าจะทำซ้ำรายสัปดาห์หรือรายเดือน': 'Choose weekly or monthly',
+    'เลือกวันที่ของเดือน (1–31)': 'Pick a day of the month (1–31)', 'วันสิ้นสุดไม่ถูกต้อง': 'Invalid end date', 'ไม่พบงานทำซ้ำนี้': 'Repeating task not found',
+    'พิมพ์ Work ก่อนนะ': 'Type the Work first',
   };
   var STATUS_EN = { todo: 'Not started', doing: 'In process', review: 'Review', done: 'Done', blocked: 'Blocked' };
   var MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -161,6 +192,7 @@
     if (EN_TEXT[msg]) return EN_TEXT[msg];
     var m = msg.match(/^แถวที่ (\d+): (.*)$/);
     if (m) return T('แถวที่ {n}: {s}', { n: m[1], s: tServer(m[2]) });
+    if ((m = msg.match(/^ทำซ้ำ: (.*)$/))) return 'Repeat: ' + tServer(m[1]);
     if (/^ไฟล์ .* ใหญ่เกิน/.test(msg)) return 'File is too large — for big files or videos, upload to Drive and paste a link';
     var nums = [];
     var key = msg.replace(/\d+(?:\.\d+)?/g, function (x) { nums.push(x); return '{n}'; });
@@ -171,6 +203,115 @@
     return '<div class="seg wl-seg wl-lang" role="group" aria-label="Language / ภาษา">' +
       '<button type="button" data-wl-lang="th"' + (LANG === 'th' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>ไทย</button>' +
       '<button type="button" data-wl-lang="en"' + (LANG === 'en' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>EN</button></div>';
+  }
+
+  /* ============================================================
+     งานทำซ้ำ (นนท์ขอ 17 ต.ค. 69) — รายสัปดาห์ (ติ๊กวัน) / รายเดือน (วันที่) + วันสิ้นสุด
+     ตัวเลือกชุดเดียวใช้ทั้งฟอร์มเพิ่มแถว (มือถือ) · หน้าต่าง 🔁 ของแถว (จอใหญ่) · แม่แบบ
+     ============================================================ */
+  var DAY_TH = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+  var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  var ICON_REPEAT = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+  function dayName(k) { return LANG === 'en' ? DAY_EN[k] : DAY_TH[k]; }
+  function repLabel(rep) {
+    if (!rep) return '';
+    var s;
+    if (rep.freq === 'weekly') {
+      var d = (rep.days || []).slice().sort(function (a, b) { return a - b; }).join(',');
+      if (d === '0,1,2,3,4,5,6') s = T('ทุกวัน');
+      else if (d === '1,2,3,4,5') s = T('ทุกวันจันทร์–ศุกร์');
+      else s = T('ทุก {d}', { d: WEEK_ORDER.filter(function (k) { return rep.days.indexOf(k) !== -1; }).map(dayName).join(LANG === 'en' ? ', ' : ' ') });
+    } else s = T('ทุกวันที่ {n} ของเดือน', { n: rep.days[0] });
+    if (rep.endDate) s += T(' ถึง {d}', { d: thShort(rep.endDate) });
+    return s;
+  }
+  function repById(id) { return ((W.data && W.data.repeats) || []).filter(function (x) { return x.id === id; })[0] || null; }
+  var REP_N = 0;
+  /* ตัวเลือกทำซ้ำ — rep = ค่าเดิม (หรือ null) · base = วันที่ของแถว (ค่าตั้งต้น: วันในสัปดาห์/วันที่ของวันนั้น)
+     opt.toggle = มีช่องติ๊ก "ทำซ้ำ" (ปิดอยู่ = ซ่อนตัวเลือก) · opt.title/opt.sub = ข้อความข้างช่องติ๊ก */
+  function repFields(rep, base, opt) {
+    opt = opt || {};
+    var on = !!rep;
+    var freq = rep ? rep.freq : 'weekly';
+    var wdays = rep && rep.freq === 'weekly' ? rep.days : [wd(base)];
+    var dom = rep && rep.freq === 'monthly' ? rep.days[0] : Number(base.slice(8));
+    var end = (rep && rep.endDate) || '';
+    var name = 'wlRepEnd' + (++REP_N);
+    var dd = [];
+    for (var i = 1; i <= 31; i++) dd.push('<option' + (i === dom ? ' selected' : '') + '>' + i + '</option>');
+    return '<div class="wl-rep" data-rep data-base="' + esc(base) + '">' +
+      (opt.toggle ? '<label class="wl-rep-on"><input type="checkbox" data-r="on"' + (on ? ' checked' : '') + '>' +
+        '<span><b>' + ICON_REPEAT + ' ' + esc(opt.title || T('ทำซ้ำ')) + '</b><small>' + esc(opt.sub || T('ให้แถวนี้ขึ้นเองตามรอบ')) + '</small></span></label>' : '') +
+      '<div class="wl-rep-body"' + (opt.toggle && !on ? ' hidden' : '') + '>' +
+        '<div class="wl-rep-freq" role="radiogroup">' + [['weekly', 'รายสัปดาห์'], ['monthly', 'รายเดือน']].map(function (f) {
+          return '<button type="button" role="radio" aria-checked="' + (f[0] === freq) + '" class="wl-rep-f' + (f[0] === freq ? ' on' : '') + '" data-r-freq="' + f[0] + '">' + T(f[1]) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="wl-rep-days" data-r-wk' + (freq === 'weekly' ? '' : ' hidden') + '>' + WEEK_ORDER.map(function (k) {
+          return '<label class="wl-rep-d"><input type="checkbox" value="' + k + '"' + (wdays.indexOf(k) !== -1 ? ' checked' : '') + '><span>' + dayName(k) + '</span></label>';
+        }).join('') + '</div>' +
+        '<label class="wl-rep-mo" data-r-mo' + (freq === 'monthly' ? '' : ' hidden') + '><span>' + T('วันที่') + '</span>' +
+          '<select class="select" data-r="dom">' + dd.join('') + '</select><span>' + T('ของทุกเดือน') + '</span></label>' +
+        '<div class="wl-rep-end"><span>' + T('สิ้นสุด') + '</span>' +
+          '<label><input type="radio" name="' + name + '" value=""' + (end ? '' : ' checked') + '> ' + T('ไม่มีกำหนด') + '</label>' +
+          '<label><input type="radio" name="' + name + '" value="date"' + (end ? ' checked' : '') + '> ' + T('ถึงวันที่') + '</label>' +
+          '<input type="date" class="input" data-r="end" value="' + esc(end) + '"' + (end ? '' : ' hidden') + ' aria-label="' + T('ถึงวันที่') + '"></div>' +
+        '<p class="wl-rep-sum" data-r="sum"></p>' +
+        '<p class="wl-rep-tip">' + T('แถวจะขึ้นเองล่วงหน้า 7 วัน เริ่มที่ “ยังไม่เริ่ม” · ทำไม่เสร็จก็ยกไปวันถัดไปเหมือนแถวปกติ') + '</p>' +
+      '</div></div>';
+  }
+  /* อ่านค่าจากตัวเลือก → null (ไม่ติ๊กทำซ้ำ) · { error } · { freq, days, endDate } */
+  function repRead(box) {
+    if (!box) return null;
+    var on = box.querySelector('[data-r="on"]');
+    if (on && !on.checked) return null;
+    var f = box.querySelector('.wl-rep-f.on').getAttribute('data-r-freq');
+    var days = f === 'weekly'
+      ? Array.prototype.map.call(box.querySelectorAll('[data-r-wk] input:checked'), function (x) { return Number(x.value); })
+      : [Number(box.querySelector('[data-r="dom"]').value)];
+    if (!days.length) return { error: T('เลือกวันที่จะทำซ้ำอย่างน้อย 1 วัน') };
+    var useEnd = box.querySelector('.wl-rep-end input[type="radio"]:checked').value === 'date';
+    var end = box.querySelector('[data-r="end"]').value;
+    if (useEnd && !isDate(end)) return { error: T('เลือกวันสิ้นสุด') };
+    return { freq: f, days: days, endDate: useEnd ? end : null };
+  }
+  function repSnap(box) { var v = repRead(box); return v ? JSON.stringify(v) : ''; }
+  function repSum(box) {
+    var v = repRead(box), out = box.querySelector('[data-r="sum"]');
+    if (!out) return;
+    out.textContent = v && !v.error ? '🔁 ' + repLabel(v) : '';
+    var tip = box.querySelector('.wl-rep-tip');
+    if (tip && v && !v.error) tip.textContent = T('แถวจะขึ้นเองล่วงหน้า 7 วัน เริ่มที่ “ยังไม่เริ่ม” · ทำไม่เสร็จก็ยกไปวันถัดไปเหมือนแถวปกติ') + ' ' +
+      (v.freq === 'monthly' ? (v.days[0] > 28 ? T('เดือนที่ไม่มีวันนี้ ใช้วันสุดท้ายของเดือน · ตรงวันหยุด เลื่อนไปวันทำงานถัดไป') : T('ตรงวันหยุด เลื่อนไปวันทำงานถัดไป')) : '');
+  }
+  /* ผูกเหตุการณ์ของตัวเลือกทำซ้ำทุกชุดใน host (ผูกครั้งเดียวต่อ host — วาดตัวเลือกใหม่ได้โดยไม่ต้องผูกซ้ำ) */
+  function repWire(host) {
+    if (host.__rep) return;
+    host.__rep = true;
+    host.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-r-freq]');
+      if (!b) return;
+      var box = b.closest('[data-rep]');
+      Array.prototype.forEach.call(box.querySelectorAll('[data-r-freq]'), function (x) {
+        var on = x === b;
+        x.classList.toggle('on', on);
+        x.setAttribute('aria-checked', on);
+      });
+      box.querySelector('[data-r-wk]').hidden = b.getAttribute('data-r-freq') !== 'weekly';
+      box.querySelector('[data-r-mo]').hidden = b.getAttribute('data-r-freq') !== 'monthly';
+      repSum(box);
+    });
+    host.addEventListener('change', function (ev) {
+      var box = ev.target.closest && ev.target.closest('[data-rep]');
+      if (!box) return;
+      if (ev.target.getAttribute('data-r') === 'on') box.querySelector('.wl-rep-body').hidden = !ev.target.checked;
+      if (ev.target.type === 'radio') {
+        var endIn = box.querySelector('[data-r="end"]');
+        endIn.hidden = ev.target.value !== 'date';
+        if (!endIn.hidden && !endIn.value) endIn.focus();
+      }
+      repSum(box);
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-rep]'), repSum);
   }
 
   function $(s, r) { return (r || document).querySelector(s); }
@@ -263,6 +404,7 @@
       segHtml(o) +
       '<a class="btn-ghost" href="#/log/search">' + T('ค้นหา') + '</a>' +
       (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">' + T('แม่แบบของฉัน') + '</button>' : '') +
+      (!o.all && !ro ? '<button type="button" class="btn-ghost wl-repbtn" data-wl="reps">' + ICON_REPEAT + ' ' + T('งานทำซ้ำ') + '</button>' : '') +
       (!o.all && !ro ? '<button type="button" class="btn" data-wl="add">+ Add row</button>' : '') +
       '</div></div>';
 
@@ -354,6 +496,7 @@
     if (r.carriedFromDate) tags += '<span class="wl-tag">' + esc(T('↪ ยกมาจาก {d}', { d: thShort(r.carriedFromDate) })) + '</span>';
     if (r.carriedToDate) tags += '<span class="wl-tag mut">' + esc(T('ยกไป {d} →', { d: thShort(r.carriedToDate) })) + '</span>';
     if (r.draft) tags += '<span class="wl-tag draft">' + esc(T('ยังไม่บันทึก — พิมพ์ Work หรือ reason แล้วบันทึกเอง')) + '</span>';
+    tags += repTag(r, mine && !X.readOnly());
     return '<tr class="wl-row' + (r.draft ? ' wl-draft' : '') + '" data-id="' + esc(r.id) + '">' + head +
       (o.all ? '<td class="wl-who' + (firstOfPerson ? '' : ' cont') + '" title="' + esc(staffFull(r.staffId)) + '">' + (firstOfPerson ? esc(staffName(r.staffId)) : '') + '</td>' : '') +
       '<td class="wl-c' + e + '" data-f="slot">' + (r.slot ? esc(r.slot) : (mine ? '<span class="wl-ph">' + T('เวลา') + '</span>' : '')) + '</td>' +
@@ -363,9 +506,18 @@
       '<td class="wl-c wl-reason' + e + (r.status === 'blocked' && !r.reason ? ' need' : '') + '" data-f="reason">' +
         (r.reason ? '<div class="wl-txt">' + esc(r.reason) + '</div>' : '') + '</td>' +
       '<td class="wl-pics">' + pics(r, mine && !r.draft) + '</td>' +
-      '<td class="wl-act">' + (r.draft ? '' : '<button type="button" class="wl-x wl-h" data-wl="hist" title="' + T('ประวัติการแก้ไข') + '" aria-label="' + T('ประวัติการแก้ไข') + '">' + ICON_CLOCK + '</button>') +
+      '<td class="wl-act">' + (mine && !r.repeatId ? '<button type="button" class="wl-x wl-h" data-wl="rep" title="' + T('ตั้งทำซ้ำ') + '" aria-label="' + T('ตั้งทำซ้ำ') + '">' + ICON_REPEAT + '</button>' : '') +
+        (r.draft ? '' : '<button type="button" class="wl-x wl-h" data-wl="hist" title="' + T('ประวัติการแก้ไข') + '" aria-label="' + T('ประวัติการแก้ไข') + '">' + ICON_CLOCK + '</button>') +
         (mine ? '<button type="button" class="wl-x" data-wl="del" title="' + T(r.draft ? 'ทิ้งแถวที่ยังไม่บันทึก' : 'ลบแถวนี้') + '" aria-label="' + T(r.draft ? 'ทิ้งแถวที่ยังไม่บันทึก' : 'ลบแถวนี้') + '">×</button>' : '') + '</td>' +
       '</tr>';
+  }
+  /* ป้าย 🔁 ของแถวงานทำซ้ำ — แถวของตัวเองกดแล้วเปิดหน้าต่างแก้การทำซ้ำ */
+  function repTag(r, can) {
+    if (!r.repeatId) return '';
+    var rep = repById(r.repeatId);
+    var txt = '🔁 ' + (rep ? repLabel(rep) : T('ทำซ้ำ'));
+    return can ? '<button type="button" class="wl-tag rep" data-wl="rep" title="' + T('แก้การทำซ้ำ') + '">' + esc(txt) + '</button>'
+      : '<span class="wl-tag rep">' + esc(txt) + '</span>';
   }
   function pill(r, can) {
     var st = r.status || 'done';
@@ -496,8 +648,9 @@
         putRow(j.row);
         paint();
         if (next) openEditor(j.row.id, next);
+        return j.row;
       }).catch(function (e) { fail(e); paint(); })
-      .then(function () { W.busy = false; });
+      .then(function (row) { W.busy = false; return row; });
   }
   /* ตัดบรรทัด "- " ว่าง ๆ ท้ายช่อง Work (กด Enter แล้วได้หัวข้อใหม่ที่ไม่ได้พิมพ์ต่อ) · มีแต่ "- " = ว่าง */
   function cleanWork(v) {
@@ -595,7 +748,8 @@
     var ro = X.readOnly();
     var h = '<div class="wl-mtop"><div><span class="kicker">' + T('งานทีม') + '</span><h1>' + T('บันทึกงานรายวัน') + '</h1></div>' + segHtml(o) + '</div>' +
       '<div class="wl-mtools"><a class="btn-ghost" href="#/log/search">' + T('ค้นหา') + '</a>' +
-      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">' + T('แม่แบบของฉัน') + '</button>' : '') + langSeg() + '</div>';
+      (!o.all && !ro ? '<button type="button" class="btn-ghost" data-wl="tpl">' + T('แม่แบบของฉัน') + '</button>' : '') +
+      (!o.all && !ro ? '<button type="button" class="btn-ghost wl-repbtn" data-wl="reps">' + ICON_REPEAT + ' ' + T('งานทำซ้ำ') + '</button>' : '') + langSeg() + '</div>';
     h += '<div class="wl-mday">' +
       '<a class="wl-mnav" href="' + hashFor(o, addDays(d, -1)) + '" aria-label="' + T('วันก่อน') + '">‹</a>' +
       '<label class="wl-mdate"><span><b>' + DAY_EN[wd(d)] + '</b> ' + esc(thShort(d)) + ' ' + (Number(d.slice(0, 4)) + (LANG === 'en' ? 0 : 543)) +
@@ -633,6 +787,7 @@
     var tags = '';
     if (r.carriedFromDate) tags += '<span class="wl-tag">' + esc(T('↪ ยกมาจาก {d}', { d: thShort(r.carriedFromDate) })) + '</span>';
     if (r.carriedToDate) tags += '<span class="wl-tag mut">' + esc(T('ยกไป {d} →', { d: thShort(r.carriedToDate) })) + '</span>';
+    tags += repTag(r, false);
     var picking = W.pick === r.id;
     return '<article class="wl-card' + (mine ? ' mine' : '') + '" data-id="' + esc(r.id) + '"' + (mine ? ' tabindex="0" aria-label="' + T('แก้แถวนี้') + '"' : '') + '>' +
       '<div class="wl-chead"><span class="wl-chip">' + esc(r.slot || T('ไม่ระบุเวลา')) + '</span>' + tags + '</div>' +
@@ -765,6 +920,9 @@
       }).join('') + '</div></div>' +
       '<label class="wl-field"><span>reason <small class="wl-freq"' + (v.status === 'blocked' ? '' : ' hidden') + '>' + T('ต้องใส่ เพราะเลือก “ติดปัญหา”') + '</small></span>' +
         '<textarea class="textarea" name="reason" rows="2" placeholder="' + T('เช่น ทำไมช้า / จะเสร็จเมื่อไหร่') + '">' + esc(v.reason) + '</textarea></label>' +
+      (row && row.repeatId ? '<div class="wl-field"><span>' + T('งานทำซ้ำ') + '</span><button type="button" class="wl-frep" data-f-rep>' +
+          esc('🔁 ' + (repById(row.repeatId) ? repLabel(repById(row.repeatId)) : T('ทำซ้ำ'))) + ' <u>' + T('แก้การทำซ้ำ') + '</u></button></div>'
+        : repFields(null, v.date, { toggle: true })) +
       '<div class="wl-field"><span>' + T('แนบรูปงาน') + '</span><div class="wl-fpics"></div>' +
         '<div class="wl-fpicbtns"><label class="btn-ghost"><input type="file" accept="image/*" capture="environment" data-f-file hidden>' + T('ถ่ายรูป') + '</label>' +
         '<label class="btn-ghost"><input type="file" accept="image/*" multiple data-f-file hidden>' + T('เลือกจากคลังรูป') + '</label></div></div>' +
@@ -779,11 +937,18 @@
     F.status = v.status;
     var form = host.querySelector('form');
     if (X.listEdit) X.listEdit(form.work);
+    repWire(host);
     drawPics();
     F.start = snapshot();
 
     form.addEventListener('submit', function (ev) { ev.preventDefault(); saveForm(); });
-    form.date.addEventListener('change', function () { if (isDate(form.date.value)) form.day.value = DAY_EN[wd(form.date.value)]; });
+    form.date.addEventListener('change', function () {
+      if (!isDate(form.date.value)) return;
+      form.day.value = DAY_EN[wd(form.date.value)];
+      /* ยังไม่ได้ติ๊กทำซ้ำ — ตั้งค่าตั้งต้นตามวันที่ใหม่ (วันในสัปดาห์ / วันที่ของเดือน) */
+      var rb = host.querySelector('[data-rep]');
+      if (rb && !repRead(rb)) { rb.outerHTML = repFields(null, form.date.value, { toggle: true }); repSum(host.querySelector('[data-rep]')); }
+    });
     form.slotSel.addEventListener('change', function () {
       var other = form.slotSel.value === '__other';
       form.slotOther.hidden = !other;
@@ -796,6 +961,7 @@
       if (st) { setFormStatus(st.getAttribute('data-f-st')); return; }
       if (t.closest('[data-f-del]')) { delRow(F.row.id, true); return; }
       if (t.closest('[data-f-hist]')) { openHistory(F.row.id); return; }
+      if (t.closest('[data-f-rep]')) { openRepeat(F.row.id); return; }
       var rm = t.closest('[data-f-rm]');
       if (rm) {
         var k = rm.getAttribute('data-f-rm');
@@ -820,7 +986,7 @@
   }
   function snapshot() {
     var f = F.host.querySelector('form');
-    return JSON.stringify([f.date.value, slotOf(f), f.work.value, F.status, f.reason.value, F.pending.length, F.removed.length]);
+    return JSON.stringify([f.date.value, slotOf(f), f.work.value, F.status, f.reason.value, F.pending.length, F.removed.length, repSnap(F.host.querySelector('[data-rep]'))]);
   }
   function slotOf(f) { return f.slotSel.value === '__other' ? f.slotOther.value.trim() : f.slotSel.value; }
   function setFormStatus(k) {
@@ -884,10 +1050,17 @@
     if (!isDate(f.date.value)) { toast(T('เลือกวันที่ก่อน'), true); f.date.focus(); return; }
     if (F.status === 'blocked' && !f.reason.value.trim()) { toast(T('“ติดปัญหา” ต้องใส่ reason'), true); f.reason.focus(); return; }
     var body = { date: f.date.value, slot: slotOf(f), work: work, status: F.status, reason: f.reason.value.trim() };
+    var repeat = repRead(F.host.querySelector('[data-rep]'));
+    if (repeat && repeat.error) { toast(repeat.error, true); return; }
+    if (repeat && !F.row) body.repeat = repeat;
     var btn = F.host.querySelector('.wl-fsave');
     F.busy = true; btn.disabled = true; btn.textContent = T('กำลังบันทึก…');
     var cur = F;
     var step = cur.row ? api('/worklog/' + encodeURIComponent(cur.row.id), 'PUT', body) : api('/worklog', 'POST', body);
+    /* แถวเดิมที่เพิ่งติ๊กทำซ้ำ — บันทึกแถวก่อน แล้วค่อยตั้งทำซ้ำจากแถวนั้น */
+    if (cur.row && repeat) step = step.then(function (j) {
+      return api('/worklog/repeats', 'POST', { rowId: j.row.id, repeat: repeat }).then(function () { return api('/worklog/' + encodeURIComponent(j.row.id)); });
+    });
     step.then(function (j) {
       /* บันทึกแถวแล้ว — ถ้ารูปพังทีหลัง ฟอร์มกลายเป็น "แก้ไข" แถวนี้ กดบันทึกซ้ำจะไม่สร้างแถวซ้ำ */
       cur.row = j.row;
@@ -993,6 +1166,101 @@
   }
 
   /* ============================================================
+     งานทำซ้ำ: หน้าต่างตั้ง/แก้ของแถว + รายการ "งานทำซ้ำ" ของฉัน
+     ============================================================ */
+  /* ปุ่ม 🔁 ของแถว — แถวร่างที่พิมพ์ไว้แล้วบันทึกก่อน · แถวของงานทำซ้ำแบบแม่แบบ = เปิดแม่แบบชุดนั้น */
+  function openRepeat(id) {
+    closeEditor(true).then(function (made) {
+      var r = rowById(id) || (made && made.id ? rowById(made.id) : null);
+      if (!r) return;
+      if (r.draft) { toast(T('พิมพ์ Work ก่อน แล้วค่อยตั้งทำซ้ำ')); openEditor(r.id, 'work'); return; }
+      var rep = r.repeatId ? repById(r.repeatId) : null;
+      if (rep && rep.kind === 'template') { openTemplate(null, rep.setId); return; }
+      repEditor(rep, rep ? null : r);
+    });
+  }
+  /* rep = งานทำซ้ำที่มีอยู่ (แก้ได้ทั้งเวลา/งาน/รอบ) · row = แถวที่จะตั้งเป็นงานทำซ้ำใหม่ · after = เรียกหลังบันทึก/หยุด */
+  function repEditor(rep, row, after) {
+    var base = rep ? rep.startDate : row.date;
+    var slots = (W.data && W.data.slots) || [];
+    var head = rep
+      ? '<label class="wl-field"><span>Time</span><input class="input" data-r="slot" list="wlRepSlots" maxlength="40" value="' + esc(rep.slot) + '" placeholder="' + T('เช่น 09.00-10.00') + '"></label>' +
+        '<datalist id="wlRepSlots">' + slots.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+        '<label class="wl-field"><span>Work</span><textarea class="textarea" data-r="work" rows="3">' + esc(rep.work) + '</textarea></label>'
+      : '<div class="wl-field"><span>' + T('แถวนี้') + '</span><div class="wl-reprow">' + (row.slot ? '<span class="wl-chip">' + esc(row.slot) + '</span>' : '') +
+        '<div class="wl-ptxt">' + esc(row.work) + '</div></div></div>';
+    var host = openSheet(rep ? T('แก้การทำซ้ำ') : T('ตั้งทำซ้ำ'),
+      '<div class="wl-tm">' + head + repFields(rep || null, base, {}) +
+        (rep ? '<p class="wl-note">' + T('เปลี่ยนแล้วแถวล่วงหน้าที่ยังไม่มีใครแก้จะสร้างใหม่ตามค่านี้ · แถววันนี้และวันก่อน ๆ อยู่เหมือนเดิม') + '</p>' +
+          '<button type="button" class="wl-fdel" data-rp="stop">' + T('หยุดทำซ้ำ') + '</button>' : '') + '</div>',
+      '<button type="button" class="btn wl-fsave" data-rp="save">' + T('บันทึกการทำซ้ำ') + '</button>',
+      { canClose: function () { return snap() === start || confirm(T('ทิ้งการทำซ้ำที่แก้ไว้?')); } });
+    var box = host.querySelector('[data-rep]');
+    function snap() {
+      var sl = host.querySelector('[data-r="slot"]'), wk = host.querySelector('[data-r="work"]');
+      return JSON.stringify([sl ? sl.value : '', wk ? wk.value : '', repSnap(box)]);
+    }
+    repWire(host);
+    var wk = host.querySelector('[data-r="work"]');
+    if (wk && X.listEdit) X.listEdit(wk);
+    var start = snap();
+    function done(msg) {
+      closeSheet(true);
+      toast(msg);
+      if (after) after(); else render(W.route);
+    }
+    host.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-rp]');
+      if (!b) return;
+      if (b.getAttribute('data-rp') === 'stop') {
+        if (!confirm(T('หยุดทำซ้ำ? แถวล่วงหน้าที่ยังไม่มีใครแก้จะถูกลบ · แถววันนี้ วันก่อน ๆ และแถวที่แก้ไปแล้วอยู่เหมือนเดิม'))) return;
+        api('/worklog/repeats/' + encodeURIComponent(rep.id), 'DELETE').then(function () { done(T('หยุดทำซ้ำแล้ว')); }).catch(fail);
+        return;
+      }
+      var v = repRead(box);
+      if (v.error) { toast(v.error, true); return; }
+      var req;
+      if (rep) {
+        var w = cleanWork(host.querySelector('[data-r="work"]').value);
+        if (!w) { toast(T('พิมพ์งานก่อนนะ'), true); host.querySelector('[data-r="work"]').focus(); return; }
+        req = api('/worklog/repeats/' + encodeURIComponent(rep.id), 'PUT', { repeat: v, slot: host.querySelector('[data-r="slot"]').value.trim(), work: w });
+      } else req = api('/worklog/repeats', 'POST', { rowId: row.id, repeat: v });
+      b.disabled = true;
+      req.then(function () { done(rep ? T('บันทึกการทำซ้ำแล้ว') : T('ตั้งทำซ้ำแล้ว')); }).catch(function (e) { b.disabled = false; fail(e); });
+    });
+  }
+  /* รายการ "งานทำซ้ำ" ของฉัน — แก้ / หยุด · แบบแม่แบบกดแก้แล้วเปิดแม่แบบชุดนั้น */
+  function openRepeatList() {
+    api('/worklog/repeats').then(function (j) {
+      var list = j.repeats || [];
+      var reopen = function () { render(W.route); openRepeatList(); };
+      var h = list.length ? '<div class="wl-picklist">' + list.map(function (rp) {
+        var what = rp.kind === 'template' ? T('แม่แบบ “{s}”', { s: T(rp.setName) })
+          : (rp.slot ? rp.slot + ' · ' : '') + (String(rp.work || '').split('\n')[0] || '');
+        return '<div class="wl-repi"><div><b>🔁 ' + esc(repLabel(rp)) + '</b><span>' + esc(what) + '</span>' +
+          '<small>' + esc(rp.next ? T('ครั้งถัดไป {d}', { d: DAY_EN[wd(rp.next)] + ' ' + thShort(rp.next) }) : T('ไม่มีรอบถัดไปแล้ว')) + '</small></div>' +
+          '<div class="wl-repi-b"><button type="button" class="btn-ghost sm" data-rl="edit" data-id="' + esc(rp.id) + '">' + T('แก้') + '</button>' +
+          '<button type="button" class="wl-fdel" data-rl="stop" data-id="' + esc(rp.id) + '">' + T('หยุด') + '</button></div></div>';
+      }).join('') + '</div>'
+        : '<div class="wl-mempty">' + T('ยังไม่มีงานทำซ้ำ') + '<br><small>' + T('ตั้งได้จากปุ่ม 🔁 ท้ายแถว ติ๊ก “ทำซ้ำ” ตอนเพิ่มแถว หรือในแม่แบบ') + '</small></div>';
+      var host = openSheet(T('งานทำซ้ำ'), h, '');
+      host.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-rl]');
+        if (!b) return;
+        var rp = list.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
+        if (!rp) return;
+        if (b.getAttribute('data-rl') === 'edit') {
+          if (rp.kind === 'template') { closeSheet(true); openTemplate(null, rp.setId); }
+          else repEditor(rp, null, reopen);
+          return;
+        }
+        if (!confirm(T('หยุดทำซ้ำ? แถวล่วงหน้าที่ยังไม่มีใครแก้จะถูกลบ · แถววันนี้ วันก่อน ๆ และแถวที่แก้ไปแล้วอยู่เหมือนเดิม'))) return;
+        api('/worklog/repeats/' + encodeURIComponent(rp.id), 'DELETE').then(function () { toast(T('หยุดทำซ้ำแล้ว')); reopen(); }).catch(fail);
+      });
+    }).catch(fail);
+  }
+
+  /* ============================================================
      แม่แบบประจำวัน — ตั้งได้หลายชุด (นนท์ขอ 15 ต.ค. 69) เช่น "งานประจำ" · "วันเปิดร้าน"
      หน้าต่าง "แม่แบบของฉัน": ปุ่มชื่อแม่แบบด้านบน (สลับชุด) + "แม่แบบใหม่" · ด้านล่างแก้ชื่อ/แถวของชุดที่เลือก
      "เติมจากแม่แบบ" = ติ๊กเลือกชุด (ได้หลายชุด) แล้วเติมลงวันนั้นตามลำดับในรายการ
@@ -1015,7 +1283,11 @@
   }
   /* วันที่จะดึงแถวมาเป็นแม่แบบ = วันที่ดูอยู่ (มือถือ) หรือวันล่าสุดที่มีแถวของฉันในสัปดาห์นี้ */
   function tplSourceDay() {
-    return W.o.phone ? W.o.day : (W.data.rows.filter(function (r) { return r.staffId === meId(); }).map(function (r) { return r.date; }).sort().pop() || '');
+    if (W.o.phone) return W.o.day;
+    /* ไม่เอาวันข้างหน้า — วันล่วงหน้ามีแต่แถวที่งานทำซ้ำสร้างให้ */
+    var today = W.data.today || localToday();
+    var ds = W.data.rows.filter(function (r) { return r.staffId === meId(); }).map(function (r) { return r.date; }).sort();
+    return ds.filter(function (d) { return d <= today; }).pop() || ds.pop() || '';
   }
   function openTemplate(fillDate, wantId) {
     api('/worklog/templates').then(function (j) {
@@ -1029,7 +1301,7 @@
       var box = host.querySelector('.wl-tm');
       function snap() {
         var n = box.querySelector('.wl-tname');
-        return JSON.stringify([n ? n.value.trim() : '', readTpl(host)]);
+        return JSON.stringify([n ? n.value.trim() : '', readTpl(host), repSnap(box.querySelector('[data-rep]'))]);
       }
       function dirty() { return snap() !== TS.start; }
       function curSet() { return TS.sets.filter(function (x) { return x.id === TS.cur; })[0] || null; }
@@ -1050,9 +1322,12 @@
           '<datalist id="wlTplSlots">' + ((W.data && W.data.slots) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
           '<div class="wl-tlist">' + rows.map(tplRowHtml).join('') + '</div>' +
           '<div class="wl-tfoot"><button type="button" class="btn-ghost wl-tadd" data-t="add">' + T('+ เพิ่มแถวแม่แบบ') + '</button>' +
-          (set ? '<button type="button" class="wl-fdel" data-t="delset">' + T('ลบแม่แบบนี้') + '</button>' : '') + '</div>';
+          (set ? '<button type="button" class="wl-fdel" data-t="delset">' + T('ลบแม่แบบนี้') + '</button>' : '') + '</div>' +
+          repFields(set && set.repeat, (W.data && W.data.today) || localToday(), { toggle: true, title: T('ทำซ้ำทั้งแม่แบบ'), sub: T('เติมแม่แบบนี้ให้เองตามรอบ ไม่ต้องกด “เติมจากแม่แบบ”') });
         if (!rows.length) box.querySelector('.wl-tlist').innerHTML = tplRowHtml({ slot: isNew && TS.sets.length ? '' : (((W.data && W.data.slots) || [])[0] || ''), work: '- ', status: 'todo' });
         Array.prototype.forEach.call(box.querySelectorAll('.wl-twork'), function (t) { if (X.listEdit) X.listEdit(t); });
+        repWire(host);
+        repSum(box.querySelector('[data-rep]'));
         TS.start = snap();   /* แถวตั้งต้นที่ใส่ให้ไม่นับเป็น "แก้แล้ว" — ปิดเฉย ๆ ต้องไม่ถามว่าทิ้งไหม */
         if (isNew && TS.sets.length) box.querySelector('.wl-tname').focus();
       }
@@ -1100,10 +1375,16 @@
           if (!name) { toast(T('ตั้งชื่อแม่แบบก่อน'), true); box.querySelector('.wl-tname').focus(); return; }
           var data = readTpl(host);
           var isNew = TS.cur === 'new';
+          var repeat = repRead(box.querySelector('[data-rep]'));
+          if (repeat && repeat.error) { toast(repeat.error, true); return; }
+          var hadRep = !!(curSet() && curSet().repeat);
+          var payload = { name: name, rows: data };
+          if (repeat || hadRep) payload.repeat = repeat;
           b.disabled = true;
-          (isNew ? api('/worklog/templates', 'POST', { name: name, rows: data })
-                 : api('/worklog/templates/' + encodeURIComponent(TS.cur), 'PUT', { name: name, rows: data })).then(function (r2) {
+          (isNew ? api('/worklog/templates', 'POST', payload)
+                 : api('/worklog/templates/' + encodeURIComponent(TS.cur), 'PUT', payload)).then(function (r2) {
             b.disabled = false;
+            if (repeat || hadRep) render(W.route);   /* แถวที่ระบบเติม/เอาออกตามรอบ — วาดหน้าหลังใหม่ */
             TS.sets = r2.sets || [];
             if (isNew) TS.cur = r2.id;
             draw();
@@ -1209,6 +1490,7 @@
           }).join('') + '</table>' : '') + '</li>';
       }).join('');
       /* แถวที่ระบบยกมาเอง ไม่มีคนสร้าง — บอกที่มาไว้ล่างสุด (= เหตุการณ์แรก) */
+      if (j.source === 'repeat') h += '<li class="wl-hi"><div class="wl-hh"><b>' + T('ระบบ') + '</b> · ' + esc(T('ระบบสร้างจากงานทำซ้ำ')) + '</div></li>';
       if (j.source === 'carry') h += '<li class="wl-hi"><div class="wl-hh"><b>' + T('ระบบ') + '</b> · ' + esc(T('ยกงานค้างมาจาก {d}', { d: r && r.carriedFromDate ? thShort(r.carriedFromDate) : T('วันก่อน') })) + '</div></li>';
       if (!h) h = '<li class="wl-hi wl-mut">' + T('ยังไม่มีประวัติ') + '</li>';
       var title = r ? ((r.slot ? r.slot + ' · ' : '') + thShort(r.date)) : '';
@@ -1308,6 +1590,8 @@
         if (a === 'copy') { copyDay(act.getAttribute('data-date') || W.o.day); return; }
         if (a === 'fill') { fillTemplate(act.getAttribute('data-date') || W.o.day); return; }
         if (a === 'tpl') { openTemplate(); return; }
+        if (a === 'reps') { openRepeatList(); return; }
+        if (a === 'rep' && tr) { openRepeat(tr.getAttribute('data-id')); return; }
         var hr = act.closest('[data-id]');
         if (a === 'hist' && hr) { openHistory(hr.getAttribute('data-id')); return; }
         if (a === 'picdel' && tr) { delPic(tr.getAttribute('data-id'), act.getAttribute('data-fid')); return; }

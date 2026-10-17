@@ -24,6 +24,8 @@ const WL_MAX_TEMPLATE = 30;       /* แถวต่อแม่แบบ */
 const WL_MAX_TEMPLATE_SETS = 20;  /* แม่แบบต่อคน */
 const WL_CARRY_LOOKBACK = 30;      /* ยกงานค้างย้อนหลังไม่เกินกี่วัน — กันของเก่า/ของที่นำเข้ามาไหลมาทั้งก้อน */
 const WL_DEFAULT_WORKDAYS = "1,2,3,4,5"; /* ค่าเดียวกับหน้าทีม (tasks.js) ตอนยังไม่ตั้งวันทำงาน */
+const WL_REPEAT_AHEAD = 7;         /* งานทำซ้ำโผล่ล่วงหน้ากี่วัน (เห็นสัปดาห์หน้าได้) */
+const WL_MAX_REPEATS = 50;         /* งานทำซ้ำต่อคน */
 
 const WORKLOG_SCHEMA = [
   /* carried_from = แถวต้นทางที่ยกมา · carried_to = แถวที่ยกต่อไปแล้ว (ตั้งครั้งเดียว ลบแถวปลายทางทิ้งก็ไม่ยกซ้ำ)
@@ -61,6 +63,19 @@ const WORKLOG_ALTERS = [
     "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS idx_worklog_tset_staff ON worklog_template_sets(staff_id, sort)",
   "CREATE INDEX IF NOT EXISTS idx_worklog_tpl_set ON worklog_templates(set_id, sort)",
+  /* งานทำซ้ำ (นนท์ขอ 17 ต.ค. 69) — รายสัปดาห์ (days = "1,3,5" แบบ JS 0 = อาทิตย์) หรือรายเดือน (days = "5" = วันที่ 5)
+     set_id ว่าง = แถวเดียว (slot/work ในตารางนี้) · มี set_id = ทั้งแม่แบบชุดนั้น
+     gen_until = สร้างแถวไปถึงวันไหนแล้ว — วันที่ผ่านไปแล้วไม่สร้างซ้ำ (ลบแถวทิ้งก็ไม่โผล่กลับ)
+     worklog.repeat_key = "<repeat>|<วันที่>|<ลำดับ>" กันสองรีเควสต์สร้างแถวเดียวกันซ้ำ */
+  "CREATE TABLE IF NOT EXISTS worklog_repeats (" +
+    "id TEXT PRIMARY KEY, staff_id TEXT NOT NULL, set_id TEXT, slot TEXT NOT NULL DEFAULT '', work TEXT NOT NULL DEFAULT '', " +
+    "freq TEXT NOT NULL, days TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT, gen_until TEXT, " +
+    "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS idx_worklog_rep_staff ON worklog_repeats(staff_id)",
+  "ALTER TABLE worklog ADD COLUMN repeat_id TEXT",
+  "ALTER TABLE worklog ADD COLUMN repeat_key TEXT",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_worklog_repeat_key ON worklog(repeat_key) WHERE repeat_key IS NOT NULL",
+  "CREATE INDEX IF NOT EXISTS idx_worklog_repeat ON worklog(repeat_id) WHERE repeat_id IS NOT NULL",
 ];
 
 let worklogReady = null;
@@ -94,15 +109,77 @@ function daysBetween(a, b) {
 function weekday(d) {
   return new Date(d + "T00:00:00Z").getUTCDay();
 }
-/* วันทำงานถัดไปของคนนั้น (work_days = "1,2,3,4,5" แบบ JS 0 = อาทิตย์) — ไม่ตั้งไว้ = จันทร์–ศุกร์ */
-function nextWorkDay(d, workDays) {
+/* วันทำงานของคนนั้น (work_days = "1,2,3,4,5" แบบ JS 0 = อาทิตย์) — ไม่ตั้งไว้ = จันทร์–ศุกร์ */
+function workSet(workDays) {
   const raw = workDays == null || String(workDays).trim() === "" ? WL_DEFAULT_WORKDAYS : String(workDays);
-  const set = raw.split(",").map((x) => Number(x)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  return raw.split(",").map((x) => Number(x)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+}
+function isWorkDay(d, workDays) {
+  const set = workSet(workDays);
+  return !set.length || set.indexOf(weekday(d)) !== -1;
+}
+/* วันทำงานถัดไปของคนนั้น */
+function nextWorkDay(d, workDays) {
+  const set = workSet(workDays);
   let x = addDays(d, 1);
   if (!set.length) return x;
   for (let i = 0; i < 7 && set.indexOf(weekday(x)) === -1; i++) x = addDays(x, 1);
   return x;
 }
+/* ---------- งานทำซ้ำ ---------- */
+/* วันที่ dom ของเดือนที่ d อยู่ (เดือนสั้นกว่า = วันสุดท้ายของเดือน) · back = ย้อนไปกี่เดือน */
+function monthDay(d, dom, back) {
+  let y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)) - (back || 0);
+  if (m < 1) { m += 12; y -= 1; }
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return y + "-" + String(m).padStart(2, "0") + "-" + String(Math.min(dom, last)).padStart(2, "0");
+}
+/* วันนี้ต้องมีแถวของงานทำซ้ำนี้ไหม
+   รายสัปดาห์ = ตามวันที่ติ๊ก (คนติ๊กเองแล้ว ไม่ข้ามวันหยุด)
+   รายเดือน = วันที่นั้นของเดือน · ตรงวันหยุดของคนนั้น → เลื่อนไปวันทำงานถัดไป */
+function repeatHits(rep, d, workDays) {
+  if (rep.freq === "weekly") return String(rep.days).split(",").map(Number).indexOf(weekday(d)) !== -1;
+  const dom = Number(rep.days);
+  for (let back = 0; back < 2; back++) {
+    const t = monthDay(d, dom, back);
+    if (isWorkDay(t, workDays) ? t === d : (t < d && nextWorkDay(t, workDays) === d)) return true;
+  }
+  return false;
+}
+/* วันถัดไปที่จะมีแถว (ตั้งแต่ from) — ไว้โชว์ในรายการงานทำซ้ำ */
+function repeatNext(rep, from, workDays) {
+  let d = rep.start_date > from ? rep.start_date : from;
+  for (let i = 0; i < 400; i++, d = addDays(d, 1)) {
+    if (rep.end_date && d > rep.end_date) return null;
+    if (repeatHits(rep, d, workDays)) return d;
+  }
+  return null;
+}
+/* ตรวจค่าทำซ้ำที่ส่งมา { freq, days, endDate } → { value } หรือ { error } */
+function cleanRepeat(r) {
+  if (!r || typeof r !== "object") return { error: "ตั้งค่าการทำซ้ำไม่ถูกต้อง" };
+  const freq = r.freq === "weekly" || r.freq === "monthly" ? r.freq : "";
+  if (!freq) return { error: "เลือกว่าจะทำซ้ำรายสัปดาห์หรือรายเดือน" };
+  let days;
+  if (freq === "weekly") {
+    const list = (Array.isArray(r.days) ? r.days : String(r.days == null ? "" : r.days).split(","))
+      .map((x) => (x === "" || x == null ? NaN : Number(x))).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+    const uniq = list.filter((n, i) => list.indexOf(n) === i).sort((a, b) => a - b);
+    if (!uniq.length) return { error: "เลือกวันที่จะทำซ้ำอย่างน้อย 1 วัน" };
+    days = uniq.join(",");
+  } else {
+    const n = Number(Array.isArray(r.days) ? r.days[0] : r.days);
+    if (!Number.isInteger(n) || n < 1 || n > 31) return { error: "เลือกวันที่ของเดือน (1–31)" };
+    days = String(n);
+  }
+  let end = null;
+  if (r.endDate) {
+    if (!isDate(r.endDate)) return { error: "วันสิ้นสุดไม่ถูกต้อง" };
+    end = r.endDate;
+  }
+  return { value: { freq, days, end_date: end } };
+}
+
 /* "10.00-10.30" / "13:00 - 19:00" / "9.30" → นาทีเริ่ม */
 function slotStart(slot) {
   const m = String(slot || "").match(/^\s*(\d{1,2})[.:](\d{2})/);
@@ -118,6 +195,7 @@ function rowOut(r, files, dates) {
     work: r.work || "", status: WL_STATUSES.indexOf(r.status) !== -1 ? r.status : "done", reason: r.reason || "",
     carriedFrom: r.carried_from || null, carriedFromDate: (r.carried_from && dates[r.carried_from]) || null,
     carriedTo: r.carried_to || null, carriedToDate: (r.carried_to && dates[r.carried_to]) || null,
+    repeatId: r.repeat_id || null,
     source: r.source || "manual", createdAt: r.created_at, updatedAt: r.updated_at, updatedBy: r.updated_by || null,
     files: files[r.id] || [],
   };
@@ -255,6 +333,12 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       const stmts = [];
       for (const r of cand) {
         const to = nextWorkDay(r.work_date, byId[r.staff_id] && byId[r.staff_id].work_days);
+        /* งานทำซ้ำที่มีแถวของตัวเองในวันถัดไปอยู่แล้ว (เช่น ทำทุกวัน) — ไม่ยก ไม่งั้นได้สองแถว
+           carried_to = '' = "ไม่ต้องยก" (ไม่ใช่ NULL จะได้ไม่ถูกหยิบมาเช็คทุกรอบ) */
+        if (r.repeat_id && await db.prepare("SELECT id FROM worklog WHERE repeat_id = ? AND work_date = ? LIMIT 1").bind(r.repeat_id, to).first()) {
+          stmts.push(db.prepare("UPDATE worklog SET carried_to = '' WHERE id = ? AND carried_to IS NULL").bind(r.id));
+          continue;
+        }
         const nid = newId("wl_");
         stmts.push(db.prepare(
           "INSERT OR IGNORE INTO worklog (id,staff_id,work_date,slot,slot_start,sort,work,status,reason,carried_from,source,created_at,updated_at,updated_by) " +
@@ -269,6 +353,102 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       made += cand.length;
     }
     return made;
+  }
+
+  /* ---- งานทำซ้ำ: สร้างแถวตามรอบ ----
+     ไม่ใช้ cron เหมือนยกงานค้าง: ทำตอนมีคนเปิดดู · สร้างถึงวันนี้ + 7 วัน (เห็นสัปดาห์หน้า)
+     วันที่เลยมาแล้วก่อนตั้ง/แก้งานทำซ้ำไม่สร้างย้อนหลัง · หายไปนานย้อนได้ไม่เกิน 30 วัน (เท่ายกงานค้าง)
+     แถวที่สร้าง updated_by = NULL (= ยังไม่มีใครแตะ) — แก้/เปลี่ยนสถานะ/แนบรูปแล้วถือว่าแตะ */
+  async function genRepeats(staffRows) {
+    const act = staffRows.filter((s) => s.active);
+    if (!act.length) return;
+    const byId = {};
+    act.forEach((s) => { byId[s.id] = s; });
+    const horizon = addDays(today, WL_REPEAT_AHEAD);
+    const floor = addDays(today, -WL_CARRY_LOOKBACK);
+    const ids = act.map((s) => s.id);
+    let reps = [];
+    for (let i = 0; i < ids.length; i += 80) {
+      const part = ids.slice(i, i + 80);
+      const r = await db.prepare("SELECT * FROM worklog_repeats WHERE staff_id IN (" + part.map(() => "?").join(",") +
+        ") AND (gen_until IS NULL OR gen_until < ?)").bind(...part, horizon).all();
+      reps = reps.concat(r.results || []);
+    }
+    for (const rep of reps) {
+      const wdays = byId[rep.staff_id] && byId[rep.staff_id].work_days;
+      let from = rep.gen_until ? addDays(rep.gen_until, 1) : rep.start_date;
+      if (from < rep.start_date) from = rep.start_date;
+      if (from < floor) from = floor;
+      const to = rep.end_date && rep.end_date < horizon ? rep.end_date : horizon;
+      let items = [];
+      if (rep.set_id) {
+        items = ((await db.prepare("SELECT slot, work, status FROM worklog_templates WHERE set_id = ? AND staff_id = ? ORDER BY sort")
+          .bind(rep.set_id, rep.staff_id).all()).results || []);
+      } else items = [{ slot: rep.slot, work: rep.work, status: "todo" }];
+      const now = nowIso();
+      const stmts = [];
+      for (let d = from; d <= to && items.length; d = addDays(d, 1)) {
+        if (!repeatHits(rep, d, wdays)) continue;
+        let sort = await nextSort(rep.staff_id, d);
+        items.forEach((x, k) => {
+          const st = WL_STATUSES.indexOf(x.status) !== -1 && x.status !== "blocked" ? x.status : "todo";
+          stmts.push(db.prepare(
+            "INSERT OR IGNORE INTO worklog (id,staff_id,work_date,slot,slot_start,sort,work,status,reason,source,repeat_id,repeat_key,created_at,updated_at,updated_by) " +
+            "VALUES (?,?,?,?,?,?,?,?,'','repeat',?,?,?,?,NULL)"
+          ).bind(newId("wl_"), rep.staff_id, d, x.slot || "", slotStart(x.slot), sort++, x.work || "", st, rep.id, rep.id + "|" + d + "|" + k, now, now));
+        });
+      }
+      stmts.push(db.prepare("UPDATE worklog_repeats SET gen_until = ? WHERE id = ? AND (gen_until IS NULL OR gen_until < ?)").bind(horizon, rep.id, horizon));
+      await db.batch(stmts);
+    }
+  }
+  /* แก้/หยุดงานทำซ้ำ: ลบแถวหลังวันนี้ที่ยังไม่มีใครแตะ (ไม่แก้ ไม่มีรูป) แล้วให้สร้างใหม่ตั้งแต่พรุ่งนี้ตามค่าใหม่
+     แถววันนี้และวันก่อน ๆ อยู่เหมือนเดิม */
+  function dropFutureStmts(repId) {
+    return [
+      db.prepare("DELETE FROM worklog WHERE repeat_id = ? AND work_date > ? AND updated_by IS NULL " +
+        "AND id NOT IN (SELECT log_id FROM worklog_files)").bind(repId, today),
+      db.prepare("UPDATE worklog_repeats SET gen_until = CASE WHEN gen_until IS NULL OR gen_until > ? THEN ? ELSE gen_until END WHERE id = ?")
+        .bind(today, today, repId),
+    ];
+  }
+  async function myStaff() {
+    return db.prepare("SELECT id, active, work_days FROM staff WHERE id = ?").bind(me.id).first();
+  }
+  async function repOuts(reps, withNext) {
+    const setIds = reps.filter((r) => r.set_id).map((r) => r.set_id);
+    const names = {};
+    for (let i = 0; i < setIds.length; i += 90) {
+      const part = setIds.slice(i, i + 90);
+      const r = await db.prepare("SELECT id, name FROM worklog_template_sets WHERE id IN (" + part.map(() => "?").join(",") + ")").bind(...part).all();
+      (r.results || []).forEach((x) => { names[x.id] = x.name; });
+    }
+    const wdays = withNext ? ((await myStaff()) || {}).work_days : null;
+    return reps.map((r) => ({
+      id: r.id, staffId: r.staff_id, kind: r.set_id ? "template" : "row", setId: r.set_id || null, setName: r.set_id ? (names[r.set_id] || "") : "",
+      slot: r.slot || "", work: r.work || "", freq: r.freq, days: String(r.days).split(",").map(Number),
+      startDate: r.start_date, endDate: r.end_date || null,
+      next: withNext ? repeatNext(r, today, wdays) : undefined,
+    }));
+  }
+  async function repeatCount() {
+    const r = await db.prepare("SELECT COUNT(*) AS n FROM worklog_repeats WHERE staff_id = ?").bind(me.id).first();
+    return (r && r.n) || 0;
+  }
+  /* ผูกแถวที่มีอยู่ให้เป็นงานทำซ้ำ — แถวนั้นเป็นรอบแรก · สร้างต่อตั้งแต่วันถัดไป (ไม่ย้อนวันที่ผ่านมาแล้ว) */
+  async function repeatFromRow(row, rv) {
+    if (row.repeat_id) return { error: "แถวนี้เป็นงานทำซ้ำอยู่แล้ว" };
+    if (!String(row.work || "").trim()) return { error: "พิมพ์ Work ก่อนตั้งทำซ้ำ" };
+    if (rv.end_date && rv.end_date < row.work_date) return { error: "วันสิ้นสุดต้องไม่ก่อนวันที่ของแถวนี้" };
+    if ((await repeatCount()) >= WL_MAX_REPEATS) return { error: "มีงานทำซ้ำได้ไม่เกิน " + WL_MAX_REPEATS + " รายการ" };
+    const rid = newId("wr_"), now = nowIso();
+    const gen = row.work_date > addDays(today, -1) ? row.work_date : addDays(today, -1);
+    await db.batch([
+      db.prepare("INSERT INTO worklog_repeats (id,staff_id,set_id,slot,work,freq,days,start_date,end_date,gen_until,created_at,updated_at) VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?)")
+        .bind(rid, me.id, row.slot || "", row.work || "", rv.freq, rv.days, row.work_date, rv.end_date, gen, now, now),
+      db.prepare("UPDATE worklog SET repeat_id = ?, repeat_key = ? WHERE id = ?").bind(rid, rid + "|" + row.work_date + "|0", row.id),
+    ]);
+    return { id: rid };
   }
 
   /* ---------- GET /worklog — แถวช่วงวันที่ (สัปดาห์/วัน) ----------
@@ -295,6 +475,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     }
     if (branch) target = target.filter((s) => (branch === "none" ? !staffBranch(s) : staffBranch(s) === branch));
 
+    await genRepeats(target);
     await carryOver(target);
 
     let rows = [];
@@ -309,9 +490,17 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     }
     if (ids.length > 80) rows.sort((a, b) => (a.work_date + a.staff_id).localeCompare(b.work_date + b.staff_id) || a.slot_start - b.slot_start || a.sort - b.sort);
 
+    /* งานทำซ้ำที่แถวในช่วงนี้อ้างถึง — ไว้เขียนป้าย "🔁 ทุกวันจันทร์" */
+    const repIds = rows.map((r) => r.repeat_id).filter((x, i, a) => x && a.indexOf(x) === i);
+    let reps = [];
+    for (let i = 0; i < repIds.length; i += 90) {
+      const part = repIds.slice(i, i + 90);
+      reps = reps.concat((await db.prepare("SELECT * FROM worklog_repeats WHERE id IN (" + part.map(() => "?").join(",") + ")").bind(...part).all()).results || []);
+    }
     return json({
       today, from, to, isLead,
       rows: await outRows(rows),
+      repeats: await repOuts(reps, false),
       staff: vis.map((s) => ({ id: s.id, name: s.name, branch: staffBranch(s), active: !!s.active })),
       branches: TASK_BRANCHES, slots: WL_SLOTS,
       statuses: WL_STATUSES.map((k) => ({ k, th: WL_STATUS_TH[k] })),
@@ -325,6 +514,16 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     if (c.error) return json({ error: c.error }, 400);
     const v = c.value;
     if (v.status === "blocked" && !v.reason) return json({ error: REASON_REQUIRED }, 400);
+    /* ติ๊ก "ทำซ้ำ" มาพร้อมแถวใหม่ (ฟอร์มมือถือ) — ตรวจก่อนสร้างแถว จะได้ไม่มีแถวค้างครึ่ง ๆ */
+    let rv = null;
+    if (body.repeat) {
+      const cr = cleanRepeat(body.repeat);
+      if (cr.error) return json({ error: cr.error }, 400);
+      rv = cr.value;
+      if (!v.work.trim()) return json({ error: "พิมพ์ Work ก่อนตั้งทำซ้ำ" }, 400);
+      if (rv.end_date && rv.end_date < v.work_date) return json({ error: "วันสิ้นสุดต้องไม่ก่อนวันที่ของแถวนี้" }, 400);
+      if ((await repeatCount()) >= WL_MAX_REPEATS) return json({ error: "มีงานทำซ้ำได้ไม่เกิน " + WL_MAX_REPEATS + " รายการ" }, 400);
+    }
     const now = nowIso();
     const id = newId("wl_");
     const sort = await nextSort(me.id, v.work_date);
@@ -332,9 +531,69 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
       "INSERT INTO worklog (id,staff_id,work_date,slot,slot_start,sort,work,status,reason,source,created_at,updated_at,updated_by) " +
       "VALUES (?,?,?,?,?,?,?,?,?,'manual',?,?,?)"
     ).bind(id, me.id, v.work_date, v.slot, slotStart(v.slot), sort, v.work, v.status, v.reason, now, now, me.id).run();
-    const row = await loadRow(id);
+    let row = await loadRow(id);
     await logChange(db, { by: me.id, entity: "worklog", entityId: id, action: "create", title: titleOf(row), after: snapRow(row), at: now });
+    if (rv) {
+      const r2 = await repeatFromRow(row, rv);
+      if (r2.error) return json({ error: r2.error }, 400);
+      await genRepeats([await myStaff()]);
+      row = await loadRow(id);
+    }
     return json({ ok: true, row: (await outRows([row]))[0] });
+  }
+
+  /* ---------- งานทำซ้ำของฉัน: ดู / ตั้งจากแถว / แก้ / หยุด ---------- */
+  if (path === "/worklog/repeats" && method === "GET") {
+    const reps = (await db.prepare("SELECT * FROM worklog_repeats WHERE staff_id = ? ORDER BY created_at").bind(me.id).all()).results || [];
+    return json({ repeats: await repOuts(reps, true), max: WL_MAX_REPEATS });
+  }
+  if (path === "/worklog/repeats" && method === "POST") {
+    const body = await readBody(request);
+    const row = body.rowId ? await loadRow(String(body.rowId)) : null;
+    if (!row || row.staff_id !== me.id) return json({ error: "ไม่พบแถวนี้" }, 404);
+    const cr = cleanRepeat(body.repeat);
+    if (cr.error) return json({ error: cr.error }, 400);
+    const r = await repeatFromRow(row, cr.value);
+    if (r.error) return json({ error: r.error }, 400);
+    await genRepeats([await myStaff()]);
+    const one = await db.prepare("SELECT * FROM worklog_repeats WHERE id = ?").bind(r.id).first();
+    return json({ ok: true, repeat: (await repOuts([one], true))[0] });
+  }
+  const repMatch = path.match(/^\/worklog\/repeats\/([A-Za-z0-9_-]{1,40})$/);
+  if (repMatch) {
+    const rep = await db.prepare("SELECT * FROM worklog_repeats WHERE id = ? AND staff_id = ?").bind(repMatch[1], me.id).first();
+    if (!rep) return json({ error: "ไม่พบงานทำซ้ำนี้" }, 404);
+    if (method === "PUT") {
+      const body = await readBody(request);
+      const cr = cleanRepeat(body.repeat);
+      if (cr.error) return json({ error: cr.error }, 400);
+      const v = cr.value;
+      if (v.end_date && v.end_date < rep.start_date) return json({ error: "วันสิ้นสุดต้องไม่ก่อนวันเริ่ม" }, 400);
+      let slot = rep.slot, work = rep.work;
+      if (!rep.set_id) {
+        const ci = cleanInput({ slot: body.slot !== undefined ? body.slot : rep.slot, work: body.work !== undefined ? body.work : rep.work }, true);
+        if (ci.error) return json({ error: ci.error }, 400);
+        slot = ci.value.slot; work = ci.value.work;
+        if (!work.trim()) return json({ error: "พิมพ์ Work ก่อนนะ" }, 400);
+      }
+      await db.batch([
+        db.prepare("UPDATE worklog_repeats SET freq = ?, days = ?, end_date = ?, slot = ?, work = ?, updated_at = ? WHERE id = ?")
+          .bind(v.freq, v.days, v.end_date, slot, work, nowIso(), rep.id),
+      ].concat(dropFutureStmts(rep.id)));
+      await genRepeats([await myStaff()]);
+      const one = await db.prepare("SELECT * FROM worklog_repeats WHERE id = ?").bind(rep.id).first();
+      return json({ ok: true, repeat: (await repOuts([one], true))[0] });
+    }
+    if (method === "DELETE") {
+      const del = dropFutureStmts(rep.id).slice(0, 1);
+      const left = await db.prepare("SELECT COUNT(*) AS n FROM worklog WHERE repeat_id = ? AND work_date > ? AND (updated_by IS NOT NULL OR id IN (SELECT log_id FROM worklog_files))")
+        .bind(rep.id, today).first();
+      await db.batch(del.concat([
+        db.prepare("UPDATE worklog SET repeat_id = NULL WHERE repeat_id = ?").bind(rep.id),
+        db.prepare("DELETE FROM worklog_repeats WHERE id = ?").bind(rep.id),
+      ]));
+      return json({ ok: true, kept: (left && left.n) || 0 });
+    }
   }
 
   /* ---------- ค้นหา Work + reason ทุกช่วงวันที่ ----------
@@ -430,9 +689,12 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     }
     const sets = (await db.prepare("SELECT id,name,sort FROM worklog_template_sets WHERE staff_id = ? ORDER BY sort, created_at").bind(me.id).all()).results || [];
     const rows = (await db.prepare("SELECT id,set_id,sort,slot,work,status FROM worklog_templates WHERE staff_id = ? ORDER BY sort").bind(me.id).all()).results || [];
+    const reps = (await db.prepare("SELECT * FROM worklog_repeats WHERE staff_id = ? AND set_id IS NOT NULL").bind(me.id).all()).results || [];
+    const repOut = await repOuts(reps, true);
     return sets.map((x) => ({
       id: x.id, name: x.name,
       rows: rows.filter((r) => r.set_id === x.id).map((r) => ({ id: r.id, slot: r.slot, work: r.work, status: r.status })),
+      repeat: repOut.filter((r) => r.setId === x.id)[0] || null,
     }));
   }
   /* ตรวจแถวแม่แบบที่ส่งมา → { stmts(สร้างแถวใหม่), error } */
@@ -450,6 +712,32 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     }
     return { stmts };
   }
+  /* ทำซ้ำทั้งแม่แบบ — repeat = { freq, days, endDate } ตั้ง/แก้ · null = เลิกทำซ้ำ · ไม่ส่ง = เหมือนเดิม
+     rowsChanged = แก้แถวแม่แบบ → แถวล่วงหน้าที่ยังไม่มีใครแตะสร้างใหม่ตามแถวชุดใหม่ */
+  async function tplRepeatStmts(setId, repeat, rowsChanged) {
+    const cur = await db.prepare("SELECT * FROM worklog_repeats WHERE set_id = ? AND staff_id = ?").bind(setId, me.id).first();
+    if (repeat === undefined) return { stmts: cur && rowsChanged ? dropFutureStmts(cur.id) : [] };
+    if (repeat === null) {
+      if (!cur) return { stmts: [] };
+      return { stmts: dropFutureStmts(cur.id).slice(0, 1).concat([
+        db.prepare("UPDATE worklog SET repeat_id = NULL WHERE repeat_id = ?").bind(cur.id),
+        db.prepare("DELETE FROM worklog_repeats WHERE id = ?").bind(cur.id),
+      ]) };
+    }
+    const cr = cleanRepeat(repeat);
+    if (cr.error) return { error: "ทำซ้ำ: " + cr.error };
+    const v = cr.value, now = nowIso();
+    if (cur) {
+      if (v.end_date && v.end_date < cur.start_date) return { error: "วันสิ้นสุดต้องไม่ก่อนวันเริ่ม" };
+      return { stmts: [db.prepare("UPDATE worklog_repeats SET freq = ?, days = ?, end_date = ?, updated_at = ? WHERE id = ?")
+        .bind(v.freq, v.days, v.end_date, now, cur.id)].concat(dropFutureStmts(cur.id)) };
+    }
+    if (v.end_date && v.end_date < today) return { error: "วันสิ้นสุดต้องไม่ก่อนวันนี้" };
+    if ((await repeatCount()) >= WL_MAX_REPEATS) return { error: "มีงานทำซ้ำได้ไม่เกิน " + WL_MAX_REPEATS + " รายการ" };
+    /* เริ่มวันนี้ — วันนี้ตรงรอบก็เติมให้เลย */
+    return { stmts: [db.prepare("INSERT INTO worklog_repeats (id,staff_id,set_id,slot,work,freq,days,start_date,end_date,gen_until,created_at,updated_at) VALUES (?,?,?,'','',?,?,?,?,?,?,?)")
+      .bind(newId("wr_"), me.id, setId, v.freq, v.days, today, v.end_date, addDays(today, -1), now, now)] };
+  }
   function cleanSetName(v) {
     const n = String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, 60);
     return n || null;
@@ -466,9 +754,12 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
     const now = nowIso(), sid = newId("ts_");
     const r = tplRowStmts(sid, body.rows || [], now);
     if (r.error) return json({ error: r.error }, 400);
+    const rp = body.repeat ? await tplRepeatStmts(sid, body.repeat, true) : { stmts: [] };
+    if (rp.error) return json({ error: rp.error }, 400);
     const last = await db.prepare("SELECT COALESCE(MAX(sort), 0) AS s FROM worklog_template_sets WHERE staff_id = ?").bind(me.id).first();
     await db.batch([db.prepare("INSERT INTO worklog_template_sets (id,staff_id,name,sort,created_at,updated_at) VALUES (?,?,?,?,?,?)")
-      .bind(sid, me.id, name, ((last && last.s) || 0) + 1, now, now)].concat(r.stmts));
+      .bind(sid, me.id, name, ((last && last.s) || 0) + 1, now, now)].concat(r.stmts, rp.stmts));
+    if (rp.stmts.length) await genRepeats([await myStaff()]);
     return json({ ok: true, id: sid, sets: await tplSets() });
   }
   const setMatch = path.match(/^\/worklog\/templates\/([A-Za-z0-9_-]{1,40})$/);
@@ -487,14 +778,18 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
         stmts.push(db.prepare("DELETE FROM worklog_templates WHERE set_id = ? AND staff_id = ?").bind(set.id, me.id));
         stmts.push(...r.stmts);
       }
-      await db.batch(stmts);
+      const rp = await tplRepeatStmts(set.id, body.repeat, body.rows !== undefined);
+      if (rp.error) return json({ error: rp.error }, 400);
+      await db.batch(stmts.concat(rp.stmts));
+      if (rp.stmts.length) await genRepeats([await myStaff()]);
       return json({ ok: true, sets: await tplSets() });
     }
     if (method === "DELETE") {
+      const rp = await tplRepeatStmts(set.id, null, false);
       await db.batch([
         db.prepare("DELETE FROM worklog_templates WHERE set_id = ? AND staff_id = ?").bind(set.id, me.id),
         db.prepare("DELETE FROM worklog_template_sets WHERE id = ?").bind(set.id),
-      ]);
+      ].concat(rp.stmts));
       return json({ ok: true, sets: await tplSets() });
     }
   }
@@ -594,7 +889,7 @@ export async function handleWorklogApi(db, request, url, path, method, me, perm,
 
   /* ---------- แถวเดียว: แก้ / ลบ / แนบรูป / ประวัติ ---------- */
   const rowMatch = path.match(/^\/worklog\/([A-Za-z0-9_-]{1,40})(\/files|\/history)?$/);
-  if (rowMatch && ["template", "templates", "search", "copy", "copy-source", "files"].indexOf(rowMatch[1]) === -1) {
+  if (rowMatch && ["template", "templates", "search", "copy", "copy-source", "files", "repeats"].indexOf(rowMatch[1]) === -1) {
     const id = rowMatch[1], sub = rowMatch[2] || "";
     const row = await loadRow(id);
     if (!row || !(await canSeeStaffId(row.staff_id))) return json({ error: "ไม่พบแถวนี้" }, 404);
