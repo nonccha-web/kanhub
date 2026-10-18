@@ -772,6 +772,25 @@ async function handlePublicPromos(request, env, url) {
   return new Response(JSON.stringify(data), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" } });
 }
 
+/* หน้าวงล้อสุ่มรางวัล kan-hub.com/lucky-draw (นนท์ 18 ต.ค. 69)
+   repo เปิดอ่านได้ — รายชื่อลูกค้ากับแฮชรหัสเก็บใน D1 task_settings 'lucky_draw' {pwHash, people[]} ไม่อยู่ในไฟล์หน้าเว็บ */
+async function handleLuckyDraw(request, env) {
+  if (request.method !== "POST" || !env.KAN_ERP) return json({ error: "not found" }, 404);
+  let body = {};
+  try { body = await request.json(); } catch (e) { body = {}; }
+  const row = await env.KAN_ERP.prepare("SELECT value FROM task_settings WHERE key = 'lucky_draw'").first().catch(() => null);
+  let cfg = null;
+  try { cfg = row && row.value ? JSON.parse(row.value) : null; } catch (e) { cfg = null; }
+  if (!cfg || !cfg.pwHash) return json({ error: "ยังไม่ได้ตั้งค่า" }, 503);
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(body.code || "")));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex !== cfg.pwHash) {
+    await new Promise((r) => setTimeout(r, 800));
+    return json({ error: "รหัสไม่ถูกต้อง" }, 401);
+  }
+  return json({ title: cfg.title || "", people: cfg.people || [] });
+}
+
 export default {
   /* cron จาก wrangler.jsonc — แจ้งงานเข้ากลุ่ม Lark 3 รอบ/วัน */
   async scheduled(event, env, ctx) {
@@ -807,6 +826,7 @@ export default {
     if (cmd) return serveChatMedia(env, cmd[1]);
     /* ปุ่ม "สนใจสั่งซื้อ" หน้าขายสาธารณะ (kan-hub.com/grade-b) → ลีดใน CRM */
     if (url.pathname === "/api/sale-lead") return handleSaleLead(request, env, ctx);
+    if (url.pathname === "/api/lucky-draw") return handleLuckyDraw(request, env);
     /* หน้าโปรโมชั่นสำหรับลูกค้า (kan-hub.com/promo · ริชเมนู LINE OA) — ไม่ต้องล็อกอิน ส่งออกเฉพาะข้อมูลที่ลูกค้าควรเห็น */
     if (url.pathname === "/api/promos" || url.pathname.indexOf("/api/promos/img/") === 0) return handlePublicPromos(request, env, url);
     const isAdminHost = host.indexOf("admin.") === 0 || host.endsWith(".workers.dev") ||

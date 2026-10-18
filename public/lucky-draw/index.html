@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>KAN Fashion Lucky Draw</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--pink:#C20976;--pink2:#E0559E;--green:#009A17;--ink:#22111a;--bg:#fff7fb;--line:#f1d6e5}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,sans-serif;background:radial-gradient(ellipse at top,#ffe3f1 0%,var(--bg) 55%);color:var(--ink);min-height:100vh;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:28px;align-items:start}
+header{grid-column:1/-1;text-align:center}
+header .k{font-size:14px;font-weight:600;color:var(--pink);letter-spacing:2px}
+header h1{font-size:clamp(28px,4.4vw,46px);font-weight:700;line-height:1.15}
+header p{color:#7a5a6b;margin-top:4px}
+.prize{display:inline-flex;gap:8px;align-items:center;margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 8px 6px 16px}
+.prize input{border:0;font:inherit;font-weight:700;color:var(--pink);width:min(56vw,300px);outline:none;background:transparent}
+.stage{position:relative;display:flex;flex-direction:column;align-items:center}
+.wheel-box{position:relative;width:min(92vw,640px,calc(100vh - 290px));min-width:300px;aspect-ratio:1}
+#wheel{width:100%;height:100%;border-radius:50%;box-shadow:0 18px 50px rgba(194,9,118,.25),0 0 0 10px #fff,0 0 0 16px var(--pink)}
+.pointer{position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:22px solid transparent;border-right:22px solid transparent;border-top:44px solid var(--green);filter:drop-shadow(0 4px 4px rgba(0,0,0,.25));z-index:3}
+.hub{position:absolute;inset:0;margin:auto;width:22%;height:22%;border-radius:50%;background:#fff;border:6px solid var(--pink);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--pink);font-size:clamp(14px,2.4vw,22px);z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.bulbs{position:absolute;inset:-14px;pointer-events:none}
+.bulbs i{position:absolute;width:10px;height:10px;border-radius:50%;background:#ffe27a;box-shadow:0 0 8px #ffd23a;transform:translate(-50%,-50%)}
+.spinning .bulbs i:nth-child(odd){animation:blink .25s infinite alternate}
+@keyframes blink{to{opacity:.2}}
+.btn{margin-top:26px;border:0;cursor:pointer;font:inherit;font-weight:700;font-size:24px;color:#fff;background:linear-gradient(180deg,var(--pink2),var(--pink));padding:16px 64px;border-radius:999px;box-shadow:0 8px 0 #8a0654,0 14px 26px rgba(194,9,118,.35);transition:transform .08s}
+.btn:active{transform:translateY(4px);box-shadow:0 4px 0 #8a0654}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.opts{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:14.5px;color:#6b4a5b}
+.opts label{display:flex;gap:6px;align-items:center;cursor:pointer}
+aside{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px}
+aside h2{font-size:17px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline}
+aside h2 small{font-size:13px;color:#9a7a8b;font-weight:400}
+.list{max-height:340px;overflow:auto;font-size:14px;border-top:1px solid var(--line)}
+.list div{display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px dashed var(--line)}
+.list div.out{color:#bba;text-decoration:line-through}
+.list span{color:#9a7a8b;font-variant-numeric:tabular-nums}
+.hist{margin-top:18px}
+.hist ol{padding-left:22px;font-size:14.5px}
+.hist li{padding:5px 0;border-bottom:1px solid var(--line)}
+.hist li b{color:var(--pink)}
+.hist li small{display:block;color:#9a7a8b}
+.mini{margin-top:12px;background:none;border:1px solid var(--line);border-radius:10px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:#6b4a5b}
+.modal{position:fixed;inset:0;background:rgba(40,0,22,.55);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+.modal.on{display:flex}
+.card{background:#fff;border-radius:26px;padding:34px 30px 28px;text-align:center;width:min(92vw,520px);animation:pop .5s cubic-bezier(.2,1.6,.4,1);position:relative;overflow:hidden}
+.card:before{content:"";position:absolute;inset:-50%;background:conic-gradient(from 0deg,transparent 0 20deg,rgba(194,9,118,.07) 20deg 40deg);background-size:100% 100%;animation:rays 8s linear infinite;z-index:0}
+.card>*{position:relative;z-index:1}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+@keyframes rays{to{transform:rotate(360deg)}}
+.card .t{font-weight:700;color:var(--green);letter-spacing:1px}
+.card .trophy{font-size:64px;line-height:1;margin:6px 0}
+.card .name{font-size:clamp(28px,6vw,40px);font-weight:700;color:var(--pink);line-height:1.2;margin:6px 0}
+.card .sub{color:#6b4a5b}
+.card .pz{display:inline-block;margin-top:14px;background:#fff0f7;border:1px solid var(--line);border-radius:12px;padding:8px 16px;font-weight:700}
+.card .acts{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.card .acts button{font:inherit;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer;border:1px solid var(--line);background:#fff}
+.card .acts .go{background:var(--pink);color:#fff;border-color:var(--pink)}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
+.edit{display:none;margin-top:10px}
+.edit.on{display:block}
+.edit textarea{width:100%;height:180px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:8px}
+footer{grid-column:1/-1;text-align:center;font-size:12px;color:#c4a8b6;margin-top:10px}
+@media (max-width:900px){.wrap{grid-template-columns:1fr}}
+</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <div class="k">KAN FASHION · สุราษฎร์</div>
+    <h1>หมุนวงล้อ ลุ้นรางวัลลูกค้าคนพิเศษ</h1>
+    <p>สุ่มจากลูกค้าที่มียอดซื้อสะสมเดือนนี้ ไม่มีชื่อซ้ำ</p>
+    <div class="prize">🎁 รางวัล <input id="prize" value="แก้ว KAN Fashion"></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="wheel-box">
+      <div class="pointer"></div>
+      <canvas id="wheel" width="1280" height="1280"></canvas>
+      <div class="hub">KAN</div>
+      <div class="bulbs" id="bulbs"></div>
+    </div>
+    <button class="btn" id="spin">หมุนเลย!</button>
+    <div class="opts">
+      <label><input type="checkbox" id="removeWin" checked> คนที่ได้รางวัลแล้ว ไม่สุ่มซ้ำ</label>
+      <label><input type="checkbox" id="sound" checked> เปิดเสียง</label>
+    </div>
+  </div>
+
+  <aside>
+    <h2>รายชื่อผู้มีสิทธิ์ <small id="count"></small></h2>
+    <div class="list" id="list"></div>
+    <button class="mini" id="editBtn">แก้รายชื่อ</button>
+    <div class="edit" id="edit">
+      <textarea id="editTa"></textarea>
+      <button class="mini" id="saveEdit">บันทึกรายชื่อ</button>
+    </div>
+    <div class="hist">
+      <h2>ผู้โชคดี <small id="hcount"></small></h2>
+      <ol id="hist"></ol>
+      <button class="mini" id="reset">เริ่มใหม่ทั้งหมด</button>
+    </div>
+  </aside>
+  <footer>Powered by M Creation</footer>
+</div>
+
+<div class="modal" id="modal"><div class="card">
+  <div class="t">ขอแสดงความยินดี</div>
+  <div class="trophy">🏆</div>
+  <div class="name" id="wName"></div>
+  <div class="sub" id="wSub"></div>
+  <div class="pz" id="wPrize"></div>
+  <div class="acts"><button id="close">ปิด</button><button class="go" id="again">หมุนต่อ</button></div>
+</div></div>
+<canvas id="fx"></canvas>
+<div class="modal on" id="gate"><form class="card" id="gateForm" autocomplete="off">
+  <div class="t">KAN FASHION LUCKY DRAW</div>
+  <div class="trophy">🔒</div>
+  <div class="sub">ใส่รหัสเพื่อเปิดวงล้อ</div>
+  <input id="gateCode" inputmode="numeric" type="password" autofocus style="margin-top:14px;font:inherit;font-size:28px;text-align:center;letter-spacing:8px;width:200px;padding:8px;border:2px solid var(--line);border-radius:14px">
+  <div id="gateErr" style="color:#c0392b;min-height:22px;margin-top:8px;font-size:14px"></div>
+  <div class="acts"><button class="go" id="gateBtn">เข้าสู่หน้า</button></div>
+</form></div>
+
+<script>
+(function () {
+  /* ชื่อ · เบอร์ 4 ตัวท้าย · ยอดสะสม — ตัดชื่อซ้ำแล้ว (เบอร์เต็มไม่ขึ้นหน้าเว็บ) */
+  var SEED = [];
+  var KEY = 'kan-lucky-draw-v1';
+  var st = { people: [], wins: [] };
+  function fresh(list) { return { sig: listSig(list), people: list.map(function (r) { return { n: r[0], p: r[1], a: r[2], out: false }; }), wins: [] }; }
+  function listSig(list) { return list.map(function (r) { return r[1]; }).join(','); }
+  function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  var $ = function (id) { return document.getElementById(id); };
+  var cv = $('wheel'), ctx = cv.getContext('2d'), R = cv.width / 2;
+  var COLORS = ['#C20976', '#009A17', '#E0559E', '#ffffff', '#8E0757', '#2DB84A'];
+  var rot = 0, spinning = false;
+
+  function pool() { return st.people.filter(function (p) { return !($('removeWin').checked && p.out); }); }
+  function fmt(n) { return Number(n).toLocaleString('th-TH'); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  function draw() {
+    var ps = pool(), n = ps.length;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.save(); ctx.translate(R, R); ctx.rotate(rot);
+    if (!n) { ctx.restore(); return; }
+    var seg = Math.PI * 2 / n;
+    var fs = Math.max(18, Math.min(40, 900 / n));
+    for (var i = 0; i < n; i++) {
+      var a0 = -Math.PI / 2 + i * seg;
+      var col = COLORS[i % (n % COLORS.length === 1 ? COLORS.length - 1 : COLORS.length)];
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R - 4, a0, a0 + seg); ctx.closePath();
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; ctx.stroke();
+      var mid = a0 + seg / 2;
+      /* ชื่อครึ่งซ้ายของวงล้อกลับด้านให้อ่านได้ ไม่หัวทิ่ม */
+      var left = Math.cos(mid + rot) < 0;
+      ctx.save(); ctx.rotate(mid);
+      ctx.fillStyle = col === '#ffffff' ? '#C20976' : '#fff';
+      ctx.font = '700 ' + fs + 'px Anuphan, sans-serif';
+      ctx.textBaseline = 'middle';
+      var label = ps[i].n.length > 18 ? ps[i].n.slice(0, 17) + '…' : ps[i].n;
+      if (left) { ctx.rotate(Math.PI); ctx.textAlign = 'left'; ctx.fillText(label, -(R - 40), 0); }
+      else { ctx.textAlign = 'right'; ctx.fillText(label, R - 40, 0); }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function bulbs() {
+    var h = '';
+    for (var i = 0; i < 28; i++) { var a = i / 28 * Math.PI * 2; h += '<i style="left:' + (50 + 50 * Math.cos(a)) + '%;top:' + (50 + 50 * Math.sin(a)) + '%"></i>'; }
+    $('bulbs').innerHTML = h;
+  }
+
+  function renderSide() {
+    var ps = pool();
+    $('count').textContent = ps.length + ' คน';
+    $('list').innerHTML = st.people.map(function (p) {
+      return '<div class="' + (p.out ? 'out' : '') + '"><b>' + esc(p.n) + '</b><span>xxx-' + esc(p.p) + ' · ' + fmt(p.a) + ' ฿</span></div>';
+    }).join('');
+    $('hcount').textContent = st.wins.length ? st.wins.length + ' คน' : '';
+    $('hist').innerHTML = st.wins.map(function (w) {
+      return '<li><b>' + esc(w.n) + '</b> · xxx-' + esc(w.p) + '<small>' + esc(w.prize) + ' · ' + esc(w.at) + '</small></li>';
+    }).join('');
+    $('spin').disabled = spinning || ps.length < 1;
+  }
+
+  /* ---------- เสียง (สร้างสดด้วย Web Audio ไม่ต้องโหลดไฟล์) ---------- */
+  var ac = null;
+  function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); return ac; }
+  function tone(f, t0, dur, type, vol) {
+    var a = audio(); if (!a || !$('sound').checked) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(vol || .2, a.currentTime + t0);
+    g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + t0 + dur);
+    o.connect(g); g.connect(a.destination); o.start(a.currentTime + t0); o.stop(a.currentTime + t0 + dur + .02);
+  }
+  function tick() { tone(1500 + Math.random() * 200, 0, .04, 'square', .07); }
+  function fanfare() {
+    [[523, 0], [659, .12], [784, .24], [1047, .36], [784, .52], [1047, .64]].forEach(function (x) { tone(x[0], x[1], .35, 'triangle', .25); tone(x[0] * 2, x[1], .2, 'sine', .06); });
+    for (var i = 0; i < 14; i++) tone(1800 + Math.random() * 1800, .8 + i * .07, .12, 'sine', .07);
+  }
+
+  /* ---------- พลุกระดาษ ---------- */
+  var fx = $('fx'), fc = fx.getContext('2d'), parts = [], fxOn = false;
+  function sizeFx() { fx.width = innerWidth; fx.height = innerHeight; }
+  addEventListener('resize', sizeFx); sizeFx();
+  function burst() {
+    var cols = ['#C20976', '#009A17', '#ffd23a', '#E0559E', '#ffffff', '#2DB84A'];
+    for (var s = 0; s < 3; s++) {
+      var x = innerWidth * (0.2 + 0.3 * s), y = innerHeight * 0.35;
+      for (var i = 0; i < 90; i++) {
+        var a = Math.random() * Math.PI * 2, v = 4 + Math.random() * 9;
+        parts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 4, r: 4 + Math.random() * 5, c: cols[i % cols.length], life: 120 + Math.random() * 60, rot: Math.random() * 6, vr: Math.random() * .3 - .15 });
+      }
+    }
+    if (!fxOn) { fxOn = true; requestAnimationFrame(step); }
+  }
+  function step() {
+    fc.clearRect(0, 0, fx.width, fx.height);
+    parts = parts.filter(function (p) { return p.life > 0; });
+    parts.forEach(function (p) {
+      p.vy += .22; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      fc.save(); fc.translate(p.x, p.y); fc.rotate(p.rot); fc.globalAlpha = Math.min(1, p.life / 40);
+      fc.fillStyle = p.c; fc.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); fc.restore();
+    });
+    if (parts.length) requestAnimationFrame(step); else { fxOn = false; fc.clearRect(0, 0, fx.width, fx.height); }
+  }
+
+  /* ---------- หมุน ---------- */
+  function rand(n) { var u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] % n; }
+  function spin(fast) {
+    var ps = pool(); if (spinning || !ps.length) return;
+    audio();
+    spinning = true; $('stage').classList.add('spinning'); renderSide();
+    var n = ps.length, seg = Math.PI * 2 / n, win = rand(n);
+    /* จบให้กลางช่องผู้ชนะอยู่ใต้ลูกศรด้านบน · เยื้องในช่องนิดหน่อยให้ดูเป็นธรรมชาติ */
+    var jitter = (Math.random() - .5) * seg * .6;
+    var base = rot % (Math.PI * 2);
+    var target = rot - base + Math.PI * 2 * (fast ? 2 : 8) + (Math.PI * 2 - (win * seg + seg / 2)) + jitter;
+    var start = rot, dur = fast ? 600 : 7000, t0 = performance.now(), lastSeg = null;
+    function ease(t) { return 1 - Math.pow(1 - t, 4); }
+    function frame(now) {
+      var t = Math.min(1, (now - t0) / dur);
+      rot = start + (target - start) * ease(t);
+      draw();
+      var under = Math.floor(((Math.PI * 2 - (rot % (Math.PI * 2))) % (Math.PI * 2)) / seg);
+      if (under !== lastSeg) { if (lastSeg !== null) tick(); lastSeg = under; }
+      if (t < 1) requestAnimationFrame(frame); else done(ps[win]);
+    }
+    requestAnimationFrame(frame);
+  }
+  function done(p) {
+    spinning = false; $('stage').classList.remove('spinning');
+    var prize = $('prize').value.trim() || 'รางวัล';
+    var d = new Date();
+    st.wins.push({ n: p.n, p: p.p, prize: prize, at: d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) });
+    if ($('removeWin').checked) p.out = true;
+    save();
+    $('wName').textContent = p.n;
+    $('wSub').textContent = 'เบอร์ลงท้าย ' + p.p + ' · ยอดสะสม ' + fmt(p.a) + ' บาท';
+    $('wPrize').textContent = '🎁 ' + prize;
+    $('modal').classList.add('on');
+    fanfare(); burst(); setTimeout(burst, 700);
+    renderSide();
+  }
+
+  $('spin').onclick = function () { spin(false); };
+  $('again').onclick = function () { $('modal').classList.remove('on'); draw(); renderSide(); setTimeout(function () { spin(false); }, 250); };
+  $('close').onclick = function () { $('modal').classList.remove('on'); draw(); renderSide(); };
+  $('removeWin').onchange = function () { draw(); renderSide(); };
+  $('reset').onclick = function () {
+    if (!confirm('ล้างผู้โชคดีทั้งหมด แล้วเอาทุกคนกลับเข้าวงล้อ?')) return;
+    st.wins = []; st.people.forEach(function (p) { p.out = false; }); save(); draw(); renderSide();
+  };
+  $('editBtn').onclick = function () {
+    $('editTa').value = st.people.map(function (p) { return p.n + ' | ' + p.p + ' | ' + p.a; }).join('\n');
+    $('edit').classList.toggle('on');
+  };
+  $('saveEdit').onclick = function () {
+    var rows = $('editTa').value.split('\n').map(function (l) { return l.split('|').map(function (x) { return x.trim(); }); })
+      .filter(function (r) { return r[0]; });
+    var seen = {};
+    st.people = rows.filter(function (r) { var k = (r[1] || r[0]); if (seen[k]) return false; seen[k] = 1; return true; })
+      .map(function (r) { return { n: r[0], p: String(r[1] || '').replace(/\D/g, '').slice(-4), a: Number(String(r[2] || 0).replace(/[^\d.]/g, '')) || 0, out: false }; });
+    save(); $('edit').classList.remove('on'); draw(); renderSide();
+  };
+  addEventListener('keydown', function (e) { if (e.code === 'Space' && !$('gate').classList.contains('on') && !$('modal').classList.contains('on') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); spin(false); } });
+  window.__spinFast = function () { spin(true); };
+
+  function unlock(code) {
+    return fetch('/api/lucky-draw', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: code }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'เปิดไม่สำเร็จ'); return j; }); })
+      .then(function (j) {
+        var saved = load();
+        st = saved && saved.sig === listSig(j.people) ? saved : fresh(j.people);
+        try { sessionStorage.setItem('kan-ld-code', code); } catch (e) {}
+        $('gate').classList.remove('on'); draw(); renderSide();
+      });
+  }
+  $('gateForm').onsubmit = function (e) {
+    e.preventDefault();
+    var btn = $('gateBtn'); btn.disabled = true; $('gateErr').textContent = '';
+    unlock($('gateCode').value.trim()).catch(function (er) { $('gateErr').textContent = er.message; btn.disabled = false; $('gateCode').select(); });
+  };
+  try { var c0 = sessionStorage.getItem('kan-ld-code'); if (c0) unlock(c0).catch(function () {}); } catch (e) {}
+
+  bulbs();
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () { draw(); renderSide(); });
+  draw(); renderSide();
+})();
+</script>
+</body></html>
