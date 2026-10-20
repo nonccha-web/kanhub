@@ -12,6 +12,7 @@
 <meta property="og:image" content="https://kan-hub.com/new-lot/bag/20-10-26/img/og.jpg">
 <meta property="og:url" content="https://kan-hub.com/new-lot/bag/20-10-26/">
 <meta name="theme-color" content="#FFFFFF">
+<link rel="preload" as="image" href="img/hero.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,600&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap">
@@ -43,38 +44,29 @@
   .mx{ mix-blend-mode:multiply; }
 
   /* ── top bar ── */
-  .top{ position:absolute; top:0; left:0; right:0; z-index:20; color:#fff; }
+  .top{ position:absolute; top:0; left:0; right:0; z-index:20; color:var(--ink); }
   .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:68px; }
   .logo{ font-family:var(--display); font-size:21px; font-weight:700; letter-spacing:-.01em; text-decoration:none; }
   .top nav{ display:flex; gap:26px; font-size:12px; letter-spacing:.16em; text-transform:uppercase; }
   .top nav a{ text-decoration:none; opacity:.9; }
   .top nav a:hover{ opacity:1; text-decoration:underline; text-underline-offset:4px; }
 
-  /* ── hero ──
-     ภาพ hero ยังไม่มี — วางไฟล์ img/hero.webp (2400×1350) + img/hero-m.webp (1080×1350) แล้วขึ้นเองทันที
-     ระหว่างนี้รูปโหลดไม่เจอ → onerror ถอด <picture> ออก เหลือกรอบเส้นประบอกขนาดไว้ */
-  .hero{ position:relative; height:min(92vh,960px); min-height:560px; background:#2A211B; overflow:hidden; color:#fff; }
-  .hero picture, .hero img{ position:absolute; inset:0; width:100%; height:100%; }
-  .hero img{ object-fit:cover; object-position:center 40%; animation:settle 1.8s cubic-bezier(.2,.7,.2,1) both; }
-  @keyframes settle{ from{ transform:scale(1.06); opacity:.4; } to{ transform:none; opacity:1; } }
-  .hero::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg,rgba(0,0,0,.38) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 48%,rgba(0,0,0,.62) 100%); }
-  .hero-ph{ position:absolute; inset:84px var(--gut) auto; height:calc(100% - 84px - 300px); min-height:120px;
-            border:1.5px dashed rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; text-align:center;
-            font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.4); }
-  .hero-copy{ position:absolute; left:0; right:0; bottom:0; z-index:2; }
-  .hero-copy .wrap{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding-bottom:clamp(28px,6vh,64px); }
-  .hero .eyebrow{ color:rgba(255,255,255,.78); }
+  /* ── hero ── ภาพนางแบบถือ Coach ขอบครีม (No. 18) พื้นขาว → hero สว่าง โชว์รูปเต็ม ข้อความอยู่ใต้รูปไม่ทับกระเป๋า */
+  .hero{ position:relative; background:#F8F7F7; color:var(--ink); padding-top:68px; }
+  .hero-img{ max-width:1672px; margin:0 auto; overflow:hidden; }
+  .hero-img img{ width:100%; height:auto; aspect-ratio:1672/941; object-fit:cover; animation:settle 1.8s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes settle{ from{ transform:scale(1.04); opacity:.4; } to{ transform:none; opacity:1; } }
+  .hero-copy .wrap{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding-top:clamp(20px,3vw,36px); padding-bottom:clamp(36px,5vw,64px); }
   .hero h1{ margin:10px 0 0; font-family:var(--display); font-weight:700; line-height:.92; letter-spacing:-.02em;
-            font-size:clamp(64px,11vw,176px); }
-  .hero h1 .it{ display:block; font-size:.5em; margin-left:.08em; letter-spacing:0; }
-  .hero-sub{ margin:18px 0 0; max-width:30em; font-size:15px; font-weight:300; color:rgba(255,255,255,.9); }
-  .hero-cta{ display:inline-flex; align-items:center; gap:12px; margin-top:22px; padding:14px 26px; background:#fff; color:var(--ink);
+            font-size:clamp(60px,9.5vw,152px); }
+  .hero h1 .it{ display:block; font-size:.5em; margin-left:.08em; letter-spacing:0; color:var(--rust); }
+  .hero-sub{ margin:18px 0 0; max-width:30em; font-size:15px; font-weight:300; color:var(--soft); }
+  .hero-cta{ display:inline-flex; align-items:center; gap:12px; margin-top:22px; padding:14px 26px; background:var(--ink); color:#fff; border:1px solid var(--ink);
              font-size:13px; font-weight:500; letter-spacing:.04em; text-decoration:none; transition:background .2s,color .2s; }
-  .hero-cta:hover{ background:var(--ink); color:#fff; }
-  .hero-look{ flex:none; text-align:right; font-size:12px; line-height:1.5; color:rgba(255,255,255,.85); text-decoration:none; border:0; background:none; padding:0; }
-  .hero-look b{ display:block; font-weight:500; font-size:13px; color:#fff; }
-  .hero-look span{ border-bottom:1px solid rgba(255,255,255,.6); }
+  .hero-cta:hover{ background:transparent; color:var(--ink); }
+  .hero-look{ flex:none; text-align:right; font-size:12px; line-height:1.5; color:var(--soft); text-decoration:none; border:0; background:none; padding:0; }
+  .hero-look b{ display:block; font-weight:500; font-size:13px; color:var(--ink); }
+  .hero-look span{ border-bottom:1px solid var(--mut); }
 
   /* ── intro strip ── */
   .intro{ border-bottom:1px solid var(--line); }
@@ -228,8 +220,7 @@
   }
   @media (max-width:760px){
     .top nav a:not(.keep){ display:none; }
-    .hero{ height:86svh; min-height:520px; }
-    .hero-ph{ height:calc(100% - 84px - 340px); }
+    .hero-img img{ aspect-ratio:1/1; object-position:42% center; }
     .intro .wrap{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
     .hero-copy .wrap{ flex-direction:column; align-items:flex-start; }
     .hero-look{ text-align:left; }
@@ -274,11 +265,9 @@
 </header>
 
 <section class="hero">
-  <div class="hero-ph" aria-hidden="true">Hero image · 2400×1350<br>มือถือ 1080×1350</div>
-  <picture>
-    <source media="(max-width:699px)" srcset="img/hero-m.webp">
-    <img src="img/hero.webp" alt="กระเป๋าแบรนด์ล็อตใหม่ 20 ต.ค." fetchpriority="high" onerror="this.parentNode.remove()">
-  </picture>
+  <div class="hero-img">
+    <img src="img/hero.webp" alt="นางแบบถือกระเป๋า Coach Signature ขอบหนังครีม จากล็อตนี้" width="1672" height="941" fetchpriority="high">
+  </div>
   <div class="hero-copy">
     <div class="wrap">
       <div>
@@ -287,9 +276,9 @@
         <p class="hero-sub">กระเป๋าแบรนด์มือสองล็อตใหม่ คัดมือทีละใบ ทุกแบบมีใบเดียว</p>
         <a class="hero-cta" href="#one">ดูล็อตนี้ <span aria-hidden="true">↓</span></a>
       </div>
-      <button type="button" class="hero-look" data-open="b02">
-        <b>The One</b>
-        <span>Louis Vuitton Cerises — ดูใบจริง</span>
+      <button type="button" class="hero-look" data-open="b18">
+        <b>In the frame</b>
+        <span>Coach Signature ขอบครีม — ดูใบจริง</span>
       </button>
     </div>
   </div>
@@ -447,7 +436,7 @@
     ["b15","ทรงพระจันทร์ครึ่งซีกสีชมพู","",               "shoulder",[15],    "ไนลอนสีชมพูช็อกกิ้งขอบดำ ซิปหน้า สายปรับได้ น้ำหนักเบา"],
     ["b16","กระเป๋าถือหนังสีนู้ด","kate spade",            "hand",    [16],    "หนังสีนู้ดชมพูหม่น หูหิ้วโค้ง ป้ายโลโก้ทอง มีห่วงคล้องสายยาว"],
     ["b17","เมสเซนเจอร์สีดำ","DIESEL",                    "cross",   [17,18], "ผ้าไนลอนสีดำ ขอบหนัง ปั๊มลาย FOR SUCCESSFUL LIVING สายผ้าใหญ่"],
-    ["b18","Signature สะพายไหล่ขอบครีม","Coach",          "shoulder",[19,27], "ลายซิกเนเจอร์ C น้ำตาล ขอบหนังครีม สายหนังปรับได้ ป้ายห้อยหนัง"],
+    ["b18","Signature สะพายไหล่ขอบครีม","Coach",          "shoulder",[19,27], "ลายซิกเนเจอร์ C น้ำตาล ขอบหนังครีม สายหนังปรับได้ ป้ายห้อยหนัง ใบเดียวกับในภาพปก"],
     ["b19","Signature hobo ขอบน้ำตาลเข้ม","Coach",        "shoulder",[20],    "ลายซิกเนเจอร์ C กระเป๋าหน้ากระดุมแป๊ก ขอบหนังน้ำตาลเข้ม สายยาว"],
     ["b20","Signature hobo ดำ-เทา","Coach",               "shoulder",[21],    "ลายซิกเนเจอร์ C โทนดำ-เทา ซิปหน้า ขอบหนังดำ สายหนังสะพายไหล่"],
     ["b21","สะพายข้างใบเล็กแถบม่วง","Coach",              "cross",   [22],    "ลายซิกเนเจอร์ C ทรงกล่องใบเล็ก แถบกลางสีม่วง สายหนังน้ำตาลเข้ม"],
@@ -457,7 +446,7 @@
     ["b25","โท้ทใบเล็ก Signature แถบน้ำตาล","Coach",      "tote",    [26],    "ลายซิกเนเจอร์ C คาดแถบน้ำตาลเข้ม หูหนังคู่ ตอกหมุดทอง"]
   ].map(function (r) { return { id:r[0], name:r[1], brand:r[2], cat:r[3], img:r[4], desc:r[5] }; });
   var BY = {}; P.forEach(function (p) { BY[p.id] = p; });
-  var FLAG = { b02:"The One", b14:"Pick", b11:"Pick", b16:"Pick", b03:"Pick" };
+  var FLAG = { b02:"The One", b18:"In the frame", b14:"Pick", b11:"Pick", b16:"Pick", b03:"Pick" };
   var BIG = { b02:1, b14:1 };   /* ในตารางรวม ให้ 2 ใบนี้กินสองช่อง ตารางจะได้ไม่เรียบเท่ากันหมด */
 
   function $(id) { return document.getElementById(id); }
