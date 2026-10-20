@@ -59,7 +59,7 @@ export function autolink(text: string, used: Set<string>, max = 8, self = ""): R
     const cls = "font-semibold text-brand underline decoration-brand/30 underline-offset-4 hover:decoration-brand";
     /* /grade-b/ กับ /winter/ เป็นไฟล์ static นอกแอป Next — ใช้ <a> ธรรมดา ไม่งั้น Link ไป prefetch แล้ว 404 */
     out.push(
-      /^\/(grade-b|winter)\//.test(href)
+      /^\/(grade-b|winter|new-lot)\//.test(href)
         ? <a key={`${href}-${m.index}`} href={href} className={cls}>{m[0]}</a>
         : <Link key={`${href}-${m.index}`} href={href} className={cls}>{m[0]}</Link>
     );

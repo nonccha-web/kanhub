@@ -3474,6 +3474,18 @@ const SALE_PAGES = {
                       p21: "โค้ตมีฮู้ดซับเชอร์ปาสีดำ", p22: "FILA แจ็คเก็ตเท็ดดี้สีน้ำตาล", p23: "ฟลีซทูโทน ส้มอิฐ × เขียวขี้ม้า", p24: "ฮู้ดดี้ขนแกะสีครีม",
                       p25: "โค้ตคาเมลแต่งขนที่ข้อมือ", p26: "โค้ตสีเทาปกขน", p27: "เทรนช์โค้ตสีเบจ", p28: "UNIQLO โค้ตยาวสีม่วงอ่อน",
                       p29: "เทรนช์โค้ตทรงบานสีแดง" } },
+  /* หน้า kan-hub.com/new-lot/bag/20-10-26 (กระเป๋าแบรนด์ล็อตใหม่ — นนท์ 20 ต.ค. 69) · ล็อตใหม่ = เพิ่ม key "new-lot-<หมวด>-<วว-ดด-ปป>" ตรงนี้
+     cats = รหัสใบในหน้า ชื่อต้องตรงกับ public/new-lot/bag/20-10-26/index.html */
+  "new-lot-bag-20-10-26": { title: "กระเป๋าแบรนด์ล็อตใหม่ 20.10.26", url: "kan-hub.com/new-lot/bag/20-10-26", verb: "สอบถามกระเป๋า",
+              cats: { b01: "Kipling กระเป๋าถือหนังสีเงิน", b02: "Louis Vuitton ซองลายเชอร์รี่ Cerises", b03: "กระเป๋าสานหูหนังสีดำ",
+                      b04: "Kipling ทรงโบว์ลิ่งสีแดงเบอร์รี่", b05: "Coach Signature hobo สีครีม", b06: "PORTER สะพายข้างหนังสีน้ำตาลเข้ม",
+                      b07: "Burberrys สะพายข้างลายตารางวินเทจ", b08: "Kipling สะพายข้างใบเล็กสีขาวมุก", b09: "Christian Dior สายกระเป๋าปักโลโก้",
+                      b10: "Kipling กระเป๋า 2 ทางสีน้ำตาลเทา", b11: "YSL โท้ทผ้าสีดำ", b12: "Coach โท้ทลายตารางสีรุ้ง",
+                      b13: "Kipling สะพายข้างสีเทาเดนิม", b14: "Burberry ลายเช็คฝาหนังกรม", b15: "ทรงพระจันทร์ครึ่งซีกสีชมพู",
+                      b16: "kate spade กระเป๋าถือหนังสีนู้ด", b17: "DIESEL เมสเซนเจอร์สีดำ", b18: "Coach Signature สะพายไหล่ขอบครีม",
+                      b19: "Coach Signature hobo ขอบน้ำตาลเข้ม", b20: "Coach Signature hobo ดำ-เทา", b21: "Coach สะพายข้างใบเล็กแถบม่วง",
+                      b22: "GUESS โท้ทยีนส์ห่วงโลโก้", b23: "GUESS โท้ทลายดอกไม้ × จุด", b24: "Kipling สะพายข้างสีกรม",
+                      b25: "Coach โท้ทใบเล็ก Signature แถบน้ำตาล" } },
   /* 4 แบบขายบนเว็บหลัก (นนท์ 25 ก.ย. 69) — ราคาต่อหน่วยไว้ประเมินมูลค่าลีด ทีมขายยืนยันราคาจริงอีกที */
   "bale": { title: "ก้อนผ้า 350 กก.", url: "kan-hub.com/catalog/bale", verb: "สอบถามก้อนผ้า",
             choices: { OSAKA: 8000, NAGOYA: 11000 }, unit: "ก้อน", maxQty: 20 },
@@ -3495,7 +3507,7 @@ function saleSummary(key, page, body) {
   const baht = (n) => Number(n).toLocaleString("en-US");
   const lines = [];
   let est = 0;
-  if (page.cats) {   /* grade-b + winter — เลือกจากรายการในหน้า */
+  if (page.cats) {   /* grade-b + winter + new-lot — เลือกจากรายการในหน้า */
     const cats = (Array.isArray(body.cats) ? body.cats : []).map(String).filter((k) => page.cats[k]);
     if (cats.length) lines.push("สนใจ: " + cats.map((k) => page.cats[k]).join(", "));
     if (key === "grade-b") est = 1500;

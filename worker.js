@@ -877,8 +877,16 @@ export default {
 
     // ที่เหลือ (รวม workers.dev + localhost ตอน dev) — /admin ต้องผ่านด่านสิทธิ์เหมือนกัน
     if (url.pathname.indexOf("/admin") === 0) return await serveAdmin(request, env, url);
-    /* รูปอัลบั้มหน้าขาย (/grade-b/img/*) ไม่เปลี่ยนแล้ว — ให้มือถือเก็บไว้ 7 วัน เปิดลิงก์ซ้ำไม่ต้องถามเซิร์ฟเวอร์ทีละรูป */
-    if (/^\/grade-b\/img\//.test(url.pathname)) {
+    /* ล็อตใหม่ /new-lot/<หมวด>/<วว-ดด-ปป>/ — หน้าหมวดเปล่า ๆ พาไปล็อตล่าสุด (ลิงก์ในไบโอ/แอดใช้ /new-lot/bag/ ได้ตลอด ไม่ต้องแก้ทุกล็อต)
+       ขึ้นล็อตใหม่: เพิ่มโฟลเดอร์ใน public/new-lot/<หมวด>/ แล้วแก้วันที่ตรงนี้ที่เดียว */
+    const LATEST_LOT = { bag: "20-10-26" };
+    const lotHub = url.pathname.match(/^\/new-lot(?:\/([a-z-]+))?\/?$/);
+    if (lotHub) {
+      const cat = lotHub[1] || "bag";
+      if (LATEST_LOT[cat]) return Response.redirect(url.origin + "/new-lot/" + cat + "/" + LATEST_LOT[cat] + "/" + url.search, 302);
+    }
+    /* รูปอัลบั้มหน้าขาย (/grade-b/img/* · /new-lot/.../img/*) ไม่เปลี่ยนแล้ว — ให้มือถือเก็บไว้ 7 วัน เปิดลิงก์ซ้ำไม่ต้องถามเซิร์ฟเวอร์ทีละรูป */
+    if (/^\/(grade-b|new-lot\/[a-z-]+\/[0-9-]+)\/img\//.test(url.pathname)) {
       const res = await env.ASSETS.fetch(request);
       if (res.status !== 200) return res;
       const out = new Response(res.body, res);

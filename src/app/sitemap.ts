@@ -7,7 +7,7 @@ export const dynamic = "force-static";
 
 /* ทุกหน้าที่อยากให้ Google เก็บ — หน้าเพิ่มใหม่ต้องมาเติมที่นี่ (หน้า static ใน public/ ไม่ถูกเก็บอัตโนมัติ) */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const sale = ["/catalog/bale", "/catalog/sack-45", "/catalog/pha-hang", "/grade-b/", "/winter/"];
+  const sale = ["/catalog/bale", "/catalog/sack-45", "/catalog/pha-hang", "/grade-b/", "/winter/", "/new-lot/bag/20-10-26/"];
   const routes = Array.from(new Set([
     "/",
     ...NAV.map((n) => n.href),
