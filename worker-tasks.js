@@ -1650,6 +1650,27 @@ export async function handleTaskApi(request, env, url, path, method, ctx) {
     return json({ ok: true });
   }
 
+  /* เป้าจำนวนโพสต์ต่อสัปดาห์รายเพจ (เด็คแผนคอนเทนต์ m-creation.co/client/new/kanhub · นนท์ 21 ต.ค. 69)
+     ใช้ตอนประชุมแผนจันทร์ 14:00 — หัวหน้าแก้ตัวเลขได้ */
+  if (path === "/posts/targets" && method === "GET") {
+    const r = await db.prepare("SELECT value FROM task_settings WHERE key = 'post_targets'").first();
+    let t = null;
+    try { t = r && r.value ? JSON.parse(r.value) : null; } catch (e) { t = null; }
+    return json({ targets: t || { pg_hub: 8, pg_kst3: 17, pg_kst1: 17, pg_fashion: 17 } });
+  }
+  if (path === "/posts/targets" && method === "PUT") {
+    if (!isOwner) return json({ error: "เฉพาะหัวหน้า" }, 403);
+    const body = await readBody(request);
+    const out = {};
+    Object.keys(body.targets || {}).slice(0, 20).forEach((k) => {
+      const n = Math.round(Number(body.targets[k]));
+      if (/^[A-Za-z0-9_-]{1,40}$/.test(k) && isFinite(n) && n >= 0 && n <= 200) out[k] = n;
+    });
+    await db.prepare("INSERT INTO task_settings (key,value) VALUES ('post_targets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(JSON.stringify(out)).run();
+    return json({ ok: true, targets: out });
+  }
+
   if (path === "/posts" && method === "GET") {
     const from = url.searchParams.get("from") || "";
     const to = url.searchParams.get("to") || "";

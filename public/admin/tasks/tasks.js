@@ -5137,6 +5137,7 @@
         '<article' + (left.length ? ' class="warn"' : '') + ' data-p="left"><span class="l">ยังไม่ได้โพสต์</span><b>' + left.length + '</b><small>กดเพื่อดูเฉพาะที่ค้าง</small></article>' +
         '<article' + (noLink.length ? ' class="bad"' : '') + ' data-p="nolink"><span class="l">โพสต์แล้วแต่ไม่มีลิงก์</span><b>' + noLink.length + '</b><small>ตรวจไม่ได้ว่าขึ้นจริง</small></article>' +
         '<article data-p="done"><span class="l">โพสต์แล้ว</span><b>' + done.length + '</b><small>' + (skip.length ? skip.length + ' รายการไม่ได้ตั้งโพสต์' : 'ครบตามแผน') + '</small></article></div>';
+      if (!P.campaign) h += '<div id="wkTargets"></div>';
 
       var seg = function (name, opts, obj) {
         return '<div class="seg">' + opts.map(function (o) {
@@ -5245,6 +5246,7 @@
 
       view.innerHTML = h;
       syncPsel();
+      if (!P.campaign) renderWeekTargets();
 
       $('#newPost').addEventListener('click', function () { openPostSheet(); });
 
@@ -5595,6 +5597,74 @@
   }
 
   /* เกจความคืบหน้า — ของเพจที่เลือก หรือรวมทุกเพจ */
+  /* ---- เป้าโพสต์ต่อสัปดาห์ (จันทร์–อาทิตย์) — ใช้ตอนประชุมแผนจันทร์ 14:00 + เช็คทุกวันว่าโพสต์ครบไหม ----
+     เป้าตั้งจากเด็คแผนคอนเทนต์ · โพสต์แล้ว = ติ๊กโพสต์แล้วหรือมีลิงก์ · วิดีโอเดาจาก TikTok / คำว่า คลิป vdo live ในหัวข้อ */
+  var WT = { off: 0, edit: false, targets: null };
+  var VIDEO_RE = /คลิป|วิดีโอ|วีดีโอ|วิดิโอ|vdo|video|reels?|live|ไลฟ์|tiktok/i;
+  function isVideoPost(x) { return (x.channels || []).indexOf('TikTok') !== -1 || VIDEO_RE.test(x.topic || ''); }
+  function weekRange(off) {
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    var mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7) + off * 7);
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return [mon, sun];
+  }
+  function renderWeekTargets() {
+    var host = $('#wkTargets');
+    if (!host) return;
+    var w = weekRange(WT.off), from = ymd(w[0]), to = ymd(w[1]), today = ymd(new Date());
+    var tg = WT.targets ? Promise.resolve({ targets: WT.targets }) : api('/posts/targets');
+    Promise.all([tg, api('/posts?from=' + from + '&to=' + to)]).then(function (r) {
+      WT.targets = r[0].targets || {};
+      var list = (r[1].posts || []).filter(function (x) { return x.status !== 'skip'; });
+      var past = to < today, cur = from <= today && today <= to;
+      var owner = amOwner();
+      var rows = (S.pages || []).map(function (pg) {
+        var mine = list.filter(function (x) { return x.pageId === pg.id; });
+        var target = Number(WT.targets[pg.id] || 0);
+        var posted = mine.filter(function (x) { return x.status === 'done' || x.url; });
+        var dueSoFar = mine.filter(function (x) { return x.date <= today; });
+        var missing = dueSoFar.filter(function (x) { return !(x.status === 'done' || x.url); });
+        var vids = mine.filter(isVideoPost), vidsDone = vids.filter(function (x) { return x.status === 'done' || x.url; });
+        var tone, note;
+        if (target && mine.length < target) { tone = 'bad'; note = 'แผนขาด ' + (target - mine.length); }
+        else if (past && target && posted.length < target) { tone = 'bad'; note = 'โพสต์ขาด ' + (target - posted.length); }
+        else if (missing.length) { tone = 'warn'; note = 'ค้าง ' + missing.length + ' โพสต์ที่ถึงวันแล้ว'; }
+        else if (past || (target && posted.length >= target)) { tone = 'ok'; note = 'ครบ'; }
+        else { tone = ''; note = 'ตามแผน'; }
+        return '<tr class="wt-' + tone + '"><td>' + esc(pg.name) + '</td>' +
+          '<td class="n">' + (WT.edit ? '<input class="input wt-in" type="number" min="0" max="200" data-wt="' + esc(pg.id) + '" value="' + target + '">' : (target || '—')) + '</td>' +
+          '<td class="n">' + mine.length + '</td>' +
+          '<td class="n"><b>' + posted.length + '</b></td>' +
+          '<td class="n">' + vidsDone.length + ' / ' + vids.length + '</td>' +
+          '<td><span class="wt-note">' + esc(note) + '</span></td></tr>';
+      }).join('');
+      var lbl = WT.off === 0 ? 'สัปดาห์นี้' : (WT.off === -1 ? 'สัปดาห์ที่แล้ว' : (WT.off === 1 ? 'สัปดาห์หน้า' : ''));
+      host.innerHTML = '<div class="sec wt"><div class="sec-h"><h2>เป้าโพสต์ต่อสัปดาห์</h2>' +
+        '<div class="mnav"><button type="button" data-wt-nav="-1" aria-label="สัปดาห์ก่อน">‹</button><b>' +
+        esc((lbl ? lbl + ' · ' : '') + fmtDate(w[0], true) + ' – ' + fmtDate(w[1], true)) + '</b>' +
+        '<button type="button" data-wt-nav="1" aria-label="สัปดาห์ถัดไป">›</button>' +
+        (WT.off ? '<button type="button" class="btn-text" data-wt-nav="0">สัปดาห์นี้</button>' : '') + '</div>' +
+        (owner ? (WT.edit ? '<button type="button" class="btn sm" data-wt-save>บันทึกเป้า</button>' : '<button type="button" class="btn-ghost sm" data-wt-edit>แก้เป้า</button>') : '') +
+        '</div><div class="sec-b tight" style="overflow-x:auto"><table class="rpt"><thead><tr><th>เพจ</th><th class="n">เป้า</th><th class="n">วางแผน</th><th class="n">โพสต์แล้ว</th><th class="n">วิดีโอ โพสต์/แผน</th><th>สถานะ</th></tr></thead><tbody>' +
+        rows + '</tbody></table>' +
+        '<p class="wt-foot">' + (cur ? 'สัปดาห์ยังไม่จบ "ค้าง" นับเฉพาะโพสต์ที่ถึงวันแล้ว · ' : '') +
+        'วิดีโอนับจากช่อง TikTok หรือคำว่า คลิป / vdo / live ในหัวข้อ · IG ของ Kan Fashion (เป้า 12/สัปดาห์) ยังไม่อยู่ในตารางนี้</p></div></div>';
+    }).catch(function (e) { host.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+  }
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-wt-nav],[data-wt-edit],[data-wt-save]');
+    if (!b || !$('#wkTargets') || !$('#wkTargets').contains(b)) return;
+    if (b.hasAttribute('data-wt-nav')) { var v = Number(b.getAttribute('data-wt-nav')); WT.off = v ? WT.off + v : 0; return renderWeekTargets(); }
+    if (b.hasAttribute('data-wt-edit')) { WT.edit = true; return renderWeekTargets(); }
+    var t = {};
+    $$('[data-wt]', $('#wkTargets')).forEach(function (i) { t[i.getAttribute('data-wt')] = Number(i.value) || 0; });
+    b.disabled = true;
+    api('/posts/targets', 'PUT', { targets: t }).then(function (j) {
+      WT.targets = j.targets; WT.edit = false; renderWeekTargets();
+      okDialog({ title: 'บันทึกเป้าโพสต์แล้ว', lines: (S.pages || []).map(function (pg) { return pg.name + ': ' + (j.targets[pg.id] || 0) + ' โพสต์/สัปดาห์'; }) });
+    }).catch(function (e) { b.disabled = false; toast(e.message, true); });
+  });
+
   function gaugeHtml(list, label) {
     var live = list.filter(function (x) { return x.status !== 'skip'; });
     var ok = live.filter(function (x) { return postTone(x) === 'ok'; }).length;

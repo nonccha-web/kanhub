@@ -1792,3 +1792,13 @@ label .hintx{ display:inline; }
 .lg-none{ margin:8px 10px; font-size:13px; color:var(--k-mut); }
 .lg-last{ display:flex; align-items:center; gap:10px; width:100%; margin-top:14px; border:1px dashed var(--k-line); border-radius:12px; background:none; padding:10px 12px; cursor:pointer; font:inherit; color:var(--k-soft); text-align:left; }
 .lg-last:hover{ border-color:var(--k-ink); color:var(--k-ink); }
+
+/* เป้าโพสต์ต่อสัปดาห์ */
+.wt .sec-h{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.wt .sec-h .mnav{ margin-left:auto; }
+.wt tr.wt-bad td{ color:var(--k-warn); }
+.wt tr.wt-bad .wt-note, .wt tr.wt-warn .wt-note, .wt tr.wt-ok .wt-note{ font-weight:600; }
+.wt tr.wt-warn .wt-note{ color:#B7791F; }
+.wt tr.wt-ok .wt-note{ color:#1F8A4C; }
+.wt-in{ width:72px; height:30px; text-align:right; }
+.wt-foot{ font-size:12px; color:var(--k-mut); margin:10px 12px 4px; }
