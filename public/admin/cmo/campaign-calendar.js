@@ -74,6 +74,15 @@
   try { var _b = localStorage.getItem("kan-cc-branch"); view.branch = (_b === NO_BRANCH || BRANCHES.indexOf(_b) !== -1) ? _b : ""; } catch (e) {}   /* ค่าที่จำไว้เป็นสาขาเก่า = กลับไปทุกสาขา */
   try { view.layout = localStorage.getItem("kan-cc-layout") === "grid" ? "grid" : "cal"; } catch (e) {}
   try { var _g = localStorage.getItem("kan-cc-group"); view.group = GROUP_KEYS.indexOf(_g) !== -1 ? _g : "day"; } catch (e) {}
+  /* สร้างโดย + โหมดสี (นนท์ 30 ต.ค. 69: แยกดูงานที่ตัวเองสร้าง · ชอบดูด้วยสี เทียบกับของคนอื่น/งานเก่า)
+     เก็บแยกจาก view เพราะตอนสลับปี/เดือนบางจุดสร้าง view ใหม่ทั้งก้อน */
+  var me = "";
+  var BY_OPTS = [["", "ทั้งหมด"], ["mine", "ฉัน"], ["others", "คนอื่น"], ["none", "ไม่ระบุ (งานเก่า)"]];
+  var BY_COLOR = { mine: "#2563EB", others: "#F97316", none: "#9CA3AF" };
+  var byFilter = "", colorMode = "kind";
+  try { var _by = localStorage.getItem("kan-cc-by"); byFilter = ["mine", "others", "none"].indexOf(_by) !== -1 ? _by : ""; } catch (e) {}
+  try { colorMode = localStorage.getItem("kan-cc-color") === "creator" ? "creator" : "kind"; } catch (e) {}
+  function byOf(it) { return !it.createdBy ? "none" : (it.createdBy === me ? "mine" : "others"); }
   /* กลุ่มที่พับไว้ — จำแค่ในหน้านี้ ปิดแท็บแล้วกลับมากางใหม่หมด */
   var collapsed = {};
   /* สาขาปัจจุบัน + สาขาเก่าที่ยังติดอยู่กับรายการ (จะได้ยังกรองดูของเก่าได้) */
@@ -89,7 +98,7 @@
   }
   /* รายการที่ผ่านตัวกรองประเภท + สาขา — ทุกมุมมองดึงจากตรงนี้ จะได้กรองพร้อมกันหมด */
   function pool() {
-    return items.filter(function (it) { return (!view.kind || kindOf(it) === view.kind) && inBranch(it, view.branch); });
+    return items.filter(function (it) { return (!view.kind || kindOf(it) === view.kind) && inBranch(it, view.branch) && (!byFilter || byOf(it) === byFilter); });
   }
   function branchLabel() { return view.branch === NO_BRANCH ? "ยังไม่ระบุสาขา" : view.branch; }
   var editingId = null;
@@ -266,6 +275,7 @@
     try {
       var data = await api("/campaigns");
       items = data.campaigns || [];
+      me = data.me || me;
       online = true;
       await loadStatus();
     } catch (e) {
@@ -449,7 +459,7 @@
     }
     return txt;
   }
-  function colorOf(it) { return subOf(it).c; }
+  function colorOf(it) { return colorMode === "creator" ? BY_COLOR[byOf(it)] : subOf(it).c; }
   /* พื้นอ่อนของสีแคมเปญ — คำนวณเป็น rgba เอง จะได้ไม่ต้องพึ่ง color-mix */
   function tint(hex, alpha) {
     var h = hex.replace("#", "");
@@ -484,6 +494,7 @@
     renderBulkBar();
     renderKindBar();
     renderBranchBar();
+    renderByBar();
     renderViewBar();
     renderSoon();
     $("ccYear").innerHTML = be(year) + "<small>ค.ศ. " + year + "</small>";
@@ -868,7 +879,7 @@
   function selNames() { return sel.map(function (id) { var it = byId(id); return it ? it.name : ""; }).filter(Boolean); }
 
   var BULK_ACTS = [["shift", "เลื่อนวัน"], ["dates", "ตั้งวันใหม่"], ["owner", "ผู้รับผิดชอบ"], ["status", "สถานะ"],
-                   ["sub", "ประเภท"], ["branches", "สาขา"], ["delete", "ลบ"]];
+                   ["sub", "ประเภท"], ["branches", "สาขา"], ["mine", "ตั้งเป็นของฉัน"], ["delete", "ลบ"]];
   function bulkEl() {
     var el = $("ccBulk");
     if (!el) {
@@ -910,6 +921,8 @@
     if (bulkAct === "sub") return '<label>เปลี่ยนประเภทเป็น</label><div class="cc-brow cc-bsubs">' + SUBS.map(function (x) {
       return '<button type="button" class="cc-subb" data-bgo="1" data-bval="' + x.k + '"><i style="background:' + x.c + '"></i>' + x.th + "</button>";
     }).join("") + "</div>";
+    if (bulkAct === "mine") return '<label>ตั้ง ' + n + ' รายการนี้เป็นงานที่คุณสร้าง?</label><div class="cc-bnames">' + selNames().map(esc).join(" · ") + "</div>" +
+      '<div class="cc-brow"><button type="button" class="cc-btn primary" data-bgo="1">ยืนยัน ตั้งเป็นของฉัน</button></div>';
     if (bulkAct === "delete") return '<label>ลบ ' + n + ' รายการนี้ออกจากปฏิทิน?</label><div class="cc-bnames">' + selNames().map(esc).join(" · ") + "</div>" +
       '<div class="cc-brow"><button type="button" class="cc-btn danger" data-bgo="1">ยืนยันลบ ' + n + " รายการ</button>" +
       '<span class="cc-hint" style="margin:0">' + (linkedOf(sel) ? "งาน/ป้าย/โพสต์ที่ผูกไว้ถูกลบตามด้วย (" + esc(linkedOf(sel)) + ")" : "ไม่มีงานหรือโพสต์ผูกไว้") + "</span></div>";
@@ -977,6 +990,7 @@
       what = bulkMode === "replace" ? lbl + " → " + (body.names.join(", ") || "(ว่าง)") : (bulkMode === "remove" ? "เอา " + body.names.join(", ") + " ออกจาก" + lbl : "เพิ่ม" + lbl + " " + body.names.join(", "));
     } else if (bulkAct === "status") { body.status = val; what = "สถานะ → " + STATUS_LABEL[val]; }
     else if (bulkAct === "sub") { body.sub = val; what = "ประเภท → " + SUB[val].th; }
+    else if (bulkAct === "mine") { what = "ผู้สร้าง → คุณ"; }
     else if (bulkAct === "delete") { what = "ลบออกจากปฏิทิน"; }
     var names = selNames();
     try {
@@ -1238,6 +1252,24 @@
       return '<button type="button" class="cc-kind' + (view.branch === p[0] ? " on" : "") + '" data-branch="' + esc(p[0]) + '">' +
         esc(p[1]) + '<span class="cc-kn">' + p[2] + "</span></button>";
     }).join("");
+  }
+
+  /* แถวสร้างโดย + สลับสี — นับตามตัวกรองประเภท/สาขาที่เลือกอยู่ */
+  function renderByBar() {
+    var el = $("ccByBar");
+    if (!el) return;
+    var base = items.filter(function (it) { return (!view.kind || kindOf(it) === view.kind) && inBranch(it, view.branch); });
+    var cr = colorMode === "creator";
+    el.innerHTML = '<span class="cc-kindlbl">สร้างโดย</span>' + BY_OPTS.map(function (p) {
+      var n = p[0] ? base.filter(function (it) { return byOf(it) === p[0]; }).length : base.length;
+      var c = cr && p[0] ? BY_COLOR[p[0]] : "";
+      return '<button type="button" class="cc-kind' + (byFilter === p[0] ? " on" : "") + '" data-by="' + p[0] + '"' +
+        (c ? ' style="--kc:' + c + '"' : "") + ">" + (c ? '<i class="cc-kdot" style="background:' + c + '"></i>' : "") +
+        p[1] + '<span class="cc-kn">' + n + "</span></button>";
+    }).join("") +
+      '<span class="cc-cmode"><span class="cc-kindlbl">สีแถบ</span>' +
+      '<button type="button" class="cc-kind' + (cr ? "" : " on") + '" data-cmode="kind">ตามประเภท</button>' +
+      '<button type="button" class="cc-kind' + (cr ? " on" : "") + '" data-cmode="creator">ตามผู้สร้าง</button></span>';
   }
 
   /* ---------- ใต้ช่องวันที่ทุกช่องบอก W กับชื่อวัน — "W2 · วันพุธ" (นนท์: เลือกวันแล้วต้องเห็น W เสมอ) ---------- */
@@ -1748,6 +1780,7 @@
         '<div class="cc-dt-facts">' +
           fact("สาขา", chips(it.branches)) + fact("ช่องทาง", chips(it.channels)) +
           fact("ผู้รับผิดชอบ", it.owner ? esc(it.owner) : '<span class="cc-gmute">—</span>') +
+          fact("สร้างโดย", it.createdBy ? esc(it.createdByName || it.createdBy) : '<span class="cc-gmute">ไม่ระบุ (งานเก่า)</span>') +
           fact("งบ", it.budget ? "฿ " + baht(it.budget) : '<span class="cc-gmute">—</span>') +
           fact("ฝ่ายบัญชี", acc) +
         "</div>" +
@@ -2415,6 +2448,20 @@
     }
     var rdel = e.target.closest(".cc-rdel");
     if (rdel) { var rr = rdel.closest(".cc-range"); if (rr && $("ccRanges").children.length > 1) rr.remove(); allHints(); return; }
+    var byb = e.target.closest("[data-by]");
+    if (byb) {
+      byFilter = byb.dataset.by;
+      try { localStorage.setItem("kan-cc-by", byFilter); } catch (err) {}
+      render();
+      return;
+    }
+    var cmb = e.target.closest("[data-cmode]");
+    if (cmb) {
+      colorMode = cmb.dataset.cmode === "creator" ? "creator" : "kind";
+      try { localStorage.setItem("kan-cc-color", colorMode); } catch (err) {}
+      render();
+      return;
+    }
     var bf = e.target.closest("[data-branch]");
     if (bf) {
       view.branch = bf.dataset.branch;

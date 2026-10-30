@@ -51,7 +51,8 @@ function ensureCampaignSchema(db, env) {
       try { await db.prepare("ALTER TABLE campaigns ADD COLUMN kind TEXT NOT NULL DEFAULT 'campaign'").run(); } catch (e) { /* มีแล้ว */ }
       /* หมวดย่อย · ตารางวัน (หลายช่วง/เวลา/ทำซ้ำ) · งานฝ่ายบัญชี — 27 ก.ย. 69 */
       /* cust_msg = ข้อความถึงลูกค้า โชว์ในหน้าโปรโมชั่นสาธารณะ kan-hub.com/promo (28 ก.ย. 69) */
-      for (const col of ["sub TEXT NOT NULL DEFAULT ''", "schedule TEXT NOT NULL DEFAULT ''", "acc TEXT NOT NULL DEFAULT ''", "cust_msg TEXT NOT NULL DEFAULT ''"]) {
+      /* created_by = staff id ของคนสร้าง (นนท์ 30 ต.ค. 69: แยกดู/ระบายสีงานที่ตัวเองสร้าง) · รายการเก่าว่าง = ไม่ระบุ */
+      for (const col of ["sub TEXT NOT NULL DEFAULT ''", "schedule TEXT NOT NULL DEFAULT ''", "acc TEXT NOT NULL DEFAULT ''", "cust_msg TEXT NOT NULL DEFAULT ''", "created_by TEXT NOT NULL DEFAULT ''"]) {
         try { await db.prepare("ALTER TABLE campaigns ADD COLUMN " + col).run(); } catch (e) { /* มีแล้ว */ }
       }
       /* รายการเก่า: ยกเข้าหมวดย่อยตั้งต้นของหมวดใหญ่ + เปลี่ยนสีเป็นสีของหมวด (ทำครั้งเดียว เพราะ sub ถูกเติมแล้ว) */
@@ -118,6 +119,8 @@ function rowToCampaign(r) {
     schedule: safeObj(r.schedule),
     acc: safeObj(r.acc),
     custMsg: r.cust_msg || "",
+    createdBy: r.created_by || "",
+    createdByName: r.created_by_name || "",
     posts: { total: r.n_posts || 0, done: r.n_posts_done || 0 },
     tasks: { total: r.n_tasks || 0, open: r.n_tasks_open || 0 },
     attachments: attachments,
@@ -260,7 +263,8 @@ const LIST_SQL =
   "(SELECT COUNT(*) FROM posts p WHERE p.campaign_id = c.id) AS n_posts, " +
   "(SELECT COUNT(*) FROM posts p WHERE p.campaign_id = c.id AND p.status = 'done') AS n_posts_done, " +
   "(SELECT COUNT(*) FROM tasks t WHERE t.campaign_id = c.id AND t.parent_id IS NULL) AS n_tasks, " +
-  "(SELECT COUNT(*) FROM tasks t WHERE t.campaign_id = c.id AND t.parent_id IS NULL AND t.status != 'done') AS n_tasks_open " +
+  "(SELECT COUNT(*) FROM tasks t WHERE t.campaign_id = c.id AND t.parent_id IS NULL AND t.status != 'done') AS n_tasks_open, " +
+  "(SELECT s.name FROM staff s WHERE s.id = c.created_by) AS created_by_name " +
   "FROM campaigns c LEFT JOIN attachments a ON a.campaign_id = c.id " +
   "GROUP BY c.id ORDER BY c.start_date ASC";
 
@@ -372,7 +376,7 @@ async function handleApi(request, env, url, ctx) {
   // ---- แคมเปญ ----
   if (path === "/campaigns" && method === "GET") {
     const res = await db.prepare(LIST_SQL).all();
-    return json({ campaigns: (res.results || []).map(rowToCampaign) });
+    return json({ campaigns: (res.results || []).map(rowToCampaign), me: who.id });
   }
 
   /* สถานะงานของทุกโปรฯ ในครั้งเดียว — ปฏิทินเอาไปโชว์บนแถบ/การ์ด ไม่ต้องเปิดหน้ากลับไปกลับมา (นนท์ 19 ก.ย. 69)
@@ -440,10 +444,10 @@ async function handleApi(request, env, url, ctx) {
     const now = new Date().toISOString();
     const acc0 = v.acc ? Object.assign({}, v.acc, { taskId: undefined }) : null;
     await db.prepare(
-      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind,sub,schedule,acc,cust_msg) " +
-      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      "INSERT INTO campaigns (id,name,start_date,end_date,scope,status,channels,branches,budget,owner,note,color,created_at,updated_at,kind,sub,schedule,acc,cust_msg,created_by) " +
+      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, v.name, v.start, v.end, v.scope, v.status, v.channels, v.branches, v.budget,
-           v.owner, v.note, v.color, now, now, v.kind, v.sub, v.schedule, acc0 ? JSON.stringify(acc0) : "", v.custMsg).run();
+           v.owner, v.note, v.color, now, now, v.kind, v.sub, v.schedule, acc0 ? JSON.stringify(acc0) : "", v.custMsg, who.id).run();
     v.acc = acc0;
     const acc = await syncAccTask(db, id, v, who.id);
     return json({ id: id, accTaskId: acc && acc.taskId || null });
@@ -477,6 +481,12 @@ async function handleApi(request, env, url, ctx) {
       }
       await db.batch(st);
       return json({ ok: true, changed: rows.length, tasks: pg.tasks, posts: pg.posts });
+    }
+
+    /* ตั้งเป็นของฉัน — รายการเก่าที่ไม่รู้ว่าใครสร้าง เลือกหลายอันแล้วรับเป็นของตัวเอง (นนท์ 30 ต.ค. 69) */
+    if (act === "mine") {
+      await db.batch(rows.map((r) => db.prepare("UPDATE campaigns SET created_by = ? WHERE id = ?").bind(who.id, r.id)));
+      return json({ ok: true, changed: rows.length });
     }
 
     const names = (Array.isArray(body.names) ? body.names : []).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 20);

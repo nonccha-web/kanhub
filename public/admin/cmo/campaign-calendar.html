@@ -427,6 +427,8 @@ button.cc-mchip:disabled{ opacity:.6; cursor:wait; }
 /* ── ประเภทรายการ: คอนเทนต์ / แคมเปญ / โปรโมชั่น ── */
 .cc-kindbar{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:14px; }
 .cc-kindlbl{ font-size:12px; color:var(--text-muted); margin-right:4px; }
+.cc-cmode{ display:inline-flex; align-items:center; gap:6px; margin-left:auto; }
+@media (max-width:700px){ .cc-cmode{ margin-left:0; } }
 .cc-kind{ display:inline-flex; align-items:center; gap:6px; font-family:inherit; font-size:12.5px; padding:6px 12px; border-radius:999px;
   border:1px solid var(--bg-glass-border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:all .15s; }
 .cc-kind:hover{ border-color:var(--text-primary); color:var(--text-primary); }
@@ -776,6 +778,7 @@ html.cc-dt-on{ overflow:hidden; }
   <div class="cc-offline" id="ccOffline">กำลังเปิดจากไฟล์ในเครื่อง — ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น และแนบรูปไม่ได้ · เปิดที่ <b>admin.kan-hub.com/cmo/campaign-calendar</b> เพื่อบันทึกขึ้นเซิร์ฟเวอร์</div>
   <div class="cc-kindbar" id="ccKindBar"></div>
   <div class="cc-kindbar" id="ccBranchBar" style="margin-top:-6px"></div>
+  <div class="cc-kindbar" id="ccByBar" style="margin-top:-6px"></div>
   <div class="cc-stats" id="ccStats"></div>
   <div class="cc-kindbar cc-viewbar" id="ccViewBar"></div>
   <div id="ccView"></div>
@@ -907,6 +910,6 @@ html.cc-dt-on{ overflow:hidden; }
 
 <script src="erp-menu.js?v=56"></script>
 <script src="nav.js?v=31"></script>
-<script src="campaign-calendar.js?v=29"></script>
+<script src="campaign-calendar.js?v=30"></script>
 </body>
 </html>
